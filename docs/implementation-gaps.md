@@ -44,23 +44,23 @@ Status: Resolved 2026-04-28 for repository decision.
 
 Severity: High
 Area: Auth
-Current state: ADR-013 records the boundary between local auth, OIDC/social login, optional Keycloak broker behavior, and Microsoft 365 managed-provider admin consent. The final app boundary is not yet implemented.
-Impact: Auth implementation still needs tests to prevent over-coupling to Keycloak, duplicate OIDC behavior, or confusion between user sign-in and managed-provider onboarding.
-Next action: Implement Prompt 2 using ADR-013 as the boundary and add callback, account-linking, token-redaction, and provider-consent separation tests.
+Current state: ADR-013 records the boundary between local auth, OIDC/social login, optional Keycloak broker behavior, and Microsoft 365 managed-provider admin consent. Phase C added local email/password auth, session handling, token redaction tests, and OIDC/social-login placeholders that keep user sign-in separate from managed-provider onboarding.
+Impact: OIDC callback and account-linking behavior remains intentionally deferred; Microsoft/Google/GitHub sign-in must still avoid trusting email alone and must not share code paths with Microsoft 365 admin consent.
+Next action: When OIDC callbacks are explicitly in scope, update or confirm ADR-013 and add state, nonce, PKCE, issuer/audience/expiry/signature, account-linking conflict, and provider-consent separation tests.
 Owner: Codex
 Target phase: Phase C
-Status: Resolved 2026-04-28 for ADR coverage; implementation remains in Phase C.
+Status: Resolved 2026-04-28 for Phase C local auth and boundary placeholders; OIDC callback implementation remains deferred by design.
 
 ### GAP-004: Multitenancy Isolation Strategy Needs Enforcement Tests
 
 Severity: High
 Area: Security
-Current state: ADR-003 records service-layer organization scoping for V1 with an RLS-ready posture. Phase B added Prisma schema coverage and database contract tests that assert tenant-owned tables carry `organization_id`. Service-layer query enforcement tests are not implemented yet.
-Impact: Cross-tenant data access remains the highest product risk until API/service queries are covered by organization-scoped tests.
-Next action: Add organization-scoped service tests in Prompt 2 and revisit PostgreSQL RLS after the API repository boundaries settle.
+Current state: ADR-003 records service-layer organization scoping for V1 with an RLS-ready posture. Phase B added Prisma schema coverage and database contract tests that assert tenant-owned tables carry `organization_id`. Phase C added an RBAC guard and API integration coverage that rejects cross-organization member access.
+Impact: V1 service-layer enforcement is covered for the new auth/organization surface, but future tenant-owned services must keep adding scoped query tests as they are implemented.
+Next action: Continue adding organization-scoped service tests for each new tenant-owned API surface and revisit PostgreSQL RLS after the Prisma client and API repository boundaries settle.
 Owner: Codex
 Target phase: Phase B/C
-Status: Open. Phase B schema coverage added 2026-04-28; Phase C service-layer enforcement remains.
+Status: Resolved 2026-04-28 for Phase C auth/organization service-layer enforcement; PostgreSQL RLS remains a later hardening option.
 
 ### GAP-005: Romania Workbook Import Requires Structured Parser
 
@@ -220,9 +220,9 @@ Status: Resolved 2026-04-28 for Phase B contracts; Phase I builders remain plann
 
 Severity: Medium
 Area: Database/developer platform
-Current state: `schema.prisma` defines the Phase B database model and `packages/database/src/client.ts` exposes a client factory boundary, but the workspace does not yet include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
-Impact: Contract tests can validate the schema surface, but runtime database access cannot be exercised through Prisma until dependencies and migrations are wired.
-Next action: Add Prisma dependencies, generate the initial migration, and replace the factory placeholder with the generated Prisma client when the first database-backed service slice is implemented.
+Current state: `schema.prisma` defines the Phase B database model and Phase C auth indexes, while `packages/database/src/client.ts` exposes a client factory boundary. Phase C auth/organization behavior uses repository interfaces with an in-memory API adapter for tests; the workspace still does not include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
+Impact: Auth, organization, RBAC, and audit behavior can be tested, but the API does not yet persist these flows through PostgreSQL/Prisma.
+Next action: Add Prisma dependencies, generate the initial migration, and replace the in-memory API adapter with a Prisma-backed repository when the first database-backed service slice is implemented.
 Owner: Codex
 Target phase: Phase C/D
 Status: Open

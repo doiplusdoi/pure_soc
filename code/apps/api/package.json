@@ -7,6 +7,9 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@puresoc/audit": "workspace:*",
+    "@puresoc/auth-core": "workspace:*",
+    "@puresoc/auth-local": "workspace:*",
     "@puresoc/config": "workspace:*"
   }
 }

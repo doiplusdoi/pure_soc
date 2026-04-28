@@ -283,6 +283,8 @@ model Session {
   revokedAt            DateTime? @map("revoked_at")
   createdAt            DateTime  @default(now()) @map("created_at")
 
+  @@unique([sessionHash], map: "sessions_session_hash_key")
+  @@index([userId, revokedAt, expiresAt], map: "sessions_user_active_idx")
   @@map("sessions")
 }
 
@@ -307,6 +309,8 @@ model PasswordResetToken {
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  @@unique([tokenHash], map: "password_reset_tokens_token_hash_key")
+  @@index([userId, expiresAt], map: "password_reset_tokens_user_expiry_idx")
   @@map("password_reset_tokens")
 }
 
@@ -319,6 +323,8 @@ model EmailVerificationToken {
   usedAt    DateTime? @map("used_at")
   createdAt DateTime  @default(now()) @map("created_at")
 
+  @@unique([tokenHash], map: "email_verification_tokens_token_hash_key")
+  @@index([userId, email, expiresAt], map: "email_verification_tokens_user_email_expiry_idx")
   @@map("email_verification_tokens")
 }
 
@@ -366,6 +372,8 @@ model RoleBinding {
   scopeJson      Json     @default("{}") @map("scope_json")
   createdAt      DateTime @default(now()) @map("created_at")
 
+  @@unique([organizationId, userId, roleId], map: "role_bindings_org_user_role_key")
+  @@index([organizationId, userId], map: "role_bindings_org_user_idx")
   @@map("role_bindings")
 }
 
@@ -382,6 +390,9 @@ model AuditLog {
   afterJson      Json?    @map("after_json")
   createdAt      DateTime @default(now()) @map("created_at")
 
+  @@index([organizationId, createdAt], map: "audit_logs_org_created_idx")
+  @@index([actorUserId, createdAt], map: "audit_logs_actor_created_idx")
+  @@index([action, createdAt], map: "audit_logs_action_created_idx")
   @@map("audit_logs")
 }
 
