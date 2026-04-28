@@ -77,9 +77,9 @@ Status: Open
 
 Severity: High
 Area: Regulatory risk
-Current state: Product caveat is defined, and ADR-011 records the source activation lifecycle. Reviewer roles, review UI, and implementation are still undefined.
-Impact: Incorrect national guidance could create commercial and customer risk.
-Next action: Implement regulatory source activation lifecycle in Prompt 3 and define reviewer roles before activating country-pack legal changes.
+Current state: Product caveat is defined, ADR-011 records the source activation lifecycle, and Phase D added a regulatory source lifecycle skeleton in `code/packages/regulatory-sources` where changed legal logic defaults to `review_required` and creates a `regulatory_admin` review-task skeleton. Reviewer assignment rules, review persistence, approval UI, and legal/product operating procedure are still undefined.
+Impact: Incorrect national guidance could create commercial and customer risk if reviewers, approvals, and activation authority are not defined before real country-pack legal logic is activated.
+Next action: Define reviewer roles and approval workflow, then implement persisted `regulatory_review_tasks` and activation/supersession UI before activating source-derived country-pack or control changes.
 Owner: Product/legal
 Target phase: Phase D and Phase K
 Status: Open
@@ -231,9 +231,9 @@ Status: Open
 
 Severity: High
 Area: Regulatory/country packs
-Current state: Master plan and ADR-011 define draft, validation, review, activation, supersession, and immutable-history expectations. No implementation exists yet.
-Impact: Workbook or source-monitor changes could accidentally affect legal logic without review if this lifecycle is skipped.
-Next action: Implement the skeleton in Prompt 3 and expand it during Romania importer work.
+Current state: Phase D added a source activation lifecycle skeleton in `code/packages/regulatory-sources`, including `draft`, `validated`, `review_required`, `active`, and `superseded` states, changed-legal-logic defaulting to `review_required`, and tests that prevent auto-activation of changed legal logic.
+Impact: The domain guard now exists for imports and source monitors, but persistence, immutable source-version history, and reviewer workflow still need concrete implementation before legal changes become operational.
+Next action: Expand the skeleton during Phase E importer work with persisted source versions, source maps, validation reports, and review-task writes.
 Owner: Codex/Product/legal
 Target phase: Phase D/E
-Status: Open
+Status: Resolved 2026-04-28 for Phase D skeleton; persistence and review workflow remain tracked by GAP-006 and Phase E tasks.
