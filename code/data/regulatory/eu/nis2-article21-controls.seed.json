@@ -1,7 +1,136 @@
 {
   "schemaVersion": "0.1.0",
-  "frameworkKey": "nis2-eu",
+  "frameworkKey": "nis2",
   "article": "21",
   "status": "draft",
-  "controls": []
+  "sourceRecordId": "eu-nis2-directive-2022-2555",
+  "controlGroups": [
+    { "code": "NIS2-EU-GOV", "title": "Governance, management accountability, training" },
+    { "code": "NIS2-EU-RISK", "title": "Risk analysis and information system security policies" },
+    { "code": "NIS2-EU-INC", "title": "Incident handling and reporting" },
+    { "code": "NIS2-EU-BCP", "title": "Business continuity, backup, disaster recovery, crisis management" },
+    { "code": "NIS2-EU-SUPPLY", "title": "Supply chain security" },
+    { "code": "NIS2-EU-SDLC", "title": "Security in acquisition, development, maintenance, vulnerability handling/disclosure" },
+    { "code": "NIS2-EU-ASSESS", "title": "Effectiveness assessment and control testing" },
+    { "code": "NIS2-EU-HYGIENE", "title": "Basic cyber hygiene and cybersecurity training" },
+    { "code": "NIS2-EU-CRYPTO", "title": "Cryptography and encryption" },
+    { "code": "NIS2-EU-IAM", "title": "Human resources security, access control, asset management" },
+    { "code": "NIS2-EU-MFA", "title": "MFA, continuous authentication, secured communications" },
+    { "code": "NIS2-EU-LOG", "title": "Logging, monitoring, alerting" },
+    { "code": "NIS2-EU-DATA", "title": "Data protection, retention, DLP, information handling" },
+    { "code": "NIS2-EU-NET", "title": "Network and system security" },
+    { "code": "NIS2-EU-DOC", "title": "Documentation, evidence, auditability" }
+  ],
+  "controls": [
+    {
+      "code": "NIS2-EU-RISK-001",
+      "title": "Risk analysis and information system security policies",
+      "controlGroup": "NIS2-EU-RISK",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(a)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-INC-001",
+      "title": "Incident handling",
+      "controlGroup": "NIS2-EU-INC",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(b)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-BCP-001",
+      "title": "Business continuity, backup management, disaster recovery, and crisis management",
+      "controlGroup": "NIS2-EU-BCP",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(c)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-SUPPLY-001",
+      "title": "Supply chain security",
+      "controlGroup": "NIS2-EU-SUPPLY",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(d)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-SDLC-001",
+      "title": "Secure acquisition, development, maintenance, and vulnerability handling",
+      "controlGroup": "NIS2-EU-SDLC",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(e)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-ASSESS-001",
+      "title": "Effectiveness assessment of cybersecurity risk-management measures",
+      "controlGroup": "NIS2-EU-ASSESS",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(f)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-HYGIENE-001",
+      "title": "Basic cyber hygiene practices and cybersecurity training",
+      "controlGroup": "NIS2-EU-HYGIENE",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(g)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-CRYPTO-001",
+      "title": "Cryptography and encryption policies and procedures",
+      "controlGroup": "NIS2-EU-CRYPTO",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(h)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-IAM-001",
+      "title": "Human resources security, access control policies, and asset management",
+      "controlGroup": "NIS2-EU-IAM",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(i)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    },
+    {
+      "code": "NIS2-EU-MFA-001",
+      "title": "Multi-factor authentication and secure communications where appropriate",
+      "controlGroup": "NIS2-EU-MFA",
+      "implementationType": "technical",
+      "applicability": "all",
+      "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "21", "paragraph": "2(j)" }],
+      "providerMappings": [],
+      "evidenceRequired": [],
+      "manualChecklistTemplateIds": []
+    }
+  ]
 }

@@ -139,6 +139,7 @@ enum RegulatorySourceStatus {
 
 enum CountryPackCompleteness {
   baseline_only
+  planned_full_pack
   official_sources_identified
   registration_rules_partial
   classification_rules_partial

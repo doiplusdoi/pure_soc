@@ -1,10 +1,70 @@
 {
   "schemaVersion": "0.1.0",
-  "frameworkKey": "nis2-eu",
+  "frameworkKey": "nis2",
   "article": "23",
   "status": "draft",
+  "sourceRecordId": "eu-nis2-directive-2022-2555",
   "incidentWorkflow": {
     "countryOverridesRequired": true,
-    "steps": []
+    "steps": [
+      {
+        "key": "incident_detected",
+        "title": "Incident detected",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "significance_assessment",
+        "title": "Significance assessment",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "country_reporting_route_selected",
+        "title": "Country reporting route selected",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "early_warning_due",
+        "title": "Early warning due",
+        "defaultTiming": "without undue delay and in any event within 24 hours of becoming aware",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "incident_notification_due",
+        "title": "Incident notification due",
+        "defaultTiming": "without undue delay and in any event within 72 hours of becoming aware",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "intermediate_report_if_requested",
+        "title": "Intermediate report if requested",
+        "defaultTiming": "upon request of CSIRT or competent authority",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "final_report_due",
+        "title": "Final report due",
+        "defaultTiming": "no later than one month after the incident notification",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "recipient_customer_notification_if_required",
+        "title": "Recipient/customer notification if required",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      },
+      {
+        "key": "evidence_package_closed",
+        "title": "Evidence package closed",
+        "countryOverrideAllowed": true,
+        "legalReference": [{ "sourceRecordId": "eu-nis2-directive-2022-2555", "article": "23" }]
+      }
+    ]
   }
 }

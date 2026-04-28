@@ -1,5 +1,5 @@
 export { createDatabaseClient, databaseSchemaPath, type DatabaseClient, type DatabaseClientFactory } from "./client";
-export { euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
+export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,
   providerResourceIdentityFields,

@@ -1,6 +1,7 @@
 export interface EuMemberStateSeed {
   code: string;
   countryCode: string;
+  countryName: string;
   name: string;
   officialLanguages: string[];
   currency: "EUR" | "BGN" | "CZK" | "DKK" | "HUF" | "PLN" | "RON" | "SEK";
@@ -10,6 +11,8 @@ export interface EuMemberStateSeed {
   lastSourceReviewedAt: string | null;
   nextReviewDueAt: string | null;
 }
+
+export const EU_MEMBER_STATE_COUNT = 27;
 
 export const euMemberStates: EuMemberStateSeed[] = [
   memberState("AT", "Austria", ["de"], "EUR"),
@@ -53,6 +56,7 @@ function memberState(
   return {
     code,
     countryCode,
+    countryName: name,
     name,
     officialLanguages,
     currency,

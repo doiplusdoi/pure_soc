@@ -2,6 +2,7 @@ import { createServer } from "node:http";
 
 import { getApiHealth } from "./health";
 import { loginRoute, logoutRoute, registerRoute, sessionRoute } from "./auth/routes";
+import { countryPackStatusRoute } from "./compliance/nis2/routes";
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, readRequestContext, sendJson, toJsonResultError } from "./http";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
@@ -37,6 +38,11 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
       if (request.method === "GET" && url.pathname === "/auth/session") {
         sendJson(response, await sessionRoute(request.headers.cookie, services));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/compliance/nis2/country-packs/status") {
+        sendJson(response, await countryPackStatusRoute());
         return;
       }
 
