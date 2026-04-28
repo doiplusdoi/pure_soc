@@ -12,6 +12,11 @@ import {
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, readRequestContext, sendJson, toJsonResultError } from "./http";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
+import {
+  createMockProviderConnectionRoute,
+  listProviderConnectionsRoute,
+  runProviderSyncRoute
+} from "./provider-connections/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   const server = createServer(async (request, response) => {
@@ -74,6 +79,47 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
       if (request.method === "POST" && url.pathname === "/organizations") {
         sendJson(response, await createOrganizationRoute(body, request.headers.cookie, context, services));
+        return;
+      }
+
+      const providerConnectionsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/provider-connections$/);
+      if (providerConnectionsRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listProviderConnectionsRoute(providerConnectionsRouteMatch[1] ?? "", request.headers.cookie, services)
+        );
+        return;
+      }
+
+      if (providerConnectionsRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createMockProviderConnectionRoute(
+            providerConnectionsRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const providerSyncRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/sync$/
+      );
+      if (providerSyncRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await runProviderSyncRoute(
+            providerSyncRouteMatch[1] ?? "",
+            providerSyncRouteMatch[2] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
         return;
       }
 

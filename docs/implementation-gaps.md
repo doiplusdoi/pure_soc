@@ -187,12 +187,12 @@ Status: Resolved 2026-04-28 for initial prompt rewrite; ongoing QA remains requi
 
 Severity: High
 Area: Provider connectors/testing
-Current state: Prompt 6 now requires sync-run, pagination, retry/throttling, redaction, idempotency, partial-failure, and no-live-write tests, but the harness is not implemented.
-Impact: Provider integrations could silently fail, leak secrets, create duplicate resources, or accidentally exercise live write paths.
-Next action: Implement Prompt 6 before Microsoft live onboarding work.
+Current state: Phase F now includes provider-neutral connector contracts, an in-memory provider resource store, mock provider scenarios, connector-runner job contract, API provider-connection skeleton, and deterministic tests for raw-to-normalized-to-finding-to-recommendation flow, idempotent upsert, module partial failure, pagination, retry/throttling, token/secret redaction, no-live-write guard, and cross-organization resource rejection.
+Impact: The provider connector harness is available for mocked Phase F development. Live Microsoft Graph permission validation and exact permission bundle details remain deferred to Phase G and tracked by GAP-007.
+Next action: Reuse the mock harness in Phase G Microsoft onboarding and add live-doc-validated Graph permission fixtures without enabling write/remediation actions.
 Owner: Codex
 Target phase: Phase F
-Status: Open
+Status: Resolved 2026-04-28 for the provider-neutral mock harness.
 
 ### GAP-017: Billing Implementation Prompt Was Missing
 

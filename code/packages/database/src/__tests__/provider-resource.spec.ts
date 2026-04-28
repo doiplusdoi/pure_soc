@@ -42,5 +42,13 @@ describe("provider resource contract", () => {
     expect(normalized).toContain('@map("raw_resource_id")');
     expect(normalized).not.toContain('@map("raw_json")');
   });
-});
 
+  it("persists module-level pagination and retry telemetry", () => {
+    const syncModule = tableBody("provider_sync_modules");
+
+    expect(syncModule).toContain('@map("pages_read")');
+    expect(syncModule).toContain('@map("retry_count")');
+    expect(syncModule).toContain('@map("missing_permissions")');
+    expect(syncModule).toContain('@map("missing_licenses")');
+  });
+});

@@ -8,4 +8,10 @@ export {
   roNis2OnboardingProgressRoute,
   roNis2OnboardingSchemaRoute
 } from "./compliance/nis2/ro";
+export {
+  createMockProviderConnectionRoute,
+  listProviderConnectionsRoute,
+  runProviderSyncRoute
+} from "./provider-connections/routes";
+export { ProviderConnectionsService, type ProviderConnectionView } from "./provider-connections/service";
 export { requireOrganizationRole } from "./rbac/index";

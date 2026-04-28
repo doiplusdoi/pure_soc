@@ -650,6 +650,8 @@ model ProviderSyncModule {
   missingPermissions   String[]             @map("missing_permissions")
   missingLicenses      String[]             @map("missing_licenses")
   statusReason         String?              @map("status_reason")
+  pagesRead            Int                  @default(0) @map("pages_read")
+  retryCount           Int                  @default(0) @map("retry_count")
   startedAt            DateTime             @default(now()) @map("started_at")
   completedAt          DateTime?            @map("completed_at")
 

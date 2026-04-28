@@ -5,6 +5,7 @@ import {
   LocalAuthService
 } from "../../../../packages/auth/local/src/index";
 import { OrganizationService } from "../organizations/service";
+import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
 
 export interface ApiServices {
@@ -13,6 +14,7 @@ export interface ApiServices {
   auditWriter: AuditWriter;
   localAuth: LocalAuthService;
   organizations: OrganizationService;
+  providerConnections: ProviderConnectionsService;
 }
 
 export const createApiServices = (options: { now?: () => Date } = {}): ApiServices => {
@@ -39,12 +41,17 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     auditWriter,
     now: options.now
   });
+  const providerConnections = new ProviderConnectionsService({
+    auditWriter,
+    now: options.now
+  });
 
   return {
     repository,
     auditSink,
     auditWriter,
     localAuth,
-    organizations
+    organizations,
+    providerConnections
   };
 };

@@ -1,34 +1,76 @@
-import type { ProviderKey as CoreProviderKey } from "./resources";
-
 export type {
+  BeginConnectionInput,
+  CloudProviderConnector,
+  CompleteConnectionInput,
+  ConnectionRedirect,
+  ProviderCapabilityRecord,
+  ProviderConnectionRecord,
+  ProviderConnectionResult,
+  ProviderEvaluationInput,
+  ProviderModuleSyncResult,
+  ProviderPermissionBundleRecord,
+  ProviderSyncModuleRecord,
+  ProviderSyncRunRecord,
+  RecommendationInput,
+  SyncInput,
+  TenantProfileInput
+} from "./connector";
+export { emptyProviderModuleSyncResult } from "./connector";
+export {
+  runProviderConnectorPipeline,
+  type ProviderPipelineInput,
+  type ProviderPipelineResult
+} from "./pipeline";
+export {
+  assertReadOnlyProviderOperation,
+  isSensitiveProviderKey,
+  ProviderConnectorError,
+  redactProviderSecrets
+} from "./redaction";
+export type {
+  CloudAction,
+  CloudAdminRole,
+  CloudApplication,
+  CloudAuditEvent,
+  CloudDevice,
+  CloudFinding,
+  CloudGroup,
+  CloudIncident,
+  CloudLicense,
+  CloudPolicy,
+  CloudRecommendation,
+  CloudResourceBase,
+  CloudSecureScore,
+  CloudSecurityAlert,
+  CloudTenant,
+  CloudUser,
+  ProviderAutomationMode,
+  ProviderConnectionStatus,
   ProviderFinding,
+  ProviderFindingInput,
+  ProviderFindingSeverity,
+  ProviderFindingStatus,
   ProviderKey,
   ProviderNormalizedResource,
+  ProviderNormalizedResourceInput,
   ProviderRawResource,
+  ProviderRawResourceInput,
   ProviderRecommendation,
+  ProviderRecommendationInput,
+  ProviderRecommendationStatus,
+  ProviderRecommendationType,
   ProviderResourceIdentity,
-  ProviderResourceType
+  ProviderResourceType,
+  ProviderSyncModuleStatus
 } from "./resources";
 export { providerResourceIdempotencyParts } from "./resources";
-
-export interface ProviderSyncModuleResult {
-  moduleKey: string;
-  status:
-    | "succeeded"
-    | "partial"
-    | "failed"
-    | "skipped"
-    | "unavailable_license"
-    | "missing_permission"
-    | "unsupported_api"
-    | "rate_limited"
-    | "revoked_consent";
-  missingPermissions: string[];
-  missingLicenses: string[];
-  statusReason?: string;
-}
-
-export interface CloudProviderConnector {
-  providerKey: CoreProviderKey;
-  syncReadOnlyModules(): Promise<ProviderSyncModuleResult[]>;
-}
+export {
+  contentHash,
+  InMemoryProviderResourceStore,
+  providerNormalizedResourceIdempotencyKey,
+  providerResourceIdempotencyKey,
+  ProviderStoreIsolationError,
+  stableStringify,
+  type CreateProviderConnectionInput,
+  type ProviderResourceStore
+} from "./storage";

@@ -9,9 +9,12 @@ export {
 } from "./contracts/provider-resource";
 export { schemaGroups, tenantOwnedTables, type SchemaGroupName, type TenantOwnedTable } from "./contracts/schema-groups";
 export type {
+  ProviderCapabilityRecord,
   ProviderConnectionRecord,
   ProviderFindingRecord,
   ProviderModuleStatus,
+  ProviderPermissionBundleRecord,
+  ProviderRecommendationRecord,
   ProviderSyncModuleRecord,
   ProviderSyncRunRecord
 } from "./contracts/connector";
