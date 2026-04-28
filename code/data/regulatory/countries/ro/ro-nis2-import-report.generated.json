@@ -1,0 +1,7 @@
+{
+  "schemaVersion": "0.1.0",
+  "country": "ro",
+  "status": "not_run",
+  "sourceWorkbook": "nis2ro-tool-v-2-1.xlsx",
+  "notes": "Prompt 4 will replace this placeholder with a deterministic importer validation report."
+}

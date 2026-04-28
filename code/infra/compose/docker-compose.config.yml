@@ -1,0 +1,8 @@
+name: puresoc-config
+
+services:
+  puresoc-regulatory-importer:
+    image: puresoc-regulatory-importer:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.regulatory-importer

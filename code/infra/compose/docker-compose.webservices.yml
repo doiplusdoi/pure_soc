@@ -1,0 +1,13 @@
+name: puresoc-webservices
+
+services:
+  puresoc-web:
+    image: puresoc-web:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+  puresoc-api:
+    image: puresoc-api:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api

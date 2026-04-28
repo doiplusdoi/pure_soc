@@ -1,0 +1,6 @@
+name: puresoc-storage
+
+services:
+  puresoc-object-storage:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    command: server /data --console-address ":9001"

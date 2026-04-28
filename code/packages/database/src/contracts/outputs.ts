@@ -1,0 +1,142 @@
+export type ComplianceStatus =
+  | "not_started"
+  | "not_applicable"
+  | "passing"
+  | "failing"
+  | "partial"
+  | "unsupported"
+  | "needs_evidence"
+  | "accepted_risk";
+
+export type Severity = "informational" | "low" | "medium" | "high" | "critical";
+
+export type AutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
+
+export interface ComplianceControlResultContract {
+  id: string;
+  organizationId: string;
+  assessmentId: string;
+  controlId: string;
+  jurisdiction: string;
+  status: ComplianceStatus;
+  confidence: "low" | "medium" | "high";
+  providerSignalIds: string[];
+  evidenceArtifactIds: string[];
+  checklistRunItemIds: string[];
+  summary: string;
+  evaluatedAt: string;
+}
+
+export interface ComplianceGapContract {
+  id: string;
+  organizationId: string;
+  assessmentId: string;
+  jurisdiction: string;
+  controlId: string;
+  status: ComplianceStatus;
+  severity: Exclude<Severity, "informational">;
+  confidence: "low" | "medium" | "high";
+  summary: string;
+  findings: string[];
+  missingEvidence: string[];
+  recommendedActions: string[];
+  providerSignals: string[];
+  manualTasks: string[];
+  countryPackWarnings: string[];
+}
+
+export interface ReadinessPlanContract {
+  id: string;
+  organizationId: string;
+  assessmentId: string;
+  title: string;
+  targetReadinessPercent: 100;
+  status: "draft" | "active" | "completed" | "superseded";
+}
+
+export interface ReadinessPlanItemContract {
+  id: string;
+  organizationId: string;
+  readinessPlanId: string;
+  controlId?: string;
+  providerRecommendationId?: string;
+  jurisdiction: string;
+  gapSummary: string;
+  recommendedAction: string;
+  actionType:
+    | "manual"
+    | "guided"
+    | "technical"
+    | "process"
+    | "evidence_upload"
+    | "country_registration"
+    | "incident_reporting";
+  ownerUserId?: string;
+  dueDate?: string;
+  automationAvailable: boolean;
+  evidenceRequired: boolean;
+  dependencies: string[];
+  status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+  legalReviewRequired: boolean;
+}
+
+export interface EvidenceArtifactContract {
+  id: string;
+  organizationId: string;
+  controlId?: string;
+  jurisdiction?: string;
+  sourceType:
+    | "provider_snapshot"
+    | "manual_upload"
+    | "generated_report"
+    | "signed_document"
+    | "checklist_completion"
+    | "action_pre_state"
+    | "action_post_state"
+    | "audit_log_export"
+    | "policy_document"
+    | "risk_acceptance"
+    | "regulatory_source_snapshot"
+    | "country_registration_draft"
+    | "incident_reporting_draft";
+  sourceProvider?: string;
+  title: string;
+  storageUri: string;
+  contentHashSha256: string;
+  mimeType: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface GeneratedReportContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  reportType: string;
+  jurisdiction?: string;
+  legalCaveat: string;
+  sourceReferences: string[];
+  reportData: Record<string, unknown>;
+  evidenceArtifactId?: string;
+}
+
+export interface DashboardSnapshotContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  snapshotType: string;
+  source: "stored_analysis";
+  snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface NotificationDraftContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  jurisdiction: string;
+  notificationType: "country_registration" | "incident_reporting" | "readiness_update";
+  status: "draft" | "ready_for_review" | "exported" | "superseded";
+  payload: Record<string, unknown>;
+  sourceReferences: string[];
+}

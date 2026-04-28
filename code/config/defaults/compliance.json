@@ -1,0 +1,5 @@
+{
+  "defaultJurisdiction": "eu",
+  "countryPackMode": "baseline_with_country_overlays",
+  "sourceActivationDefault": "review_required"
+}

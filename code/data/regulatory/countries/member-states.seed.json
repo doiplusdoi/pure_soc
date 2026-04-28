@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "0.1.0",
+  "source": "PureSOC planning baseline from docs/puresoc_vision.md",
+  "memberStates": [
+    { "code": "at", "name": "Austria", "countryPackStatus": "baseline_only" },
+    { "code": "be", "name": "Belgium", "countryPackStatus": "baseline_only" },
+    { "code": "bg", "name": "Bulgaria", "countryPackStatus": "baseline_only" },
+    { "code": "hr", "name": "Croatia", "countryPackStatus": "baseline_only" },
+    { "code": "cy", "name": "Cyprus", "countryPackStatus": "baseline_only" },
+    { "code": "cz", "name": "Czechia", "countryPackStatus": "baseline_only" },
+    { "code": "dk", "name": "Denmark", "countryPackStatus": "baseline_only" },
+    { "code": "ee", "name": "Estonia", "countryPackStatus": "baseline_only" },
+    { "code": "fi", "name": "Finland", "countryPackStatus": "baseline_only" },
+    { "code": "fr", "name": "France", "countryPackStatus": "baseline_only" },
+    { "code": "de", "name": "Germany", "countryPackStatus": "baseline_only" },
+    { "code": "gr", "name": "Greece", "countryPackStatus": "baseline_only" },
+    { "code": "hu", "name": "Hungary", "countryPackStatus": "baseline_only" },
+    { "code": "ie", "name": "Ireland", "countryPackStatus": "baseline_only" },
+    { "code": "it", "name": "Italy", "countryPackStatus": "baseline_only" },
+    { "code": "lv", "name": "Latvia", "countryPackStatus": "baseline_only" },
+    { "code": "lt", "name": "Lithuania", "countryPackStatus": "baseline_only" },
+    { "code": "lu", "name": "Luxembourg", "countryPackStatus": "baseline_only" },
+    { "code": "mt", "name": "Malta", "countryPackStatus": "baseline_only" },
+    { "code": "nl", "name": "Netherlands", "countryPackStatus": "baseline_only" },
+    { "code": "pl", "name": "Poland", "countryPackStatus": "baseline_only" },
+    { "code": "pt", "name": "Portugal", "countryPackStatus": "baseline_only" },
+    { "code": "ro", "name": "Romania", "countryPackStatus": "planned_full_pack" },
+    { "code": "sk", "name": "Slovakia", "countryPackStatus": "baseline_only" },
+    { "code": "si", "name": "Slovenia", "countryPackStatus": "baseline_only" },
+    { "code": "es", "name": "Spain", "countryPackStatus": "baseline_only" },
+    { "code": "se", "name": "Sweden", "countryPackStatus": "baseline_only" }
+  ]
+}

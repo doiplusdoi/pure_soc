@@ -104,6 +104,12 @@ Package manager decision: use `pnpm` unless implementation discovery finds a str
 
 ## 6. System Boundaries
 
+Repository layout convention:
+
+- The shared AI project template keeps application code under `code/`.
+- Paths in this section are app-relative unless they explicitly start with `docs/` or another root-level path.
+- For example, `apps/api` means `code/apps/api`.
+
 Apps:
 
 - `apps/web`: user portal, onboarding, dashboards, workflows, reports.
@@ -381,18 +387,19 @@ puresoc-mock-microsoft365
 Configuration should live in:
 
 ```txt
-.env.example
-config/defaults/app.json
-config/defaults/auth.json
-config/defaults/connectors.json
-config/defaults/compliance.json
-config/defaults/reports.json
-config/defaults/billing.json
+code/.env.example
+code/config/defaults/app.json
+code/config/defaults/auth.json
+code/config/defaults/connectors.json
+code/config/defaults/compliance.json
+code/config/defaults/reports.json
+code/config/defaults/billing.json
 ```
 
 Compose acceptance is limited to proving that image definitions, service names, environment variables, default config, and dependency wiring are coherent:
 
 ```txt
+cd code
 docker compose -f infra/compose/docker-compose.yml config
 ```
 
@@ -647,6 +654,7 @@ Phase K: Release readiness.
 Phase A service-catalog gate:
 
 ```txt
+cd code
 pnpm lint
 pnpm test
 docker compose -f infra/compose/docker-compose.yml config

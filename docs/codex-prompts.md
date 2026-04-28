@@ -2,6 +2,21 @@
 
 Use these prompts as implementation tickets. Each implementation prompt must include source documents, expected files or packages, negative constraints, tests, acceptance commands, gap-register updates, and a final summary.
 
+## Repository Path Convention
+
+PureSOC uses the shared AI project template layout. Application paths in implementation prompts are relative to `code/` unless they explicitly start with `docs/` or another root-level path.
+
+Examples:
+
+```txt
+apps/api -> code/apps/api
+packages/config -> code/packages/config
+infra/compose/docker-compose.yml -> code/infra/compose/docker-compose.yml
+data/regulatory -> code/data/regulatory
+```
+
+Run package manager, test, and Compose commands from `code/`.
+
 ## Required Prompt Template
 
 Each implementation prompt must end with:
@@ -116,6 +131,7 @@ Tests:
 - package import smoke tests
 
 Acceptance commands:
+- cd code
 - pnpm install
 - pnpm lint
 - pnpm test

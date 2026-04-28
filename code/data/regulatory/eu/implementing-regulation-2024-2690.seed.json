@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "frameworkKey": "nis2-implementing-regulation-2024-2690",
+  "status": "draft",
+  "sourceAnchors": [
+    "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+    "https://digital-strategy.ec.europa.eu/en/library/nis2-commission-implementing-regulation-critical-entities-and-networks"
+  ],
+  "notes": "Overlay shell for relevant digital entities. Detailed technical requirements are implemented in later regulatory phases."
+}

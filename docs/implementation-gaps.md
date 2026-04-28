@@ -22,45 +22,45 @@ Status:
 
 Severity: High
 Area: Repository
-Current state: Repo contains source docs and planning artifacts only. No application monorepo exists yet.
-Impact: No executable product code or tests.
-Next action: Run Prompt 1A from `docs/codex-prompts.md`.
+Current state: Phase A scaffold exists under `code/` following the shared AI project template. It includes app/package placeholders, config defaults, service catalog, Dockerfiles, regulatory data folders, the Romania workbook application copy, and initial tests.
+Impact: Product behavior is still mostly placeholder, but the executable workspace baseline exists.
+Next action: Continue with Prompt 1B for database schema and core data contracts.
 Owner: Codex
 Target phase: Phase A
-Status: Open
+Status: Resolved 2026-04-28. Validation passed with `npx pnpm@10.33.2 lint`, `npx pnpm@10.33.2 test`, and `docker compose -f infra/compose/docker-compose.yml config` from `code/`.
 
 ### GAP-002: Package Manager Not Confirmed by Implementation
 
 Severity: Medium
 Area: Developer platform
-Current state: Master plan recommends pnpm, but no package files exist.
-Impact: Tooling choices are still reversible.
-Next action: Confirm pnpm during Phase A bootstrap and record ADR-001.
+Current state: `code/package.json` sets `packageManager` to `pnpm@10.33.2`, `code/pnpm-workspace.yaml` defines workspace packages, and `code/pnpm-lock.yaml` was generated.
+Impact: Package manager is now selected for app work. The local sandbox image does not expose pnpm directly, so validation currently uses host `npx pnpm@10.33.2`.
+Next action: Ensure developer machines or automation images provide pnpm 10.33.2 directly or invoke it through Corepack/npx.
 Owner: Codex
 Target phase: Phase A
-Status: Open
+Status: Resolved 2026-04-28 for repository decision.
 
 ### GAP-003: Auth Broker Boundary Needs ADR
 
 Severity: High
 Area: Auth
-Current state: Vision supports local auth plus Microsoft, Google, GitHub, and optional Keycloak broker. Prompt 2 now explicitly separates local auth, OIDC/social sign-in, and Microsoft 365 admin consent, but the final app boundary is not yet implemented or recorded.
-Impact: Auth implementation could become over-coupled to Keycloak, duplicate OIDC behavior, or confuse user sign-in with managed-provider connection onboarding.
-Next action: Record an auth/OIDC boundary ADR before implementing OIDC callbacks beyond placeholders.
+Current state: ADR-013 records the boundary between local auth, OIDC/social login, optional Keycloak broker behavior, and Microsoft 365 managed-provider admin consent. The final app boundary is not yet implemented.
+Impact: Auth implementation still needs tests to prevent over-coupling to Keycloak, duplicate OIDC behavior, or confusion between user sign-in and managed-provider onboarding.
+Next action: Implement Prompt 2 using ADR-013 as the boundary and add callback, account-linking, token-redaction, and provider-consent separation tests.
 Owner: Codex
 Target phase: Phase C
-Status: Open
+Status: Resolved 2026-04-28 for ADR coverage; implementation remains in Phase C.
 
 ### GAP-004: Multitenancy Isolation Strategy Needs Enforcement Tests
 
 Severity: High
 Area: Security
-Current state: Plan requires organization scoping and later RLS consideration, but no schema exists.
-Impact: Cross-tenant data access is the highest product risk.
-Next action: Add organization-scoped service tests in Prompt 1B and Prompt 2; consider RLS ADR after schema baseline.
+Current state: ADR-003 records service-layer organization scoping for V1 with an RLS-ready posture. Phase B added Prisma schema coverage and database contract tests that assert tenant-owned tables carry `organization_id`. Service-layer query enforcement tests are not implemented yet.
+Impact: Cross-tenant data access remains the highest product risk until API/service queries are covered by organization-scoped tests.
+Next action: Add organization-scoped service tests in Prompt 2 and revisit PostgreSQL RLS after the API repository boundaries settle.
 Owner: Codex
 Target phase: Phase B/C
-Status: Open
+Status: Open. Phase B schema coverage added 2026-04-28; Phase C service-layer enforcement remains.
 
 ### GAP-005: Romania Workbook Import Requires Structured Parser
 
@@ -77,7 +77,7 @@ Status: Open
 
 Severity: High
 Area: Regulatory risk
-Current state: Product caveat is defined, but no legal review workflow for country-pack changes exists.
+Current state: Product caveat is defined, and ADR-011 records the source activation lifecycle. Reviewer roles, review UI, and implementation are still undefined.
 Impact: Incorrect national guidance could create commercial and customer risk.
 Next action: Implement regulatory source activation lifecycle in Prompt 3 and define reviewer roles before activating country-pack legal changes.
 Owner: Product/legal
@@ -88,7 +88,7 @@ Status: Open
 
 Severity: Medium
 Area: Microsoft connector
-Current state: Bundle names and modules are planned, but exact Graph permissions must be validated against current Microsoft docs during implementation.
+Current state: ADR-009 records the permission-bundle strategy and read-only-first boundary, but exact Graph permissions must be validated against current Microsoft docs during implementation.
 Impact: Consent flow may request too much, too little, or unavailable permissions.
 Next action: Validate permissions while implementing Prompt 7 and record mapping table in `docs/microsoft365-permissions.md`.
 Owner: Codex
@@ -99,12 +99,12 @@ Status: Open
 
 Severity: High
 Area: Evidence/reporting
-Current state: Object storage targets are known, and Prompt 9 now requires metadata, checksums, access audit, cross-org rejection, legal caveat, source references, and stable export JSON. The final evidence/report data model is not yet recorded.
-Impact: Evidence vault, reports, and dashboards could diverge or expose incomplete traceability if implemented without one contract.
-Next action: Record evidence/report/export ADR before implementing evidence upload and report generation.
+Current state: ADR-007 records the report-renderer strategy and ADR-008 records evidence metadata, access audit, object-storage, and export-model boundaries. The concrete implementation is not yet built.
+Impact: Evidence vault, reports, and dashboards now have a documented contract boundary, but implementation still needs cross-organization, access-audit, legal-caveat, and source-reference tests.
+Next action: Implement Prompt 9 using ADR-007 and ADR-008 as the output/evidence contract.
 Owner: Codex
 Target phase: Phase I
-Status: Open
+Status: Resolved 2026-04-28 for ADR coverage; implementation remains in Phase I.
 
 ### GAP-009: UX Design System Not Chosen
 
@@ -154,23 +154,23 @@ Status: Open
 
 Severity: High
 Area: Service topology
-Current state: Master plan now limits repository-owned Docker work to image definitions, Compose service catalog, default config, and service dependencies. No Compose files or Dockerfiles exist yet.
-Impact: DevOps cannot begin pipeline work from a clear application service/image inventory.
-Next action: Run Prompt 1A and create the Compose split for data, storage, webservices, jobs, connectors, reports, and config.
+Current state: Compose service catalog and Dockerfiles exist under `code/infra/`. Main Compose config includes web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer, postgres, redis, and object storage. Split Compose files exist for data, storage, webservices, jobs, connectors, reports, and config.
+Impact: DevOps can consume a clear application service/image inventory. Runtime commands are still placeholders until each app is implemented.
+Next action: Replace placeholder service commands as real app builds are added.
 Owner: Codex
 Target phase: Phase A
-Status: Open
+Status: Resolved 2026-04-28. `docker compose -f infra/compose/docker-compose.yml config` passes from `code/`.
 
 ### GAP-014: Application Database Schema And Data Contracts Missing
 
 Severity: High
 Area: Database/data model
-Current state: Master plan now defines schema groups and the connector-to-output analytical spine, but no Prisma schema or type contracts exist.
-Impact: Feature work could drift into ad hoc models that make recommendations, reports, dashboards, and provider telemetry hard to connect.
-Next action: Run Prompt 1B before auth, connector, compliance, evidence, or UI implementation.
+Current state: Phase B added `code/packages/database/prisma/schema.prisma`, database client factory placeholder, EU Member State seed metadata, connector/output contracts, provider resource contracts, recommendation/report/dashboard contracts, and tests for schema groups, organization scoping, provider resource idempotency, raw vs normalized resources, and output data flow.
+Impact: Feature work now has a shared schema and contract baseline. Runtime Prisma migration/client generation is still tracked separately in GAP-020.
+Next action: Use the Phase B contracts for auth, provider, compliance, evidence, report, dashboard, and billing implementations.
 Owner: Codex
 Target phase: Phase B
-Status: Open
+Status: Resolved 2026-04-28 for schema and data-contract baseline.
 
 ### GAP-015: Prompt Suite Initially Did Not Meet Prompt Test Protocol
 
@@ -209,18 +209,29 @@ Status: Resolved 2026-04-28 for prompt coverage.
 
 Severity: High
 Area: Outputs/analytics
-Current state: Master plan and Prompt 9 require dashboards and reports to derive from stored analysis records, but no report/dashboard contracts exist.
-Impact: UI and reports could drift into one-off calculations or live provider calls instead of repeatable, auditable output.
-Next action: Implement report and dashboard type contracts in Prompt 1B, then concrete builders in Prompt 9.
+Current state: Phase B added report and dashboard TypeScript contracts backed by stored analysis records, plus tests proving recommendations can feed plan items, reports, and dashboard signals. Concrete report builders, evidence package generation, and dashboard aggregation queries remain Phase I work.
+Impact: UI and output implementations now have stable contract shapes, but customer-facing builders still need implementation before the output gate is complete.
+Next action: Implement concrete report builders, legal-caveat checks, source-reference joins, and dashboard aggregation queries in Prompt 9.
 Owner: Codex
 Target phase: Phase B/I
+Status: Resolved 2026-04-28 for Phase B contracts; Phase I builders remain planned.
+
+### GAP-020: Prisma Migration And Generated Client Workflow Not Wired
+
+Severity: Medium
+Area: Database/developer platform
+Current state: `schema.prisma` defines the Phase B database model and `packages/database/src/client.ts` exposes a client factory boundary, but the workspace does not yet include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
+Impact: Contract tests can validate the schema surface, but runtime database access cannot be exercised through Prisma until dependencies and migrations are wired.
+Next action: Add Prisma dependencies, generate the initial migration, and replace the factory placeholder with the generated Prisma client when the first database-backed service slice is implemented.
+Owner: Codex
+Target phase: Phase C/D
 Status: Open
 
 ### GAP-019: Regulatory Source Activation Lifecycle Not Implemented
 
 Severity: High
 Area: Regulatory/country packs
-Current state: Master plan now defines draft, validation, review, activation, supersession, and immutable-history expectations. No implementation exists yet.
+Current state: Master plan and ADR-011 define draft, validation, review, activation, supersession, and immutable-history expectations. No implementation exists yet.
 Impact: Workbook or source-monitor changes could accidentally affect legal logic without review if this lifecycle is skipped.
 Next action: Implement the skeleton in Prompt 3 and expand it during Romania importer work.
 Owner: Codex/Product/legal

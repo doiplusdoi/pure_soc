@@ -1,0 +1,1319 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum AuthProviderKey {
+  local
+  microsoft_entra
+  google
+  github
+  keycloak_broker
+}
+
+enum OrganizationMemberStatus {
+  invited
+  active
+  suspended
+  removed
+}
+
+enum ProviderConnectionStatus {
+  pending
+  connected
+  degraded
+  revoked
+  failed
+}
+
+enum ProviderCredentialType {
+  oauth_token
+  certificate
+  service_account
+  api_key
+}
+
+enum ProviderModuleStatus {
+  pending
+  running
+  succeeded
+  partial
+  failed
+  skipped
+  unavailable_license
+  missing_permission
+  unsupported_api
+  rate_limited
+  revoked_consent
+}
+
+enum ResourceLifecycleStatus {
+  active
+  stale
+  deleted
+}
+
+enum FindingSeverity {
+  informational
+  low
+  medium
+  high
+  critical
+}
+
+enum FindingStatus {
+  open
+  acknowledged
+  resolved
+  suppressed
+}
+
+enum RecommendationType {
+  manual
+  guided
+  technical
+  process
+  evidence_upload
+  country_registration
+  incident_reporting
+}
+
+enum AutomationMode {
+  manual
+  guided
+  preflightable
+  executable_later
+}
+
+enum RecommendationStatus {
+  proposed
+  accepted
+  planned
+  completed
+  dismissed
+}
+
+enum ProviderActionRunStatus {
+  draft
+  preflight_pending
+  preflight_failed
+  approval_requested
+  approved
+  queued
+  running
+  succeeded
+  failed
+  verification_failed
+  canceled
+}
+
+enum RegulatorySourceType {
+  directive
+  regulation
+  official_national_law
+  official_authority_guidance
+  official_registration_portal
+  official_commission_country_page
+  enisa_reference
+  secondary_tracker
+  internal_excel_seed
+}
+
+enum RegulatorySourceTrustLevel {
+  primary
+  secondary
+  internal_seed
+}
+
+enum RegulatorySourceStatus {
+  draft
+  active
+  stale
+  superseded
+  unreachable
+}
+
+enum CountryPackCompleteness {
+  baseline_only
+  official_sources_identified
+  registration_rules_partial
+  classification_rules_partial
+  incident_rules_partial
+  full_pack_ready
+  requires_legal_review
+  deprecated
+}
+
+enum AssessmentStatus {
+  draft
+  running
+  completed
+  superseded
+}
+
+enum ComplianceStatus {
+  not_started
+  not_applicable
+  passing
+  failing
+  partial
+  unsupported
+  needs_evidence
+  accepted_risk
+}
+
+enum EvidenceSourceType {
+  provider_snapshot
+  manual_upload
+  generated_report
+  signed_document
+  checklist_completion
+  action_pre_state
+  action_post_state
+  audit_log_export
+  policy_document
+  risk_acceptance
+  regulatory_source_snapshot
+  country_registration_draft
+  incident_reporting_draft
+}
+
+enum EvidenceScanStatus {
+  pending
+  clean
+  infected
+  failed
+  skipped
+}
+
+enum GeneratedReportStatus {
+  draft
+  rendering
+  ready
+  failed
+  superseded
+}
+
+enum ExportStatus {
+  queued
+  running
+  ready
+  failed
+  expired
+}
+
+enum NotificationDraftStatus {
+  draft
+  ready_for_review
+  exported
+  superseded
+}
+
+enum BillingProviderKey {
+  none
+  stripe
+  offline_license
+}
+
+enum BillingSubscriptionStatus {
+  trialing
+  active
+  past_due
+  canceled
+  incomplete
+  unpaid
+  offline_active
+  none
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique
+  displayName     String?   @map("display_name")
+  locale          String?   @default("en")
+  disabledAt      DateTime? @map("disabled_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+model IdentityAccount {
+  id              String          @id @default(uuid()) @db.Uuid
+  userId          String          @map("user_id") @db.Uuid
+  providerKey     AuthProviderKey @map("provider_key")
+  providerSubject String          @map("provider_subject")
+  providerEmail   String?         @map("provider_email")
+  displayName     String?         @map("display_name")
+  createdAt       DateTime        @default(now()) @map("created_at")
+  lastLoginAt     DateTime?       @map("last_login_at")
+
+  @@unique([providerKey, providerSubject], map: "identity_accounts_provider_subject_key")
+  @@map("identity_accounts")
+}
+
+model LocalCredential {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @unique @map("user_id") @db.Uuid
+  email                 String    @unique
+  passwordHash          String    @map("password_hash")
+  passwordHashAlgorithm String    @map("password_hash_algorithm")
+  passwordUpdatedAt     DateTime  @map("password_updated_at")
+  emailVerifiedAt       DateTime? @map("email_verified_at")
+  failedLoginCount      Int       @default(0) @map("failed_login_count")
+  lockedUntil           DateTime? @map("locked_until")
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("local_credentials")
+}
+
+model Session {
+  id                   String    @id @default(uuid()) @db.Uuid
+  userId               String    @map("user_id") @db.Uuid
+  activeOrganizationId String?   @map("active_organization_id") @db.Uuid
+  sessionHash          String    @map("session_hash")
+  ipAddress            String?   @map("ip_address")
+  userAgent            String?   @map("user_agent")
+  expiresAt            DateTime  @map("expires_at")
+  revokedAt            DateTime? @map("revoked_at")
+  createdAt            DateTime  @default(now()) @map("created_at")
+
+  @@map("sessions")
+}
+
+model MfaFactor {
+  id           String    @id @default(uuid()) @db.Uuid
+  userId       String    @map("user_id") @db.Uuid
+  factorType   String    @map("factor_type")
+  displayName  String?   @map("display_name")
+  secretHash   String?   @map("secret_hash")
+  enabledAt    DateTime? @map("enabled_at")
+  disabledAt   DateTime? @map("disabled_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+
+  @@map("mfa_factors")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  email     String
+  tokenHash String    @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@map("email_verification_tokens")
+}
+
+model Organization {
+  id                      String    @id @default(uuid()) @db.Uuid
+  name                    String
+  legalName               String?   @map("legal_name")
+  billingStatus           String    @default("none") @map("billing_status")
+  defaultLocale           String    @default("en") @map("default_locale")
+  primaryCountryCode      String?   @map("primary_country_code")
+  headquartersCountryCode String?   @map("headquarters_country_code")
+  createdAt               DateTime  @default(now()) @map("created_at")
+  updatedAt               DateTime  @updatedAt @map("updated_at")
+
+  @@map("organizations")
+}
+
+model OrganizationMember {
+  id             String                   @id @default(uuid()) @db.Uuid
+  organizationId String                   @map("organization_id") @db.Uuid
+  userId         String                   @map("user_id") @db.Uuid
+  status         OrganizationMemberStatus @default(invited)
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  @@unique([organizationId, userId], map: "organization_members_org_user_key")
+  @@map("organization_members")
+}
+
+model Role {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("roles")
+}
+
+model RoleBinding {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  roleId         String   @map("role_id") @db.Uuid
+  scopeJson      Json     @default("{}") @map("scope_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("role_bindings")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  actorUserId    String?  @map("actor_user_id") @db.Uuid
+  targetType     String   @map("target_type")
+  targetId       String?  @map("target_id")
+  action         String
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  beforeJson     Json?    @map("before_json")
+  afterJson      Json?    @map("after_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("audit_logs")
+}
+
+model CustomerProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  displayName    String   @map("display_name")
+  legalName      String?  @map("legal_name")
+  taxIdentifier  String?  @map("tax_identifier")
+  metadataJson   Json     @default("{}") @map("metadata_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("customer_profiles")
+}
+
+model BusinessProfile {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  customerProfileId String? @map("customer_profile_id") @db.Uuid
+  entityName     String   @map("entity_name")
+  sectorJson     Json     @default("{}") @map("sector_json")
+  sizeJson       Json     @default("{}") @map("size_json")
+  answersJson    Json     @default("{}") @map("answers_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("business_profiles")
+}
+
+model BusinessLocation {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessProfileId String @map("business_profile_id") @db.Uuid
+  countryCode    String   @map("country_code")
+  region         String?
+  city           String?
+  addressLine    String?  @map("address_line")
+  isHeadquarters Boolean  @default(false) @map("is_headquarters")
+
+  @@map("business_locations")
+}
+
+model BusinessContact {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessProfileId String @map("business_profile_id") @db.Uuid
+  role           String
+  name           String
+  email          String?
+  phone          String?
+
+  @@map("business_contacts")
+}
+
+model BusinessService {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessProfileId String @map("business_profile_id") @db.Uuid
+  serviceKey     String   @map("service_key")
+  name           String
+  description    String?
+  criticality    String?
+
+  @@map("business_services")
+}
+
+model BusinessServiceCountry {
+  id                String @id @default(uuid()) @db.Uuid
+  organizationId    String @map("organization_id") @db.Uuid
+  businessServiceId String @map("business_service_id") @db.Uuid
+  countryCode       String @map("country_code")
+
+  @@unique([businessServiceId, countryCode], map: "business_service_countries_service_country_key")
+  @@map("business_service_countries")
+}
+
+model BusinessNaceCode {
+  id             String @id @default(uuid()) @db.Uuid
+  organizationId String @map("organization_id") @db.Uuid
+  businessProfileId String @map("business_profile_id") @db.Uuid
+  code           String
+  label          String?
+
+  @@map("business_nace_codes")
+}
+
+model BusinessSizeAssessment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessProfileId String @map("business_profile_id") @db.Uuid
+  employeeCount  Int?     @map("employee_count")
+  annualRevenue  Decimal? @map("annual_revenue")
+  balanceSheetTotal Decimal? @map("balance_sheet_total")
+  sizeCategory   String?  @map("size_category")
+  sourceJson     Json     @default("{}") @map("source_json")
+  assessedAt     DateTime @default(now()) @map("assessed_at")
+
+  @@map("business_size_assessments")
+}
+
+model JurisdictionAssessment {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  businessProfileId String? @map("business_profile_id") @db.Uuid
+  jurisdiction   String
+  applicability  String
+  classification String?
+  rationaleJson  Json     @default("{}") @map("rationale_json")
+  assessedAt     DateTime @default(now()) @map("assessed_at")
+
+  @@map("jurisdiction_assessments")
+}
+
+model CustomerDocument {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  customerProfileId String? @map("customer_profile_id") @db.Uuid
+  title          String
+  documentType   String   @map("document_type")
+  storageUri     String   @map("storage_uri")
+  contentHashSha256 String @map("content_hash_sha256")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("customer_documents")
+}
+
+model ProviderConnection {
+  id                    String                   @id @default(uuid()) @db.Uuid
+  organizationId        String                   @map("organization_id") @db.Uuid
+  providerKey           String                   @map("provider_key")
+  displayName           String                   @map("display_name")
+  externalTenantId      String?                  @map("external_tenant_id")
+  externalTenantName    String?                  @map("external_tenant_name")
+  status                ProviderConnectionStatus @default(pending)
+  readEnabled           Boolean                  @default(true) @map("read_enabled")
+  writeEnabled          Boolean                  @default(false) @map("write_enabled")
+  metadataJson          Json                     @default("{}") @map("metadata_json")
+  lastSuccessfulSyncAt  DateTime?                @map("last_successful_sync_at")
+  createdAt             DateTime                 @default(now()) @map("created_at")
+  updatedAt             DateTime                 @updatedAt @map("updated_at")
+
+  @@map("provider_connections")
+}
+
+model ProviderCredential {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  organizationId       String                 @map("organization_id") @db.Uuid
+  providerConnectionId String                 @map("provider_connection_id") @db.Uuid
+  credentialType       ProviderCredentialType @map("credential_type")
+  encryptedPayload     String                 @map("encrypted_payload")
+  expiresAt            DateTime?              @map("expires_at")
+  rotationRequired     Boolean                @default(false) @map("rotation_required")
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+
+  @@map("provider_credentials")
+}
+
+model ProviderPermissionBundle {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  providerConnectionId String   @map("provider_connection_id") @db.Uuid
+  providerKey          String   @map("provider_key")
+  bundleKey            String   @map("bundle_key")
+  permissionsRequired  String[] @map("permissions_required")
+  permissionsGranted   String[] @map("permissions_granted")
+  enabled              Boolean  @default(false)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([providerConnectionId, bundleKey], map: "provider_permission_bundles_connection_bundle_key")
+  @@map("provider_permission_bundles")
+}
+
+model ProviderCapability {
+  id                   String               @id @default(uuid()) @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  providerConnectionId String               @map("provider_connection_id") @db.Uuid
+  providerKey          String               @map("provider_key")
+  moduleKey            String               @map("module_key")
+  capabilityKey        String               @map("capability_key")
+  available            Boolean              @default(false)
+  licenseRequired      String[]             @map("license_required")
+  licenseDetected      String[]             @map("license_detected")
+  permissionsRequired  String[]             @map("permissions_required")
+  permissionsGranted   String[]             @map("permissions_granted")
+  status               ProviderModuleStatus @default(pending)
+  statusReason         String?              @map("status_reason")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  @@unique([providerConnectionId, capabilityKey], map: "provider_capabilities_connection_capability_key")
+  @@map("provider_capabilities")
+}
+
+model ProviderSyncRun {
+  id                   String               @id @default(uuid()) @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  providerConnectionId String               @map("provider_connection_id") @db.Uuid
+  providerKey          String               @map("provider_key")
+  status               ProviderModuleStatus @default(pending)
+  startedAt            DateTime             @default(now()) @map("started_at")
+  completedAt          DateTime?            @map("completed_at")
+  errorJson            Json?                @map("error_json")
+  summaryJson          Json                 @default("{}") @map("summary_json")
+
+  @@map("provider_sync_runs")
+}
+
+model ProviderSyncModule {
+  id                   String               @id @default(uuid()) @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  providerConnectionId String               @map("provider_connection_id") @db.Uuid
+  syncRunId            String               @map("sync_run_id") @db.Uuid
+  providerKey          String               @map("provider_key")
+  moduleKey            String               @map("module_key")
+  status               ProviderModuleStatus @default(pending)
+  missingPermissions   String[]             @map("missing_permissions")
+  missingLicenses      String[]             @map("missing_licenses")
+  statusReason         String?              @map("status_reason")
+  startedAt            DateTime             @default(now()) @map("started_at")
+  completedAt          DateTime?            @map("completed_at")
+
+  @@unique([syncRunId, moduleKey], map: "provider_sync_modules_run_module_key")
+  @@map("provider_sync_modules")
+}
+
+model ProviderRawResource {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  organizationId       String                  @map("organization_id") @db.Uuid
+  providerConnectionId String                  @map("provider_connection_id") @db.Uuid
+  providerKey          String                  @map("provider_key")
+  externalId           String                  @map("external_id")
+  externalResourceType String                  @map("external_resource_type")
+  sourceModule         String                  @map("source_module")
+  syncRunId            String                  @map("sync_run_id") @db.Uuid
+  rawJson              Json                    @map("raw_json")
+  contentHash          String                  @map("content_hash")
+  firstSeenAt          DateTime                @default(now()) @map("first_seen_at")
+  lastSeenAt           DateTime                @default(now()) @map("last_seen_at")
+  deletedAt            DateTime?               @map("deleted_at")
+  lifecycleStatus      ResourceLifecycleStatus @default(active) @map("lifecycle_status")
+
+  @@unique([organizationId, providerConnectionId, providerKey, externalResourceType, externalId], map: "provider_resource_idempotency_key")
+  @@map("provider_raw_resources")
+}
+
+model ProviderNormalizedResource {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  organizationId       String                  @map("organization_id") @db.Uuid
+  providerConnectionId String                  @map("provider_connection_id") @db.Uuid
+  providerKey          String                  @map("provider_key")
+  rawResourceId        String?                 @map("raw_resource_id") @db.Uuid
+  externalId           String                  @map("external_id")
+  externalResourceType String                  @map("external_resource_type")
+  resourceType         String                  @map("resource_type")
+  sourceModule         String                  @map("source_module")
+  normalizedJson       Json                    @map("normalized_json")
+  contentHash          String                  @map("content_hash")
+  firstSeenAt          DateTime                @default(now()) @map("first_seen_at")
+  lastSeenAt           DateTime                @default(now()) @map("last_seen_at")
+  deletedAt            DateTime?               @map("deleted_at")
+  lifecycleStatus      ResourceLifecycleStatus @default(active) @map("lifecycle_status")
+
+  @@unique([organizationId, providerConnectionId, providerKey, resourceType, externalId], map: "provider_normalized_resource_idempotency_key")
+  @@map("provider_normalized_resources")
+}
+
+model ProviderFinding {
+  id                   String          @id @default(uuid()) @db.Uuid
+  organizationId       String          @map("organization_id") @db.Uuid
+  providerConnectionId String          @map("provider_connection_id") @db.Uuid
+  normalizedResourceId String?         @map("normalized_resource_id") @db.Uuid
+  syncRunId            String?         @map("sync_run_id") @db.Uuid
+  providerKey          String          @map("provider_key")
+  moduleKey            String          @map("module_key")
+  findingKey           String          @map("finding_key")
+  title                String
+  summary              String
+  severity             FindingSeverity
+  status               FindingStatus   @default(open)
+  evidenceJson         Json            @default("{}") @map("evidence_json")
+  firstSeenAt          DateTime        @default(now()) @map("first_seen_at")
+  lastSeenAt           DateTime        @default(now()) @map("last_seen_at")
+  resolvedAt           DateTime?       @map("resolved_at")
+
+  @@unique([organizationId, providerConnectionId, providerKey, findingKey], map: "provider_findings_connection_finding_key")
+  @@map("provider_findings")
+}
+
+model ProviderRecommendation {
+  id                   String               @id @default(uuid()) @db.Uuid
+  organizationId       String               @map("organization_id") @db.Uuid
+  providerConnectionId String?              @map("provider_connection_id") @db.Uuid
+  sourceFindingId      String?              @map("source_finding_id") @db.Uuid
+  providerKey          String               @map("provider_key")
+  moduleKey            String?              @map("module_key")
+  controlId            String?              @map("control_id") @db.Uuid
+  jurisdiction         String
+  title                String
+  summary              String
+  severity             FindingSeverity
+  confidence           String
+  recommendationType   RecommendationType   @map("recommendation_type")
+  automationMode       AutomationMode       @map("automation_mode")
+  requiredPermissions  String[]             @map("required_permissions")
+  requiredLicense      String[]             @map("required_license")
+  expectedChange       String?              @map("expected_change")
+  blastRadius          String?              @map("blast_radius")
+  manualFallback       String?              @map("manual_fallback")
+  evidenceRequired     Boolean              @default(false) @map("evidence_required")
+  status               RecommendationStatus @default(proposed)
+  createdAt            DateTime             @default(now()) @map("created_at")
+  updatedAt            DateTime             @updatedAt @map("updated_at")
+
+  @@map("provider_recommendations")
+}
+
+model ProviderActionTemplate {
+  id                  String         @id @default(uuid()) @db.Uuid
+  organizationId      String?        @map("organization_id") @db.Uuid
+  providerKey         String         @map("provider_key")
+  moduleKey           String?        @map("module_key")
+  actionKey           String         @map("action_key")
+  title               String
+  riskLevel           FindingSeverity @map("risk_level")
+  licenseRequired     String[]       @map("license_required")
+  permissionsRequired String[]       @map("permissions_required")
+  preconditionsJson   Json           @default("{}") @map("preconditions_json")
+  expectedChange      String         @map("expected_change")
+  blastRadius         String         @map("blast_radius")
+  rollbackStrategy    String         @map("rollback_strategy")
+  manualFallback      String         @map("manual_fallback")
+  enabled             Boolean        @default(false)
+  createdAt           DateTime       @default(now()) @map("created_at")
+
+  @@unique([providerKey, actionKey, organizationId], map: "provider_action_templates_provider_action_org_key")
+  @@map("provider_action_templates")
+}
+
+model ProviderActionRun {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  organizationId       String                  @map("organization_id") @db.Uuid
+  providerConnectionId String                  @map("provider_connection_id") @db.Uuid
+  recommendationId     String?                 @map("recommendation_id") @db.Uuid
+  actionTemplateId     String?                 @map("action_template_id") @db.Uuid
+  providerKey          String                  @map("provider_key")
+  moduleKey            String?                 @map("module_key")
+  actionType           String                  @map("action_type")
+  status               ProviderActionRunStatus @default(draft)
+  approvedBy           String?                 @map("approved_by") @db.Uuid
+  approvedAt           DateTime?               @map("approved_at")
+  executedByService    String?                 @map("executed_by_service")
+  executedAt           DateTime?               @map("executed_at")
+  preStateEvidenceId   String?                 @map("pre_state_evidence_id") @db.Uuid
+  postStateEvidenceId  String?                 @map("post_state_evidence_id") @db.Uuid
+  verificationStatus   String?                 @map("verification_status")
+  runJson              Json                    @default("{}") @map("run_json")
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  @@map("provider_action_runs")
+}
+
+model RegulatoryFramework {
+  id          String   @id @default(uuid()) @db.Uuid
+  key         String   @unique
+  name        String
+  description String?
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@map("regulatory_frameworks")
+}
+
+model RegulatoryFrameworkVersion {
+  id            String   @id @default(uuid()) @db.Uuid
+  frameworkId   String   @map("framework_id") @db.Uuid
+  versionLabel  String   @map("version_label")
+  effectiveFrom DateTime? @map("effective_from")
+  effectiveUntil DateTime? @map("effective_until")
+  sourceJson    Json     @default("{}") @map("source_json")
+  status        String   @default("draft")
+
+  @@unique([frameworkId, versionLabel], map: "regulatory_framework_versions_framework_version_key")
+  @@map("regulatory_framework_versions")
+}
+
+model RegulatorySource {
+  id             String                     @id @default(uuid()) @db.Uuid
+  frameworkKey   String                     @map("framework_key")
+  jurisdiction   String
+  sourceType     RegulatorySourceType       @map("source_type")
+  title          String
+  url            String?
+  localFilePath  String?                    @map("local_file_path")
+  publicationDate DateTime?                 @map("publication_date")
+  lastCheckedAt  DateTime?                  @map("last_checked_at")
+  versionLabel   String?                    @map("version_label")
+  authorityName  String?                    @map("authority_name")
+  trustLevel     RegulatorySourceTrustLevel @map("trust_level")
+  status         RegulatorySourceStatus     @default(draft)
+  notes          String?
+
+  @@map("regulatory_sources")
+}
+
+model RegulatorySourceVersion {
+  id                  String   @id @default(uuid()) @db.Uuid
+  sourceId            String   @map("source_id") @db.Uuid
+  versionLabel        String   @map("version_label")
+  contentHashSha256   String?  @map("content_hash_sha256")
+  metadataJson        Json     @default("{}") @map("metadata_json")
+  activatedAt         DateTime? @map("activated_at")
+  supersededAt        DateTime? @map("superseded_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@unique([sourceId, versionLabel], map: "regulatory_source_versions_source_version_key")
+  @@map("regulatory_source_versions")
+}
+
+model RegulatorySourceSnapshot {
+  id                String   @id @default(uuid()) @db.Uuid
+  sourceId          String   @map("source_id") @db.Uuid
+  sourceVersionId   String?  @map("source_version_id") @db.Uuid
+  storageUri        String   @map("storage_uri")
+  contentHashSha256 String   @map("content_hash_sha256")
+  capturedAt        DateTime @default(now()) @map("captured_at")
+
+  @@map("regulatory_source_snapshots")
+}
+
+model RegulatoryReviewTask {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid
+  sourceId       String?  @map("source_id") @db.Uuid
+  countryPackVersionId String? @map("country_pack_version_id") @db.Uuid
+  assignedRoleKey String? @map("assigned_role_key")
+  status         String   @default("open")
+  reason         String
+  createdAt      DateTime @default(now()) @map("created_at")
+  resolvedAt     DateTime? @map("resolved_at")
+
+  @@map("regulatory_review_tasks")
+}
+
+model Jurisdiction {
+  id                      String   @id @default(uuid()) @db.Uuid
+  countryCode             String   @unique @map("country_code")
+  countryName             String   @map("country_name")
+  officialLanguages       String[] @map("official_languages")
+  currency                String
+  commissionCountryPageUrl String? @map("commission_country_page_url")
+  nationalAuthorityStatus String   @default("unknown") @map("national_authority_status")
+  countryPackStatus       CountryPackCompleteness @default(baseline_only) @map("country_pack_status")
+  lastSourceReviewedAt    DateTime? @map("last_source_reviewed_at")
+  nextReviewDueAt         DateTime? @map("next_review_due_at")
+
+  @@map("jurisdictions")
+}
+
+model CountryPack {
+  id             String                  @id @default(uuid()) @db.Uuid
+  countryCode    String                  @unique @map("country_code")
+  name           String
+  completeness   CountryPackCompleteness @default(baseline_only)
+  activeVersionId String?                @map("active_version_id") @db.Uuid
+  unsupportedFeatures Json               @default("[]") @map("unsupported_features")
+
+  @@map("country_packs")
+}
+
+model CountryPackVersion {
+  id              String                  @id @default(uuid()) @db.Uuid
+  countryPackId   String                  @map("country_pack_id") @db.Uuid
+  versionLabel    String                  @map("version_label")
+  completeness    CountryPackCompleteness
+  sourceSummaryJson Json                  @default("{}") @map("source_summary_json")
+  status          RegulatorySourceStatus  @default(draft)
+  createdAt       DateTime                @default(now()) @map("created_at")
+  activatedAt     DateTime?               @map("activated_at")
+
+  @@unique([countryPackId, versionLabel], map: "country_pack_versions_pack_version_key")
+  @@map("country_pack_versions")
+}
+
+model RegulatoryQuestion {
+  id              String   @id @default(uuid()) @db.Uuid
+  countryPackVersionId String? @map("country_pack_version_id") @db.Uuid
+  frameworkKey    String   @map("framework_key")
+  jurisdiction    String
+  questionKey     String   @map("question_key")
+  prompt          String
+  answerType      String   @map("answer_type")
+  sourceMapId     String?  @map("source_map_id") @db.Uuid
+
+  @@unique([jurisdiction, questionKey, countryPackVersionId], map: "regulatory_questions_jurisdiction_key_version_key")
+  @@map("regulatory_questions")
+}
+
+model RegulatoryOption {
+  id          String @id @default(uuid()) @db.Uuid
+  questionId  String @map("question_id") @db.Uuid
+  optionKey   String @map("option_key")
+  label       String
+  valueJson   Json   @default("{}") @map("value_json")
+
+  @@map("regulatory_options")
+}
+
+model RegulatoryAnswer {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  questionId     String   @map("question_id") @db.Uuid
+  assessmentId   String?  @map("assessment_id") @db.Uuid
+  answerJson     Json     @map("answer_json")
+  answeredBy     String?  @map("answered_by") @db.Uuid
+  answeredAt     DateTime @default(now()) @map("answered_at")
+
+  @@map("regulatory_answers")
+}
+
+model RegulatorySourceMap {
+  id              String   @id @default(uuid()) @db.Uuid
+  sourceId         String   @map("source_id") @db.Uuid
+  sourceVersionId  String?  @map("source_version_id") @db.Uuid
+  targetCollection String   @map("target_collection")
+  targetKey        String   @map("target_key")
+  sourceLocation   String   @map("source_location")
+  mappingJson      Json     @default("{}") @map("mapping_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  @@map("regulatory_source_maps")
+}
+
+model ControlCatalog {
+  id                String   @id @default(uuid()) @db.Uuid
+  frameworkKey      String   @map("framework_key")
+  jurisdictionScope String   @map("jurisdiction_scope")
+  jurisdiction      String?
+  code              String
+  title             String
+  description       String
+  controlGroup      String   @map("control_group")
+  applicability     String
+  implementationType String  @map("implementation_type")
+  activeVersionId   String?  @map("active_version_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@unique([frameworkKey, jurisdictionScope, jurisdiction, code], map: "control_catalog_framework_jurisdiction_code_key")
+  @@map("control_catalog")
+}
+
+model ControlVersion {
+  id          String   @id @default(uuid()) @db.Uuid
+  controlId   String   @map("control_id") @db.Uuid
+  version     String
+  bodyJson    Json     @map("body_json")
+  status      RegulatorySourceStatus @default(draft)
+  createdAt   DateTime @default(now()) @map("created_at")
+  activatedAt DateTime? @map("activated_at")
+
+  @@unique([controlId, version], map: "control_versions_control_version_key")
+  @@map("control_versions")
+}
+
+model ControlLegalReference {
+  id              String  @id @default(uuid()) @db.Uuid
+  controlId        String  @map("control_id") @db.Uuid
+  sourceRecordId   String  @map("source_record_id") @db.Uuid
+  article          String?
+  paragraph        String?
+  annex            String?
+  nationalReference String? @map("national_reference")
+  sourceUrl        String? @map("source_url")
+  sourceVersion    String? @map("source_version")
+
+  @@map("control_legal_references")
+}
+
+model ControlProviderMapping {
+  id                    String   @id @default(uuid()) @db.Uuid
+  controlId              String   @map("control_id") @db.Uuid
+  providerKey            String   @map("provider_key")
+  moduleKey              String   @map("module_key")
+  signalKeys             String[] @map("signal_keys")
+  recommendationKeys     String[] @map("recommendation_keys")
+  canAutoEvaluate        Boolean  @default(false) @map("can_auto_evaluate")
+  canAutoRemediate       Boolean  @default(false) @map("can_auto_remediate")
+  licenseRequirements    String[] @map("license_requirements")
+  permissionRequirements String[] @map("permission_requirements")
+
+  @@map("control_provider_mappings")
+}
+
+model ControlEvidenceRequirement {
+  id             String @id @default(uuid()) @db.Uuid
+  controlId      String @map("control_id") @db.Uuid
+  jurisdiction   String
+  requirementKey String @map("requirement_key")
+  title          String
+  description    String?
+  sourceMapId    String? @map("source_map_id") @db.Uuid
+
+  @@map("control_evidence_requirements")
+}
+
+model ComplianceAssessment {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  frameworkKey   String           @map("framework_key")
+  jurisdiction   String
+  status         AssessmentStatus @default(draft)
+  inputJson      Json             @default("{}") @map("input_json")
+  startedAt      DateTime?        @map("started_at")
+  completedAt    DateTime?        @map("completed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  @@map("compliance_assessments")
+}
+
+model ComplianceControlResult {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  assessmentId   String           @map("assessment_id") @db.Uuid
+  controlId      String           @map("control_id") @db.Uuid
+  jurisdiction   String
+  status         ComplianceStatus
+  confidence     String
+  providerSignalIds String[]      @map("provider_signal_ids")
+  evidenceArtifactIds String[]    @map("evidence_artifact_ids")
+  checklistRunItemIds String[]    @map("checklist_run_item_ids")
+  summary        String
+  evaluatedAt    DateTime         @default(now()) @map("evaluated_at")
+
+  @@unique([assessmentId, controlId, jurisdiction], map: "compliance_control_results_assessment_control_jurisdiction_key")
+  @@map("compliance_control_results")
+}
+
+model ComplianceGap {
+  id                 String          @id @default(uuid()) @db.Uuid
+  organizationId     String          @map("organization_id") @db.Uuid
+  assessmentId       String          @map("assessment_id") @db.Uuid
+  controlResultId    String?         @map("control_result_id") @db.Uuid
+  controlId          String          @map("control_id") @db.Uuid
+  jurisdiction       String
+  status             ComplianceStatus
+  severity           FindingSeverity
+  confidence         String
+  summary            String
+  findingsJson       Json            @default("[]") @map("findings_json")
+  missingEvidenceJson Json           @default("[]") @map("missing_evidence_json")
+  recommendedActionsJson Json        @default("[]") @map("recommended_actions_json")
+  providerSignalsJson Json           @default("[]") @map("provider_signals_json")
+  manualTasksJson    Json            @default("[]") @map("manual_tasks_json")
+  countryPackWarningsJson Json       @default("[]") @map("country_pack_warnings_json")
+  createdAt          DateTime        @default(now()) @map("created_at")
+
+  @@map("compliance_gaps")
+}
+
+model ReadinessPlan {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  assessmentId   String   @map("assessment_id") @db.Uuid
+  title          String
+  targetReadinessPercent Int @default(100) @map("target_readiness_percent")
+  status         String   @default("draft")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("readiness_plans")
+}
+
+model ReadinessPlanItem {
+  id                  String               @id @default(uuid()) @db.Uuid
+  organizationId      String               @map("organization_id") @db.Uuid
+  readinessPlanId     String               @map("readiness_plan_id") @db.Uuid
+  controlId           String?              @map("control_id") @db.Uuid
+  providerRecommendationId String?         @map("provider_recommendation_id") @db.Uuid
+  jurisdiction        String
+  gapSummary          String               @map("gap_summary")
+  recommendedAction   String               @map("recommended_action")
+  actionType          RecommendationType   @map("action_type")
+  ownerUserId         String?              @map("owner_user_id") @db.Uuid
+  dueDate             DateTime?            @map("due_date")
+  automationAvailable Boolean              @default(false) @map("automation_available")
+  evidenceRequired    Boolean              @default(false) @map("evidence_required")
+  dependenciesJson    Json                 @default("[]") @map("dependencies_json")
+  status              RecommendationStatus @default(proposed)
+  legalReviewRequired Boolean              @default(false) @map("legal_review_required")
+  createdAt           DateTime             @default(now()) @map("created_at")
+
+  @@map("readiness_plan_items")
+}
+
+model RiskAcceptance {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  controlId      String   @map("control_id") @db.Uuid
+  assessmentId   String?  @map("assessment_id") @db.Uuid
+  acceptedBy     String   @map("accepted_by") @db.Uuid
+  reason         String
+  expiresAt      DateTime? @map("expires_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("risk_acceptances")
+}
+
+model ChecklistTemplate {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  templateKey    String  @map("template_key")
+  title          String
+  jurisdiction   String?
+  sourceControlId String? @map("source_control_id") @db.Uuid
+
+  @@map("checklist_templates")
+}
+
+model ChecklistTemplateItem {
+  id             String  @id @default(uuid()) @db.Uuid
+  organizationId String? @map("organization_id") @db.Uuid
+  templateId     String  @map("template_id") @db.Uuid
+  itemKey        String  @map("item_key")
+  title          String
+  description    String?
+  sortOrder      Int     @default(0) @map("sort_order")
+
+  @@map("checklist_template_items")
+}
+
+model ChecklistRun {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  templateId     String   @map("template_id") @db.Uuid
+  assessmentId   String?  @map("assessment_id") @db.Uuid
+  status         String   @default("open")
+  createdAt      DateTime @default(now()) @map("created_at")
+  completedAt    DateTime? @map("completed_at")
+
+  @@map("checklist_runs")
+}
+
+model ChecklistRunItem {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  checklistRunId String   @map("checklist_run_id") @db.Uuid
+  templateItemId String?  @map("template_item_id") @db.Uuid
+  status         String   @default("open")
+  evidenceArtifactId String? @map("evidence_artifact_id") @db.Uuid
+  completedBy    String?  @map("completed_by") @db.Uuid
+  completedAt    DateTime? @map("completed_at")
+
+  @@map("checklist_run_items")
+}
+
+model EvidenceArtifact {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  controlId            String?            @map("control_id") @db.Uuid
+  jurisdiction         String?
+  sourceType           EvidenceSourceType @map("source_type")
+  sourceProvider       String?            @map("source_provider")
+  title                String
+  description          String?
+  storageUri           String             @map("storage_uri")
+  contentHashSha256    String             @map("content_hash_sha256")
+  mimeType             String             @map("mime_type")
+  sizeBytes            BigInt?            @map("size_bytes")
+  scanStatus           EvidenceScanStatus @default(pending) @map("scan_status")
+  createdBy            String?            @map("created_by") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at")
+  validFrom            DateTime?          @map("valid_from")
+  validUntil           DateTime?          @map("valid_until")
+  linkedAssessmentId   String?            @map("linked_assessment_id") @db.Uuid
+  linkedActionId       String?            @map("linked_action_id") @db.Uuid
+  linkedSourceRecordId String?            @map("linked_source_record_id") @db.Uuid
+  exportGroupKey       String?            @map("export_group_key")
+
+  @@map("evidence_artifacts")
+}
+
+model EvidenceLink {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  evidenceArtifactId String   @map("evidence_artifact_id") @db.Uuid
+  targetType         String   @map("target_type")
+  targetId           String   @map("target_id")
+  relation           String
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("evidence_links")
+}
+
+model EvidenceAccessLog {
+  id                 String   @id @default(uuid()) @db.Uuid
+  organizationId     String   @map("organization_id") @db.Uuid
+  evidenceArtifactId String   @map("evidence_artifact_id") @db.Uuid
+  actorUserId        String?  @map("actor_user_id") @db.Uuid
+  action             String
+  ipAddress          String?  @map("ip_address")
+  userAgent          String?  @map("user_agent")
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  @@map("evidence_access_logs")
+}
+
+model GeneratedReport {
+  id                String                @id @default(uuid()) @db.Uuid
+  organizationId    String                @map("organization_id") @db.Uuid
+  assessmentId      String?               @map("assessment_id") @db.Uuid
+  reportType        String                @map("report_type")
+  jurisdiction      String?
+  status            GeneratedReportStatus @default(draft)
+  legalCaveat       String                @map("legal_caveat")
+  sourceReferencesJson Json               @default("[]") @map("source_references_json")
+  reportDataJson    Json                  @map("report_data_json")
+  evidenceArtifactId String?              @map("evidence_artifact_id") @db.Uuid
+  createdBy         String?               @map("created_by") @db.Uuid
+  createdAt         DateTime              @default(now()) @map("created_at")
+
+  @@map("generated_reports")
+}
+
+model ReportExport {
+  id               String       @id @default(uuid()) @db.Uuid
+  organizationId   String       @map("organization_id") @db.Uuid
+  generatedReportId String      @map("generated_report_id") @db.Uuid
+  exportFormat     String       @map("export_format")
+  status           ExportStatus @default(queued)
+  storageUri       String?      @map("storage_uri")
+  contentHashSha256 String?     @map("content_hash_sha256")
+  createdAt        DateTime     @default(now()) @map("created_at")
+  expiresAt        DateTime?    @map("expires_at")
+
+  @@map("report_exports")
+}
+
+model DashboardSnapshot {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  assessmentId   String?  @map("assessment_id") @db.Uuid
+  snapshotType   String   @map("snapshot_type")
+  source         String   @default("stored_analysis")
+  snapshotJson   Json     @map("snapshot_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("dashboard_snapshots")
+}
+
+model DashboardWidget {
+  id                  String   @id @default(uuid()) @db.Uuid
+  organizationId      String   @map("organization_id") @db.Uuid
+  dashboardSnapshotId String   @map("dashboard_snapshot_id") @db.Uuid
+  widgetKey           String   @map("widget_key")
+  title               String
+  valueJson           Json     @map("value_json")
+  sourceQuery         String   @map("source_query")
+
+  @@map("dashboard_widgets")
+}
+
+model NotificationDraft {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  assessmentId   String?                 @map("assessment_id") @db.Uuid
+  jurisdiction   String
+  notificationType String                @map("notification_type")
+  status         NotificationDraftStatus @default(draft)
+  payloadJson    Json                    @map("payload_json")
+  sourceReferencesJson Json              @default("[]") @map("source_references_json")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  @@map("notification_drafts")
+}
+
+model BillingCustomer {
+  id                 String             @id @default(uuid()) @db.Uuid
+  organizationId     String             @unique @map("organization_id") @db.Uuid
+  providerKey        BillingProviderKey @map("provider_key")
+  externalCustomerId String?            @map("external_customer_id")
+  billingEmail       String?            @map("billing_email")
+  metadataJson       Json               @default("{}") @map("metadata_json")
+  createdAt          DateTime           @default(now()) @map("created_at")
+  updatedAt          DateTime           @updatedAt @map("updated_at")
+
+  @@map("billing_customers")
+}
+
+model BillingSubscription {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  organizationId         String                    @map("organization_id") @db.Uuid
+  billingCustomerId      String                    @map("billing_customer_id") @db.Uuid
+  providerKey            BillingProviderKey        @map("provider_key")
+  externalSubscriptionId String?                   @map("external_subscription_id")
+  externalPriceId        String?                   @map("external_price_id")
+  externalProductId      String?                   @map("external_product_id")
+  subscriptionStatus     BillingSubscriptionStatus @map("subscription_status")
+  currentPeriodStart     DateTime?                 @map("current_period_start")
+  currentPeriodEnd       DateTime?                 @map("current_period_end")
+  cancelAtPeriodEnd      Boolean                   @default(false) @map("cancel_at_period_end")
+  trialEnd               DateTime?                 @map("trial_end")
+  createdAt              DateTime                  @default(now()) @map("created_at")
+  updatedAt              DateTime                  @updatedAt @map("updated_at")
+
+  @@map("billing_subscriptions")
+}
+
+model BillingEntitlement {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  entitlementKey String   @map("entitlement_key")
+  enabled        Boolean  @default(false)
+  source         String
+  expiresAt      DateTime? @map("expires_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, entitlementKey], map: "billing_entitlements_org_key")
+  @@map("billing_entitlements")
+}
+
+model BillingEvent {
+  id              String             @id @default(uuid()) @db.Uuid
+  organizationId  String?            @map("organization_id") @db.Uuid
+  providerKey     BillingProviderKey @map("provider_key")
+  externalEventId String             @map("external_event_id")
+  eventType       String             @map("event_type")
+  payloadJson     Json               @map("payload_json")
+  processedAt     DateTime?          @map("processed_at")
+  createdAt       DateTime           @default(now()) @map("created_at")
+
+  @@unique([providerKey, externalEventId], map: "billing_events_provider_external_event_key")
+  @@map("billing_events")
+}

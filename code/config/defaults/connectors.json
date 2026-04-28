@@ -1,0 +1,7 @@
+{
+  "readOnlyByDefault": true,
+  "microsoft365": {
+    "enabled": true,
+    "writeScopesAllowed": false
+  }
+}

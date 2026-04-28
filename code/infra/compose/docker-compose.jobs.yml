@@ -1,0 +1,13 @@
+name: puresoc-jobs
+
+services:
+  puresoc-worker:
+    image: puresoc-worker:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+  puresoc-scheduler:
+    image: puresoc-scheduler:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scheduler

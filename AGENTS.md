@@ -6,10 +6,12 @@ Before implementing, read these files in order:
 2. `docs/master-plan.md`
 3. `docs/implementation-gaps.md`
 4. `docs/codex-prompts.md`
+5. `docs/LEARNINGS.md`
 
 Rules for this repo:
 
 - Treat `docs/puresoc_vision.md` as the source blueprint unless a newer architecture decision record overrides it.
+- Keep the repository root small. Application source, packages, tests, runtime config, Compose files, and regulatory seed data live under `code/`.
 - Keep the compliance engine provider-neutral. Microsoft-specific logic belongs under the Microsoft provider package.
 - Keep country-specific regulatory logic inside country-pack modules. Romania-specific logic must not leak into the EU core.
 - Every implementation prompt must include expected files, negative constraints, tests, and acceptance commands.

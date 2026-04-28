@@ -1,0 +1,6 @@
+FROM node:22-alpine
+WORKDIR /workspace
+COPY package.json pnpm-workspace.yaml tsconfig.base.json ./
+COPY apps/report-renderer ./apps/report-renderer
+COPY packages ./packages
+CMD ["node", "-e", "require('node:http').createServer((_, res) => res.end('puresoc-report-renderer')).listen(process.env.PORT || 3002)"]

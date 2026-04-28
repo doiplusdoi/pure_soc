@@ -1,0 +1,9 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+  - "packages/auth/*"
+  - "packages/providers/*"
+  - "packages/compliance/*"
+  - "packages/compliance/nis2/*"
+  - "packages/compliance/nis2/country-packs/*"
+  - "packages/billing/*"

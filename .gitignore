@@ -1,25 +1,22 @@
-.DS_Store
+# Dependencies
+node_modules/
+code/node_modules/
+
+# Build output
+dist/
+build/
+coverage/
+code/dist/
+code/build/
+code/coverage/
+
+# Local environment files
 .env
 .env.*
 !.env.example
+code/.env
+code/.env.*
+!code/.env.example
 
-node_modules/
-.pnpm-store/
-dist/
-build/
-.next/
-coverage/
-playwright-report/
-test-results/
-
-.turbo/
-.nx/
-.cache/
-
+# Logs
 *.log
-*.tmp
-
-data/generated/
-reports/generated/
-storage/
-uploads/

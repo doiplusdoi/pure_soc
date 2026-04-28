@@ -1,0 +1,8 @@
+name: puresoc-reports
+
+services:
+  puresoc-report-renderer:
+    image: puresoc-report-renderer:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.report-renderer

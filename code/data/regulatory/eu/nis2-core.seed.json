@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "frameworkKey": "nis2-eu",
+  "status": "draft",
+  "sourceAnchors": [
+    "https://digital-strategy.ec.europa.eu/en/policies/nis2-directive",
+    "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng"
+  ],
+  "notes": "EU NIS2 baseline shell. Detailed controls are implemented in later regulatory phases."
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "0.1.0",
+  "frameworkKey": "nis2-eu",
+  "article": "23",
+  "status": "draft",
+  "incidentWorkflow": {
+    "countryOverridesRequired": true,
+    "steps": []
+  }
+}
