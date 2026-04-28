@@ -7,3 +7,13 @@ export const romaniaCountryPackStatus: CountryPackStatus = buildCountryPackStatu
   lastSourceReviewedAt: null,
   nextReviewDueAt: null
 });
+
+export {
+  classifyRoNis2Entity,
+  type Nis2Classification,
+  type Nis2ClassificationResult,
+  type RoNis2Article9Input,
+  type RoNis2ClassificationInput,
+  type RoNis2EntitySize,
+  type RoNis2RelationshipInput
+} from "./classification.service";

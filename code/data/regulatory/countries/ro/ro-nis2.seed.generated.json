@@ -1,8 +1,4203 @@
 {
-  "schemaVersion": "0.1.0",
-  "country": "ro",
-  "status": "placeholder_pending_import",
-  "sourceWorkbook": "nis2ro-tool-v-2-1.xlsx",
   "activationStatus": "review_required",
-  "generatedBy": "Phase A skeleton"
+  "classification": {
+    "formulaSignals": [
+      {
+        "formula": "IF('Entity assessment'!D111=\"Yes\", 1, 0)",
+        "key": "classification_formula_c2",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c2",
+        "sourceReferences": [
+          {
+            "cell": "D111",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C2"
+      },
+      {
+        "formula": "IF(AND(M2=0, OR(G6=1,I5=1, I9=1, K11=1, K12=1, I8=1)), 1, 0)",
+        "key": "classification_formula_l2",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_l2",
+        "sourceReferences": [],
+        "targetCell": "L2"
+      },
+      {
+        "formula": "IF(OR(K3=1,K5=1, K4=1, K8=1, K9=1, K6=1, K7=1, 'Entity assessment'!D153=\"Yes\",\r\n    AND(C2=1, 'Entity assessment'!D152=\"Yes\")\r\n), 1, 0)",
+        "key": "classification_formula_m2",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_m2",
+        "sourceReferences": [
+          {
+            "cell": "D152",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D153",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "M2"
+      },
+      {
+        "formula": "IF('Entity assessment'!D104=\"Yes\", 1, 0)",
+        "key": "classification_formula_c3",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c3",
+        "sourceReferences": [
+          {
+            "cell": "D104",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C3"
+      },
+      {
+        "formula": "IF(AND(C3=1, 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k3",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k3",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K3"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D98,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D99,\"Yes\")>0,\r\n1,0)",
+        "key": "classification_formula_c4",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c4",
+        "sourceReferences": [
+          {
+            "cell": "D98",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D99",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C4"
+      },
+      {
+        "formula": "IF(AND(C4=1, 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k4",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k4",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K4"
+      },
+      {
+        "formula": "IF('Entity assessment'!D103=\"Yes\", 1, 0)",
+        "key": "classification_formula_c5",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c5",
+        "sourceReferences": [
+          {
+            "cell": "D103",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C5"
+      },
+      {
+        "formula": "IF(AND(C5=1, OR('Entity assessment'!D21=\"Small and micro\", 'Entity assessment'!D21=\"Medium\"), 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_i5",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_i5",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "I5"
+      },
+      {
+        "formula": "IF(AND(C5=1, 'Entity assessment'!D21=\"Large\", 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k5",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k5",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K5"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D105,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D106,\"Yes\")>0,\r\n1,0)",
+        "key": "classification_formula_c6",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c6",
+        "sourceReferences": [
+          {
+            "cell": "D105",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D106",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C6"
+      },
+      {
+        "formula": "IF(AND(C6=1, 'Entity assessment'!D21=\"Small and micro\", 'Entity assessment'!D159=\"Yes\"), 1, 0)",
+        "key": "classification_formula_g6",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_g6",
+        "sourceReferences": [
+          {
+            "cell": "D159",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "G6"
+      },
+      {
+        "formula": "IF(AND(C6=1, OR('Entity assessment'!D21=\"Large\", 'Entity assessment'!D21=\"Medium\"), 'Entity assessment'!D159=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k6",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k6",
+        "sourceReferences": [
+          {
+            "cell": "D159",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K6"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D109,\"Yes\")>0,\r\n1,0)",
+        "key": "classification_formula_c7",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c7",
+        "sourceReferences": [
+          {
+            "cell": "D109",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C7"
+      },
+      {
+        "formula": "IF(AND(C7=1, OR('Entity assessment'!D22=\"Large\", 'Entity assessment'!D22=\"Medium\"), 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k7",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k7",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D22",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K7"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D100,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D101,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D102,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D108,\"Yes\")>0,\r\n1,0)",
+        "key": "classification_formula_c8",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c8",
+        "sourceReferences": [
+          {
+            "cell": "D100",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D101",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D102",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D108",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C8"
+      },
+      {
+        "formula": "IF(AND(C8=1, 'Entity assessment'!D21=\"Small and micro\", 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_g8",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_g8",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "G8"
+      },
+      {
+        "formula": "IF(AND(C8=1, 'Entity assessment'!D21=\"Medium\", 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_i8",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_i8",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "I8"
+      },
+      {
+        "formula": "IF(AND(C8=1, 'Entity assessment'!D21=\"Large\", 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k8",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k8",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K8"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D31:D56,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D59:D77,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D79:D83,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D85:D97,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D113,\"Yes\")>0,\r\n1,0)",
+        "key": "classification_formula_c9",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c9",
+        "sourceReferences": [
+          {
+            "cell": "D113",
+            "sheet": "Entity assessment"
+          },
+          {
+            "range": "D31:D56",
+            "sheet": "Entity assessment"
+          },
+          {
+            "range": "D59:D77",
+            "sheet": "Entity assessment"
+          },
+          {
+            "range": "D79:D83",
+            "sheet": "Entity assessment"
+          },
+          {
+            "range": "D85:D97",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C9"
+      },
+      {
+        "formula": "IF(AND(C9=1, 'Entity assessment'!D21=\"Medium\", 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_i9",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_i9",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "I9"
+      },
+      {
+        "formula": "IF(AND(C9=1, 'Entity assessment'!D21=\"Large\", 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k9",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k9",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K9"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D116:D135,\"Yes\") + COUNTIF('Entity assessment'!D141,\"Yes\")> 0,\r\n   1, 0)",
+        "key": "classification_formula_c11",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c11",
+        "sourceReferences": [
+          {
+            "range": "D116:D135",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D141",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C11"
+      },
+      {
+        "formula": "IF(AND(C11=1, OR('Entity assessment'!D21=\"Large\", 'Entity assessment'!D21=\"Medium\"), 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k11",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k11",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K11"
+      },
+      {
+        "formula": "IF(\r\n   COUNTIF('Entity assessment'!D137,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D138,\"Yes\")\r\n  +COUNTIF('Entity assessment'!D139,\"Yes\")>0,\r\n1, 0)",
+        "key": "classification_formula_c12",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_c12",
+        "sourceReferences": [
+          {
+            "cell": "D137",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D138",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D139",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "C12"
+      },
+      {
+        "formula": "IF(AND(C11=1, OR('Entity assessment'!D21=\"Large\", 'Entity assessment'!D21=\"Medium\"), 'Entity assessment'!D151=\"Yes\"), 1, 0)",
+        "key": "classification_formula_k12",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_k12",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "K12"
+      },
+      {
+        "formula": "IF(AND(G8=1, M2=0, M14=0, OR('Entity assessment'!D170=\"MEDIUM\", 'Entity assessment'!D171=\"MEDIUM\")), 1, 0)",
+        "key": "classification_formula_l14",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_l14",
+        "sourceReferences": [
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "L14"
+      },
+      {
+        "formula": "IF(AND(C8=1, M2=0, 'Entity assessment'!D151=\"Yes\", OR('Entity assessment'!D169=\"Yes\", 'Entity assessment'!D172=\"Yes\", 'Entity assessment'!D170=\"HIGH\", 'Entity assessment'!D171=\"HIGH\")), 1, 0)",
+        "key": "classification_formula_m14",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_m14",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D169",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D172",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "M14"
+      },
+      {
+        "formula": "IF(AND(OR(C9=1, C7=1), M15=0, M2=0, 'Entity assessment'!D150=\"Yes\", OR('Entity assessment'!D170=\"MEDIUM\", 'Entity assessment'!D171=\"MEDIUM\")), 1, 0)",
+        "key": "classification_formula_l15",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_l15",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "L15"
+      },
+      {
+        "formula": "IF(AND(OR(C9=1, C7=1), M2=0, 'Entity assessment'!D150=\"Yes\", OR('Entity assessment'!D169=\"Yes\", 'Entity assessment'!D172=\"Yes\", 'Entity assessment'!D170=\"HIGH\", 'Entity assessment'!D171=\"HIGH\")), 1, 0)",
+        "key": "classification_formula_m15",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_m15",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D169",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D172",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "M15"
+      },
+      {
+        "formula": "IF(AND(C11=1, M16=0, 'Entity assessment'!D150=\"Yes\",\r\n    OR('Entity assessment'!D169=\"Yes\", 'Entity assessment'!D170=\"MEDIUM\", 'Entity assessment'!D170=\"HIGH\", 'Entity assessment'!D171=\"MEDIUM\", 'Entity assessment'!D171=\"HIGH\"),\r\n    SUM(K3:M15)=0\r\n), 1, 0)",
+        "key": "classification_formula_l16",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_l16",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D169",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "L16"
+      },
+      {
+        "formula": "IF(AND(C11=1, 'Entity assessment'!D172=\"Yes\", 'Entity assessment'!D150=\"Yes\"), 1, 0)",
+        "key": "classification_formula_m16",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_m16",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D172",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "M16"
+      },
+      {
+        "formula": "IF(AND(C12=1, M17=0, L2=0, M2=0, 'Entity assessment'!D151=\"Da\", OR('Entity assessment'!D170=\"MEDIU\", 'Entity assessment'!D169=\"Da\", 'Entity assessment'!D170=\"RIDICAT\", 'Entity assessment'!D171=\"RIDICAT\", 'Entity assessment'!D171=\"MEDIU\")), 1, 0)",
+        "key": "classification_formula_l17",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_l17",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D169",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "L17"
+      },
+      {
+        "formula": "IF(AND(C12=1, 'Entity assessment'!D172=\"Da\", 'Entity assessment'!D151=\"Da\"), 1, 0)",
+        "key": "classification_formula_m17",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_m17",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D172",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "M17"
+      },
+      {
+        "formula": "IF(AND(\r\n    OR(C2=1, C3=1, C4=1, C5=1, C7=1, C8=1, C9=1, C11=1, C12=1),\r\n    'Entity assessment'!D150=\"Select\"\r\n), 1, 0)",
+        "key": "classification_formula_e18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_e18",
+        "sourceReferences": [
+          {
+            "cell": "D150",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "E18"
+      },
+      {
+        "formula": "IF(AND(\r\n    OR(C4=1, C7=1, C8=1, C12=1),\r\n    'Entity assessment'!D151=\"Select\"\r\n), 1, 0)",
+        "key": "classification_formula_f18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_f18",
+        "sourceReferences": [
+          {
+            "cell": "D151",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "F18"
+      },
+      {
+        "formula": "IF(AND(C2=1, 'Entity assessment'!D152=\"Select\"), 1, 0)",
+        "key": "classification_formula_g18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_g18",
+        "sourceReferences": [
+          {
+            "cell": "D152",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "G18"
+      },
+      {
+        "formula": "IF(AND(OR(C6=1, C4=1), 'Entity assessment'!D159=\"Select\"), 1, 0)",
+        "key": "classification_formula_h18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_h18",
+        "sourceReferences": [
+          {
+            "cell": "D159",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "H18"
+      },
+      {
+        "formula": "IF(AND(OR(C5=1, C6=1, C7=1, C8=1, C9=1, C11=1, C12=1), 'Entity assessment'!D21=\"Select\"), 1, 0)",
+        "key": "classification_formula_i18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_i18",
+        "sourceReferences": [
+          {
+            "cell": "D21",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "I18"
+      },
+      {
+        "formula": "IF(AND('Entity assessment'!C166=\"Perform the impact assessment in accordance with DNSC Director's Order No. 2/2025.\", OR('Entity assessment'!D169=\"Select\", 'Entity assessment'!D170=\"Select\", 'Entity assessment'!D171=\"Select\", 'Entity assessment'!D172=\"Select\")), 1, 0)",
+        "key": "classification_formula_j18",
+        "sourceMapId": "ro-nis2-classification_formula_signals-classification_formula_j18",
+        "sourceReferences": [
+          {
+            "cell": "C166",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D169",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D170",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D171",
+            "sheet": "Entity assessment"
+          },
+          {
+            "cell": "D172",
+            "sheet": "Entity assessment"
+          }
+        ],
+        "targetCell": "J18"
+      }
+    ],
+    "rules": [
+      {
+        "condition": "Administrație Publică Centrală RO",
+        "key": "classification_rule_2_administratie_publica_centrala_ro",
+        "priority": "0",
+        "resultCells": {
+          "E2": "D160",
+          "F2": "Esențial",
+          "H2": "Esențial",
+          "J2": "Esențial",
+          "L2": "0",
+          "M2": "0"
+        },
+        "row": 2,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_2_administratie_publica_centrala_ro",
+        "sourceRange": "B2:M2"
+      },
+      {
+        "condition": "Prestatori calificati",
+        "key": "classification_rule_3_prestatori_calificati",
+        "priority": "1",
+        "resultCells": {
+          "F3": "Esențial",
+          "H3": "Esențial",
+          "J3": "Esențial",
+          "K3": "0"
+        },
+        "row": 3,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_3_prestatori_calificati",
+        "sourceRange": "B3:M3"
+      },
+      {
+        "condition": "DNS, TLD",
+        "key": "classification_rule_4_dns_tld",
+        "priority": "2",
+        "resultCells": {
+          "F4": "Esențial",
+          "H4": "Esențial",
+          "J4": "Esențial",
+          "K4": "0"
+        },
+        "row": 4,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_4_dns_tld",
+        "sourceRange": "B4:M4"
+      },
+      {
+        "condition": "Prestatorii necalificati",
+        "key": "classification_rule_5_prestatorii_necalificati",
+        "priority": "3",
+        "resultCells": {
+          "F5": "Important",
+          "H5": "Important",
+          "I5": "0",
+          "J5": "Esențial",
+          "K5": "0"
+        },
+        "row": 5,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_5_prestatorii_necalificati",
+        "sourceRange": "B5:M5"
+      },
+      {
+        "condition": "Telecomunicații",
+        "key": "classification_rule_6_telecomunicatii",
+        "priority": "4",
+        "resultCells": {
+          "F6": "Important",
+          "G6": "0",
+          "H6": "Esențial",
+          "J6": "Esențial",
+          "K6": "0"
+        },
+        "row": 6,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_6_telecomunicatii",
+        "sourceRange": "B6:M6"
+      },
+      {
+        "condition": "MSSP",
+        "key": "classification_rule_7_mssp",
+        "priority": "6",
+        "resultCells": {
+          "K7": "0"
+        },
+        "row": 7,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_7_mssp",
+        "sourceRange": "B7:M7"
+      },
+      {
+        "condition": "furnizorii de servicii de cloud computing, furnizorii de servicii de centre de date, furnizorii de rețele de furnizare de conținut, furnizorii de servicii gestionate",
+        "key": "classification_rule_8_furnizorii_de_servicii_de_cloud_computing_furnizorii_de_servicii_de_centre_de_date_furnizorii_de_retele_de_furnizare_de_continut_furnizorii_de_servicii_gestionate",
+        "priority": "3",
+        "resultCells": {
+          "F8": "Art.9",
+          "G8": "0",
+          "H8": "Important",
+          "I8": "0",
+          "J8": "Esențial",
+          "K8": "0"
+        },
+        "row": 8,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_8_furnizorii_de_servicii_de_cloud_computing_furnizorii_de_servicii_de_centre_de_date_furnizorii_de_retele_de_furnizare_de_continut_furnizorii_de_servicii_gestionate",
+        "sourceRange": "B8:M8"
+      },
+      {
+        "condition": "energie, transport, bancar, financiar, sanatate, potabila, uzate, spațial, IXP",
+        "key": "classification_rule_9_energie_transport_bancar_financiar_sanatate_potabila_uzate_spatial_ixp",
+        "priority": "4",
+        "resultCells": {
+          "F9": "Art. 9",
+          "H9": "Important",
+          "I9": "0",
+          "J9": "Esențial",
+          "K9": "0"
+        },
+        "row": 9,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_9_energie_transport_bancar_financiar_sanatate_potabila_uzate_spatial_ixp",
+        "sourceRange": "B9:M9"
+      },
+      {
+        "condition": "Toate din Anexa 2",
+        "key": "classification_rule_11_toate_din_anexa_2",
+        "priority": "7",
+        "resultCells": {
+          "H11": "Important",
+          "J11": "Important",
+          "K11": "0"
+        },
+        "row": 11,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_11_toate_din_anexa_2",
+        "sourceRange": "B11:M11"
+      },
+      {
+        "condition": "furnizorii de piețe online, de motoare de căutare online și de platforme de servicii de socializare în rețea",
+        "key": "classification_rule_12_furnizorii_de_piete_online_de_motoare_de_cautare_online_si_de_platforme_de_servicii_de_socializare_in_retea",
+        "priority": "8",
+        "resultCells": {
+          "K12": "0"
+        },
+        "row": 12,
+        "sourceMapId": "ro-nis2-classification_rules-classification_rule_12_furnizorii_de_piete_online_de_motoare_de_cautare_online_si_de_platforme_de_servicii_de_socializare_in_retea",
+        "sourceRange": "B12:M12"
+      }
+    ]
+  },
+  "country": "ro",
+  "countryPackStatus": "full_pack_ready_after_validation",
+  "entityFields": [
+    {
+      "answerCell": "D12",
+      "category": "entity_identification",
+      "key": "entity_field_12_name_of_the_entity",
+      "label": "Name of the entity",
+      "promptCell": "C12",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_12_name_of_the_entity"
+    },
+    {
+      "answerCell": "D13",
+      "category": "entity_identification",
+      "key": "entity_field_13_unique_identification_code_cui",
+      "label": "Unique Identification Code (CUI)",
+      "promptCell": "C13",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_13_unique_identification_code_cui"
+    },
+    {
+      "answerCell": "D14",
+      "category": "entity_identification",
+      "key": "entity_field_14_national_registration_number",
+      "label": "National registration number",
+      "promptCell": "C14",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_14_national_registration_number"
+    },
+    {
+      "answerCell": "D16",
+      "category": "entity_contact",
+      "key": "entity_field_16_country",
+      "label": "Country",
+      "promptCell": "C16",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_16_country"
+    },
+    {
+      "answerCell": "D17",
+      "category": "entity_contact",
+      "key": "entity_field_17_county",
+      "label": "County",
+      "promptCell": "C17",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_17_county"
+    },
+    {
+      "answerCell": "D18",
+      "category": "entity_contact",
+      "key": "entity_field_18_city_town",
+      "label": "City/Town",
+      "promptCell": "C18",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_18_city_town"
+    },
+    {
+      "answerCell": "D19",
+      "category": "entity_contact",
+      "key": "entity_field_19_district",
+      "label": "District",
+      "promptCell": "C19",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_19_district"
+    },
+    {
+      "answerCell": "D20",
+      "category": "entity_contact",
+      "key": "entity_field_20_street",
+      "label": "Street",
+      "promptCell": "C20",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_20_street"
+    },
+    {
+      "answerCell": "D21",
+      "category": "entity_contact",
+      "key": "entity_field_21_number",
+      "label": "Number",
+      "promptCell": "C21",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_21_number"
+    },
+    {
+      "answerCell": "D22",
+      "category": "entity_contact",
+      "key": "entity_field_22_block_building_other",
+      "label": "Block/building, other",
+      "promptCell": "C22",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_22_block_building_other"
+    },
+    {
+      "answerCell": "D23",
+      "category": "entity_contact",
+      "key": "entity_field_23_entrance_staircase_section_other",
+      "label": "Entrance/staircase/section, other",
+      "promptCell": "C23",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_23_entrance_staircase_section_other"
+    },
+    {
+      "answerCell": "D24",
+      "category": "entity_contact",
+      "key": "entity_field_24_floor",
+      "label": "Floor",
+      "promptCell": "C24",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_24_floor"
+    },
+    {
+      "answerCell": "D25",
+      "category": "entity_contact",
+      "key": "entity_field_25_apartment_office_room_other",
+      "label": "Apartment/office/room, other",
+      "promptCell": "C25",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_25_apartment_office_room_other"
+    },
+    {
+      "answerCell": "D26",
+      "category": "entity_contact",
+      "key": "entity_field_26_postal_code",
+      "label": "Postal code",
+      "promptCell": "C26",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_26_postal_code"
+    },
+    {
+      "answerCell": "D27",
+      "category": "entity_contact",
+      "key": "entity_field_27_email_address",
+      "label": "Email address",
+      "promptCell": "C27",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_27_email_address"
+    },
+    {
+      "answerCell": "D28",
+      "category": "entity_contact",
+      "key": "entity_field_28_website_url",
+      "label": "Website URL",
+      "promptCell": "C28",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_28_website_url"
+    },
+    {
+      "answerCell": "D29",
+      "category": "entity_contact",
+      "key": "entity_field_29_telephone_number",
+      "label": "Telephone number",
+      "promptCell": "C29",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_29_telephone_number"
+    },
+    {
+      "answerCell": "D30",
+      "category": "entity_contact",
+      "key": "entity_field_30_mobile_phone_number",
+      "label": "Mobile phone number",
+      "promptCell": "C30",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_30_mobile_phone_number"
+    },
+    {
+      "answerCell": "D32",
+      "category": "activity",
+      "key": "entity_field_32_main_nace_code",
+      "label": "Main NACE code",
+      "promptCell": "C32",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_32_main_nace_code"
+    },
+    {
+      "answerCell": "D33",
+      "category": "activity",
+      "key": "entity_field_33_secondary_nace_code_s",
+      "label": "Secondary NACE code/s",
+      "promptCell": "C33",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_33_secondary_nace_code_s"
+    },
+    {
+      "answerCell": "C37",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_37_is_there_a_designated_person_responsible_for_cybersecurity_at_the_time_of_filling_out_this_form",
+      "label": "Is there a designated person responsible for cybersecurity at the time of filling out this form?",
+      "promptCell": "C37",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_37_is_there_a_designated_person_responsible_for_cybersecurity_at_the_time_of_filling_out_this_form"
+    },
+    {
+      "answerCell": "D38",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_38_surname",
+      "label": "Surname",
+      "promptCell": "C38",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_38_surname"
+    },
+    {
+      "answerCell": "D39",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_39_first_name",
+      "label": "First name",
+      "promptCell": "C39",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_39_first_name"
+    },
+    {
+      "answerCell": "D40",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_40_role",
+      "label": "Role",
+      "promptCell": "C40",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_40_role"
+    },
+    {
+      "answerCell": "D41",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_41_email_address",
+      "label": "Email address",
+      "promptCell": "C41",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_41_email_address"
+    },
+    {
+      "answerCell": "D42",
+      "category": "cybersecurity_responsible",
+      "key": "entity_field_42_mobile_phone_number",
+      "label": "Mobile phone number",
+      "promptCell": "C42",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_42_mobile_phone_number"
+    },
+    {
+      "answerCell": "D44",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_44_the_person_responsible_for_monitoring",
+      "label": "The person responsible for monitoring",
+      "promptCell": "C44",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_44_the_person_responsible_for_monitoring"
+    },
+    {
+      "answerCell": "C45",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_45_the_person_responsible_for_monitoring_is_the_same_as_the_person_responsible_for_cybersecurity",
+      "label": "The person responsible for monitoring is the same as the person responsible for cybersecurity",
+      "promptCell": "C45",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_45_the_person_responsible_for_monitoring_is_the_same_as_the_person_responsible_for_cybersecurity"
+    },
+    {
+      "answerCell": "D46",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_46_last_name",
+      "label": "Last name",
+      "promptCell": "C46",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_46_last_name"
+    },
+    {
+      "answerCell": "D47",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_47_first_name",
+      "label": "First name",
+      "promptCell": "C47",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_47_first_name"
+    },
+    {
+      "answerCell": "D48",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_48_role",
+      "label": "Role",
+      "promptCell": "C48",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_48_role"
+    },
+    {
+      "answerCell": "D49",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_49_permanent_means_of_contact",
+      "label": "Permanent means of contact",
+      "promptCell": "C49",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_49_permanent_means_of_contact"
+    },
+    {
+      "answerCell": "D50",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_50_mobile_phone_number",
+      "label": "Mobile phone number",
+      "promptCell": "C50",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_50_mobile_phone_number"
+    },
+    {
+      "answerCell": "D51",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_51_telephone_number",
+      "label": "Telephone number",
+      "promptCell": "C51",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_51_telephone_number"
+    },
+    {
+      "answerCell": "D52",
+      "category": "permanent_monitoring_contact",
+      "key": "entity_field_52_email",
+      "label": "Email",
+      "promptCell": "C52",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_52_email"
+    },
+    {
+      "answerCell": "D54",
+      "category": "network_and_systems",
+      "key": "entity_field_54_public_ip_address_ranges",
+      "label": "Public IP address ranges",
+      "promptCell": "C54",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_54_public_ip_address_ranges"
+    },
+    {
+      "answerCell": "D56",
+      "category": "eu_presence",
+      "key": "entity_field_56_provision_of_services_within_the_eu",
+      "label": "Provision of services within the EU",
+      "promptCell": "C56",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_56_provision_of_services_within_the_eu"
+    },
+    {
+      "answerCell": "D57",
+      "category": "eu_presence",
+      "key": "entity_field_57_member_states_in_which_the_entity_provides_services",
+      "label": "Member States in which the entity provides services",
+      "promptCell": "C57",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_57_member_states_in_which_the_entity_provides_services"
+    },
+    {
+      "answerCell": "D58",
+      "category": "eu_presence",
+      "key": "entity_field_58_addresses_of_registered_office_branch_offices_in_the_eu",
+      "label": "Addresses of registered office/branch offices in the EU",
+      "promptCell": "C58",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_58_addresses_of_registered_office_branch_offices_in_the_eu"
+    },
+    {
+      "answerCell": "C60",
+      "category": "non_eu_representative",
+      "key": "entity_field_60_there_is_no_need_to_apply_for_this_subsection",
+      "label": "There is no need to apply for this subsection.",
+      "promptCell": "C60",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_60_there_is_no_need_to_apply_for_this_subsection"
+    },
+    {
+      "answerCell": "D61",
+      "category": "non_eu_representative",
+      "key": "entity_field_61_name",
+      "label": "Name",
+      "promptCell": "C61",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_61_name"
+    },
+    {
+      "answerCell": "D62",
+      "category": "non_eu_representative",
+      "key": "entity_field_62_registered_office_address",
+      "label": "Registered office address",
+      "promptCell": "C62",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_62_registered_office_address"
+    },
+    {
+      "answerCell": "D63",
+      "category": "non_eu_representative",
+      "key": "entity_field_63_email",
+      "label": "Email",
+      "promptCell": "C63",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_63_email"
+    },
+    {
+      "answerCell": "D64",
+      "category": "non_eu_representative",
+      "key": "entity_field_64_phone_number",
+      "label": "Phone number",
+      "promptCell": "C64",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_64_phone_number"
+    },
+    {
+      "answerCell": "D65",
+      "category": "non_eu_representative",
+      "key": "entity_field_65_the_natural_person_designated_as_representative_in_romania_or_the_representative_of_the_legal_entity",
+      "label": "The natural person designated as representative in Romania or the representative of the legal entity",
+      "promptCell": "C65",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_65_the_natural_person_designated_as_representative_in_romania_or_the_representative_of_the_legal_entity"
+    },
+    {
+      "answerCell": "D66",
+      "category": "non_eu_representative",
+      "key": "entity_field_66_last_name",
+      "label": "Last name",
+      "promptCell": "C66",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_66_last_name"
+    },
+    {
+      "answerCell": "D67",
+      "category": "non_eu_representative",
+      "key": "entity_field_67_first_name",
+      "label": "First name",
+      "promptCell": "C67",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_67_first_name"
+    },
+    {
+      "answerCell": "D68",
+      "category": "non_eu_representative",
+      "key": "entity_field_68_home_address_and_or_residence_as_applicable",
+      "label": "Home address and/or residence, as applicable",
+      "promptCell": "C68",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_68_home_address_and_or_residence_as_applicable"
+    },
+    {
+      "answerCell": "D69",
+      "category": "non_eu_representative",
+      "key": "entity_field_69_email",
+      "label": "Email",
+      "promptCell": "C69",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_69_email"
+    },
+    {
+      "answerCell": "D70",
+      "category": "non_eu_representative",
+      "key": "entity_field_70_phone_number",
+      "label": "Phone number",
+      "promptCell": "C70",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_70_phone_number"
+    },
+    {
+      "answerCell": "C72",
+      "category": "attached_documents",
+      "key": "entity_field_72_are_there_any_attached_documents",
+      "label": "Are there any attached documents?",
+      "promptCell": "C72",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_72_are_there_any_attached_documents"
+    },
+    {
+      "answerCell": "D73",
+      "category": "attached_documents",
+      "key": "entity_field_73_number_of_attached_documents",
+      "label": "Number of attached documents",
+      "promptCell": "C73",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_73_number_of_attached_documents"
+    },
+    {
+      "answerCell": "D74",
+      "category": "attached_documents",
+      "key": "entity_field_74_attached_documents_certifying_the_company_s_classification_according_to_the_size_criterion",
+      "label": "Attached documents certifying the company's classification according to the size criterion:",
+      "promptCell": "C74",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_74_attached_documents_certifying_the_company_s_classification_according_to_the_size_criterion"
+    },
+    {
+      "answerCell": "D75",
+      "category": "attached_documents",
+      "key": "entity_field_75_self_assessment_of_the_applicability_of_article_9_of_oug_no_155_2024_as_appropriate",
+      "label": "Self-assessment of the applicability of Article 9 of OUG No. 155/2024, as appropriate",
+      "promptCell": "C75",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_75_self_assessment_of_the_applicability_of_article_9_of_oug_no_155_2024_as_appropriate"
+    },
+    {
+      "answerCell": "D76",
+      "category": "attached_documents",
+      "key": "entity_field_76_other_attached_documents_requested_by_dnsc",
+      "label": "Other attached documents requested by DNSC",
+      "promptCell": "C76",
+      "required": false,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_76_other_attached_documents_requested_by_dnsc"
+    },
+    {
+      "answerCell": "D78",
+      "category": "entity_size",
+      "key": "entity_field_78_size_of_the_entity",
+      "label": "Size of the entity",
+      "promptCell": "C78",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_78_size_of_the_entity"
+    },
+    {
+      "answerCell": "D81",
+      "category": "entity_representation",
+      "key": "entity_field_81_last_name",
+      "label": "Last name",
+      "promptCell": "C81",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_81_last_name"
+    },
+    {
+      "answerCell": "D82",
+      "category": "entity_representation",
+      "key": "entity_field_82_first_name",
+      "label": "First name",
+      "promptCell": "C82",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_82_first_name"
+    },
+    {
+      "answerCell": "D83",
+      "category": "entity_representation",
+      "key": "entity_field_83_role",
+      "label": "Role",
+      "promptCell": "C83",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_83_role"
+    },
+    {
+      "answerCell": "D84",
+      "category": "entity_representation",
+      "key": "entity_field_84_date",
+      "label": "Date",
+      "promptCell": "C84",
+      "required": true,
+      "sourceMapId": "ro-nis2-entity_fields-entity_field_84_date"
+    }
+  ],
+  "frameworkKey": "nis2",
+  "generatedBy": "apps/regulatory-importer/src/ro",
+  "guidance": [
+    {
+      "key": "guidance_3_dnsc_va_sfatuieste_sa_and_va_inregistrati_voluntar_pentru_a_fi_alertati_cu_priv",
+      "sourceCell": "Liste!W3",
+      "sourceMapId": "ro-nis2-guidance-guidance_3_dnsc_va_sfatuieste_sa_and_va_inregistrati_voluntar_pentru_a_fi_alertati_cu_priv",
+      "text": "DNSC vă sfătuiește să: & vă înregistrați, voluntar, pentru a fi alertați cu privire la potențialele amenințări și vulnerabilități din rețelele și sistemele informatice. & implementați Cadrul fundamental pentru securitate cibernetică, nivel BASIC, în vederea îmbunătățirii nivelul de securitate cibernetică al entității dumneavoastră. Cadrele fundamentale pentru securitate cibernetică (niveluri: BASIC, IMPORTANT și ESENȚIAL) se găsesc pe site-urile instituției (dnsc[.]ro și/sau platformanis2[.]ro). În plus, dacă sunteți furnizor sau prestator de servicii pentru o entitate NIS2 aceasta vă poate impune măsuri de securitate (suplimentare) ca parte a obligațiilor sale privind securitatea lanțului de aprovizionare."
+    },
+    {
+      "key": "guidance_4_aveti_obligatia_de_a_and_va_inregistra_in_registrul_entitatilor_la_dnsc_folosind",
+      "sourceCell": "Liste!W4",
+      "sourceMapId": "ro-nis2-guidance-guidance_4_aveti_obligatia_de_a_and_va_inregistra_in_registrul_entitatilor_la_dnsc_folosind",
+      "text": "Aveți obligația de a: & vă înregistra în Registrul entităților la DNSC (folosind ca metodă de transmitere a informațiilor, după caz, pe PlatformaNIS2[.]ro, prin email nis@dnsc[.]ro, la sediu DNSC str. Italiană 22, sector 2, București, CP 020967 - aplicând procedura și modalitățile specificate în Cerințele privind procesul de notificare în vederea înregistrării și metoda de transmitere a informațiilor, aprobate prin ODDNSC nr. nnn/2025; & lua măsuri de gestionare a riscurilor de securitate cibernetică, prin aplicarea Cadrelor fundamentale pentru securitate cibernetică (niveluri: BASIC, IMPORTANT și ESENȚIAL), în funcție de rezultatul evaluării riscului entității - aplicând Metodologia de evaluare a nivelului de risc al entităților, aprobată prin ODDNSC nr. nnn/2025, respectiv Instrumentul ERENIS@RO; & raporta incidentele semnificative la autoritatea competentă națională pe platforma PNRISC (pnrisc.dnsc[.]ro/); & coopera cu autoritățile competente (la nivel național și sectorial), în special în ceea ce privește supravegherea (inclusiv evaluarea periodică a conformității pentru entitățile esențiale). Mai multe informații privind conținutul legislația NIS2 sunt disponibile pe site-urile nostre (dnsc[.]ro; platformanis2[.]ro)."
+    },
+    {
+      "key": "guidance_5_in_cazul_in_care_va_indoiti_daca_sunteti_sau_nu_in_domeniul_de_aplicare_al_nis2",
+      "sourceCell": "Liste!W5",
+      "sourceMapId": "ro-nis2-guidance-guidance_5_in_cazul_in_care_va_indoiti_daca_sunteti_sau_nu_in_domeniul_de_aplicare_al_nis2",
+      "text": "În cazul în care vă îndoiți dacă sunteți sau nu în domeniul de aplicare al NIS2, DNSC vă sfătuiește să implementați Cadrul fundamental pentru securitate cibernetică - nivel BASIC (de bază) pentru o primă etapă de asigurare a securității cibernetice la nivelul entității dumneavoastră. Cadrele fundamentale pentru securitate cibernetică (niveluri: BASIC, IMPORTANT și ESENȚIAL) se găsesc pe site-ul instituției (dnsc.ro) și/sau pe PlatformaNIS2 (platformanis2.ro)."
+    },
+    {
+      "key": "guidance_185_if_based_on_the_information_you_have_entered_the_entity_is_included_in_the_sco",
+      "sourceCell": "Entity assessment!C185",
+      "sourceMapId": "ro-nis2-guidance-guidance_185_if_based_on_the_information_you_have_entered_the_entity_is_included_in_the_sco",
+      "text": "If, based on the information you have entered, the entity is included in the scope of OUG No. 155/2024 (approved, with amendments and additions, by Law No. 124/2025) and classified as an essential entity or important entity, you must: * register at DNSC in the Register of Entities (using, as a method of transmitting information, as appropriate, PlatformaNIS2[.]ro, by email evidenta@dnsc[.]ro, at the DNSC headquarters at 22 Italiană Street, Sector 2, Bucharest, CP 020967); if you use the last two methods, you must register - as a mandatory requirement - on the PlatformaNIS2 platform (as soon as it becomes available); * take measures to assess and manage cybersecurity risks by applying the Cybersecurity Fundamentals Framework(levels: BASIC, IMPORTANT, and ESSENTIAL), depending on the entity's risk assessment * report significant incidents to the competent authority at national level (through PNRISC); * cooperate with the competent authorities. More information on the content of NIS2 legislation is available on the DNSC website (dnsc[.]ro and PlatformaNIS2[.]ro)."
+    },
+    {
+      "key": "guidance_186_if_based_on_the_information_you_have_entered_the_preliminary_assessment_indica",
+      "sourceCell": "Entity assessment!C186",
+      "sourceMapId": "ro-nis2-guidance-guidance_186_if_based_on_the_information_you_have_entered_the_preliminary_assessment_indica",
+      "text": "If, based on the information you have entered, the preliminary assessment indicates that the entity does not fall within the scope of OUG No. 155/2024 (approved, with amendments and additions, by Law No. 124/2025), submit the form to DNSC for confirmation of the entity's status. If the DNSC confirms that the entity is excluded from the scope of OUG No. 155/2024 (approved, with amendments and additions, by Law No. 124/2025), we advise you to register, voluntarily if you are part of important sectors (local public administration, education, etc.) other than those provided for in OUG No. 155/2024 or if you expect that in the coming period you will exceed the thresholds according to which you are included for the purposes of the law. If you are a supplier or service provider for a NIS2 entity, it may require you to implement (additional) security measures as part of its supply chain security obligations."
+    }
+  ],
+  "helperLists": {
+    "classificationOptions": [
+      {
+        "key": "classification_select_3",
+        "sourceMapId": "ro-nis2-helper_lists-classification_select_3",
+        "value": {
+          "AC": "Select",
+          "AD": "Select",
+          "AE": "Select",
+          "AF": "Select",
+          "AG": "Select",
+          "AH": "Select"
+        }
+      },
+      {
+        "key": "classification_select_4",
+        "sourceMapId": "ro-nis2-helper_lists-classification_select_4",
+        "value": {
+          "AC": "Yes",
+          "AD": "HIGH",
+          "AE": "ESENȚIAL",
+          "AF": "NAȚIONAL",
+          "AG": "L",
+          "AH": "CRITICĂ RIDICATĂ"
+        }
+      },
+      {
+        "key": "classification_select_5",
+        "sourceMapId": "ro-nis2-helper_lists-classification_select_5",
+        "value": {
+          "AC": "No",
+          "AD": "MEDIUM",
+          "AE": "IMPORTANT",
+          "AF": "REGIONAL",
+          "AG": "M",
+          "AH": "CRITICĂ"
+        }
+      },
+      {
+        "key": "classification_select_6",
+        "sourceMapId": "ro-nis2-helper_lists-classification_select_6",
+        "value": {
+          "AD": "LOW",
+          "AE": "BASIC",
+          "AF": "NU",
+          "AG": "S",
+          "AH": "NON-CRITICĂ"
+        }
+      },
+      {
+        "key": "article9_helper_9",
+        "sourceMapId": "ro-nis2-helper_lists-article9_helper_9",
+        "value": {
+          "AC": "9a",
+          "AD": "Singurul furnizor al unui serviciu care este esențial pentru susținerea unor activități societale și economice critice.",
+          "AK": "NU",
+          "AL": "L",
+          "AM": "CRITICĂ RIDICATĂ",
+          "AN": "NA"
+        }
+      },
+      {
+        "key": "article9_helper_10",
+        "sourceMapId": "ro-nis2-helper_lists-article9_helper_10",
+        "value": {
+          "AC": "9b",
+          "AD": "Perturbarea serviciului furnizat de entitate ar putea avea un impact semnificativ asupra siguranței publice, a securității publice sau a sănătății publice.",
+          "AK": "RIDICAT",
+          "AL": "L",
+          "AM": "CRITICĂ RIDICATĂ",
+          "AN": "NA"
+        }
+      },
+      {
+        "key": "article9_helper_11",
+        "sourceMapId": "ro-nis2-helper_lists-article9_helper_11",
+        "value": {
+          "AC": "9c",
+          "AD": "Perturbarea serviciului furnizat de entitate ar putea genera un risc sistemic semnificativ, în special pentru sectoarele în care o astfel de perturbare ar putea avea un impact transfrontalier;",
+          "AK": "RIDICAT",
+          "AL": "L",
+          "AM": "CRITICĂ RIDICATĂ",
+          "AN": "NA"
+        }
+      },
+      {
+        "key": "article9_helper_12",
+        "sourceMapId": "ro-nis2-helper_lists-article9_helper_12",
+        "value": {
+          "AC": "9d",
+          "AD": "Entitatea este critică datorită importanței sale specifice la nivel național sau regional pentru sectorul sau tipul de servicii în cauză sau pentru alte sectoare interdependente.",
+          "AK": "NAȚIONAL",
+          "AL": "S",
+          "AM": "CRITICĂ RIDICATĂ",
+          "AN": "I"
+        }
+      }
+    ],
+    "resultStates": [
+      {
+        "key": "result_state_3",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_3",
+        "value": {
+          "G": "Vă rugăm să răspundeți la toate întrebările pentru a finaliza evaluarea.",
+          "H": "6"
+        }
+      },
+      {
+        "key": "result_state_4",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_4",
+        "value": {
+          "G": "Out of scope",
+          "H": "5"
+        }
+      },
+      {
+        "key": "result_state_5",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_5",
+        "value": {
+          "G": "Important entity",
+          "H": "2"
+        }
+      },
+      {
+        "key": "result_state_6",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_6",
+        "value": {
+          "G": "Essential entity",
+          "H": "1"
+        }
+      },
+      {
+        "key": "result_state_7",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_7",
+        "value": {
+          "G": "În afara domeniului de aplicare, înregistrare voluntară",
+          "H": "4"
+        }
+      },
+      {
+        "key": "result_state_8",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_8",
+        "value": {
+          "G": "Entitate esențială (Administrație publică)",
+          "H": "3"
+        }
+      },
+      {
+        "key": "result_state_9",
+        "sourceMapId": "ro-nis2-helper_lists-result_state_9",
+        "value": {
+          "G": "The data entered is insufficient to generate a preliminary assessment."
+        }
+      }
+    ],
+    "sizeCategories": [
+      {
+        "key": "size_category_3",
+        "sourceMapId": "ro-nis2-helper_lists-size_category_3",
+        "value": {
+          "AA": "1",
+          "Y": "Mică și micro",
+          "Z": "S"
+        }
+      },
+      {
+        "key": "size_category_4",
+        "sourceMapId": "ro-nis2-helper_lists-size_category_4",
+        "value": {
+          "AA": "2",
+          "Y": "Mijlocie",
+          "Z": "M"
+        }
+      },
+      {
+        "key": "size_category_5",
+        "sourceMapId": "ro-nis2-helper_lists-size_category_5",
+        "value": {
+          "AA": "3",
+          "Y": "Mare",
+          "Z": "L"
+        }
+      },
+      {
+        "key": "size_category_6",
+        "sourceMapId": "ro-nis2-helper_lists-size_category_6",
+        "value": {
+          "AA": "0",
+          "Y": "Vă rugăm să completați toate cele 3 criterii pentru stabilirea dimensiunii entității.",
+          "Z": "NA"
+        }
+      }
+    ],
+    "sizeThresholds": [
+      {
+        "key": "size_threshold_3",
+        "sourceMapId": "ro-nis2-helper_lists-size_threshold_3",
+        "value": {
+          "C": "Select",
+          "D": "Select",
+          "E": "Select",
+          "F": "Întreprindere mică sau microîntreprindere"
+        }
+      },
+      {
+        "key": "size_threshold_4",
+        "sourceMapId": "ro-nis2-helper_lists-size_threshold_4",
+        "value": {
+          "C": "0 - 49",
+          "D": "< 10 million €",
+          "E": "< 10 million €",
+          "F": "Întreprindere mijlocie"
+        }
+      },
+      {
+        "key": "size_threshold_5",
+        "sourceMapId": "ro-nis2-helper_lists-size_threshold_5",
+        "value": {
+          "C": "50 - 249",
+          "D": "10 – 50 million €",
+          "E": "10 – 43 million €",
+          "F": "Întreprindere mare"
+        }
+      },
+      {
+        "key": "size_threshold_6",
+        "sourceMapId": "ro-nis2-helper_lists-size_threshold_6",
+        "value": {
+          "C": ">= 250",
+          "D": "> 50 million €",
+          "E": "> 43 million €",
+          "F": "Please fill in all 3 criteria that determine the size of the entity and select the size that corresponds to your entity."
+        }
+      }
+    ],
+    "yesNo": [
+      {
+        "key": "yes_no_3",
+        "sourceMapId": "ro-nis2-helper_lists-yes_no_3",
+        "value": {
+          "B": "Select"
+        }
+      },
+      {
+        "key": "yes_no_4",
+        "sourceMapId": "ro-nis2-helper_lists-yes_no_4",
+        "value": {
+          "B": "Yes"
+        }
+      },
+      {
+        "key": "yes_no_5",
+        "sourceMapId": "ro-nis2-helper_lists-yes_no_5",
+        "value": {
+          "B": "No"
+        }
+      },
+      {
+        "key": "yes_no_6",
+        "sourceMapId": "ro-nis2-helper_lists-yes_no_6",
+        "value": {
+          "B": "N/A"
+        }
+      }
+    ]
+  },
+  "jurisdiction": "RO",
+  "locations": [
+    {
+      "code": "AB",
+      "county": "Alba",
+      "countyId": "71",
+      "districtCode": "51",
+      "regionCode": "RO171",
+      "residence": "Alba-Iulia",
+      "sourceMapId": "ro-nis2-locations-ab"
+    },
+    {
+      "code": "AR",
+      "county": "Arad",
+      "countyId": "51",
+      "districtCode": "31",
+      "regionCode": "RO451",
+      "residence": "Arad",
+      "sourceMapId": "ro-nis2-locations-ar"
+    },
+    {
+      "code": "AG",
+      "county": "Argeș",
+      "countyId": "31",
+      "districtCode": "11",
+      "regionCode": "RO331",
+      "residence": "Pitești",
+      "sourceMapId": "ro-nis2-locations-ag"
+    },
+    {
+      "code": "BC",
+      "county": "Bacău",
+      "countyId": "11",
+      "districtCode": "60",
+      "regionCode": "RO211",
+      "residence": "Bacău",
+      "sourceMapId": "ro-nis2-locations-bc"
+    },
+    {
+      "code": "BH",
+      "county": "Bihor",
+      "countyId": "61",
+      "districtCode": "41",
+      "regionCode": "RO161",
+      "residence": "Oradea",
+      "sourceMapId": "ro-nis2-locations-bh"
+    },
+    {
+      "code": "BN",
+      "county": "Bistrița-Năsăud",
+      "countyId": "62",
+      "districtCode": "42",
+      "regionCode": "RO162",
+      "residence": "Bistrița",
+      "sourceMapId": "ro-nis2-locations-bn"
+    },
+    {
+      "code": "BT",
+      "county": "Botoșani",
+      "countyId": "12",
+      "districtCode": "71",
+      "regionCode": "RO212",
+      "residence": "Botoșani",
+      "sourceMapId": "ro-nis2-locations-bt"
+    },
+    {
+      "code": "BV",
+      "county": "Brașov",
+      "countyId": "72",
+      "districtCode": "50",
+      "regionCode": "RO172",
+      "residence": "Brașov",
+      "sourceMapId": "ro-nis2-locations-bv"
+    },
+    {
+      "code": "BR",
+      "county": "Brăila",
+      "countyId": "21",
+      "districtCode": "81",
+      "regionCode": "RO221",
+      "residence": "Brăila",
+      "sourceMapId": "ro-nis2-locations-br"
+    },
+    {
+      "code": "BZ",
+      "county": "Buzău",
+      "countyId": "22",
+      "districtCode": "12",
+      "regionCode": "RO222",
+      "residence": "Buzău",
+      "sourceMapId": "ro-nis2-locations-bz"
+    },
+    {
+      "code": "CS",
+      "county": "Caraș-Severin",
+      "countyId": "52",
+      "districtCode": "32",
+      "regionCode": "RO452",
+      "residence": "Caraș-Severin",
+      "sourceMapId": "ro-nis2-locations-cs"
+    },
+    {
+      "code": "CL",
+      "county": "Călărași",
+      "countyId": "32",
+      "districtCode": "91",
+      "regionCode": "RO332",
+      "residence": "Călărași",
+      "sourceMapId": "ro-nis2-locations-cl"
+    },
+    {
+      "code": "CJ",
+      "county": "Cluj",
+      "countyId": "63",
+      "districtCode": "40",
+      "regionCode": "RO163",
+      "residence": "Cluj-Napoca",
+      "sourceMapId": "ro-nis2-locations-cj"
+    },
+    {
+      "code": "CT",
+      "county": "Constanța",
+      "countyId": "23",
+      "districtCode": "90",
+      "regionCode": "RO223",
+      "residence": "Constanța",
+      "sourceMapId": "ro-nis2-locations-ct"
+    },
+    {
+      "code": "CV",
+      "county": "Covasna",
+      "countyId": "73",
+      "districtCode": "52",
+      "regionCode": "RO173",
+      "residence": "Sfântu Gheorghe",
+      "sourceMapId": "ro-nis2-locations-cv"
+    },
+    {
+      "code": "DB",
+      "county": "Dâmbovița",
+      "countyId": "33",
+      "districtCode": "13",
+      "regionCode": "RO333",
+      "residence": "Târgoviște",
+      "sourceMapId": "ro-nis2-locations-db"
+    },
+    {
+      "code": "DJ",
+      "county": "Dolj",
+      "countyId": "41",
+      "districtCode": "20",
+      "regionCode": "RO441",
+      "residence": "Craiova",
+      "sourceMapId": "ro-nis2-locations-dj"
+    },
+    {
+      "code": "GL",
+      "county": "Galați",
+      "countyId": "24",
+      "districtCode": "80",
+      "regionCode": "RO224",
+      "residence": "Galați",
+      "sourceMapId": "ro-nis2-locations-gl"
+    },
+    {
+      "code": "GR",
+      "county": "Giurgiu",
+      "countyId": "34",
+      "districtCode": "8",
+      "regionCode": "RO334",
+      "residence": "Giurgiu",
+      "sourceMapId": "ro-nis2-locations-gr"
+    },
+    {
+      "code": "GJ",
+      "county": "Gorj",
+      "countyId": "42",
+      "districtCode": "21",
+      "regionCode": "RO442",
+      "residence": "Târgu Jiu",
+      "sourceMapId": "ro-nis2-locations-gj"
+    },
+    {
+      "code": "HR",
+      "county": "Harghita",
+      "countyId": "74",
+      "districtCode": "53",
+      "regionCode": "RO174",
+      "residence": "Miercurea Ciuc",
+      "sourceMapId": "ro-nis2-locations-hr"
+    },
+    {
+      "code": "HD",
+      "county": "Hunedoara",
+      "countyId": "53",
+      "districtCode": "33",
+      "regionCode": "RO453",
+      "residence": "Deva",
+      "sourceMapId": "ro-nis2-locations-hd"
+    },
+    {
+      "code": "IL",
+      "county": "Ialomița",
+      "countyId": "35",
+      "districtCode": "92",
+      "regionCode": "RO335",
+      "residence": "Slobozia",
+      "sourceMapId": "ro-nis2-locations-il"
+    },
+    {
+      "code": "IS",
+      "county": "Iași",
+      "countyId": "13",
+      "districtCode": "70",
+      "regionCode": "RO213",
+      "residence": "Iași",
+      "sourceMapId": "ro-nis2-locations-is"
+    },
+    {
+      "code": "IF",
+      "county": "Ilfov",
+      "countyId": "82",
+      "districtCode": "7",
+      "regionCode": "RO382",
+      "residence": "București",
+      "sourceMapId": "ro-nis2-locations-if"
+    },
+    {
+      "code": "MM",
+      "county": "Maramureș",
+      "countyId": "64",
+      "districtCode": "43",
+      "regionCode": "RO164",
+      "residence": "Baia Mare",
+      "sourceMapId": "ro-nis2-locations-mm"
+    },
+    {
+      "code": "MH",
+      "county": "Mehedinți",
+      "countyId": "43",
+      "districtCode": "22",
+      "regionCode": "RO443",
+      "residence": "Drobeta Turnu-Severin",
+      "sourceMapId": "ro-nis2-locations-mh"
+    },
+    {
+      "code": "MS",
+      "county": "Mureș",
+      "countyId": "75",
+      "districtCode": "54",
+      "regionCode": "RO175",
+      "residence": "Târgu Mureș",
+      "sourceMapId": "ro-nis2-locations-ms"
+    },
+    {
+      "code": "NT",
+      "county": "Neamț",
+      "countyId": "14",
+      "districtCode": "61",
+      "regionCode": "RO214",
+      "residence": "Piatra Neamț",
+      "sourceMapId": "ro-nis2-locations-nt"
+    },
+    {
+      "code": "OT",
+      "county": "Olt",
+      "countyId": "44",
+      "districtCode": "23",
+      "regionCode": "RO444",
+      "residence": "Slatina",
+      "sourceMapId": "ro-nis2-locations-ot"
+    },
+    {
+      "code": "PH",
+      "county": "Prahova",
+      "countyId": "36",
+      "districtCode": "10",
+      "regionCode": "RO336",
+      "residence": "Ploiești",
+      "sourceMapId": "ro-nis2-locations-ph"
+    },
+    {
+      "code": "SM",
+      "county": "Satu Mare",
+      "countyId": "65",
+      "districtCode": "44",
+      "regionCode": "RO165",
+      "residence": "Satu Mare",
+      "sourceMapId": "ro-nis2-locations-sm"
+    },
+    {
+      "code": "SJ",
+      "county": "Sălaj",
+      "countyId": "66",
+      "districtCode": "45",
+      "regionCode": "RO166",
+      "residence": "Zalău",
+      "sourceMapId": "ro-nis2-locations-sj"
+    },
+    {
+      "code": "SB",
+      "county": "Sibiu",
+      "countyId": "76",
+      "districtCode": "55",
+      "regionCode": "RO176",
+      "residence": "Sibiu",
+      "sourceMapId": "ro-nis2-locations-sb"
+    },
+    {
+      "code": "SV",
+      "county": "Suceava",
+      "countyId": "15",
+      "districtCode": "72",
+      "regionCode": "RO215",
+      "residence": "Suceava",
+      "sourceMapId": "ro-nis2-locations-sv"
+    },
+    {
+      "code": "TR",
+      "county": "Teleorman",
+      "countyId": "37",
+      "districtCode": "17",
+      "regionCode": "RO337",
+      "residence": "Alexandria",
+      "sourceMapId": "ro-nis2-locations-tr"
+    },
+    {
+      "code": "TM",
+      "county": "Timiș",
+      "countyId": "54",
+      "districtCode": "30",
+      "regionCode": "RO454",
+      "residence": "Timișoara",
+      "sourceMapId": "ro-nis2-locations-tm"
+    },
+    {
+      "code": "TL",
+      "county": "Tulcea",
+      "countyId": "25",
+      "districtCode": "82",
+      "regionCode": "RO225",
+      "residence": "Tulcea",
+      "sourceMapId": "ro-nis2-locations-tl"
+    },
+    {
+      "code": "VS",
+      "county": "Vaslui",
+      "countyId": "16",
+      "districtCode": "73",
+      "regionCode": "RO216",
+      "residence": "Vaslui",
+      "sourceMapId": "ro-nis2-locations-vs"
+    },
+    {
+      "code": "VL",
+      "county": "Vâlcea",
+      "countyId": "45",
+      "districtCode": "24",
+      "regionCode": "RO445",
+      "residence": "Râmnicu Vâlcea",
+      "sourceMapId": "ro-nis2-locations-vl"
+    },
+    {
+      "code": "VN",
+      "county": "Vrancea",
+      "countyId": "26",
+      "districtCode": "62",
+      "regionCode": "RO226",
+      "residence": "Focșani",
+      "sourceMapId": "ro-nis2-locations-vn"
+    },
+    {
+      "code": "B",
+      "county": "Bucharest",
+      "countyId": "81",
+      "districtCode": "1",
+      "regionCode": "RO381",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b"
+    },
+    {
+      "code": "B1",
+      "county": "District 1",
+      "countyId": "811",
+      "districtCode": "1",
+      "regionCode": "RO3811",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b1"
+    },
+    {
+      "code": "B2",
+      "county": "District 2",
+      "countyId": "812",
+      "districtCode": "1",
+      "regionCode": "RO3812",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b2"
+    },
+    {
+      "code": "B3",
+      "county": "District 3",
+      "countyId": "813",
+      "districtCode": "1",
+      "regionCode": "RO3813",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b3"
+    },
+    {
+      "code": "B4",
+      "county": "District 4",
+      "countyId": "814",
+      "districtCode": "1",
+      "regionCode": "RO3814",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b4"
+    },
+    {
+      "code": "B5",
+      "county": "District 5",
+      "countyId": "815",
+      "districtCode": "1",
+      "regionCode": "RO3815",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b5"
+    },
+    {
+      "code": "B6",
+      "county": "District 6",
+      "countyId": "816",
+      "districtCode": "1",
+      "regionCode": "RO3816",
+      "residence": "Bucharest",
+      "sourceMapId": "ro-nis2-locations-b6"
+    }
+  ],
+  "notificationDraftMapping": [
+    {
+      "formula": "'Entity data'!C12",
+      "key": "notification_c8",
+      "label": "Name of the entity",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c8",
+      "sourceReferences": [
+        {
+          "cell": "C12",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C8"
+    },
+    {
+      "formula": "IF('Entity data'!D12=\"\",\"\",'Entity data'!D12)",
+      "key": "notification_c9",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c9",
+      "sourceReferences": [
+        {
+          "cell": "D12",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C9"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C13,\": \",'Entity data'!D13)",
+      "key": "notification_c10",
+      "label": "Unique Identification Code (CUI):",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c10",
+      "sourceReferences": [
+        {
+          "cell": "C13",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D13",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C10"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C14,\": \",'Entity data'!D14)",
+      "key": "notification_c11",
+      "label": "National registration number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c11",
+      "sourceReferences": [
+        {
+          "cell": "C14",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D14",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C11"
+    },
+    {
+      "formula": "\"Headquarters address: \" &\r\nIF('Entity data'!D16<>\"\", 'Entity data'!C16 & \": \" & 'Entity data'!D16 & \"; \", \"\") &\r\nIF('Entity data'!D20<>\"\", 'Entity data'!D20 & \", \", \"\") &\r\nIF('Entity data'!D21<>\"\", \"no. \" & 'Entity data'!D21 & \", \", \"\") &\r\nIF('Entity data'!D22<>\"\", \"building: \" & 'Entity data'!D22 & \", \", \"\") &\r\nIF('Entity data'!D23<>\"\", \"entrance: \" & 'Entity data'!D23 & \", \", \"\") &\r\nIF('Entity data'!D24<>\"\", \"floor: \" & 'Entity data'!D24 & \", \", \"\") &\r\nIF('Entity data'!D25<>\"\", \"room: \" & 'Entity data'!D25 & \", \", \"\") &\r\nIF('Entity data'!D18=\"Bucharest\",\r\n   IF(AND('Entity data'!C19<>\"\", 'Entity data'!D19<>\"\"),\r\n      'Entity data'!C19 & \" \" & 'Entity data'!D19 & \", \",\r\n      \"\") & 'Entity data'!D18 & \", \",\r\n   IF('Entity data'!D18<>\"\", 'Entity data'!D18 & \", \", \"\")) &\r\nIF(AND('Entity data'!D18<>\"Bucharest\", 'Entity data'!D17<>\"\"),\r\n   \"County \" & 'Entity data'!D17,\r\n   \"\")",
+      "key": "notification_c13",
+      "label": "Headquarters address:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c13",
+      "sourceReferences": [
+        {
+          "cell": "C16",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C19",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D16",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D17",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D18",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D19",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D20",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D21",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D22",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D23",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D24",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D25",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C13"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C26,\": \",'Entity data'!D26)",
+      "key": "notification_c14",
+      "label": "Postal code:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c14",
+      "sourceReferences": [
+        {
+          "cell": "C26",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D26",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C14"
+    },
+    {
+      "formula": "CONCATENATE(\"Email address: \",'Entity data'!D27)",
+      "key": "notification_c15",
+      "label": "Email address:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c15",
+      "sourceReferences": [
+        {
+          "cell": "D27",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C15"
+    },
+    {
+      "formula": "CONCATENATE(\"Website URL: \",'Entity data'!D28)",
+      "key": "notification_c16",
+      "label": "Website URL:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c16",
+      "sourceReferences": [
+        {
+          "cell": "D28",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C16"
+    },
+    {
+      "formula": "CONCATENATE(\"Telephone number: \",'Entity data'!D29)",
+      "key": "notification_c17",
+      "label": "Telephone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c17",
+      "sourceReferences": [
+        {
+          "cell": "D29",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C17"
+    },
+    {
+      "formula": "CONCATENATE(\"Mobile phone number: \",'Entity data'!D30)",
+      "key": "notification_c18",
+      "label": "Mobile phone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c18",
+      "sourceReferences": [
+        {
+          "cell": "D30",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C18"
+    },
+    {
+      "formula": "CONCATENATE(\"Main NACE code: \",'Entity data'!D32)",
+      "key": "notification_c20",
+      "label": "Main NACE code:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c20",
+      "sourceReferences": [
+        {
+          "cell": "D32",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C20"
+    },
+    {
+      "formula": "CONCATENATE(\"Secondary NACE code/s: \",'Entity data'!D33)",
+      "key": "notification_c21",
+      "label": "Secondary NACE code/s:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c21",
+      "sourceReferences": [
+        {
+          "cell": "D33",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C21"
+    },
+    {
+      "formula": "'Entity assessment'!C17",
+      "key": "notification_c25",
+      "label": "Average annual number of employees:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c25",
+      "sourceReferences": [
+        {
+          "cell": "C17",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "C25"
+    },
+    {
+      "formula": "IF('Entity assessment'!D17=\"\",\"\",'Entity assessment'!D17)",
+      "key": "notification_d25",
+      "label": "Average annual number of employees:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d25",
+      "sourceReferences": [
+        {
+          "cell": "D17",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D25"
+    },
+    {
+      "formula": "'Entity assessment'!C18",
+      "key": "notification_c26",
+      "label": "Annual turnover (EUR):",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c26",
+      "sourceReferences": [
+        {
+          "cell": "C18",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "C26"
+    },
+    {
+      "formula": "IF('Entity assessment'!D18=\"\",\"\",'Entity assessment'!D18)",
+      "key": "notification_d26",
+      "label": "Annual turnover (EUR):",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d26",
+      "sourceReferences": [
+        {
+          "cell": "D18",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D26"
+    },
+    {
+      "formula": "'Entity assessment'!C19",
+      "key": "notification_c27",
+      "label": "Balance Sheet (EUR):",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c27",
+      "sourceReferences": [
+        {
+          "cell": "C19",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "C27"
+    },
+    {
+      "formula": "IF('Entity assessment'!D19=\"\",\"\",'Entity assessment'!D19)",
+      "key": "notification_d27",
+      "label": "Balance Sheet (EUR):",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d27",
+      "sourceReferences": [
+        {
+          "cell": "D19",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D27"
+    },
+    {
+      "formula": "'Entity assessment'!C21",
+      "key": "notification_c28",
+      "label": "Size of the entity according to Law No. 346/2004 (except for Central Public Administration)",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c28",
+      "sourceReferences": [
+        {
+          "cell": "C21",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "C28"
+    },
+    {
+      "formula": "IF('Entity assessment'!D20='Entity assessment'!D21, 'Entity assessment'!D21, 'Entity assessment'!D21 & \"  🔴\")",
+      "key": "notification_d28",
+      "label": "Size of the entity according to Law No. 346/2004 (except for Central Public Administration)",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d28",
+      "sourceReferences": [
+        {
+          "cell": "D20",
+          "sheet": "Entity assessment"
+        },
+        {
+          "cell": "D21",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D28"
+    },
+    {
+      "formula": "IF(COUNTBLANK(C33:C37)=5,\"\",5-COUNTBLANK(C33:C37))",
+      "key": "notification_d32",
+      "label": "Service-related sectors",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d32",
+      "sourceReferences": [],
+      "targetCell": "D32"
+    },
+    {
+      "formula": "IF(ISBLANK(Ajutor!H2:I6),\"\",Ajutor!H2:I6)",
+      "key": "notification_c33",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c33",
+      "sourceReferences": [
+        {
+          "range": "H2:I6",
+          "sheet": "Ajutor"
+        }
+      ],
+      "targetCell": "C33"
+    },
+    {
+      "formula": "IF(COUNTBLANK(C40:C44)=5,\"\",5-COUNTBLANK(C40:C44))",
+      "key": "notification_d39",
+      "label": "Sub-sectors (if applicable)",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d39",
+      "sourceReferences": [],
+      "targetCell": "D39"
+    },
+    {
+      "formula": "IF(ISBLANK(Ajutor!N2:O6),\"\",Ajutor!N2:O6)",
+      "key": "notification_c40",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c40",
+      "sourceReferences": [
+        {
+          "range": "N2:O6",
+          "sheet": "Ajutor"
+        }
+      ],
+      "targetCell": "C40"
+    },
+    {
+      "formula": "IF(COUNTBLANK(_xlfn.ANCHORARRAY(C47))=5,\"\",5-COUNTBLANK(_xlfn.ANCHORARRAY(C47)))",
+      "key": "notification_d46",
+      "label": "Services provided (types of entities)",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d46",
+      "sourceReferences": [],
+      "targetCell": "D46"
+    },
+    {
+      "formula": "IF(ISBLANK(Ajutor!B2:B11),\"\",Ajutor!B2:B11)",
+      "key": "notification_c47",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c47",
+      "sourceReferences": [
+        {
+          "range": "B2:B11",
+          "sheet": "Ajutor"
+        }
+      ],
+      "targetCell": "C47"
+    },
+    {
+      "formula": "IF(ISBLANK(Ajutor!C2:C6),\"\",Ajutor!C2:C6)",
+      "key": "notification_d47",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d47",
+      "sourceReferences": [
+        {
+          "range": "C2:C6",
+          "sheet": "Ajutor"
+        }
+      ],
+      "targetCell": "D47"
+    },
+    {
+      "formula": "'Entity data'!D37",
+      "key": "notification_c59",
+      "label": "Is there a designated person responsible for cybersecurity at the time of filling out this form?",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c59",
+      "sourceReferences": [
+        {
+          "cell": "D37",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C59"
+    },
+    {
+      "formula": "'Entity data'!C37",
+      "key": "notification_d59",
+      "label": "Is there a designated person responsible for cybersecurity at the time of filling out this form?",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d59",
+      "sourceReferences": [
+        {
+          "cell": "C37",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D59"
+    },
+    {
+      "formula": "CONCATENATE(\"Last name and first name: \",'Entity data'!D38,\" \",UPPER('Entity data'!D39))",
+      "key": "notification_c60",
+      "label": "Last name and first name:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c60",
+      "sourceReferences": [
+        {
+          "cell": "D38",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D39",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C60"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C40, \": \", 'Entity data'!D40)",
+      "key": "notification_c61",
+      "label": "Role:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c61",
+      "sourceReferences": [
+        {
+          "cell": "C40",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D40",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C61"
+    },
+    {
+      "formula": "CONCATENATE(\"Email address: \", 'Entity data'!D41)",
+      "key": "notification_c62",
+      "label": "Email address:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c62",
+      "sourceReferences": [
+        {
+          "cell": "D41",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C62"
+    },
+    {
+      "formula": "CONCATENATE(\"Mobile phone number: \", 'Entity data'!D42)",
+      "key": "notification_c63",
+      "label": "Mobile phone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c63",
+      "sourceReferences": [
+        {
+          "cell": "D42",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C63"
+    },
+    {
+      "formula": "'Entity data'!D45",
+      "key": "notification_c68",
+      "label": "The person responsible for monitoring is the same as the person responsible for cybersecurity",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c68",
+      "sourceReferences": [
+        {
+          "cell": "D45",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C68"
+    },
+    {
+      "formula": "'Entity data'!C45",
+      "key": "notification_d68",
+      "label": "The person responsible for monitoring is the same as the person responsible for cybersecurity",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d68",
+      "sourceReferences": [
+        {
+          "cell": "C45",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D68"
+    },
+    {
+      "formula": "CONCATENATE(UPPER('Entity data'!D46),\" \",'Entity data'!D47)",
+      "key": "notification_c69",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c69",
+      "sourceReferences": [
+        {
+          "cell": "D46",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D47",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C69"
+    },
+    {
+      "formula": "COUNTA('Entity data'!D50:D52)",
+      "key": "notification_d71",
+      "label": "Permanent means of contact",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d71",
+      "sourceReferences": [
+        {
+          "range": "D50:D52",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D71"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C50,\": \",'Entity data'!D50)",
+      "key": "notification_c72",
+      "label": "Mobile phone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c72",
+      "sourceReferences": [
+        {
+          "cell": "C50",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D50",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C72"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C51, \": \",'Entity data'!D51)",
+      "key": "notification_c73",
+      "label": "Telephone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c73",
+      "sourceReferences": [
+        {
+          "cell": "C51",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D51",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C73"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C52,\": \",'Entity data'!D52)",
+      "key": "notification_c74",
+      "label": "Email:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c74",
+      "sourceReferences": [
+        {
+          "cell": "C52",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D52",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C74"
+    },
+    {
+      "formula": "IF(C78<>\"\", (LEN(C78)-LEN(SUBSTITUTE(C78, \"; \", \"\")))/LEN(\"; \") +1, 0)",
+      "key": "notification_d77",
+      "label": "Public IP address ranges",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d77",
+      "sourceReferences": [],
+      "targetCell": "D77"
+    },
+    {
+      "formula": "IF(ISBLANK('Entity data'!D54), \"\",'Entity data'!D54)",
+      "key": "notification_c78",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c78",
+      "sourceReferences": [
+        {
+          "cell": "D54",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C78"
+    },
+    {
+      "formula": "IF('Entity data'!D57<>\"\", (LEN('Entity data'!D57)-LEN(SUBSTITUTE('Entity data'!D57, \", \", \"\")))/LEN(\", \") +1, 0)",
+      "key": "notification_d81",
+      "label": "Provision of services within the EU",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d81",
+      "sourceReferences": [
+        {
+          "cell": "D57",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D81"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C57,\": \")",
+      "key": "notification_c82",
+      "label": "Member States in which the entity provides services:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c82",
+      "sourceReferences": [
+        {
+          "cell": "C57",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C82"
+    },
+    {
+      "formula": "'Entity data'!D57",
+      "key": "notification_c83",
+      "label": "0",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c83",
+      "sourceReferences": [
+        {
+          "cell": "D57",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C83"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C58,\": \")",
+      "key": "notification_c84",
+      "label": "Addresses of registered office/branch offices in the EU:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c84",
+      "sourceReferences": [
+        {
+          "cell": "C58",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C84"
+    },
+    {
+      "formula": "IF('Entity data'!D58=\"\",\"-\",'Entity data'!D58)",
+      "key": "notification_c85",
+      "label": "-",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c85",
+      "sourceReferences": [
+        {
+          "cell": "D58",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C85"
+    },
+    {
+      "formula": "IF('Entity data'!C60=\"Da\", \"Nu este cazul să aplicăm pentru această subsecțiune\", \"\")",
+      "key": "notification_c88",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c88",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C88"
+    },
+    {
+      "formula": "'Entity data'!C60",
+      "key": "notification_d88",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d88",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D88"
+    },
+    {
+      "formula": "IF('Entity data'!C60=TRUE,\r\n   'Entity data'!C66 & \", \" & 'Entity data'!C67 & \" / \" & 'Entity data'!C61 & \":\",\r\n   'Entity data'!C66 & \", \" & 'Entity data'!C67 & \" / \" & 'Entity data'!C61 & \": \" &\r\n   _xlfn.TEXTJOIN(\" \", TRUE,\r\n      IF('Entity data'!D66<>\"\", 'Entity data'!D66, \"\"),\r\n      IF('Entity data'!D67<>\"\", 'Entity data'!D67, \"\"),\r\n      IF('Entity data'!D61<>\"\", \", reprezentant al \" & 'Entity data'!D61, \"\")\r\n   )\r\n)",
+      "key": "notification_c89",
+      "label": "Last name , First name / Name:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c89",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C61",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C66",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C67",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D61",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D66",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D67",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C89"
+    },
+    {
+      "formula": "IF('Entity data'!C60=TRUE,\r\n   'Entity data'!C63 & \":\",\r\n   IF(AND('Entity data'!D63<>\"\", 'Entity data'!D69<>\"\"),\r\n      'Entity data'!C63 & \": \" & 'Entity data'!D63 & \", \" & 'Entity data'!D69,\r\n      'Entity data'!C63 & \": \" & 'Entity data'!D63 & 'Entity data'!D69\r\n   )\r\n)",
+      "key": "notification_c90",
+      "label": "Email:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c90",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C63",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D63",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D69",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C90"
+    },
+    {
+      "formula": "IF('Entity data'!C60=TRUE,\r\n   'Entity data'!C64 & \":\",\r\n   IF(AND('Entity data'!D64<>\"\", 'Entity data'!D70<>\"\"),\r\n      'Entity data'!C64 & \": \" & 'Entity data'!D64 & \", \" & 'Entity data'!D70,\r\n      'Entity data'!C64 & \": \" & 'Entity data'!D64 & 'Entity data'!D70\r\n   )\r\n)",
+      "key": "notification_c91",
+      "label": "Phone number:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c91",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C64",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D64",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D70",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C91"
+    },
+    {
+      "formula": "IF('Entity data'!C60=TRUE,\r\n   'Entity data'!C68 & \" / \" & 'Entity data'!C62 & \":\",\r\n   'Entity data'!C68 & \" / \" & 'Entity data'!C62 & \": \" &\r\n   IF('Entity data'!D68<>\"\", 'Entity data'!D68, \"\") &\r\n   IF(AND('Entity data'!D68<>\"\", 'Entity data'!D62<>\"\"), \", \", \"\") &\r\n   IF('Entity data'!D62<>\"\", 'Entity data'!D62, \"\")\r\n)",
+      "key": "notification_c92",
+      "label": "Home address and/or residence, as applicable / Registered office address:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c92",
+      "sourceReferences": [
+        {
+          "cell": "C60",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C62",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "C68",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D62",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D68",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C92"
+    },
+    {
+      "formula": "_xlfn._xlws.FILTER('Entity assessment'!C169:C172,'Entity assessment'!D169:D172<>\"\", \"Secțiune nefinalizată! Verificați și răspundeți la toate cele 4 întrebări.\")",
+      "key": "notification_c97",
+      "label": "9a. The entity is the sole provider of a service that is essential to supporting critical societal and economic activities.",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c97",
+      "sourceReferences": [
+        {
+          "range": "C169:C172",
+          "sheet": "Entity assessment"
+        },
+        {
+          "range": "D169:D172",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "C97"
+    },
+    {
+      "formula": "IF(C97=\"Secțiune nefinalizată! Verificați și răspundeți la toate cele 4 întrebări.\",\"\",IF(ISBLANK(C97),\"\",VLOOKUP('Notification form'!C97,'Entity assessment'!C169:D172,2,FALSE)))",
+      "key": "notification_d97",
+      "label": "9a. The entity is the sole provider of a service that is essential to supporting critical societal and economic activities.",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d97",
+      "sourceReferences": [
+        {
+          "range": "C169:D172",
+          "sheet": "Entity assessment"
+        },
+        {
+          "cell": "C97",
+          "sheet": "Notification form"
+        }
+      ],
+      "targetCell": "D97"
+    },
+    {
+      "formula": "IF(ISBLANK(C98),\"\",VLOOKUP('Notification form'!C98,'Entity assessment'!C170:D173,2,FALSE))",
+      "key": "notification_d98",
+      "label": "9b. Disruption of the service provided by the entity could have a significant impact on public safety, public security, or public health.",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d98",
+      "sourceReferences": [
+        {
+          "range": "C170:D173",
+          "sheet": "Entity assessment"
+        },
+        {
+          "cell": "C98",
+          "sheet": "Notification form"
+        }
+      ],
+      "targetCell": "D98"
+    },
+    {
+      "formula": "IF(ISBLANK(C99),\"\",VLOOKUP('Notification form'!C99,'Entity assessment'!C171:D173,2,FALSE))",
+      "key": "notification_d99",
+      "label": "9c. Disruption to the service provided by the entity could generate significant systemic risk, particularly for sectors where such disruption could have a cross-border impact.",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d99",
+      "sourceReferences": [
+        {
+          "range": "C171:D173",
+          "sheet": "Entity assessment"
+        },
+        {
+          "cell": "C99",
+          "sheet": "Notification form"
+        }
+      ],
+      "targetCell": "D99"
+    },
+    {
+      "formula": "IF(ISBLANK(C100),\"\",VLOOKUP('Notification form'!C100,'Entity assessment'!C172:D173,2,FALSE))",
+      "key": "notification_d100",
+      "label": "9d. The entity is critical due to its specific importance at national or regional level for the sector or type of services concerned or for other interdependent sectors.",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d100",
+      "sourceReferences": [
+        {
+          "range": "C172:D173",
+          "sheet": "Entity assessment"
+        },
+        {
+          "cell": "C100",
+          "sheet": "Notification form"
+        }
+      ],
+      "targetCell": "D100"
+    },
+    {
+      "formula": "'Entity assessment'!D153",
+      "key": "notification_d104",
+      "label": "Is/was the entity identified as a critical entity in Romania (in accordance with the provisions of Law No. 294/2024)?",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d104",
+      "sourceReferences": [
+        {
+          "cell": "D153",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D104"
+    },
+    {
+      "formula": "'Entity data'!D72",
+      "key": "notification_c107",
+      "label": "Are there any attached documents?",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c107",
+      "sourceReferences": [
+        {
+          "cell": "D72",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C107"
+    },
+    {
+      "formula": "'Entity data'!C72",
+      "key": "notification_d107",
+      "label": "Are there any attached documents?",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d107",
+      "sourceReferences": [
+        {
+          "cell": "C72",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D107"
+    },
+    {
+      "formula": "CONCATENATE('Entity data'!C73,\": \")",
+      "key": "notification_c108",
+      "label": "Number of attached documents:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c108",
+      "sourceReferences": [
+        {
+          "cell": "C73",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C108"
+    },
+    {
+      "formula": "'Entity data'!D73",
+      "key": "notification_d108",
+      "label": "Number of attached documents:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d108",
+      "sourceReferences": [
+        {
+          "cell": "D73",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D108"
+    },
+    {
+      "formula": "'Entity data'!C74",
+      "key": "notification_c109",
+      "label": "Attached documents certifying the company's classification according to the size criterion:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c109",
+      "sourceReferences": [
+        {
+          "cell": "C74",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C109"
+    },
+    {
+      "formula": "IF('Entity data'!D74=\"\",\"\",'Entity data'!D74)",
+      "key": "notification_c110",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c110",
+      "sourceReferences": [
+        {
+          "cell": "D74",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C110"
+    },
+    {
+      "formula": "'Entity data'!C75",
+      "key": "notification_c111",
+      "label": "Self-assessment of the applicability of Article 9 of OUG No. 155/2024, as appropriate",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c111",
+      "sourceReferences": [
+        {
+          "cell": "C75",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C111"
+    },
+    {
+      "formula": "IF('Entity data'!D75=\"\",\"\",'Entity data'!D75)",
+      "key": "notification_c112",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c112",
+      "sourceReferences": [
+        {
+          "cell": "D75",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C112"
+    },
+    {
+      "formula": "'Entity data'!C76",
+      "key": "notification_c113",
+      "label": "Other attached documents requested by DNSC",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c113",
+      "sourceReferences": [
+        {
+          "cell": "C76",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C113"
+    },
+    {
+      "formula": "IF('Entity data'!D76=\"\",\"\",'Entity data'!D76)",
+      "key": "notification_c114",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c114",
+      "sourceReferences": [
+        {
+          "cell": "D76",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C114"
+    },
+    {
+      "formula": "CONCATENATE(\"Considering the provisions of OUG No. 155/2024, based on the information/data entered and the assessment according to the information provided in this form, \",C9, \" meets the criteria to be considered:\")",
+      "key": "notification_c117",
+      "label": "Considering the provisions of OUG No. 155/2024, based on the information/data entered and the assessment according to the information provided in this form, meets the criteria to be considered:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c117",
+      "sourceReferences": [],
+      "targetCell": "C117"
+    },
+    {
+      "formula": "'Entity assessment'!D176",
+      "key": "notification_d117",
+      "label": "Considering the provisions of OUG No. 155/2024, based on the information/data entered and the assessment according to the information provided in this form, meets the criteria to be considered:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d117",
+      "sourceReferences": [
+        {
+          "cell": "D176",
+          "sheet": "Entity assessment"
+        }
+      ],
+      "targetCell": "D117"
+    },
+    {
+      "formula": "CONCATENATE(\"Last name and first name: \",'Entity data'!D82,\" \",'Entity data'!D81)",
+      "key": "notification_c120",
+      "label": "Last name and first name:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c120",
+      "sourceReferences": [
+        {
+          "cell": "D81",
+          "sheet": "Entity data"
+        },
+        {
+          "cell": "D82",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C120"
+    },
+    {
+      "formula": "CONCATENATE(\"Role: \",'Entity data'!D83)",
+      "key": "notification_c121",
+      "label": "Role:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_c121",
+      "sourceReferences": [
+        {
+          "cell": "D83",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "C121"
+    },
+    {
+      "formula": "'Entity data'!D84",
+      "key": "notification_d122",
+      "label": "Signature:",
+      "sourceMapId": "ro-nis2-notification_draft_mapping-notification_d122",
+      "sourceReferences": [
+        {
+          "cell": "D84",
+          "sheet": "Entity data"
+        }
+      ],
+      "targetCell": "D122"
+    }
+  ],
+  "packVersion": "ro-nis2-v2_1_eng_45915-v2_0_45898",
+  "questions": {
+    "article9": [
+      {
+        "answerCell": "D169",
+        "answerType": "yes_no",
+        "key": "article9_169_9a_the_entity_is_the_sole_provider_of_a_service_that_is_essential_to_supporting_critical_societal_and_economic_activities",
+        "label": "9a. The entity is the sole provider of a service that is essential to supporting critical societal and economic activities.",
+        "promptCell": "C169",
+        "sourceMapId": "ro-nis2-article9_questions-article9_169_9a_the_entity_is_the_sole_provider_of_a_service_that_is_essential_to_supporting_critical_societal_and_economic_activities"
+      },
+      {
+        "answerCell": "D170",
+        "answerType": "impact_select",
+        "key": "article9_170_9b_disruption_of_the_service_provided_by_the_entity_could_have_a_significant_impact_on_public_safety_public_security_or_public_health",
+        "label": "9b. Disruption of the service provided by the entity could have a significant impact on public safety, public security, or public health.",
+        "promptCell": "C170",
+        "sourceMapId": "ro-nis2-article9_questions-article9_170_9b_disruption_of_the_service_provided_by_the_entity_could_have_a_significant_impact_on_public_safety_public_security_or_public_health"
+      },
+      {
+        "answerCell": "D171",
+        "answerType": "impact_select",
+        "key": "article9_171_9c_disruption_to_the_service_provided_by_the_entity_could_generate_significant_systemic_risk_particularly_for_sectors_where_such_disruption_could_have_a_cross_border_impact",
+        "label": "9c. Disruption to the service provided by the entity could generate significant systemic risk, particularly for sectors where such disruption could have a cross-border impact.",
+        "promptCell": "C171",
+        "sourceMapId": "ro-nis2-article9_questions-article9_171_9c_disruption_to_the_service_provided_by_the_entity_could_generate_significant_systemic_risk_particularly_for_sectors_where_such_disruption_could_have_a_cross_border_impact"
+      },
+      {
+        "answerCell": "D172",
+        "answerType": "yes_no",
+        "key": "article9_172_9d_the_entity_is_critical_due_to_its_specific_importance_at_national_or_regional_level_for_the_sector_or_type_of_services_concerned_or_for_other_interdependent_sectors",
+        "label": "9d. The entity is critical due to its specific importance at national or regional level for the sector or type of services concerned or for other interdependent sectors.",
+        "promptCell": "C172",
+        "sourceMapId": "ro-nis2-article9_questions-article9_172_9d_the_entity_is_critical_due_to_its_specific_importance_at_national_or_regional_level_for_the_sector_or_type_of_services_concerned_or_for_other_interdependent_sectors"
+      }
+    ],
+    "law294": [
+      {
+        "answerCell": "D153",
+        "answerType": "yes_no",
+        "key": "law294_153_is_was_the_entity_identified_as_a_critical_entity_in_romania_in_accordance_with_the_provisions_of_law_no_294_2024",
+        "label": "Is/was the entity identified as a critical entity in Romania (in accordance with the provisions of Law No. 294/2024)?",
+        "promptCell": "C153",
+        "sourceMapId": "ro-nis2-law294_questions-law294_153_is_was_the_entity_identified_as_a_critical_entity_in_romania_in_accordance_with_the_provisions_of_law_no_294_2024"
+      }
+    ],
+    "relationshipWithRomania": [
+      {
+        "answerCell": "D150",
+        "answerType": "yes_no",
+        "key": "relationship_150_is_the_entity_established_in_romania",
+        "label": "Is the entity established in Romania?",
+        "promptCell": "C150",
+        "sourceMapId": "ro-nis2-relationship_questions-relationship_150_is_the_entity_established_in_romania"
+      },
+      {
+        "answerCell": "D151",
+        "answerType": "yes_no",
+        "key": "relationship_151_is_the_entity_has_its_main_office_in_romania",
+        "label": "Is the entity has its main office in Romania?",
+        "promptCell": "C151",
+        "sourceMapId": "ro-nis2-relationship_questions-relationship_151_is_the_entity_has_its_main_office_in_romania"
+      },
+      {
+        "answerCell": "D152",
+        "answerType": "yes_no",
+        "key": "relationship_152_is_your_entity_a_public_administration_entity_established_by_romania",
+        "label": "Is your entity a public administration entity established by Romania?",
+        "promptCell": "C152",
+        "sourceMapId": "ro-nis2-relationship_questions-relationship_152_is_your_entity_a_public_administration_entity_established_by_romania"
+      },
+      {
+        "answerCell": "D159",
+        "answerType": "yes_no",
+        "key": "relationship_159_do_you_provide_services_in_romania",
+        "label": "Do you provide services in Romania?",
+        "promptCell": "C159",
+        "sourceMapId": "ro-nis2-relationship_questions-relationship_159_do_you_provide_services_in_romania"
+      },
+      {
+        "answerCell": "D160",
+        "answerType": "yes_no",
+        "key": "relationship_160_do_you_provide_services_in_another_eu_member_state",
+        "label": "Do you provide services in another EU Member State?",
+        "promptCell": "C160",
+        "sourceMapId": "ro-nis2-relationship_questions-relationship_160_do_you_provide_services_in_another_eu_member_state"
+      }
+    ]
+  },
+  "schemaVersion": "0.1.0",
+  "serviceCatalog": {
+    "categories": [
+      {
+        "code": "1",
+        "label": "SECTORS OF HIGH CRITICALITY",
+        "sourceMapId": "ro-nis2-service_categories-1"
+      },
+      {
+        "code": "2",
+        "label": "OTHER CRITICAL SECTORS",
+        "sourceMapId": "ro-nis2-service_categories-2"
+      }
+    ],
+    "options": [
+      {
+        "code": "101101",
+        "label": "Electricity undertakings",
+        "optionCell": "C31",
+        "responseCell": "D31",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101101",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101102",
+        "label": "Distribution system operators",
+        "optionCell": "C32",
+        "responseCell": "D32",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101102",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101103",
+        "label": "Transmission system operators",
+        "optionCell": "C33",
+        "responseCell": "D33",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101103",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101104",
+        "label": "Electricity producers",
+        "optionCell": "C34",
+        "responseCell": "D34",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101104",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101105",
+        "label": "Nominated electricity market operators",
+        "optionCell": "C35",
+        "responseCell": "D35",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101105",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101106",
+        "label": "Electricity market participants",
+        "optionCell": "C36",
+        "responseCell": "D36",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101106",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101107",
+        "label": "Operators of a recharging point",
+        "optionCell": "C37",
+        "responseCell": "D37",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101107",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101108",
+        "label": "Economic operators, concessionaires and the developer of the offshore wind turbine",
+        "optionCell": "C38",
+        "responseCell": "D38",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101108",
+        "subsectorCode": "1011"
+      },
+      {
+        "code": "101201",
+        "label": "Operators of district heating or district cooling",
+        "optionCell": "C40",
+        "responseCell": "D40",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101201",
+        "subsectorCode": "1012"
+      },
+      {
+        "code": "101301",
+        "label": "Operators of oil transmission pipelines",
+        "optionCell": "C42",
+        "responseCell": "D42",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101301",
+        "subsectorCode": "1013"
+      },
+      {
+        "code": "101302",
+        "label": "Operators of oil production, refining and treatment facilities, storage and transmission",
+        "optionCell": "C43",
+        "responseCell": "D43",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101302",
+        "subsectorCode": "1013"
+      },
+      {
+        "code": "101303",
+        "label": "Central stockholding entities",
+        "optionCell": "C44",
+        "responseCell": "D44",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101303",
+        "subsectorCode": "1013"
+      },
+      {
+        "code": "101401",
+        "label": "Natural gas supply undertakings",
+        "optionCell": "C46",
+        "responseCell": "D46",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101401",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101402",
+        "label": "Distribution system operators",
+        "optionCell": "C47",
+        "responseCell": "D47",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101402",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101403",
+        "label": "Transmission system operators",
+        "optionCell": "C48",
+        "responseCell": "D48",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101403",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101404",
+        "label": "Storage system operators",
+        "optionCell": "C49",
+        "responseCell": "D49",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101404",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101405",
+        "label": "LNG system operators",
+        "optionCell": "C50",
+        "responseCell": "D50",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101405",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101406",
+        "label": "Natural gas undertakings",
+        "optionCell": "C51",
+        "responseCell": "D51",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101406",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101407",
+        "label": "Operators of natural gas refining and treatment facilities",
+        "optionCell": "C52",
+        "responseCell": "D52",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101407",
+        "subsectorCode": "1014"
+      },
+      {
+        "code": "101501",
+        "label": "Operators of hydrogen production, storage and transmission",
+        "optionCell": "C54",
+        "responseCell": "D54",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101501",
+        "subsectorCode": "1015"
+      },
+      {
+        "code": "101601",
+        "label": "Beneficiaries set out in Government Emergency Ordinance No. 60/2022 - Modernization Fund",
+        "optionCell": "C56",
+        "responseCell": "D56",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_options-101601",
+        "subsectorCode": "1016"
+      },
+      {
+        "code": "102101",
+        "label": "Air carriers",
+        "optionCell": "C59",
+        "responseCell": "D59",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102101",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102102",
+        "label": "Airport managing bodies including the core airports and entities operating ancillary installations contained within air ports",
+        "optionCell": "C60",
+        "responseCell": "D60",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102102",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102103",
+        "label": "Traffic management control operators providing air traffic control (ATC) services",
+        "optionCell": "C61",
+        "responseCell": "D61",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102103",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102104",
+        "label": "Aircraft maintenance operators",
+        "optionCell": "C62",
+        "responseCell": "D62",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102104",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102105",
+        "label": "Civil aviation agents",
+        "optionCell": "C63",
+        "responseCell": "D63",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102105",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102106",
+        "label": "Organizations referred to in Article 2(1) of Delegated Regulation (EU) 2022/1645",
+        "optionCell": "C64",
+        "responseCell": "D64",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102106",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102107",
+        "label": "Organizations referred to in Article 2(1) of Implementing Regulation (EU) 2023/203",
+        "optionCell": "C65",
+        "responseCell": "D65",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102107",
+        "subsectorCode": "1021"
+      },
+      {
+        "code": "102201",
+        "label": "Infrastructure managers",
+        "optionCell": "C67",
+        "responseCell": "D67",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102201",
+        "subsectorCode": "1022"
+      },
+      {
+        "code": "102202",
+        "label": "Railway undertakings",
+        "optionCell": "C68",
+        "responseCell": "D68",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102202",
+        "subsectorCode": "1022"
+      },
+      {
+        "code": "102301",
+        "label": "Inland, sea and coastal passenger and freight water transport companies",
+        "optionCell": "C70",
+        "responseCell": "D70",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102301",
+        "subsectorCode": "1023"
+      },
+      {
+        "code": "102302",
+        "label": "Managing bodies of ports and entities operating works and equipment contained within ports",
+        "optionCell": "C71",
+        "responseCell": "D71",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102302",
+        "subsectorCode": "1023"
+      },
+      {
+        "code": "102303",
+        "label": "Operators of vessel traffic services (VTS)",
+        "optionCell": "C72",
+        "responseCell": "D72",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102303",
+        "subsectorCode": "1023"
+      },
+      {
+        "code": "102401",
+        "label": "Road authorities",
+        "optionCell": "C74",
+        "responseCell": "D74",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102401",
+        "subsectorCode": "1024"
+      },
+      {
+        "code": "102402",
+        "label": "Operators of Intelligent Transport Systems",
+        "optionCell": "C75",
+        "responseCell": "D75",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102402",
+        "subsectorCode": "1024"
+      },
+      {
+        "code": "102501",
+        "label": "Public transport service operators",
+        "optionCell": "C77",
+        "responseCell": "D77",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_options-102501",
+        "subsectorCode": "1025"
+      },
+      {
+        "code": "103001",
+        "label": "Credit institutions",
+        "optionCell": "C79",
+        "responseCell": "D79",
+        "sectorCode": "103",
+        "sourceMapId": "ro-nis2-service_options-103001"
+      },
+      {
+        "code": "104001",
+        "label": "Operators of trading venues",
+        "optionCell": "C81",
+        "responseCell": "D81",
+        "sectorCode": "104",
+        "sourceMapId": "ro-nis2-service_options-104001"
+      },
+      {
+        "code": "104002",
+        "label": "Central counterparties (CCPs)",
+        "optionCell": "C82",
+        "responseCell": "D82",
+        "sectorCode": "104",
+        "sourceMapId": "ro-nis2-service_options-104002"
+      },
+      {
+        "code": "104003",
+        "label": "Institutions that ensure the execution of operations involving the collection and payment of public funds",
+        "optionCell": "C83",
+        "responseCell": "D83",
+        "sectorCode": "104",
+        "sourceMapId": "ro-nis2-service_options-104003"
+      },
+      {
+        "code": "105001",
+        "label": "Healthcare providers",
+        "optionCell": "C85",
+        "responseCell": "D85",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105001"
+      },
+      {
+        "code": "105002",
+        "label": "EU reference laboratories",
+        "optionCell": "C86",
+        "responseCell": "D86",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105002"
+      },
+      {
+        "code": "105003",
+        "label": "Entities carrying out research and development activities of medicinal products",
+        "optionCell": "C87",
+        "responseCell": "D87",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105003"
+      },
+      {
+        "code": "105004",
+        "label": "Entities manufacturing basic pharmaceutical products and pharmaceutical preparations",
+        "optionCell": "C88",
+        "responseCell": "D88",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105004"
+      },
+      {
+        "code": "105005",
+        "label": "Entities manufacturing medical devices considered to be critical during a public health emergency",
+        "optionCell": "C89",
+        "responseCell": "D89",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105005"
+      },
+      {
+        "code": "105006",
+        "label": "Entities authorized to distribute medicinal products",
+        "optionCell": "C90",
+        "responseCell": "D90",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105006"
+      },
+      {
+        "code": "105007",
+        "label": "Enterprises carrying out any of the economic activities listed in NACE 4646 and 4773 (Rev3)",
+        "optionCell": "C91",
+        "responseCell": "D91",
+        "sectorCode": "105",
+        "sourceMapId": "ro-nis2-service_options-105007"
+      },
+      {
+        "code": "107001",
+        "label": "Undertakings collecting, disposing of or treating urban waste water, domestic waste water or industrial waste water",
+        "optionCell": "C95",
+        "responseCell": "D95",
+        "sectorCode": "107",
+        "sourceMapId": "ro-nis2-service_options-107001"
+      },
+      {
+        "code": "108001",
+        "label": "Internet Exchange Point providers (IXP)",
+        "optionCell": "C97",
+        "responseCell": "D97",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108001"
+      },
+      {
+        "code": "108002",
+        "label": "Internet Exchange Point providers",
+        "optionCell": "C98",
+        "responseCell": "D98",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108002"
+      },
+      {
+        "code": "108003",
+        "label": "TLD name registries",
+        "optionCell": "C99",
+        "responseCell": "D99",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108003"
+      },
+      {
+        "code": "108004",
+        "label": "Cloud computing service providers",
+        "optionCell": "C100",
+        "responseCell": "D100",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108004"
+      },
+      {
+        "code": "108005",
+        "label": "Data centre service providers",
+        "optionCell": "C101",
+        "responseCell": "D101",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108005"
+      },
+      {
+        "code": "108006",
+        "label": "Content delivery network providers",
+        "optionCell": "C102",
+        "responseCell": "D102",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108006"
+      },
+      {
+        "code": "108007",
+        "label": "Trust service providers",
+        "optionCell": "C103",
+        "responseCell": "D103",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108007"
+      },
+      {
+        "code": "108008",
+        "label": "Qualified trusted service providers",
+        "optionCell": "C104",
+        "responseCell": "D104",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108008"
+      },
+      {
+        "code": "108009",
+        "label": "Providers of public electronic communications networks",
+        "optionCell": "C105",
+        "responseCell": "D105",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108009"
+      },
+      {
+        "code": "108010",
+        "label": "Providers of publicly available electronic communications services",
+        "optionCell": "C106",
+        "responseCell": "D106",
+        "sectorCode": "108",
+        "sourceMapId": "ro-nis2-service_options-108010"
+      },
+      {
+        "code": "109001",
+        "label": "Managed service providers",
+        "optionCell": "C108",
+        "responseCell": "D108",
+        "sectorCode": "109",
+        "sourceMapId": "ro-nis2-service_options-109001"
+      },
+      {
+        "code": "109002",
+        "label": "Managed security service providers",
+        "optionCell": "C109",
+        "responseCell": "D109",
+        "sectorCode": "109",
+        "sourceMapId": "ro-nis2-service_options-109002"
+      },
+      {
+        "code": "110001",
+        "label": "Public administration entities of central government",
+        "optionCell": "C111",
+        "responseCell": "D111",
+        "sectorCode": "110",
+        "sourceMapId": "ro-nis2-service_options-110001"
+      },
+      {
+        "code": "111001",
+        "label": "Operators of ground-based infrastructure, owned, managed and operated by Member States or by private parties, that support the provision of space-based services",
+        "optionCell": "C113",
+        "responseCell": "D113",
+        "sectorCode": "111",
+        "sourceMapId": "ro-nis2-service_options-111001"
+      },
+      {
+        "code": "201001",
+        "label": "Postal service providers including providers of courier services",
+        "optionCell": "C116",
+        "responseCell": "D116",
+        "sectorCode": "201",
+        "sourceMapId": "ro-nis2-service_options-201001"
+      },
+      {
+        "code": "202001",
+        "label": "Undertakings carrying out waste management",
+        "optionCell": "C118",
+        "responseCell": "D118",
+        "sectorCode": "202",
+        "sourceMapId": "ro-nis2-service_options-202001"
+      },
+      {
+        "code": "203001",
+        "label": "Undertakings carrying out the manufacture of substances and the distribution of substances or mixtures and undertakings carrying out the production of articles from substances or mixtures",
+        "optionCell": "C120",
+        "responseCell": "D120",
+        "sectorCode": "203",
+        "sourceMapId": "ro-nis2-service_options-203001"
+      },
+      {
+        "code": "204001",
+        "label": "Food businesses",
+        "optionCell": "C122",
+        "responseCell": "D122",
+        "sectorCode": "204",
+        "sourceMapId": "ro-nis2-service_options-204001"
+      },
+      {
+        "code": "205101",
+        "label": "Entities manufacturing medical devices and entities manufacturing in vitro diagnostic medical devices",
+        "optionCell": "C125",
+        "responseCell": "D125",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205101",
+        "subsectorCode": "2051"
+      },
+      {
+        "code": "205201",
+        "label": "Undertakings carrying out any of the economic activities referred to in section C division 26 of NACE Rev. 2",
+        "optionCell": "C127",
+        "responseCell": "D127",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205201",
+        "subsectorCode": "2052"
+      },
+      {
+        "code": "205301",
+        "label": "Undertakings carrying out any of the economic activities referred to in section C division 27 of NACE Rev. 2",
+        "optionCell": "C129",
+        "responseCell": "D129",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205301",
+        "subsectorCode": "2053"
+      },
+      {
+        "code": "205401",
+        "label": "Undertakings carrying out any of the economic activities referred to in section C division 28 of NACE Rev. 2",
+        "optionCell": "C131",
+        "responseCell": "D131",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205401",
+        "subsectorCode": "2054"
+      },
+      {
+        "code": "205501",
+        "label": "Undertakings carrying out any of the economic activities referred to in section C division 29 of NACE Rev. 2",
+        "optionCell": "C133",
+        "responseCell": "D133",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205501",
+        "subsectorCode": "2055"
+      },
+      {
+        "code": "205601",
+        "label": "Undertakings carrying out any of the economic activities referred to in section C division 30 of NACE Rev. 2",
+        "optionCell": "C135",
+        "responseCell": "D135",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_options-205601",
+        "subsectorCode": "2056"
+      },
+      {
+        "code": "206001",
+        "label": "Providers of online marketplaces",
+        "optionCell": "C137",
+        "responseCell": "D137",
+        "sectorCode": "206",
+        "sourceMapId": "ro-nis2-service_options-206001"
+      },
+      {
+        "code": "206002",
+        "label": "Providers of online search engines",
+        "optionCell": "C138",
+        "responseCell": "D138",
+        "sectorCode": "206",
+        "sourceMapId": "ro-nis2-service_options-206002"
+      },
+      {
+        "code": "206003",
+        "label": "Providers of social networking services platforms",
+        "optionCell": "C139",
+        "responseCell": "D139",
+        "sectorCode": "206",
+        "sourceMapId": "ro-nis2-service_options-206003"
+      },
+      {
+        "code": "207001",
+        "label": "Research organisations",
+        "optionCell": "C141",
+        "responseCell": "D141",
+        "sectorCode": "207",
+        "sourceMapId": "ro-nis2-service_options-207001"
+      },
+      {
+        "code": "none_of_oug_155_2024_services",
+        "label": "None of the services listed in OUG No. 155/2024",
+        "optionCell": "C142",
+        "responseCell": "D142",
+        "sourceMapId": "ro-nis2-service_options-none_of_oug_155_2024_services"
+      }
+    ],
+    "sectors": [
+      {
+        "categoryCode": "1",
+        "code": "101",
+        "label": "Energy",
+        "sourceMapId": "ro-nis2-service_sectors-101"
+      },
+      {
+        "categoryCode": "1",
+        "code": "102",
+        "label": "Transport",
+        "sourceMapId": "ro-nis2-service_sectors-102"
+      },
+      {
+        "categoryCode": "1",
+        "code": "103",
+        "label": "Banking",
+        "sourceMapId": "ro-nis2-service_sectors-103"
+      },
+      {
+        "categoryCode": "1",
+        "code": "104",
+        "label": "Financial market infrstructures",
+        "sourceMapId": "ro-nis2-service_sectors-104"
+      },
+      {
+        "categoryCode": "1",
+        "code": "105",
+        "label": "Health",
+        "sourceMapId": "ro-nis2-service_sectors-105"
+      },
+      {
+        "categoryCode": "1",
+        "code": "106",
+        "label": "Drinking water",
+        "sourceMapId": "ro-nis2-service_sectors-106"
+      },
+      {
+        "categoryCode": "1",
+        "code": "107",
+        "label": "Waste water",
+        "sourceMapId": "ro-nis2-service_sectors-107"
+      },
+      {
+        "categoryCode": "1",
+        "code": "108",
+        "label": "Digital Infrstructure",
+        "sourceMapId": "ro-nis2-service_sectors-108"
+      },
+      {
+        "categoryCode": "1",
+        "code": "109",
+        "label": "ICT service management (business-tobusiness)",
+        "sourceMapId": "ro-nis2-service_sectors-109"
+      },
+      {
+        "categoryCode": "1",
+        "code": "110",
+        "label": "Public administration",
+        "sourceMapId": "ro-nis2-service_sectors-110"
+      },
+      {
+        "categoryCode": "1",
+        "code": "111",
+        "label": "Space",
+        "sourceMapId": "ro-nis2-service_sectors-111"
+      },
+      {
+        "categoryCode": "2",
+        "code": "201",
+        "label": "Postal and courier services",
+        "sourceMapId": "ro-nis2-service_sectors-201"
+      },
+      {
+        "categoryCode": "2",
+        "code": "202",
+        "label": "Waste management",
+        "sourceMapId": "ro-nis2-service_sectors-202"
+      },
+      {
+        "categoryCode": "2",
+        "code": "203",
+        "label": "Manufacture, production and distribution ofchemicals",
+        "sourceMapId": "ro-nis2-service_sectors-203"
+      },
+      {
+        "categoryCode": "2",
+        "code": "204",
+        "label": "Production, processing and distribution of food",
+        "sourceMapId": "ro-nis2-service_sectors-204"
+      },
+      {
+        "categoryCode": "2",
+        "code": "205",
+        "label": "Manufacturing",
+        "sourceMapId": "ro-nis2-service_sectors-205"
+      },
+      {
+        "categoryCode": "2",
+        "code": "206",
+        "label": "Digital providers",
+        "sourceMapId": "ro-nis2-service_sectors-206"
+      },
+      {
+        "categoryCode": "2",
+        "code": "207",
+        "label": "Research",
+        "sourceMapId": "ro-nis2-service_sectors-207"
+      }
+    ],
+    "subsectors": [
+      {
+        "code": "1011",
+        "label": "Electricity",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1011"
+      },
+      {
+        "code": "1012",
+        "label": "District heating and cooling",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1012"
+      },
+      {
+        "code": "1013",
+        "label": "Oil",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1013"
+      },
+      {
+        "code": "1014",
+        "label": "Gas",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1014"
+      },
+      {
+        "code": "1015",
+        "label": "Hydrogen",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1015"
+      },
+      {
+        "code": "1016",
+        "label": "Beneficiaries of projects financed from non-reimbursable funds",
+        "sectorCode": "101",
+        "sourceMapId": "ro-nis2-service_subsectors-1016"
+      },
+      {
+        "code": "1021",
+        "label": "Air",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_subsectors-1021"
+      },
+      {
+        "code": "1022",
+        "label": "Rail",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_subsectors-1022"
+      },
+      {
+        "code": "1023",
+        "label": "Water",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_subsectors-1023"
+      },
+      {
+        "code": "1024",
+        "label": "Road",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_subsectors-1024"
+      },
+      {
+        "code": "1025",
+        "label": "Public transportation",
+        "sectorCode": "102",
+        "sourceMapId": "ro-nis2-service_subsectors-1025"
+      },
+      {
+        "code": "2051",
+        "label": "Manufacture of medical devices and in vitro diagnostic medical devices",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2051"
+      },
+      {
+        "code": "2052",
+        "label": "Manufacture of computer, electronic and optical products",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2052"
+      },
+      {
+        "code": "2053",
+        "label": "Manufacture of electrical equipment",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2053"
+      },
+      {
+        "code": "2054",
+        "label": "Manufacture of machinery and equipment n.e.c.",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2054"
+      },
+      {
+        "code": "2055",
+        "label": "Manufacture of motor vehicles, trailers and semi-trailers",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2055"
+      },
+      {
+        "code": "2056",
+        "label": "Manufacture of other transport equipment",
+        "sectorCode": "205",
+        "sourceMapId": "ro-nis2-service_subsectors-2056"
+      }
+    ]
+  },
+  "source": {
+    "contentHashSha256": "a3149ab596155004d4f6bc5a52f4e54f33c5e061fe0823eb4e7290c2ebf6929a",
+    "localFilePath": "data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx",
+    "sourceType": "internal_excel_seed",
+    "title": "NIS2@RO Tool workbook v2.1",
+    "trustLevel": "internal_seed"
+  },
+  "validationStatus": "validated",
+  "workbook": {
+    "detectedSheets": [
+      "Introduction",
+      "User instructions",
+      "Entity data",
+      "Entity assessment",
+      "Notification form",
+      "Liste",
+      "Ajutor",
+      "Algoritm clasificare"
+    ],
+    "requiredSheets": [
+      "Entity data",
+      "Entity assessment",
+      "Notification form",
+      "Liste",
+      "Ajutor",
+      "Algoritm clasificare"
+    ],
+    "versions": {
+      "entityAssessment": "V2.0_45898",
+      "entityData": "V2.1 ENG_45915"
+    }
+  }
 }

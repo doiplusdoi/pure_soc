@@ -1,7 +1,82 @@
 {
-  "schemaVersion": "0.1.0",
   "country": "ro",
-  "status": "not_run",
+  "limitations": [
+    "The importer preserves workbook formulas and cached values but does not recalculate Excel formulas.",
+    "Workbook data-validation/drop-down metadata is represented through visible helper tables and source-mapped cells.",
+    "Romania legal logic remains review_required and is not activated automatically by the import."
+  ],
+  "requiredSheetValidation": {
+    "missing": [],
+    "passed": true,
+    "present": [
+      "Entity data",
+      "Entity assessment",
+      "Notification form",
+      "Liste",
+      "Ajutor",
+      "Algoritm clasificare"
+    ]
+  },
+  "schemaVersion": "0.1.0",
+  "sourceMapCoverage": {
+    "mappedItems": 388,
+    "passed": true,
+    "ratio": 1,
+    "threshold": 0.98,
+    "totalMappableItems": 388
+  },
   "sourceWorkbook": "nis2ro-tool-v-2-1.xlsx",
-  "notes": "Prompt 4 will replace this placeholder with a deterministic importer validation report."
+  "sourceWorkbookHashSha256": "a3149ab596155004d4f6bc5a52f4e54f33c5e061fe0823eb4e7290c2ebf6929a",
+  "status": "validated",
+  "summary": {
+    "article9Questions": 4,
+    "classificationFormulaSignals": 40,
+    "classificationRules": 10,
+    "entityFields": 60,
+    "locations": 48,
+    "notificationDraftMappings": 74,
+    "relationshipQuestions": 5,
+    "serviceOptions": 77
+  },
+  "validationChecks": [
+    {
+      "key": "required_sheets",
+      "message": "All required Romania workbook sheets are present.",
+      "passed": true
+    },
+    {
+      "key": "workbook_versions",
+      "message": "Entity data and entity assessment workbook versions were extracted.",
+      "passed": true
+    },
+    {
+      "key": "entity_fields",
+      "message": "Entity, contact, activity, network, document, and representation fields were extracted.",
+      "passed": true
+    },
+    {
+      "key": "service_options",
+      "message": "Service/entity type options were extracted from the workbook.",
+      "passed": true
+    },
+    {
+      "key": "classification_rules",
+      "message": "Classification rules and formula signals were source-mapped.",
+      "passed": true
+    },
+    {
+      "key": "notification_mapping",
+      "message": "Notification draft formulas were source-mapped.",
+      "passed": true
+    },
+    {
+      "key": "source_map_coverage",
+      "message": "Generated mappable seed items meet the source-map coverage threshold.",
+      "passed": true
+    }
+  ],
+  "workbookVersions": {
+    "entityAssessment": "V2.0_45898",
+    "entityData": "V2.1 ENG_45915"
+  }
 }
