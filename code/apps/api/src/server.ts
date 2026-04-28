@@ -3,6 +3,12 @@ import { createServer } from "node:http";
 import { getApiHealth } from "./health";
 import { loginRoute, logoutRoute, registerRoute, sessionRoute } from "./auth/routes";
 import { countryPackStatusRoute } from "./compliance/nis2/routes";
+import {
+  roNis2ClassificationRoute,
+  roNis2NotificationDraftRoute,
+  roNis2OnboardingProgressRoute,
+  roNis2OnboardingSchemaRoute
+} from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, readRequestContext, sendJson, toJsonResultError } from "./http";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
@@ -43,6 +49,26 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
       if (request.method === "GET" && url.pathname === "/compliance/nis2/country-packs/status") {
         sendJson(response, await countryPackStatusRoute());
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/compliance/nis2/ro/onboarding/schema") {
+        sendJson(response, await roNis2OnboardingSchemaRoute());
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/onboarding/progress") {
+        sendJson(response, await roNis2OnboardingProgressRoute(body));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/classification") {
+        sendJson(response, await roNis2ClassificationRoute(body));
+        return;
+      }
+
+      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/notification-draft") {
+        sendJson(response, await roNis2NotificationDraftRoute(body));
         return;
       }
 

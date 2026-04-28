@@ -66,20 +66,20 @@ Status: Resolved 2026-04-28 for Phase C auth/organization service-layer enforcem
 
 Severity: High
 Area: Regulatory data
-Current state: Workbook is stored under `docs/`; preliminary scan detected sheets and versions, but no importer exists.
-Impact: Romania pack cannot be trusted or updated repeatably without source mapping.
-Next action: Implement Prompt 4 with source-map coverage tests.
+Current state: Phase E added a deterministic XLSX importer under `code/apps/regulatory-importer/src/ro`, generated RO NIS2 seed/source-map/report JSON under `code/data/regulatory/countries/ro`, and added source-map coverage and deterministic-output tests. Parser limitations are explicit in the generated import report: formulas and cached values are preserved but not recalculated, data-validation/drop-down metadata is represented through visible helper tables and source-mapped cells, and generated Romania legal logic remains `review_required`.
+Impact: Romania workbook data can now be regenerated and diffed repeatably with source-map coverage. Legal activation still requires the GAP-006 review workflow before generated national logic is treated as active.
+Next action: During Prompt 5, build onboarding/notification behavior against the generated seed and keep classification scenarios tied to source-mapped fixtures; do not add direct DNSC submission.
 Owner: Codex
 Target phase: Phase E
-Status: Open
+Status: Resolved 2026-04-28 for structured parser and generated source-mapped seed artifacts; legal review activation remains tracked by GAP-006.
 
 ### GAP-006: Legal Review Process Undefined
 
 Severity: High
 Area: Regulatory risk
-Current state: Product caveat is defined, ADR-011 records the source activation lifecycle, and Phase D added a regulatory source lifecycle skeleton in `code/packages/regulatory-sources` where changed legal logic defaults to `review_required` and creates a `regulatory_admin` review-task skeleton. Reviewer assignment rules, review persistence, approval UI, and legal/product operating procedure are still undefined.
-Impact: Incorrect national guidance could create commercial and customer risk if reviewers, approvals, and activation authority are not defined before real country-pack legal logic is activated.
-Next action: Define reviewer roles and approval workflow, then implement persisted `regulatory_review_tasks` and activation/supersession UI before activating source-derived country-pack or control changes.
+Current state: Product caveat is defined, ADR-011 records the source activation lifecycle, and Phase D added a regulatory source lifecycle skeleton in `code/packages/regulatory-sources` where changed legal logic defaults to `review_required` and creates a `regulatory_admin` review-task skeleton. Phase E now has source-mapped Romania preliminary classification, onboarding progress, and notification-draft contracts, but reviewer assignment rules, review persistence, approval UI, and legal/product operating procedure are still undefined.
+Impact: Incorrect national guidance could create commercial and customer risk if reviewers, approvals, and activation authority are not defined before source-derived Romania country-pack legal logic is activated for production guidance.
+Next action: Define reviewer roles and approval workflow, then implement persisted `regulatory_review_tasks` and activation/supersession UI before activating source-derived Romania country-pack or control changes.
 Owner: Product/legal
 Target phase: Phase D and Phase K
 Status: Open

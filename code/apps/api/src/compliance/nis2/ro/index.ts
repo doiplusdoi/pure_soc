@@ -1,7 +1,6 @@
-export { countryPackStatusRoute } from "./routes";
 export {
   roNis2ClassificationRoute,
   roNis2NotificationDraftRoute,
   roNis2OnboardingProgressRoute,
   roNis2OnboardingSchemaRoute
-} from "./ro";
+} from "./routes";

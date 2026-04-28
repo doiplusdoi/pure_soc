@@ -21,6 +21,7 @@ export const schemaGroups = {
     "business_nace_codes",
     "business_size_assessments",
     "jurisdiction_assessments",
+    "ro_nis2_onboarding_progress",
     "customer_documents"
   ],
   connectorConfigurationAndTelemetry: [
@@ -59,6 +60,7 @@ export const schemaGroups = {
     "control_provider_mappings",
     "control_evidence_requirements",
     "compliance_assessments",
+    "ro_nis2_classification_runs",
     "compliance_control_results",
     "compliance_gaps",
     "readiness_plans",
@@ -77,7 +79,8 @@ export const schemaGroups = {
     "report_exports",
     "dashboard_snapshots",
     "dashboard_widgets",
-    "notification_drafts"
+    "notification_drafts",
+    "ro_nis2_notification_drafts"
   ],
   billing: ["billing_customers", "billing_subscriptions", "billing_entitlements", "billing_events"]
 } as const;
@@ -95,6 +98,7 @@ export const tenantOwnedTables = [
   "business_nace_codes",
   "business_size_assessments",
   "jurisdiction_assessments",
+  "ro_nis2_onboarding_progress",
   "customer_documents",
   "provider_connections",
   "provider_credentials",
@@ -109,6 +113,7 @@ export const tenantOwnedTables = [
   "provider_action_runs",
   "regulatory_answers",
   "compliance_assessments",
+  "ro_nis2_classification_runs",
   "compliance_control_results",
   "compliance_gaps",
   "readiness_plans",
@@ -124,6 +129,7 @@ export const tenantOwnedTables = [
   "dashboard_snapshots",
   "dashboard_widgets",
   "notification_drafts",
+  "ro_nis2_notification_drafts",
   "billing_customers",
   "billing_subscriptions",
   "billing_entitlements"
@@ -131,4 +137,3 @@ export const tenantOwnedTables = [
 
 export type SchemaGroupName = keyof typeof schemaGroups;
 export type TenantOwnedTable = (typeof tenantOwnedTables)[number];
-

@@ -214,6 +214,22 @@ enum NotificationDraftStatus {
   superseded
 }
 
+enum RoNis2ClassificationResult {
+  insufficient_data
+  out_of_scope
+  voluntary_registration_possible
+  important_entity
+  essential_entity
+}
+
+enum RoNis2OnboardingStatus {
+  draft
+  in_progress
+  ready_for_classification
+  classification_complete
+  ready_for_notification_export
+}
+
 enum BillingProviderKey {
   none
   stripe
@@ -506,6 +522,26 @@ model JurisdictionAssessment {
   assessedAt     DateTime @default(now()) @map("assessed_at")
 
   @@map("jurisdiction_assessments")
+}
+
+model RoNis2OnboardingProgress {
+  id                    String                 @id @default(uuid()) @db.Uuid
+  organizationId        String                 @map("organization_id") @db.Uuid
+  assessmentId          String?                @map("assessment_id") @db.Uuid
+  businessProfileId     String?                @map("business_profile_id") @db.Uuid
+  status                RoNis2OnboardingStatus @default(draft)
+  currentStep           String                 @map("current_step")
+  completedSteps        String[]               @map("completed_steps")
+  answersJson           Json                   @default("{}") @map("answers_json")
+  sourceVersion         String                 @map("source_version")
+  sourceReferencesJson  Json                   @default("[]") @map("source_references_json")
+  missingRequiredFields String[]               @map("missing_required_fields")
+  savedBy               String?                @map("saved_by") @db.Uuid
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+
+  @@index([organizationId, status], map: "ro_nis2_onboarding_progress_org_status_idx")
+  @@map("ro_nis2_onboarding_progress")
 }
 
 model CustomerDocument {
@@ -1014,6 +1050,26 @@ model ComplianceAssessment {
   @@map("compliance_assessments")
 }
 
+model RoNis2ClassificationRun {
+  id                    String                     @id @default(uuid()) @db.Uuid
+  organizationId        String                     @map("organization_id") @db.Uuid
+  assessmentId          String?                    @map("assessment_id") @db.Uuid
+  onboardingProgressId  String?                    @map("onboarding_progress_id") @db.Uuid
+  result                RoNis2ClassificationResult
+  article9Required      Boolean                    @default(false) @map("article9_required")
+  notificationRecommended Boolean                  @default(false) @map("notification_recommended")
+  inputJson             Json                       @default("{}") @map("input_json")
+  reasonsJson           Json                       @default("[]") @map("reasons_json")
+  matchedRulesJson      Json                       @default("[]") @map("matched_rules_json")
+  missingRequiredFields String[]                   @map("missing_required_fields")
+  sourceVersion         String                     @map("source_version")
+  sourceReferencesJson  Json                       @default("[]") @map("source_references_json")
+  classifiedAt          DateTime                   @default(now()) @map("classified_at")
+
+  @@index([organizationId, result, classifiedAt], map: "ro_nis2_classification_runs_org_result_idx")
+  @@map("ro_nis2_classification_runs")
+}
+
 model ComplianceControlResult {
   id             String           @id @default(uuid()) @db.Uuid
   organizationId String           @map("organization_id") @db.Uuid
@@ -1269,6 +1325,25 @@ model NotificationDraft {
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
   @@map("notification_drafts")
+}
+
+model RoNis2NotificationDraft {
+  id                   String                  @id @default(uuid()) @db.Uuid
+  organizationId       String                  @map("organization_id") @db.Uuid
+  assessmentId         String?                 @map("assessment_id") @db.Uuid
+  onboardingProgressId String?                 @map("onboarding_progress_id") @db.Uuid
+  classificationRunId  String?                 @map("classification_run_id") @db.Uuid
+  notificationDraftId  String?                 @map("notification_draft_id") @db.Uuid
+  status               NotificationDraftStatus @default(draft)
+  payloadJson          Json                    @map("payload_json")
+  sourceReferencesJson Json                    @default("[]") @map("source_references_json")
+  legalCaveat          String                  @map("legal_caveat")
+  createdBy            String?                 @map("created_by") @db.Uuid
+  createdAt            DateTime                @default(now()) @map("created_at")
+  updatedAt            DateTime                @updatedAt @map("updated_at")
+
+  @@index([organizationId, status], map: "ro_nis2_notification_drafts_org_status_idx")
+  @@map("ro_nis2_notification_drafts")
 }
 
 model BillingCustomer {
