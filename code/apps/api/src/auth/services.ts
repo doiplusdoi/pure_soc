@@ -6,6 +6,8 @@ import {
 } from "../../../../packages/auth/local/src/index";
 import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
+import { InMemoryProviderResourceStore } from "../../../../packages/providers/core/src/index";
+import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
 
 export interface ApiServices {
@@ -15,6 +17,7 @@ export interface ApiServices {
   localAuth: LocalAuthService;
   organizations: OrganizationService;
   providerConnections: ProviderConnectionsService;
+  microsoft365ProviderConnections: Microsoft365ProviderConnectionService;
 }
 
 export const createApiServices = (options: { now?: () => Date } = {}): ApiServices => {
@@ -41,7 +44,14 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     auditWriter,
     now: options.now
   });
+  const providerStore = new InMemoryProviderResourceStore({ now: options.now });
   const providerConnections = new ProviderConnectionsService({
+    store: providerStore,
+    auditWriter,
+    now: options.now
+  });
+  const microsoft365ProviderConnections = new Microsoft365ProviderConnectionService({
+    store: providerStore,
     auditWriter,
     now: options.now
   });
@@ -52,6 +62,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     auditWriter,
     localAuth,
     organizations,
-    providerConnections
+    providerConnections,
+    microsoft365ProviderConnections
   };
 };

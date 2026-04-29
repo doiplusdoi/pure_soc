@@ -38,6 +38,25 @@ export interface ProviderPermissionBundleRecord {
   updatedAt: string;
 }
 
+export type ProviderCredentialType = "oauth_token" | "certificate" | "service_account" | "api_key";
+
+export interface ProviderCredentialRecord {
+  id: string;
+  organizationId: string;
+  providerConnectionId: string;
+  providerKey: ProviderKey | string;
+  credentialType: ProviderCredentialType;
+  encryptedPayload: string;
+  expiresAt?: string;
+  rotationRequired: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export type ProviderCredentialInput = Omit<ProviderCredentialRecord, "id" | "createdAt" | "updatedAt">;
+
+export type ProviderPermissionBundleInput = Omit<ProviderPermissionBundleRecord, "id" | "createdAt" | "updatedAt">;
+
 export interface ProviderCapabilityRecord {
   id: string;
   organizationId: string;
@@ -104,13 +123,15 @@ export interface CompleteConnectionInput {
   actorUserId: string;
   redirectUri: string;
   state: string;
-  authorizationCode: string;
+  authorizationCode?: string;
   metadata?: Record<string, unknown>;
 }
 
 export interface ProviderConnectionResult {
   connection: ProviderConnectionRecord;
   grantedPermissionBundles: string[];
+  permissionBundles?: ProviderPermissionBundleInput[];
+  credentials?: ProviderCredentialInput[];
   capabilities: ProviderCapabilityRecord[];
   tenantProfile?: CloudTenant;
 }

@@ -5,6 +5,8 @@ import {
   type ProviderResourceStore
 } from "../../../packages/providers/core/src/index";
 
+export { createMicrosoft365ConnectorRunnerRegistry } from "./microsoft365/index";
+
 export const connectorRunnerAppRole = "puresoc-connector-runner";
 
 export type ConnectorRunnerJobName = "provider.sync";

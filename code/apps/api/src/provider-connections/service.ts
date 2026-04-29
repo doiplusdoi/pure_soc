@@ -54,7 +54,7 @@ export interface RunProviderSyncInput {
   userAgent?: string | null;
 }
 
-const safeConnectionView = (connection: ProviderConnectionRecord): ProviderConnectionView => ({
+export const safeConnectionView = (connection: ProviderConnectionRecord): ProviderConnectionView => ({
   id: connection.id,
   organizationId: connection.organizationId,
   providerKey: connection.providerKey,

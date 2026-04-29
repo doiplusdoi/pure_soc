@@ -3,6 +3,10 @@ import { createHash, randomUUID } from "node:crypto";
 import type {
   ProviderCapabilityRecord,
   ProviderConnectionRecord,
+  ProviderCredentialInput,
+  ProviderCredentialRecord,
+  ProviderPermissionBundleInput,
+  ProviderPermissionBundleRecord,
   ProviderSyncModuleRecord,
   ProviderSyncRunRecord
 } from "./connector";
@@ -82,6 +86,7 @@ const recommendationKey = (input: ProviderRecommendationInput): string =>
   ].join(":");
 
 export interface CreateProviderConnectionInput {
+  id?: string;
   organizationId: string;
   providerKey: ProviderKey | string;
   displayName: string;
@@ -97,6 +102,10 @@ export interface ProviderResourceStore {
   createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionRecord>;
   getConnectionForOrganization(organizationId: string, providerConnectionId: string): Promise<ProviderConnectionRecord>;
   listConnections(organizationId: string): Promise<ProviderConnectionRecord[]>;
+  upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord>;
+  listCredentials(organizationId: string, providerConnectionId: string): Promise<ProviderCredentialRecord[]>;
+  upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord>;
+  listPermissionBundles(organizationId: string, providerConnectionId: string): Promise<ProviderPermissionBundleRecord[]>;
   createSyncRun(input: {
     organizationId: string;
     providerConnectionId: string;
@@ -110,12 +119,14 @@ export interface ProviderResourceStore {
   ): Promise<ProviderSyncRunRecord>;
   upsertSyncModule(input: Omit<ProviderSyncModuleRecord, "id" | "startedAt" | "completedAt">): Promise<ProviderSyncModuleRecord>;
   upsertCapability(input: Omit<ProviderCapabilityRecord, "id" | "updatedAt">): Promise<ProviderCapabilityRecord>;
+  listCapabilities(organizationId: string, providerConnectionId: string): Promise<ProviderCapabilityRecord[]>;
   upsertRawResource(input: ProviderRawResourceInput): Promise<ProviderRawResource>;
   upsertNormalizedResource(input: ProviderNormalizedResourceInput): Promise<ProviderNormalizedResource>;
   upsertFinding(input: ProviderFindingInput): Promise<ProviderFinding>;
   upsertRecommendation(input: ProviderRecommendationInput): Promise<ProviderRecommendation>;
   getRawResourceForOrganization(organizationId: string, resourceId: string): Promise<ProviderRawResource>;
   listSyncModules(syncRunId: string): Promise<ProviderSyncModuleRecord[]>;
+  listSyncModulesForConnection(organizationId: string, providerConnectionId: string): Promise<ProviderSyncModuleRecord[]>;
   listRawResources(organizationId: string, providerConnectionId: string): Promise<ProviderRawResource[]>;
   listNormalizedResources(organizationId: string, providerConnectionId: string): Promise<ProviderNormalizedResource[]>;
   listFindings(organizationId: string, providerConnectionId: string): Promise<ProviderFinding[]>;
@@ -124,6 +135,8 @@ export interface ProviderResourceStore {
 
 export class InMemoryProviderResourceStore implements ProviderResourceStore {
   readonly connections = new Map<string, ProviderConnectionRecord>();
+  readonly credentials = new Map<string, ProviderCredentialRecord>();
+  readonly permissionBundles = new Map<string, ProviderPermissionBundleRecord>();
   readonly capabilities = new Map<string, ProviderCapabilityRecord>();
   readonly syncRuns = new Map<string, ProviderSyncRunRecord>();
   readonly syncModules = new Map<string, ProviderSyncModuleRecord>();
@@ -136,6 +149,8 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
   private readonly normalizedResourceKeys = new Map<string, string>();
   private readonly findingKeys = new Map<string, string>();
   private readonly recommendationKeys = new Map<string, string>();
+  private readonly credentialKeys = new Map<string, string>();
+  private readonly permissionBundleKeys = new Map<string, string>();
   private readonly capabilityKeys = new Map<string, string>();
   private readonly syncModuleKeys = new Map<string, string>();
   private readonly now: () => Date;
@@ -149,7 +164,7 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
   async createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionRecord> {
     const timestamp = this.timestamp();
     const record: ProviderConnectionRecord = {
-      id: this.idFactory(),
+      id: input.id ?? this.idFactory(),
       organizationId: input.organizationId,
       providerKey: input.providerKey,
       displayName: input.displayName,
@@ -178,6 +193,62 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
 
   async listConnections(organizationId: string): Promise<ProviderConnectionRecord[]> {
     return [...this.connections.values()].filter((connection) => connection.organizationId === organizationId);
+  }
+
+  async upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord> {
+    await this.getConnectionForOrganization(input.organizationId, input.providerConnectionId);
+
+    const key = [input.providerConnectionId, input.credentialType].join(":");
+    const existingId = this.credentialKeys.get(key);
+    const existing = existingId ? this.credentials.get(existingId) : undefined;
+    const timestamp = this.timestamp();
+    const record: ProviderCredentialRecord = {
+      ...input,
+      id: existing?.id ?? this.idFactory(),
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp
+    };
+
+    this.credentialKeys.set(key, record.id);
+    this.credentials.set(record.id, record);
+    return record;
+  }
+
+  async listCredentials(organizationId: string, providerConnectionId: string): Promise<ProviderCredentialRecord[]> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    return [...this.credentials.values()].filter(
+      (credential) =>
+        credential.organizationId === organizationId && credential.providerConnectionId === providerConnectionId
+    );
+  }
+
+  async upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord> {
+    await this.getConnectionForOrganization(input.organizationId, input.providerConnectionId);
+
+    const key = [input.providerConnectionId, input.bundleKey].join(":");
+    const existingId = this.permissionBundleKeys.get(key);
+    const existing = existingId ? this.permissionBundles.get(existingId) : undefined;
+    const timestamp = this.timestamp();
+    const record: ProviderPermissionBundleRecord = {
+      ...input,
+      id: existing?.id ?? this.idFactory(),
+      createdAt: existing?.createdAt ?? timestamp,
+      updatedAt: timestamp
+    };
+
+    this.permissionBundleKeys.set(key, record.id);
+    this.permissionBundles.set(record.id, record);
+    return record;
+  }
+
+  async listPermissionBundles(
+    organizationId: string,
+    providerConnectionId: string
+  ): Promise<ProviderPermissionBundleRecord[]> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    return [...this.permissionBundles.values()].filter(
+      (bundle) => bundle.organizationId === organizationId && bundle.providerConnectionId === providerConnectionId
+    );
   }
 
   async createSyncRun(input: {
@@ -257,6 +328,14 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
     this.capabilityKeys.set(key, record.id);
     this.capabilities.set(record.id, record);
     return record;
+  }
+
+  async listCapabilities(organizationId: string, providerConnectionId: string): Promise<ProviderCapabilityRecord[]> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    return [...this.capabilities.values()].filter(
+      (capability) =>
+        capability.organizationId === organizationId && capability.providerConnectionId === providerConnectionId
+    );
   }
 
   async upsertRawResource(input: ProviderRawResourceInput): Promise<ProviderRawResource> {
@@ -353,6 +432,16 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
 
   async listSyncModules(syncRunId: string): Promise<ProviderSyncModuleRecord[]> {
     return [...this.syncModules.values()].filter((module) => module.syncRunId === syncRunId);
+  }
+
+  async listSyncModulesForConnection(
+    organizationId: string,
+    providerConnectionId: string
+  ): Promise<ProviderSyncModuleRecord[]> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    return [...this.syncModules.values()].filter(
+      (module) => module.organizationId === organizationId && module.providerConnectionId === providerConnectionId
+    );
   }
 
   async listRawResources(organizationId: string, providerConnectionId: string): Promise<ProviderRawResource[]> {

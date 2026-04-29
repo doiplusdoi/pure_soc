@@ -17,6 +17,12 @@ import {
   listProviderConnectionsRoute,
   runProviderSyncRoute
 } from "./provider-connections/routes";
+import {
+  beginMicrosoft365ConsentRoute,
+  completeMicrosoft365ConsentRoute,
+  getMicrosoft365ConnectionHealthRoute,
+  runMicrosoft365SyncRoute
+} from "./provider-connections/microsoft365/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   const server = createServer(async (request, response) => {
@@ -105,6 +111,42 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         return;
       }
 
+      const microsoft365ConsentBeginRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/begin$/
+      );
+      if (microsoft365ConsentBeginRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await beginMicrosoft365ConsentRoute(
+            microsoft365ConsentBeginRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const microsoft365ConsentCallbackRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/callback$/
+      );
+      if (microsoft365ConsentCallbackRouteMatch && (request.method === "GET" || request.method === "POST")) {
+        const callbackInput =
+          request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+        sendJson(
+          response,
+          await completeMicrosoft365ConsentRoute(
+            microsoft365ConsentCallbackRouteMatch[1] ?? "",
+            callbackInput,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
       const providerSyncRouteMatch = url.pathname.match(
         /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/sync$/
       );
@@ -117,6 +159,40 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             body,
             request.headers.cookie,
             context,
+            services
+          )
+        );
+        return;
+      }
+
+      const microsoft365ProviderSyncRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/microsoft365\/sync$/
+      );
+      if (microsoft365ProviderSyncRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await runMicrosoft365SyncRoute(
+            microsoft365ProviderSyncRouteMatch[1] ?? "",
+            microsoft365ProviderSyncRouteMatch[2] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const providerHealthRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/health$/
+      );
+      if (providerHealthRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await getMicrosoft365ConnectionHealthRoute(
+            providerHealthRouteMatch[1] ?? "",
+            providerHealthRouteMatch[2] ?? "",
+            request.headers.cookie,
             services
           )
         );

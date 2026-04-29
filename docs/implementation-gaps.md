@@ -88,12 +88,12 @@ Status: Open
 
 Severity: Medium
 Area: Microsoft connector
-Current state: ADR-009 records the permission-bundle strategy and read-only-first boundary, but exact Graph permissions must be validated against current Microsoft docs during implementation.
-Impact: Consent flow may request too much, too little, or unavailable permissions.
-Next action: Validate permissions while implementing Prompt 7 and record mapping table in `docs/microsoft365-permissions.md`.
+Current state: ADR-009 records the permission-bundle strategy and read-only-first boundary. Phase G validated the read-only V1 bundle mapping against Microsoft Learn on 2026-04-28 and recorded endpoint-to-permission details in `docs/microsoft365-permissions.md`. Implemented bundles are `m365_read_baseline`, `m365_security_read`, and `m365_intune_read`; write bundles remain disabled and separate.
+Impact: First onboarding now requests read-only Graph permissions through named bundles, tracks granted permissions, and degrades unavailable modules through module status instead of failing the full connection. Conditional Access, Entra audit/sign-in logs, Exchange, SharePoint, Teams, Purview, Defender XDR live coverage, national-cloud behavior, and app permission-grant introspection still need per-endpoint validation before production enablement.
+Next action: Revalidate Microsoft Learn endpoint permissions before enabling the deferred modules or any write/remediation bundle, and keep `docs/microsoft365-permissions.md` current with API limitations.
 Owner: Codex
 Target phase: Phase G
-Status: Open
+Status: Resolved 2026-04-28 for Phase G read-only onboarding and discovery bundles; deferred Microsoft API limitations remain documented.
 
 ### GAP-008: Evidence Metadata, Access, And Export Model Needs ADR
 
