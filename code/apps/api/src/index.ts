@@ -25,3 +25,10 @@ export {
 export { EvidenceApiService } from "./evidence/service";
 export { ReportApiService } from "./reports/service";
 export { DashboardApiService } from "./dashboards/service";
+export { BillingApiService } from "./billing/service";
+export {
+  createBillingCheckoutSessionRoute,
+  createBillingPortalSessionRoute,
+  listBillingEntitlementsRoute,
+  stripeBillingWebhookRoute
+} from "./billing/routes";

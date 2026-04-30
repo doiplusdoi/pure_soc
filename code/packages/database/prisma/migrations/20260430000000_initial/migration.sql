@@ -89,7 +89,7 @@ CREATE TYPE "RoNis2OnboardingStatus" AS ENUM ('draft', 'in_progress', 'ready_for
 CREATE TYPE "BillingProviderKey" AS ENUM ('none', 'stripe', 'offline_license');
 
 -- CreateEnum
-CREATE TYPE "BillingSubscriptionStatus" AS ENUM ('trialing', 'active', 'past_due', 'canceled', 'incomplete', 'unpaid', 'offline_active', 'none');
+CREATE TYPE "BillingSubscriptionStatus" AS ENUM ('trialing', 'active', 'past_due', 'canceled', 'incomplete', 'incomplete_expired', 'unpaid', 'paused', 'offline_active', 'none');
 
 -- CreateTable
 CREATE TABLE "users" (

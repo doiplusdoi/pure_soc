@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
+import type { BillingRuntimeConfig } from "@puresoc/billing-core";
 
 export interface PureSocConfig {
   app: {
@@ -31,9 +32,7 @@ export interface PureSocConfig {
     legalCaveatRequired: boolean;
     renderer: string;
   };
-  billing: {
-    provider: "none" | "stripe" | "offline_license";
-  };
+  billing: BillingRuntimeConfig;
 }
 
 export interface LoadConfigOptions {
@@ -78,7 +77,24 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     },
     billing: {
       ...config.billing,
-      provider: (env.PURESOC_BILLING_PROVIDER as PureSocConfig["billing"]["provider"] | undefined) ?? config.billing.provider
+      provider: (env.PURESOC_BILLING_PROVIDER as PureSocConfig["billing"]["provider"] | undefined) ?? config.billing.provider,
+      stripe: {
+        ...config.billing.stripe,
+        secretKey: env.STRIPE_SECRET_KEY ?? config.billing.stripe.secretKey,
+        webhookSecret: env.STRIPE_WEBHOOK_SECRET ?? config.billing.stripe.webhookSecret,
+        priceIdsByPlan: {
+          ...config.billing.stripe.priceIdsByPlan,
+          base: env.STRIPE_PRICE_ID_BASE
+            ? [env.STRIPE_PRICE_ID_BASE]
+            : config.billing.stripe.priceIdsByPlan.base,
+          pro: env.STRIPE_PRICE_ID_PRO
+            ? [env.STRIPE_PRICE_ID_PRO]
+            : config.billing.stripe.priceIdsByPlan.pro,
+          msp: env.STRIPE_PRICE_ID_MSP
+            ? [env.STRIPE_PRICE_ID_MSP]
+            : config.billing.stripe.priceIdsByPlan.msp
+        }
+      }
     }
   };
 };

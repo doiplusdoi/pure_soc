@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { assertNoSensitiveResponseFields } from "@puresoc/audit";
 import { AuthError } from "@puresoc/auth-core";
+import { BillingError } from "@puresoc/billing-core";
 import { EvidenceAccessError } from "@puresoc/evidence";
 import { RegulatorySourceReviewError } from "@puresoc/regulatory-sources";
 
@@ -29,6 +30,16 @@ export const parseJsonBody = async (request: IncomingMessage): Promise<Record<st
 
   const rawBody = Buffer.concat(chunks).toString("utf8");
   return JSON.parse(rawBody) as Record<string, unknown>;
+};
+
+export const parseRawBody = async (request: IncomingMessage): Promise<Buffer> => {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks);
 };
 
 export const readRequestContext = (request: IncomingMessage): RequestContext => ({
@@ -80,6 +91,18 @@ export const toJsonResultError = (error: unknown): JsonResult => {
   }
 
   if (error instanceof EvidenceAccessError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof BillingError) {
     return {
       statusCode: error.statusCode,
       body: {

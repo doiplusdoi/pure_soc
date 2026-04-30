@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { defaultRoleDefinitions, normalizeEmail, type PureSocRoleKey } from "@puresoc/auth-core";
+import { InMemoryBillingRepository } from "@puresoc/billing-core";
 import type {
   EvidenceAccessLogEntry,
   EvidenceArtifactMetadata,
@@ -25,6 +26,7 @@ import type { OrganizationRecord, OrganizationRepository } from "../organization
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
 export class InMemoryPureSocRepository
+  extends InMemoryBillingRepository
   implements LocalAuthRepository, OrganizationRepository, RbacRepository, EvidenceRepository
 {
   readonly users = new Map<string, LocalAuthUserRecord>();
@@ -44,6 +46,7 @@ export class InMemoryPureSocRepository
   readonly dashboardSnapshots = new Map<string, DashboardSnapshotRecord>();
 
   constructor() {
+    super();
     const now = new Date("2026-04-28T00:00:00.000Z");
     for (const role of defaultRoleDefinitions) {
       this.roles.set(role.key, {

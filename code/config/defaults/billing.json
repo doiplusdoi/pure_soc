@@ -1,3 +1,69 @@
 {
-  "provider": "none"
+  "provider": "none",
+  "defaultPlanKey": "base",
+  "noneProviderPlanKey": "base",
+  "stripe": {
+    "secretKey": null,
+    "webhookSecret": null,
+    "apiBaseUrl": "https://api.stripe.com/v1",
+    "checkoutSuccessUrl": "http://localhost/billing/success",
+    "checkoutCancelUrl": "http://localhost/billing/cancel",
+    "portalReturnUrl": "http://localhost/billing",
+    "priceIdsByPlan": {
+      "base": ["price_configure_base"],
+      "pro": ["price_configure_pro"],
+      "msp": ["price_configure_msp"]
+    }
+  },
+  "plans": [
+    {
+      "key": "base",
+      "displayName": "Base readiness workspace",
+      "description": "Configurable placeholder for the paid readiness workspace while final packaging remains open.",
+      "entitlementKeys": [
+        "nis2_eu_portal",
+        "nis2_country_packs",
+        "m365_baseline_scan",
+        "evidence_vault",
+        "manual_checklists"
+      ]
+    },
+    {
+      "key": "pro",
+      "displayName": "Pro readiness workspace",
+      "description": "Configurable placeholder for advanced reports and monitored regulatory-source workflows.",
+      "entitlementKeys": [
+        "nis2_eu_portal",
+        "nis2_country_packs",
+        "nis2_ro_full_pack",
+        "m365_baseline_scan",
+        "intune_connector",
+        "defender_xdr_connector",
+        "evidence_vault",
+        "manual_checklists",
+        "pdf_reports",
+        "api_access",
+        "regulatory_source_monitor"
+      ]
+    },
+    {
+      "key": "msp",
+      "displayName": "MSP readiness workspace",
+      "description": "Configurable placeholder for managed-service provider workspaces.",
+      "entitlementKeys": [
+        "nis2_eu_portal",
+        "nis2_country_packs",
+        "nis2_ro_full_pack",
+        "m365_baseline_scan",
+        "intune_connector",
+        "defender_xdr_connector",
+        "evidence_vault",
+        "manual_checklists",
+        "pdf_reports",
+        "api_access",
+        "soc_preview",
+        "regulatory_source_monitor"
+      ]
+    }
+  ]
 }

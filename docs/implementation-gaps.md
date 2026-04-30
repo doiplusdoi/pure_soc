@@ -143,9 +143,9 @@ Status: Resolved 2026-04-28. CI provider selection is out of scope for this repo
 
 Severity: Medium
 Area: Business/billing
-Current state: Stripe abstraction is planned, but actual products, prices, and entitlements are not defined.
-Impact: Billing implementation can only stub generic plans.
-Next action: Define Base/Pro/MSP/In-a-box entitlements before Phase I billing implementation.
+Current state: PLAN_M7 added a billing provider abstraction, configurable placeholder Base/Pro/MSP plan entitlements, Stripe checkout/customer portal/webhook contracts, idempotent event handling, and `BILLING_PROVIDER=none` behavior. Actual Stripe products, prices, packaging, customer limits, and paid feature policy are still not product-approved.
+Impact: The billing foundation is executable, but checked-in plan names, price IDs, and entitlement bundles are implementation placeholders rather than commercial truth.
+Next action: Product must define final Base/Pro/MSP/In-a-box products, Stripe price IDs, entitlement bundles, customer limits, trial policy, and upgrade/downgrade behavior before production billing activation.
 Owner: Product
 Target phase: Phase I
 Status: Open
@@ -198,12 +198,12 @@ Status: Resolved 2026-04-28 for the provider-neutral mock harness.
 
 Severity: Medium
 Area: Billing
-Current state: A dedicated billing prompt now exists as Prompt 6 in `docs/codex-prompts.md`, covering provider abstraction, Stripe, webhook idempotency, entitlements, and `BILLING_PROVIDER=none`. Product pricing and plan definitions remain tracked in GAP-012.
-Impact: Billing implementation is now executable, but product entitlements still need business decisions.
-Next action: Keep GAP-012 open; run Prompt 6 when billing foundation starts.
+Current state: A dedicated billing prompt was added as Prompt 6 and completed by PLAN_M7, covering provider abstraction, Stripe checkout/portal/webhooks, webhook idempotency, entitlements, and `BILLING_PROVIDER=none`. Product pricing and plan definitions remain tracked in GAP-012.
+Impact: The missing-prompt issue is resolved; product entitlements still need business decisions before production billing activation.
+Next action: Keep GAP-012 open and use GAP-028 for live Stripe runtime and reconciliation work.
 Owner: Codex/Product
 Target phase: Phase I
-Status: Resolved 2026-04-30 for refreshed prompt coverage.
+Status: Resolved 2026-04-30 for refreshed prompt coverage and PLAN_M7 billing foundation completion.
 
 ### GAP-018: Dashboard And Report Data Contracts Not Implemented
 
@@ -280,6 +280,17 @@ Impact: Source monitor behavior is testable as a domain contract, but deployed e
 Next action: Implement `regulatory.monitorCountrySources` in the scheduler/worker runtime with configurable `REGULATORY_SOURCE_MONITOR_ENABLED`, URL metadata checks, and review-task creation only.
 Owner: Codex/Product/legal
 Target phase: Phase K
+Status: Open
+
+### GAP-028: Live Stripe Runtime Reconciliation And Operations Deferred
+
+Severity: Medium
+Area: Billing operations
+Current state: PLAN_M7 added Stripe API request construction, raw-body webhook signature verification, idempotent billing event storage, subscription transition handling, entitlement recalculation, audit events, and a Prisma billing repository adapter. The implementation is covered with deterministic fake-client and API tests, not a live Stripe account or deployed webhook endpoint.
+Impact: Contract behavior is tested, but production-specific risks remain around real Stripe portal configuration, endpoint registration, tax/customer settings, webhook retry ordering, scheduled `stripe.syncCustomer`, `stripe.syncSubscription`, and `stripe.reconcileEntitlements` jobs, and live database migration/apply execution.
+Next action: Before production billing activation, run a Stripe test-mode integration pass with real webhook delivery, add worker/scheduler reconciliation jobs, document webhook endpoint operations and secret rotation, and add a live PostgreSQL billing persistence smoke test.
+Owner: Codex/DevOps/Product
+Target phase: Phase I/K
 Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal

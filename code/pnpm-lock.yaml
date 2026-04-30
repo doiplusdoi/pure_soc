@@ -59,6 +59,12 @@ importers:
       '@puresoc/auth-local':
         specifier: workspace:*
         version: link:../../packages/auth/local
+      '@puresoc/billing-core':
+        specifier: workspace:*
+        version: link:../../packages/billing/core
+      '@puresoc/billing-stripe':
+        specifier: workspace:*
+        version: link:../../packages/billing/stripe
       '@puresoc/compliance-core':
         specifier: workspace:*
         version: link:../../packages/compliance/core
@@ -89,12 +95,12 @@ importers:
       '@puresoc/providers-core':
         specifier: workspace:*
         version: link:../../packages/providers/core
-      '@puresoc/regulatory-sources':
-        specifier: workspace:*
-        version: link:../../packages/regulatory-sources
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../packages/regulatory-sources
       '@puresoc/reports':
         specifier: workspace:*
         version: link:../../packages/reports
@@ -194,6 +200,9 @@ importers:
 
   packages/config:
     dependencies:
+      '@puresoc/billing-core':
+        specifier: workspace:*
+        version: link:../billing/core
       '@puresoc/shared':
         specifier: workspace:*
         version: link:../shared
@@ -209,15 +218,18 @@ importers:
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@puresoc/billing-core':
+        specifier: workspace:*
+        version: link:../billing/core
       '@puresoc/compliance-core':
         specifier: workspace:*
         version: link:../compliance/core
-      '@puresoc/regulatory-sources':
-        specifier: workspace:*
-        version: link:../regulatory-sources
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../recommendations
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../regulatory-sources
       '@puresoc/shared':
         specifier: workspace:*
         version: link:../shared

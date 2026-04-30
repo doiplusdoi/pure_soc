@@ -266,7 +266,9 @@ enum BillingSubscriptionStatus {
   past_due
   canceled
   incomplete
+  incomplete_expired
   unpaid
+  paused
   offline_active
   none
 }

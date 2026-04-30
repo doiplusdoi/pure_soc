@@ -36,6 +36,7 @@ The repository currently contains:
 - PLAN_M4 Prisma persistence slice: pinned Prisma 6.19.3 CLI/client workflow, generated initial migration, Prisma client factory, compliance-result snapshot table, and `PrismaComplianceResultRepository` with organization-scoped adapter tests.
 - PLAN_M5 workspace import policy: cross-package imports now go through `@puresoc/*` package exports, workspace dependencies are declared, shared source/reference/recommendation/finding contracts live in `@puresoc/shared`, compliance-core no longer imports provider-core types, and `scripts/check-layout.mjs` enforces package boundaries.
 - PLAN_M6 regulatory review workflow: source versions, validation reports, source maps, review tasks, review decisions, activation timestamps, supersession links, source-map traceability routes, and `regulatory_admin` authorization now prevent source-derived legal logic from silently becoming active.
+- PLAN_M7 billing foundation: billing provider contracts, configurable placeholder plans/entitlements, Stripe checkout/portal adapter, raw-body webhook signature verification, idempotent billing event ledger, subscription status mapping, `BILLING_PROVIDER=none` bypass behavior, Prisma billing repository adapter, API routes, and billing audit events.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -49,7 +50,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 3 / `docs/PLAN_M4.md` is completed.
 - Prompt 4 / `docs/PLAN_M5.md` is completed.
 - Prompt 5 / `docs/PLAN_M6.md` is completed.
-- Prompt 6 starts at `docs/PLAN_M7.md`.
+- Prompt 6 / `docs/PLAN_M7.md` is completed.
+- Prompt 7 starts at `docs/PLAN_M8.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -64,17 +66,16 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
-2. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-3. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-4. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-5. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-6. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-7. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-8. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-9. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+2. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+3. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+4. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+5. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+6. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+7. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+8. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 6 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
+Prompts 7 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
 ## Required Prompt Template
 
@@ -218,88 +219,23 @@ Validated with:
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
-## Prompt 6 / PLAN_M7: Billing Provider And Entitlements
+## Completed Prompt 6 / PLAN_M7: Billing Provider And Entitlements
 
-```txt
-You are implementing the billing foundation that was not completed by the output-contract work.
+Completed on 2026-04-30.
 
-Use skills:
-- puresoc-stripe-billing
+Summary:
+- `@puresoc/billing-core` now defines billing provider contracts, repository records, entitlement keys, plan-based entitlement calculation, Stripe subscription status mapping, safe webhook event payloads, and `none` / `offline_license` provider behavior.
+- `@puresoc/billing-stripe` now creates Checkout, Customer Portal, and Customer API requests through an injectable Stripe client and verifies webhook signatures against the raw request body.
+- API billing routes now cover entitlement listing, Stripe checkout, Stripe portal, and unauthenticated-but-signature-verified webhook ingestion with RBAC on organization billing actions.
+- Billing events are idempotent, subscription transitions recalculate entitlements, `BILLING_PROVIDER=none` bypasses external billing while enabling configured base entitlements, and billing changes write audit events.
+- Prisma schema and migration metadata now include `paused` and `incomplete_expired` billing subscription statuses, and `PrismaBillingRepository` provides a persistence adapter boundary.
+- GAP-012 remains open for final product/pricing decisions; GAP-028 tracks deferred live Stripe runtime reconciliation and operations.
 
-Read:
-- docs/puresoc_vision.md sections 18, 19, 20, 21, 22, 27, 28
-- docs/master-plan.md sections 3, 7, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
-
-Goal:
-Add billing provider abstraction, Stripe integration, webhook idempotency, entitlement calculation, and `BILLING_PROVIDER=none` behavior.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M7.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M8.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M7.md
-- docs/PLAN_M8.md
-- docs/codex-prompts.md
-- packages/billing/core
-- packages/billing/stripe
-- apps/api/src/billing
-- packages/database/prisma/schema.prisma and billing repository files if Prisma is available
-- config/defaults/billing.json
-- packages/audit if billing audit helpers are needed
-- docs/implementation-gaps.md
-
-Implement:
-- Billing provider interface.
-- Stripe checkout session creation.
-- Stripe customer portal session creation.
-- Webhook endpoint with raw-body signature verification.
-- Billing event ledger with idempotent webhook handling.
-- Subscription status mapping.
-- Entitlement calculation from configured plan/price mapping.
-- `BILLING_PROVIDER=none` behavior that allows core app usage without external billing.
-- `BILLING_PROVIDER=offline_license` placeholder with explicit unsupported-state behavior.
-- Billing audit events.
-
-Negative constraints:
-- Do not trust client-provided subscription state.
-- Do not log Stripe secrets, webhook signatures, customer secrets, or raw payment payloads beyond safe IDs.
-- Do not let entitlements replace RBAC.
-- Do not block core app operation when `BILLING_PROVIDER=none`.
-- Do not invent final commercial packaging if product plan decisions are still open; use clearly named configurable defaults and keep GAP-012 open.
-
-Tests:
-- Webhook signature rejection.
-- Duplicate webhook idempotency.
-- Subscription status transitions.
-- Entitlement calculation from config.
-- `BILLING_PROVIDER=none` bypass behavior.
-- Cross-organization billing access rejection.
-- Audit event creation for billing changes.
-- Stripe secrets redacted from errors/log-shaped outputs.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand billing stripe entitlement webhook audit
-
-Gap updates:
-- Keep or update GAP-012 until actual products/prices are decided.
-- Add implementation gaps for deferred runtime Stripe details.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M7 updated
-- PLAN_M8 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand billing stripe entitlement webhook audit`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
 ## Prompt 7 / PLAN_M8: Production Evidence, Object Storage, Scanner, And PDF Adapters
 

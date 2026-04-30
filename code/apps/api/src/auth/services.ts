@@ -8,6 +8,7 @@ import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import { InMemoryComplianceResultRepository } from "@puresoc/compliance-core";
+import { loadConfig, type PureSocConfig } from "@puresoc/config";
 import { InMemoryRegulatorySourceRepository, RegulatorySourceReviewService } from "@puresoc/regulatory-sources";
 import type { RecommendationContract } from "@puresoc/recommendations";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
@@ -16,6 +17,7 @@ import { RecommendationApiService } from "../recommendations/service";
 import { EvidenceApiService } from "../evidence/service";
 import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
+import { BillingApiService } from "../billing/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
 
 export interface ApiServices {
@@ -32,9 +34,13 @@ export interface ApiServices {
   evidence: EvidenceApiService;
   reports: ReportApiService;
   dashboards: DashboardApiService;
+  billing: BillingApiService;
 }
 
-export const createApiServices = (options: { now?: () => Date } = {}): ApiServices => {
+export const createApiServices = (
+  options: { now?: () => Date; billingConfig?: PureSocConfig["billing"] } = {}
+): ApiServices => {
+  const billingConfig = options.billingConfig ?? loadConfig().billing;
   const repository = new InMemoryPureSocRepository();
   const auditSink = new InMemoryAuditSink();
   const auditWriter = new AuditWriter({
@@ -95,6 +101,12 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     repository,
     now: options.now
   });
+  const billing = new BillingApiService({
+    repository,
+    auditWriter,
+    config: billingConfig,
+    now: options.now
+  });
 
   return {
     repository,
@@ -109,6 +121,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     regulatorySources,
     evidence,
     reports,
-    dashboards
+    dashboards,
+    billing
   };
 };

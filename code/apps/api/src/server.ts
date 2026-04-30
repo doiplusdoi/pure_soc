@@ -11,7 +11,7 @@ import {
   roNis2OnboardingSchemaRoute
 } from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
-import { parseJsonBody, readRequestContext, sendJson, toJsonResultError } from "./http";
+import { parseJsonBody, parseRawBody, readRequestContext, sendJson, toJsonResultError } from "./http";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
 import {
   createMockProviderConnectionRoute,
@@ -38,6 +38,12 @@ import {
   buildRomaniaNotificationDraftReportRoute
 } from "./reports/routes";
 import { createDashboardSnapshotRoute } from "./dashboards/routes";
+import {
+  createBillingCheckoutSessionRoute,
+  createBillingPortalSessionRoute,
+  listBillingEntitlementsRoute,
+  stripeBillingWebhookRoute
+} from "./billing/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   const server = createServer(async (request, response) => {
@@ -51,6 +57,15 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
     try {
       const context = readRequestContext(request);
+      if (request.method === "POST" && url.pathname === "/billing/stripe/webhook") {
+        const rawBody = await parseRawBody(request);
+        sendJson(
+          response,
+          await stripeBillingWebhookRoute(rawBody, request.headers["stripe-signature"], context, services)
+        );
+        return;
+      }
+
       const body = request.method === "POST" ? await parseJsonBody(request) : {};
 
       if (request.method === "POST" && url.pathname === "/auth/register") {
@@ -187,6 +202,45 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             dashboardSnapshotRouteMatch[1] ?? "",
             body,
             request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const billingEntitlementsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/entitlements$/);
+      if (billingEntitlementsRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listBillingEntitlementsRoute(billingEntitlementsRouteMatch[1] ?? "", request.headers.cookie, services)
+        );
+        return;
+      }
+
+      const billingCheckoutRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/stripe\/checkout$/);
+      if (billingCheckoutRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createBillingCheckoutSessionRoute(
+            billingCheckoutRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const billingPortalRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/stripe\/portal$/);
+      if (billingPortalRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createBillingPortalSessionRoute(
+            billingPortalRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
             services
           )
         );
