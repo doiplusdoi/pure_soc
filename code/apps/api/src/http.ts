@@ -5,6 +5,7 @@ import { AuthError } from "@puresoc/auth-core";
 import { BillingError } from "@puresoc/billing-core";
 import { EvidenceAccessError } from "@puresoc/evidence";
 import { RegulatorySourceReviewError } from "@puresoc/regulatory-sources";
+import { RemediationActionError } from "@puresoc/recommendations";
 
 export interface RequestContext {
   ipAddress: string | null;
@@ -115,6 +116,18 @@ export const toJsonResultError = (error: unknown): JsonResult => {
   }
 
   if (error instanceof RegulatorySourceReviewError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof RemediationActionError) {
     return {
       statusCode: error.statusCode,
       body: {

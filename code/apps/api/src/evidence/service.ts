@@ -5,6 +5,8 @@ import {
   type EvidenceAccessLogEntry,
   type EvidenceArtifactMetadata,
   type EvidenceDownloadResult,
+  type EvidenceLink,
+  type ObjectStorageAdapter,
   type EvidenceRepository,
   type EvidenceSourceType,
   type EvidenceUploadInput,
@@ -15,7 +17,9 @@ import type { AuditWriter } from "@puresoc/audit";
 export interface EvidenceApiServiceOptions {
   repository: EvidenceRepository;
   auditWriter: AuditWriter;
+  storage?: ObjectStorageAdapter;
   scanner?: UploadScanningHook;
+  rejectUnscannedUploads?: boolean;
   now?: () => Date;
 }
 
@@ -35,6 +39,7 @@ export interface EvidenceUploadApiInput {
   requirementKey?: string;
   linkedAssessmentId?: string;
   linkedSourceRecordId?: string;
+  links?: Array<Omit<EvidenceLink, "id" | "organizationId" | "evidenceArtifactId" | "createdAt">>;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -47,9 +52,10 @@ export class EvidenceApiService {
     this.auditWriter = options.auditWriter;
     this.vault = new EvidenceVault({
       repository: options.repository,
-      storage: new InMemoryObjectStorageAdapter(),
+      storage: options.storage ?? new InMemoryObjectStorageAdapter(),
       scanner: options.scanner ?? new NoopUploadScanner({ now: options.now }),
-      now: options.now
+      now: options.now,
+      rejectUnscannedUploads: options.rejectUnscannedUploads
     });
   }
 
@@ -72,7 +78,8 @@ export class EvidenceApiService {
         sourceType: artifact.sourceType,
         controlId: artifact.controlId,
         jurisdiction: artifact.jurisdiction,
-        scanStatus: artifact.scanStatus
+        scanStatus: artifact.scanStatus,
+        scannerName: artifact.scanScannerName
       }
     });
 

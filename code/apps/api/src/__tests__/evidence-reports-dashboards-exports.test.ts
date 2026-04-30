@@ -157,7 +157,10 @@ describe("api evidence reports dashboards exports", () => {
     );
     expect(reportResponse.status).toBe(201);
     const reportBody = await readJson<{
-      report: { reportData: { legalCaveat: string; sourceReferences: unknown[]; provenance: { source: string } } };
+      report: {
+        evidenceArtifactId?: string;
+        reportData: { legalCaveat: string; sourceReferences: unknown[]; provenance: { source: string } };
+      };
       exportJson: string;
     }>(reportResponse);
     expect(reportBody.report.reportData.legalCaveat).toBe(PURESOC_LEGAL_CAVEAT);
@@ -165,6 +168,16 @@ describe("api evidence reports dashboards exports", () => {
     expect(reportBody.report.reportData.provenance.source).toBe("stored_analysis");
     expect(reportBody.exportJson).toContain('"schemaVersion": "puresoc.report.internal_readiness.v1"');
     expect(reportBody.exportJson).not.toContain("publicUrl");
+    expect(reportBody.report.evidenceArtifactId).toBeDefined();
+    const reportArtifact = services.repository.evidenceArtifacts.get(reportBody.report.evidenceArtifactId ?? "");
+    expect(reportArtifact).toMatchObject({
+      sourceType: "generated_report",
+      sourceProvider: "puresoc-report-renderer",
+      mimeType: "application/json"
+    });
+    expect(reportArtifact?.links.map((link) => link.targetType)).toContain("report");
+    expect(services.auditSink.findByAction("report_generated")).toHaveLength(1);
+    expect(services.auditSink.findByAction("report_export_created")).toHaveLength(1);
 
     const rejectedReport = await postJson(
       `/organizations/${organization.id}/reports/internal-readiness`,
@@ -226,6 +239,7 @@ describe("api evidence reports dashboards exports", () => {
     expect(response.status).toBe(201);
     const body = await readJson<{
       report: {
+        evidenceArtifactId?: string;
         reportData: {
           legalCaveat: string;
           sourceMappedFields: Array<{ fieldKey: string; sourceReferences: unknown[] }>;
@@ -243,5 +257,9 @@ describe("api evidence reports dashboards exports", () => {
       sourceRecordId: "ro-workbook-notification-form",
       fieldKey: "entityName"
     });
+    expect(body.report.evidenceArtifactId).toBeDefined();
+    expect(services.repository.evidenceArtifacts.get(body.report.evidenceArtifactId ?? "")?.sourceType).toBe(
+      "generated_report"
+    );
   });
 });

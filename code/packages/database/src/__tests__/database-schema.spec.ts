@@ -111,6 +111,24 @@ describe("database schema groups", () => {
     );
   });
 
+  it("models remediation action safety gates before provider execution", () => {
+    expect(enumBlocks.get("ProviderActionRunStatus")).toContain("preflight_passed");
+    expect(enumBlocks.get("ProviderActionRunStatus")).toContain("approval_requested");
+    expect(enumBlocks.get("ProviderActionRunStatus")).toContain("verification_pending");
+    expect(enumBlocks.get("ProviderActionRunStatus")).toContain("closed");
+    expect(enumBlocks.get("ProviderActionApprovalStatus")).toContain("approved");
+    expect(enumBlocks.get("ProviderActionPreflightStatus")).toContain("passed");
+    expect(fieldLine("provider_action_templates", "enabledByDefault")).toContain('@map("enabled_by_default")');
+    expect(fieldLine("provider_action_templates", "highRiskForbiddenInV1")).toContain(
+      '@map("high_risk_forbidden_in_v1")'
+    );
+    expect(fieldLine("provider_action_runs", "preflightStatus")).toContain("ProviderActionPreflightStatus");
+    expect(fieldLine("provider_action_runs", "approvalStatus")).toContain("ProviderActionApprovalStatus");
+    expect(fieldLine("provider_action_runs", "preStateSnapshotJson")).toContain("Json");
+    expect(fieldLine("provider_action_runs", "verificationStatus")).toContain("ProviderActionVerificationStatus");
+    expect(fieldLine("provider_action_runs", "evidenceArtifactIds")).toContain("String[]");
+  });
+
   it("stores regulatory source review decisions, activation state, and source-version traceability", () => {
     expect(enumBlocks.get("RegulatorySourceStatus")).toContain("review_required");
     expect(enumBlocks.get("RegulatorySourceStatus")).toContain("needs_review");

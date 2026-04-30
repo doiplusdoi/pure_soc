@@ -20,6 +20,9 @@ importers:
       '@puresoc/database':
         specifier: workspace:*
         version: link:packages/database
+      '@puresoc/evidence':
+        specifier: workspace:*
+        version: link:packages/evidence
       '@puresoc/provider-mock':
         specifier: workspace:*
         version: link:packages/providers/mock
@@ -128,12 +131,19 @@ importers:
       '@puresoc/reports':
         specifier: workspace:*
         version: link:../../packages/reports
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
 
   apps/scheduler: {}
 
   apps/web: {}
 
-  apps/worker: {}
+  apps/worker:
+    dependencies:
+      '@puresoc/recommendations':
+        specifier: workspace:*
+        version: link:../../packages/recommendations
 
   packages/audit: {}
 
@@ -224,6 +234,9 @@ importers:
       '@puresoc/compliance-core':
         specifier: workspace:*
         version: link:../compliance/core
+      '@puresoc/evidence':
+        specifier: workspace:*
+        version: link:../evidence
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../recommendations

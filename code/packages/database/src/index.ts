@@ -19,6 +19,14 @@ export {
   PrismaBillingRepository,
   type PrismaBillingClient
 } from "./repositories/billing";
+export {
+  PrismaEvidenceRepository,
+  type PrismaEvidenceClient
+} from "./repositories/evidence";
+export {
+  PrismaActionRepository,
+  type PrismaActionClient
+} from "./repositories/actions";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,
@@ -47,6 +55,8 @@ export type {
   EvidenceLinkContract,
   GeneratedReportContract,
   NotificationDraftContract,
+  ProviderActionRunContract,
+  ProviderActionTemplateContract,
   ReadinessPlanContract,
   ReadinessPlanItemContract
 } from "./contracts/outputs";

@@ -44,6 +44,17 @@ import {
   listBillingEntitlementsRoute,
   stripeBillingWebhookRoute
 } from "./billing/routes";
+import {
+  approveActionRunRoute,
+  attachActionSnapshotRoute,
+  closeActionRunRoute,
+  createActionRunRoute,
+  failActionRunRoute,
+  queueActionRunRoute,
+  recordActionPreflightRoute,
+  requestActionApprovalRoute,
+  verifyActionRunRoute
+} from "./actions/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   const server = createServer(async (request, response) => {
@@ -123,6 +134,86 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         return;
       }
 
+      const actionRunsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/actions\/runs$/);
+      if (actionRunsRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createActionRunRoute(actionRunsRouteMatch[1] ?? "", body, request.headers.cookie, services)
+        );
+        return;
+      }
+
+      const actionRunOperationRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/actions\/runs\/([^/]+)\/(preflight|request-approval|approve|snapshot|queue|fail|verify|close)$/
+      );
+      if (actionRunOperationRouteMatch && request.method === "POST") {
+        const organizationId = actionRunOperationRouteMatch[1] ?? "";
+        const actionRunId = actionRunOperationRouteMatch[2] ?? "";
+        const action = actionRunOperationRouteMatch[3];
+
+        if (action === "preflight") {
+          sendJson(
+            response,
+            await recordActionPreflightRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        if (action === "request-approval") {
+          sendJson(
+            response,
+            await requestActionApprovalRoute(organizationId, actionRunId, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        if (action === "approve") {
+          sendJson(
+            response,
+            await approveActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        if (action === "snapshot") {
+          sendJson(
+            response,
+            await attachActionSnapshotRoute(organizationId, actionRunId, body, request.headers.cookie, services)
+          );
+          return;
+        }
+
+        if (action === "queue") {
+          sendJson(
+            response,
+            await queueActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        if (action === "fail") {
+          sendJson(
+            response,
+            await failActionRunRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        if (action === "verify") {
+          sendJson(
+            response,
+            await verifyActionRunRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
+          );
+          return;
+        }
+
+        sendJson(
+          response,
+          await closeActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
+        );
+        return;
+      }
+
       const evidenceCollectionRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence$/);
       if (evidenceCollectionRouteMatch && request.method === "GET") {
         sendJson(
@@ -172,6 +263,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             internalReadinessReportRouteMatch[1] ?? "",
             body,
             request.headers.cookie,
+            context,
             services
           )
         );
@@ -188,6 +280,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             romaniaNotificationReportRouteMatch[1] ?? "",
             body,
             request.headers.cookie,
+            context,
             services
           )
         );

@@ -8,6 +8,16 @@ import type {
   ProviderRecommendationInput,
   ProviderSyncModuleStatus
 } from "./resources";
+import type {
+  ApplyActionInput,
+  EvidenceCollectionInput,
+  ProviderActionEvidenceArtifact,
+  ProviderActionExecutionResult,
+  ProviderActionValidationResult,
+  ProviderActionVerificationResult,
+  ValidateActionInput,
+  VerifyActionInput
+} from "./actions";
 
 export interface ProviderConnectionRecord {
   id: string;
@@ -188,6 +198,10 @@ export interface CloudProviderConnector {
   syncReadOnlyModules(input: SyncInput): Promise<ProviderModuleSyncResult[]>;
   evaluateControls(input: ProviderEvaluationInput): Promise<ProviderFindingInput[]>;
   getRecommendedActions(input: RecommendationInput): Promise<ProviderRecommendationInput[]>;
+  validateAction?(input: ValidateActionInput): Promise<ProviderActionValidationResult>;
+  applyAction?(input: ApplyActionInput): Promise<ProviderActionExecutionResult>;
+  verifyAction?(input: VerifyActionInput): Promise<ProviderActionVerificationResult>;
+  collectActionEvidence?(input: EvidenceCollectionInput): Promise<ProviderActionEvidenceArtifact[]>;
 }
 
 export const emptyProviderModuleSyncResult = (

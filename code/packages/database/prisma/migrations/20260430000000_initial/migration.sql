@@ -38,7 +38,16 @@ CREATE TYPE "AutomationMode" AS ENUM ('manual', 'guided', 'preflightable', 'exec
 CREATE TYPE "RecommendationStatus" AS ENUM ('proposed', 'accepted', 'planned', 'completed', 'dismissed');
 
 -- CreateEnum
-CREATE TYPE "ProviderActionRunStatus" AS ENUM ('draft', 'preflight_pending', 'preflight_failed', 'approval_requested', 'approved', 'queued', 'running', 'succeeded', 'failed', 'verification_failed', 'canceled');
+CREATE TYPE "ProviderActionRunStatus" AS ENUM ('draft', 'preflight_pending', 'preflight_failed', 'preflight_passed', 'approval_requested', 'approval_rejected', 'approved', 'queued', 'running', 'failed', 'verification_pending', 'verification_failed', 'verified', 'closed', 'canceled');
+
+-- CreateEnum
+CREATE TYPE "ProviderActionPreflightStatus" AS ENUM ('not_run', 'passed', 'failed');
+
+-- CreateEnum
+CREATE TYPE "ProviderActionApprovalStatus" AS ENUM ('not_requested', 'requested', 'approved', 'rejected');
+
+-- CreateEnum
+CREATE TYPE "ProviderActionVerificationStatus" AS ENUM ('not_run', 'passed', 'failed', 'manual_required');
 
 -- CreateEnum
 CREATE TYPE "RegulatorySourceType" AS ENUM ('directive', 'regulation', 'official_national_law', 'official_authority_guidance', 'official_registration_portal', 'official_commission_country_page', 'enisa_reference', 'secondary_tracker', 'internal_excel_seed');
@@ -617,8 +626,11 @@ CREATE TABLE "provider_action_templates" (
     "provider_key" TEXT NOT NULL,
     "module_key" TEXT,
     "action_key" TEXT NOT NULL,
+    "action_type" "RecommendationType" NOT NULL,
+    "automation_mode" "AutomationMode" NOT NULL,
     "title" TEXT NOT NULL,
-    "risk_level" "FindingSeverity" NOT NULL,
+    "description" TEXT,
+    "risk_level" "ActionableSeverity" NOT NULL,
     "license_required" TEXT[],
     "permissions_required" TEXT[],
     "preconditions_json" JSONB NOT NULL DEFAULT '{}',
@@ -626,8 +638,12 @@ CREATE TABLE "provider_action_templates" (
     "blast_radius" TEXT NOT NULL,
     "rollback_strategy" TEXT NOT NULL,
     "manual_fallback" TEXT NOT NULL,
-    "enabled" BOOLEAN NOT NULL DEFAULT false,
+    "evidence_required" BOOLEAN NOT NULL DEFAULT true,
+    "enabled_by_default" BOOLEAN NOT NULL DEFAULT false,
+    "high_risk_forbidden_in_v1" BOOLEAN NOT NULL DEFAULT false,
+    "source_references_json" JSONB NOT NULL DEFAULT '[]',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "provider_action_templates_pkey" PRIMARY KEY ("id")
 );
@@ -639,18 +655,49 @@ CREATE TABLE "provider_action_runs" (
     "provider_connection_id" UUID NOT NULL,
     "recommendation_id" UUID,
     "action_template_id" UUID,
+    "control_id" TEXT NOT NULL,
+    "jurisdiction" TEXT NOT NULL,
     "provider_key" TEXT NOT NULL,
     "module_key" TEXT,
-    "action_type" TEXT NOT NULL,
+    "action_key" TEXT NOT NULL,
+    "action_type" "RecommendationType" NOT NULL,
+    "automation_mode" "AutomationMode" NOT NULL,
+    "title" TEXT NOT NULL,
+    "risk_level" "ActionableSeverity" NOT NULL,
+    "license_required" TEXT[],
+    "permissions_required" TEXT[],
+    "preconditions_json" JSONB NOT NULL DEFAULT '{}',
+    "expected_change" TEXT NOT NULL,
+    "blast_radius" TEXT NOT NULL,
+    "rollback_strategy" TEXT NOT NULL,
+    "manual_fallback" TEXT NOT NULL,
+    "evidence_required" BOOLEAN NOT NULL DEFAULT true,
+    "high_risk_forbidden_in_v1" BOOLEAN NOT NULL DEFAULT false,
     "status" "ProviderActionRunStatus" NOT NULL DEFAULT 'draft',
+    "approval_status" "ProviderActionApprovalStatus" NOT NULL DEFAULT 'not_requested',
+    "approval_requested_by" UUID,
+    "approval_requested_at" TIMESTAMP(3),
     "approved_by" UUID,
     "approved_at" TIMESTAMP(3),
+    "approval_rejected_by" UUID,
+    "approval_rejected_at" TIMESTAMP(3),
+    "approval_rejection_reason" TEXT,
+    "preflight_status" "ProviderActionPreflightStatus" NOT NULL DEFAULT 'not_run',
+    "preflight_json" JSONB NOT NULL DEFAULT '{}',
+    "pre_state_snapshot_json" JSONB NOT NULL DEFAULT '{}',
+    "post_state_snapshot_json" JSONB NOT NULL DEFAULT '{}',
+    "verification_status" "ProviderActionVerificationStatus" NOT NULL DEFAULT 'not_run',
+    "verification_json" JSONB NOT NULL DEFAULT '{}',
+    "evidence_artifact_ids" TEXT[],
+    "checklist_task_ids" TEXT[],
+    "worker_job_json" JSONB NOT NULL DEFAULT '{}',
+    "failure_reason" TEXT,
+    "closed_by" UUID,
+    "closed_at" TIMESTAMP(3),
     "executed_by_service" TEXT,
     "executed_at" TIMESTAMP(3),
-    "pre_state_evidence_id" UUID,
-    "post_state_evidence_id" UUID,
-    "verification_status" TEXT,
     "run_json" JSONB NOT NULL DEFAULT '{}',
+    "source_references_json" JSONB NOT NULL DEFAULT '[]',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
@@ -1156,6 +1203,9 @@ CREATE TABLE "evidence_artifacts" (
     "mime_type" TEXT NOT NULL,
     "size_bytes" BIGINT,
     "scan_status" "EvidenceScanStatus" NOT NULL DEFAULT 'pending',
+    "scan_scanner_name" TEXT,
+    "scan_findings_json" JSONB NOT NULL DEFAULT '[]',
+    "scanned_at" TIMESTAMP(3),
     "created_by" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "valid_from" TIMESTAMP(3),

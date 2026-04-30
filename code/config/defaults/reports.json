@@ -1,4 +1,6 @@
 {
   "legalCaveatRequired": true,
-  "renderer": "puresoc-report-renderer"
+  "renderer": "puresoc-report-renderer",
+  "defaultExportFormat": "json",
+  "storeGeneratedReportsAsEvidence": true
 }

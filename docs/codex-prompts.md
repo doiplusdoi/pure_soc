@@ -37,6 +37,8 @@ The repository currently contains:
 - PLAN_M5 workspace import policy: cross-package imports now go through `@puresoc/*` package exports, workspace dependencies are declared, shared source/reference/recommendation/finding contracts live in `@puresoc/shared`, compliance-core no longer imports provider-core types, and `scripts/check-layout.mjs` enforces package boundaries.
 - PLAN_M6 regulatory review workflow: source versions, validation reports, source maps, review tasks, review decisions, activation timestamps, supersession links, source-map traceability routes, and `regulatory_admin` authorization now prevent source-derived legal logic from silently becoming active.
 - PLAN_M7 billing foundation: billing provider contracts, configurable placeholder plans/entitlements, Stripe checkout/portal adapter, raw-body webhook signature verification, idempotent billing event ledger, subscription status mapping, `BILLING_PROVIDER=none` bypass behavior, Prisma billing repository adapter, API routes, and billing audit events.
+- PLAN_M8 production evidence/report adapters: S3/MinIO object-storage adapter, explicit no-op/mock/HTTP scanner adapters with production fail-closed behavior, Prisma evidence metadata/access-log repository, generated-report evidence artifacts, report/export audit events, and deterministic report-renderer JSON/PDF artifacts.
+- PLAN_M9 safe remediation foundation: recommendation-to-action templates/runs, preflight/approval/snapshot/verification/evidence metadata, action audit events, action API routes, Prisma action repository metadata, and future worker job contracts without live provider writes.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -51,7 +53,9 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 4 / `docs/PLAN_M5.md` is completed.
 - Prompt 5 / `docs/PLAN_M6.md` is completed.
 - Prompt 6 / `docs/PLAN_M7.md` is completed.
-- Prompt 7 starts at `docs/PLAN_M8.md`.
+- Prompt 7 / `docs/PLAN_M8.md` is completed.
+- Prompt 8 / `docs/PLAN_M9.md` is completed.
+- Prompt 9 starts at `docs/PLAN_M10.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -66,16 +70,14 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-2. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-3. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-4. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-5. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-6. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-7. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-8. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+2. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+3. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+4. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+5. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+6. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 7 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
+Prompts 8 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
 ## Required Prompt Template
 
@@ -237,171 +239,42 @@ Validated with:
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
-## Prompt 7 / PLAN_M8: Production Evidence, Object Storage, Scanner, And PDF Adapters
+## Completed Prompt 7 / PLAN_M8: Production Evidence, Object Storage, Scanner, And PDF Adapters
 
-```txt
-You are moving the Phase I evidence/report contract from in-memory behavior toward production adapters.
+Completed on 2026-04-30.
 
-Use skills:
-- puresoc-evidence-reporting
+Summary:
+- `@puresoc/evidence` now includes a S3/MinIO-compatible object-storage adapter, explicit no-op/mock/HTTP upload scanner adapters, scanner metadata on artifacts, and fail-closed upload behavior when clean scan completion is required.
+- API evidence services can select configured storage/scanner adapters while preserving the in-memory default harness.
+- `@puresoc/database` now includes a Prisma-backed evidence artifact/link/access-log repository and schema/migration metadata for scanner details.
+- Report generation now stores JSON report exports as `generated_report` evidence artifacts, links them to reports/regulatory sources, and writes `report_generated` plus `report_export_created` audit events.
+- `apps/report-renderer` now returns deterministic JSON and stable placeholder PDF artifacts for contract tests.
+- GAP-008 and GAP-018 were updated, and GAP-029 now tracks live MinIO/scanner/browser-PDF/CSV/binary-bundle runtime work.
 
-Read:
-- docs/puresoc_vision.md sections 17, 19, 20, 21, 22, 25, 27, 28
-- docs/master-plan.md sections 7, 8, 12, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/adr/ADR-007-report-renderer-strategy.md
-- docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md
-- docs/adr/ADR-012-dashboard-aggregation-and-report-data-contracts.md
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand evidence reports dashboards exports renderer storage scanner`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
-Goal:
-Implement object-storage, upload-scanner, repository, and PDF-renderer adapters while preserving the tested in-memory contracts.
+## Completed Prompt 8 / PLAN_M9: Safe Remediation Foundation
 
-Milestone plan:
-- Current milestone file: `docs/PLAN_M8.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M9.md` from the next active prompt.
+Completed on 2026-04-30.
 
-Expected file ownership:
-- docs/PLAN_M8.md
-- docs/PLAN_M9.md
-- docs/codex-prompts.md
-- packages/evidence
-- packages/reports
-- packages/dashboards if persisted dashboard snapshots are touched
-- apps/api/src/evidence
-- apps/api/src/reports
-- apps/api/src/dashboards
-- apps/report-renderer
-- packages/database/prisma/schema.prisma and repository files if Prisma is available
-- infra/compose/docker-compose*.yml if object storage or scanner service wiring changes
-- config/defaults/reports.json
-- config/defaults/app.json or storage config if needed
+Summary:
+- `@puresoc/recommendations` now owns a remediation action lifecycle with action templates, action runs, preflight results, approval state, snapshot metadata, verification results, manual/guided follow-up tasks, high-risk V1-forbidden executable default protection, and an in-memory repository.
+- `@puresoc/providers-core` now exposes provider-neutral action validation/apply/verify/evidence contracts as optional future connector capabilities; no provider write implementation was added.
+- API action routes and service methods now create action runs, record preflight, request/approve, attach snapshots, queue future jobs, fail, verify, and close actions with RBAC and audit events.
+- Evidence uploads now link action pre/post-state artifacts to `action_run` targets.
+- Prisma schema, migration metadata, and `PrismaActionRepository` now carry action safety-state metadata for later persisted runtime wiring.
+- `apps/worker` now has a future action execution job contract that requires explicit safety-gate confirmations.
+- GAP-030 tracks deferred live worker/provider execution.
 
-Implement:
-- S3/MinIO-compatible object-storage adapter behind the evidence interface.
-- Upload scanner interface adapter, with local no-op or mock mode explicit and auditable.
-- Prisma-backed metadata/access-log repository if Prompt 3 has enabled Prisma.
-- Generated report storage as evidence artifacts.
-- PDF rendering route/job behind `apps/report-renderer`.
-- Evidence package export metadata that can later point to a binary bundle.
-- Audit for upload, download, report generation, and export creation.
-
-Negative constraints:
-- Do not make evidence or reports public by URL alone.
-- Do not generate reports from live provider API calls; use stored analysis records.
-- Do not omit the legal caveat.
-- Do not omit regulatory source references.
-- Do not mix cross-organization evidence or report data.
-- Do not silently skip malware scanning in production mode.
-
-Tests:
-- Object-storage adapter contract with fake/local implementation.
-- Upload scanner pass/fail behavior.
-- Evidence metadata persists and links to controls/jurisdictions/source records.
-- Download authorization and audit.
-- Report generation stores an evidence artifact.
-- PDF renderer returns deterministic output or a stable mocked artifact in tests.
-- Cross-organization evidence/report rejection.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand evidence reports dashboards exports renderer storage scanner
-
-Gap updates:
-- Update GAP-008 and GAP-018.
-- Add runtime gaps for deferred PDF/CSV/binary bundle features.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M8 updated
-- PLAN_M9 created
-- Codex prompts updated
-- Residual risk
-```
-
-## Prompt 8 / PLAN_M9: Safe Remediation Foundation
-
-```txt
-You are implementing the remediation safety foundation, not broad automation.
-
-Read:
-- docs/puresoc_vision.md sections 9.4, 9.5, 9.6, 15, 22, 23, 28
-- docs/master-plan.md sections 4, 9, 11, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/adr/ADR-010-remediation-safety-model.md
-- docs/claude_rec.md sections REC-001, REC-010
-
-Goal:
-Create the recommendation-to-action lifecycle and approval model so future write actions have the required guardrails and evidence hooks.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M9.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M10.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M9.md
-- docs/PLAN_M10.md
-- docs/codex-prompts.md
-- packages/recommendations
-- packages/providers/core action types
-- apps/api/src/actions
-- apps/worker/src/actions
-- packages/database/prisma/schema.prisma action/repository updates if Prisma is available
-- packages/evidence only for action evidence-link integration
-- packages/audit only for action audit helpers
-
-Implement:
-- Action template model.
-- Action run model.
-- Preflight result model.
-- Approval state model.
-- Pre-state and post-state snapshot metadata.
-- Verification result model.
-- Evidence link from action run.
-- Manual/guided action support.
-- Worker job contract for future execution.
-- Audit events for preflight, approval, queued, failed, verified, and closed states.
-
-Negative constraints:
-- Do not implement live provider write actions.
-- Do not allow action apply without approval state.
-- Do not skip preflight, snapshot, verification, or evidence metadata in the model.
-- Do not include high-risk V1-forbidden actions as executable defaults.
-- Do not let entitlements replace RBAC or explicit approval.
-
-Tests:
-- Action cannot apply without approval.
-- Action cannot apply without preflight.
-- Manual/guided action can create checklist/evidence tasks.
-- Failed action is auditable.
-- Action model links to recommendation, control, provider connection, and evidence.
-- Cross-organization action access is rejected.
-- High-risk forbidden action template cannot be executable by default.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand actions remediation approval preflight evidence audit
-
-Gap updates:
-- Update remediation safety gaps with any deferred execution behavior.
-- Keep provider write/remediation automation disabled unless all safety preconditions are present.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M9 updated
-- PLAN_M10 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand actions remediation approval preflight evidence audit`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
 ## Prompt 9 / PLAN_M10: Operational UI And Design System
 

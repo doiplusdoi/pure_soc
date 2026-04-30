@@ -52,6 +52,7 @@ for (const file of [
   "config/defaults/connectors.json",
   "config/defaults/compliance.json",
   "config/defaults/reports.json",
+  "config/defaults/storage.json",
   "config/defaults/billing.json",
   "data/regulatory/countries/member-states.seed.json"
 ]) {

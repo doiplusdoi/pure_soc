@@ -1,4 +1,14 @@
 export type {
+  ApplyActionInput,
+  EvidenceCollectionInput,
+  ProviderActionEvidenceArtifact,
+  ProviderActionExecutionResult,
+  ProviderActionValidationResult,
+  ProviderActionVerificationResult,
+  ValidateActionInput,
+  VerifyActionInput
+} from "./actions";
+export type {
   BeginConnectionInput,
   CloudProviderConnector,
   CompleteConnectionInput,

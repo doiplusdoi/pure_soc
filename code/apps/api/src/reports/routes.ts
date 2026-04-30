@@ -1,7 +1,7 @@
 import { AuthError } from "@puresoc/auth-core";
 import type { StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
 import type { ApiServices } from "../auth/services";
-import { parseCookies, sessionCookieName, type JsonResult } from "../http";
+import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
@@ -14,6 +14,7 @@ export const buildInternalReadinessReportRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
   cookieHeader: string | undefined,
+  context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
@@ -29,7 +30,9 @@ export const buildInternalReadinessReportRoute = async (
     body: await services.reports.buildInternalReadinessReport({
       organizationId,
       actorUserId,
-      assessmentId: requireString(body, "assessmentId")
+      assessmentId: requireString(body, "assessmentId"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
     })
   };
 };
@@ -38,6 +41,7 @@ export const buildRomaniaNotificationDraftReportRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
   cookieHeader: string | undefined,
+  context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
@@ -53,7 +57,9 @@ export const buildRomaniaNotificationDraftReportRoute = async (
     body: await services.reports.buildRomaniaNotificationDraft({
       organizationId,
       actorUserId,
-      draft: parseRomaniaDraft(organizationId, body)
+      draft: parseRomaniaDraft(organizationId, body),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
     })
   };
 };

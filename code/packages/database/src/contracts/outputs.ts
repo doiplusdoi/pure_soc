@@ -125,6 +125,9 @@ export interface EvidenceArtifactContract {
   contentHashSha256: string;
   mimeType: string;
   scanStatus?: "pending" | "clean" | "infected" | "failed" | "skipped";
+  scanScannerName?: string;
+  scanFindings?: string[];
+  scannedAt?: string;
   createdBy?: string;
   createdAt: string;
   validFrom?: string;
@@ -198,4 +201,66 @@ export interface NotificationDraftContract {
   status: "draft" | "ready_for_review" | "exported" | "superseded";
   payload: Record<string, unknown>;
   sourceReferences: string[];
+}
+
+export interface ProviderActionTemplateContract {
+  id: string;
+  organizationId?: string;
+  providerKey: string;
+  moduleKey?: string;
+  actionKey: string;
+  actionType:
+    | "manual"
+    | "guided"
+    | "technical"
+    | "process"
+    | "evidence_upload"
+    | "country_registration"
+    | "incident_reporting";
+  automationMode: AutomationMode;
+  title: string;
+  riskLevel: ActionableSeverityContract;
+  permissionsRequired: string[];
+  licenseRequired: string[];
+  expectedChange: string;
+  blastRadius: string;
+  rollbackStrategy: string;
+  manualFallback: string;
+  evidenceRequired: boolean;
+  enabledByDefault: boolean;
+  highRiskForbiddenInV1: boolean;
+}
+
+export interface ProviderActionRunContract {
+  id: string;
+  organizationId: string;
+  providerConnectionId: string;
+  recommendationId?: string;
+  actionTemplateId?: string;
+  controlId: string;
+  jurisdiction: string;
+  providerKey: string;
+  actionKey: string;
+  actionType: ProviderActionTemplateContract["actionType"];
+  automationMode: AutomationMode;
+  status:
+    | "draft"
+    | "preflight_pending"
+    | "preflight_failed"
+    | "preflight_passed"
+    | "approval_requested"
+    | "approval_rejected"
+    | "approved"
+    | "queued"
+    | "running"
+    | "failed"
+    | "verification_pending"
+    | "verification_failed"
+    | "verified"
+    | "closed"
+    | "canceled";
+  approvalStatus: "not_requested" | "requested" | "approved" | "rejected";
+  preflightStatus: "not_run" | "passed" | "failed";
+  verificationStatus: "not_run" | "passed" | "failed" | "manual_required";
+  evidenceArtifactIds: string[];
 }

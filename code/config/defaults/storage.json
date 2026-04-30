@@ -1,0 +1,17 @@
+{
+  "objectStorage": {
+    "provider": "memory",
+    "endpoint": "http://puresoc-object-storage:9000",
+    "region": "us-east-1",
+    "bucket": "puresoc-local",
+    "accessKeyId": "",
+    "secretAccessKey": "",
+    "forcePathStyle": true
+  },
+  "uploadScanner": {
+    "mode": "noop",
+    "endpoint": "",
+    "mockStatus": "clean",
+    "allowNoopInProduction": false
+  }
+}

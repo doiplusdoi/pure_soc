@@ -99,12 +99,12 @@ Status: Resolved 2026-04-28 for Phase G read-only onboarding and discovery bundl
 
 Severity: High
 Area: Evidence/reporting
-Current state: ADR-007 records the report-renderer strategy and ADR-008 records evidence metadata, access audit, object-storage, and export-model boundaries. Phase I now adds evidence metadata/contracts, object-storage and upload-scanner interfaces, in-memory evidence storage, evidence-control/jurisdiction/source links, authorization-checked and audited downloads, stable JSON report/export builders, API routes, and tests for cross-organization rejection, legal caveats, source references, Romania source-mapped draft exports, dashboard aggregation, and JSON snapshot stability.
-Impact: The Phase I product contract is executable without making evidence or reports public by URL, and outputs are generated from stored analysis records. Runtime production adapters are still deferred: MinIO/S3 object storage, ClamAV or equivalent upload scanner service, persisted Prisma repositories, generated report evidence-package storage, and PDF rendering behind `apps/report-renderer`.
-Next action: Implement production storage/scanner/Prisma adapters and PDF rendering when runtime dependencies are wired; keep the current in-memory adapter as the contract and test harness.
+Current state: ADR-007 records the report-renderer strategy and ADR-008 records evidence metadata, access audit, object-storage, and export-model boundaries. Phase I added evidence metadata/contracts, object-storage and upload-scanner interfaces, in-memory evidence storage, authorization-checked and audited downloads, stable JSON report/export builders, API routes, and output tests. PLAN_M8 added a S3/MinIO-compatible object-storage adapter, explicit no-op/mock/HTTP upload scanner adapters with production fail-closed behavior for unscanned uploads, Prisma-backed evidence artifact/link/access-log persistence, generated-report storage as `generated_report` evidence artifacts, report/export audit events, and deterministic JSON/PDF renderer artifacts under `apps/report-renderer`.
+Impact: The evidence/report adapter contract is now executable without public-by-URL report access, and generated reports are stored from stored analysis records as traceable evidence artifacts. Remaining risk is runtime-specific rather than contract-specific: live MinIO bucket provisioning, live scanner service integration, browser-grade PDF rendering, CSV exports, and binary evidence-package assembly still need deployment smoke coverage.
+Next action: Use GAP-029 for live object-storage/scanner/PDF/CSV/binary bundle runtime hardening; keep in-memory, mock, and fake adapters as the fast contract harness.
 Owner: Codex
 Target phase: Phase I
-Status: Resolved 2026-04-30 for Phase I contracts, in-memory implementation, and output tests; production adapters remain deferred as runtime work.
+Status: Resolved 2026-04-30 for Phase I contracts and in-memory implementation; resolved further by PLAN_M8 for adapter contracts, Prisma evidence metadata persistence, generated report evidence storage, and deterministic renderer artifacts.
 
 ### GAP-009: UX Design System Not Chosen
 
@@ -209,12 +209,12 @@ Status: Resolved 2026-04-30 for refreshed prompt coverage and PLAN_M7 billing fo
 
 Severity: High
 Area: Outputs/analytics
-Current state: Phase B added report and dashboard TypeScript contracts backed by stored analysis records, plus tests proving recommendations can feed plan items, reports, and dashboard signals. Phase I now adds concrete internal readiness report builders, Romania notification draft JSON export builders, stable JSON export serialization, dashboard aggregation from stored control/gap/recommendation/evidence records, dashboard snapshot records, and API routes that reject cross-organization access.
-Impact: Reports and dashboards now have executable builders with legal caveats and regulatory source references. PDF rendering, CSV table exports, and full evidence-package binary bundling remain deferred to the production renderer/storage adapters tracked under GAP-008.
-Next action: Expand renderer templates and export formats after the production report-renderer and object-storage adapters are wired.
+Current state: Phase B added report and dashboard TypeScript contracts backed by stored analysis records, plus tests proving recommendations can feed plan items, reports, and dashboard signals. Phase I added concrete internal readiness report builders, Romania notification draft JSON export builders, stable JSON export serialization, dashboard aggregation from stored analysis records, dashboard snapshot records, and API routes that reject cross-organization access. PLAN_M8 now stores generated report JSON exports as evidence artifacts, audits report generation/export creation, and adds deterministic PDF renderer artifacts for contract tests.
+Impact: Reports and dashboards now have executable builders with legal caveats, regulatory source references, generated-report evidence links, and deterministic renderer output. Production-quality PDF templates, CSV table exports, and full evidence-package binary bundles remain deferred runtime/product work rather than missing core contracts.
+Next action: Expand browser-grade renderer templates, CSV table exports, and evidence-package bundle generation under GAP-029 after runtime storage/scanner smoke coverage exists.
 Owner: Codex
 Target phase: Phase B/I
-Status: Resolved 2026-04-30 for Phase I JSON builders and dashboard aggregation; PDF/CSV/evidence-package binary exports remain deferred.
+Status: Resolved 2026-04-30 for Phase I JSON builders and dashboard aggregation; resolved further by PLAN_M8 for generated-report evidence storage and deterministic renderer contract output.
 
 ### GAP-020: Prisma Migration And Generated Client Workflow Not Wired
 
@@ -291,6 +291,28 @@ Impact: Contract behavior is tested, but production-specific risks remain around
 Next action: Before production billing activation, run a Stripe test-mode integration pass with real webhook delivery, add worker/scheduler reconciliation jobs, document webhook endpoint operations and secret rotation, and add a live PostgreSQL billing persistence smoke test.
 Owner: Codex/DevOps/Product
 Target phase: Phase I/K
+Status: Open
+
+### GAP-029: Evidence Runtime Smoke, Browser PDF, CSV, And Binary Bundles Deferred
+
+Severity: Medium
+Area: Evidence/reporting runtime
+Current state: PLAN_M8 added S3/MinIO-compatible object-storage and HTTP/mock/no-op scanner adapters, Prisma evidence metadata/access-log persistence, generated-report evidence artifacts, and deterministic report-renderer JSON/PDF artifacts. Validation uses fake fetches, mock scanners, in-memory API storage, deterministic renderer output, and Prisma schema/client generation, not live MinIO bucket provisioning, live scanner service calls, or browser-backed PDF rendering.
+Impact: The contract surface is testable and production-shaped, but deployed environments still need smoke coverage for bucket creation/permissions, scanner availability/fail-closed behavior, browser PDF fidelity, CSV export tables, and binary evidence-package assembly.
+Next action: Add a runtime smoke that provisions the object-storage bucket, writes/reads an evidence artifact through MinIO/S3, calls the deployed scanner service, renders a browser-grade PDF through `puresoc-report-renderer`, and records report export metadata for CSV and binary evidence-package bundles.
+Owner: Codex/DevOps
+Target phase: Phase K
+Status: Open
+
+### GAP-030: Live Remediation Worker And Provider Execution Deferred
+
+Severity: High
+Area: Remediation safety/runtime
+Current state: PLAN_M9 added the recommendation-to-action safety foundation: action templates/runs, preflight, approval, pre/post snapshot metadata, verification, evidence links, action audit events, API routes, Prisma action repository metadata, and a future worker job contract. No live provider write executor is implemented, no action queue is backed by BullMQ, and provider connector action methods are optional contracts only.
+Impact: Future write actions have the required guardrail model, but deployed environments still cannot safely execute provider changes. Runtime risks around queue persistence, worker idempotency, provider write-enabled checks against live connection state, retry/failure semantics, live PostgreSQL action persistence, and provider-specific rollback/verification remain unresolved before any write-capable action can be enabled.
+Next action: Before enabling any provider write action, implement a persisted BullMQ `action-execution` worker path, wire `ProviderActionRun` persistence in runtime API services, add idempotent worker execution tests, add live database smoke coverage, and create provider-specific preflight/snapshot/apply/verify/evidence tests for each action template.
+Owner: Codex/DevOps/Product
+Target phase: Phase J/K
 Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal

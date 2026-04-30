@@ -15,6 +15,7 @@
     "@prisma/client": "6.19.3",
     "@puresoc/billing-core": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",
+    "@puresoc/evidence": "workspace:*",
     "@puresoc/regulatory-sources": "workspace:*",
     "@puresoc/recommendations": "workspace:*",
     "@puresoc/shared": "workspace:*"

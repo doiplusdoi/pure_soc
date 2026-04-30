@@ -11,14 +11,24 @@ import { InMemoryComplianceResultRepository } from "@puresoc/compliance-core";
 import { loadConfig, type PureSocConfig } from "@puresoc/config";
 import { InMemoryRegulatorySourceRepository, RegulatorySourceReviewService } from "@puresoc/regulatory-sources";
 import type { RecommendationContract } from "@puresoc/recommendations";
+import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { ComplianceEvaluationService } from "../compliance/service";
 import { RecommendationApiService } from "../recommendations/service";
+import { ActionApiService } from "../actions/service";
 import { EvidenceApiService } from "../evidence/service";
 import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
 import { BillingApiService } from "../billing/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
+import {
+  HttpUploadScanner,
+  MockUploadScanner,
+  NoopUploadScanner,
+  S3ObjectStorageAdapter,
+  type ObjectStorageAdapter,
+  type UploadScanningHook
+} from "@puresoc/evidence";
 
 export interface ApiServices {
   repository: InMemoryPureSocRepository;
@@ -35,12 +45,21 @@ export interface ApiServices {
   reports: ReportApiService;
   dashboards: DashboardApiService;
   billing: BillingApiService;
+  actionsRepository: InMemoryRemediationActionRepository;
+  actions: ActionApiService;
 }
 
 export const createApiServices = (
-  options: { now?: () => Date; billingConfig?: PureSocConfig["billing"] } = {}
+  options: {
+    now?: () => Date;
+    billingConfig?: PureSocConfig["billing"];
+    config?: PureSocConfig;
+    evidenceStorage?: ObjectStorageAdapter;
+    uploadScanner?: UploadScanningHook;
+  } = {}
 ): ApiServices => {
-  const billingConfig = options.billingConfig ?? loadConfig().billing;
+  const config = options.config ?? loadConfig();
+  const billingConfig = options.billingConfig ?? config.billing;
   const repository = new InMemoryPureSocRepository();
   const auditSink = new InMemoryAuditSink();
   const auditWriter = new AuditWriter({
@@ -67,6 +86,7 @@ export const createApiServices = (
   const providerStore = new InMemoryProviderResourceStore({ now: options.now });
   const complianceResultRepository = new InMemoryComplianceResultRepository<RecommendationContract>();
   const regulatorySourceRepository = new InMemoryRegulatorySourceRepository();
+  const actionsRepository = new InMemoryRemediationActionRepository();
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -91,10 +111,16 @@ export const createApiServices = (
   const evidence = new EvidenceApiService({
     repository,
     auditWriter,
+    storage: options.evidenceStorage ?? createEvidenceObjectStorage(config),
+    scanner: options.uploadScanner ?? createUploadScanner(config, options.now),
+    rejectUnscannedUploads: config.app.env === "production",
     now: options.now
   });
   const reports = new ReportApiService({
     repository,
+    evidence,
+    auditWriter,
+    storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
     now: options.now
   });
   const dashboards = new DashboardApiService({
@@ -105,6 +131,11 @@ export const createApiServices = (
     repository,
     auditWriter,
     config: billingConfig,
+    now: options.now
+  });
+  const actions = new ActionApiService({
+    repository: actionsRepository,
+    auditWriter,
     now: options.now
   });
 
@@ -122,6 +153,45 @@ export const createApiServices = (
     evidence,
     reports,
     dashboards,
-    billing
+    billing,
+    actionsRepository,
+    actions
   };
+};
+
+const createEvidenceObjectStorage = (config: PureSocConfig): ObjectStorageAdapter | undefined => {
+  if (config.storage.objectStorage.provider !== "s3") {
+    return undefined;
+  }
+
+  return new S3ObjectStorageAdapter({
+    endpoint: config.storage.objectStorage.endpoint,
+    region: config.storage.objectStorage.region,
+    bucket: config.storage.objectStorage.bucket,
+    accessKeyId: config.storage.objectStorage.accessKeyId,
+    secretAccessKey: config.storage.objectStorage.secretAccessKey,
+    forcePathStyle: config.storage.objectStorage.forcePathStyle
+  });
+};
+
+const createUploadScanner = (config: PureSocConfig, now: (() => Date) | undefined): UploadScanningHook => {
+  if (config.storage.uploadScanner.mode === "mock") {
+    return new MockUploadScanner({
+      status: config.storage.uploadScanner.mockStatus,
+      now
+    });
+  }
+
+  if (config.storage.uploadScanner.mode === "http") {
+    return new HttpUploadScanner({
+      endpoint: config.storage.uploadScanner.endpoint,
+      now
+    });
+  }
+
+  return new NoopUploadScanner({
+    environment: config.app.env,
+    allowInProduction: config.storage.uploadScanner.allowNoopInProduction,
+    now
+  });
 };

@@ -13,7 +13,15 @@ export type AuditAction =
   | "member_invited"
   | "role_changed"
   | "compliance.assessment.evaluated"
-  | "compliance.recommendations.generated";
+  | "compliance.recommendations.generated"
+  | "action_preflight"
+  | "action_approval_requested"
+  | "action_approved"
+  | "action_rejected"
+  | "action_queued"
+  | "action_failed"
+  | "action_verified"
+  | "action_closed";
 
 export interface AuditLogInput {
   actorUserId?: string | null;

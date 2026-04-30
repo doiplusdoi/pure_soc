@@ -108,14 +108,38 @@ enum ProviderActionRunStatus {
   draft
   preflight_pending
   preflight_failed
+  preflight_passed
   approval_requested
+  approval_rejected
   approved
   queued
   running
-  succeeded
   failed
+  verification_pending
   verification_failed
+  verified
+  closed
   canceled
+}
+
+enum ProviderActionPreflightStatus {
+  not_run
+  passed
+  failed
+}
+
+enum ProviderActionApprovalStatus {
+  not_requested
+  requested
+  approved
+  rejected
+}
+
+enum ProviderActionVerificationStatus {
+  not_run
+  passed
+  failed
+  manual_required
 }
 
 enum RegulatorySourceType {
@@ -781,47 +805,85 @@ model ProviderRecommendation {
 }
 
 model ProviderActionTemplate {
-  id                  String         @id @default(uuid()) @db.Uuid
-  organizationId      String?        @map("organization_id") @db.Uuid
-  providerKey         String         @map("provider_key")
-  moduleKey           String?        @map("module_key")
-  actionKey           String         @map("action_key")
-  title               String
-  riskLevel           FindingSeverity @map("risk_level")
-  licenseRequired     String[]       @map("license_required")
-  permissionsRequired String[]       @map("permissions_required")
-  preconditionsJson   Json           @default("{}") @map("preconditions_json")
-  expectedChange      String         @map("expected_change")
-  blastRadius         String         @map("blast_radius")
-  rollbackStrategy    String         @map("rollback_strategy")
-  manualFallback      String         @map("manual_fallback")
-  enabled             Boolean        @default(false)
-  createdAt           DateTime       @default(now()) @map("created_at")
+  id                    String             @id @default(uuid()) @db.Uuid
+  organizationId        String?            @map("organization_id") @db.Uuid
+  providerKey           String             @map("provider_key")
+  moduleKey             String?            @map("module_key")
+  actionKey             String             @map("action_key")
+  actionType            RecommendationType @map("action_type")
+  automationMode        AutomationMode     @map("automation_mode")
+  title                 String
+  description           String?
+  riskLevel             ActionableSeverity @map("risk_level")
+  licenseRequired       String[]           @map("license_required")
+  permissionsRequired   String[]           @map("permissions_required")
+  preconditionsJson     Json               @default("{}") @map("preconditions_json")
+  expectedChange        String             @map("expected_change")
+  blastRadius           String             @map("blast_radius")
+  rollbackStrategy      String             @map("rollback_strategy")
+  manualFallback        String             @map("manual_fallback")
+  evidenceRequired      Boolean            @default(true) @map("evidence_required")
+  enabledByDefault      Boolean            @default(false) @map("enabled_by_default")
+  highRiskForbiddenInV1 Boolean            @default(false) @map("high_risk_forbidden_in_v1")
+  sourceReferencesJson  Json               @default("[]") @map("source_references_json")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
 
   @@unique([providerKey, actionKey, organizationId], map: "provider_action_templates_provider_action_org_key")
   @@map("provider_action_templates")
 }
 
 model ProviderActionRun {
-  id                   String                  @id @default(uuid()) @db.Uuid
-  organizationId       String                  @map("organization_id") @db.Uuid
-  providerConnectionId String                  @map("provider_connection_id") @db.Uuid
-  recommendationId     String?                 @map("recommendation_id") @db.Uuid
-  actionTemplateId     String?                 @map("action_template_id") @db.Uuid
-  providerKey          String                  @map("provider_key")
-  moduleKey            String?                 @map("module_key")
-  actionType           String                  @map("action_type")
-  status               ProviderActionRunStatus @default(draft)
-  approvedBy           String?                 @map("approved_by") @db.Uuid
-  approvedAt           DateTime?               @map("approved_at")
-  executedByService    String?                 @map("executed_by_service")
-  executedAt           DateTime?               @map("executed_at")
-  preStateEvidenceId   String?                 @map("pre_state_evidence_id") @db.Uuid
-  postStateEvidenceId  String?                 @map("post_state_evidence_id") @db.Uuid
-  verificationStatus   String?                 @map("verification_status")
-  runJson              Json                    @default("{}") @map("run_json")
-  createdAt            DateTime                @default(now()) @map("created_at")
-  updatedAt            DateTime                @updatedAt @map("updated_at")
+  id                    String                           @id @default(uuid()) @db.Uuid
+  organizationId        String                           @map("organization_id") @db.Uuid
+  providerConnectionId  String                           @map("provider_connection_id") @db.Uuid
+  recommendationId      String?                          @map("recommendation_id") @db.Uuid
+  actionTemplateId      String?                          @map("action_template_id") @db.Uuid
+  controlId             String                           @map("control_id")
+  jurisdiction          String
+  providerKey           String                           @map("provider_key")
+  moduleKey             String?                          @map("module_key")
+  actionKey             String                           @map("action_key")
+  actionType            RecommendationType               @map("action_type")
+  automationMode        AutomationMode                   @map("automation_mode")
+  title                 String
+  riskLevel             ActionableSeverity               @map("risk_level")
+  licenseRequired       String[]                         @map("license_required")
+  permissionsRequired   String[]                         @map("permissions_required")
+  preconditionsJson     Json                             @default("{}") @map("preconditions_json")
+  expectedChange        String                           @map("expected_change")
+  blastRadius           String                           @map("blast_radius")
+  rollbackStrategy      String                           @map("rollback_strategy")
+  manualFallback        String                           @map("manual_fallback")
+  evidenceRequired      Boolean                          @default(true) @map("evidence_required")
+  highRiskForbiddenInV1 Boolean                          @default(false) @map("high_risk_forbidden_in_v1")
+  status                ProviderActionRunStatus          @default(draft)
+  approvalStatus        ProviderActionApprovalStatus     @default(not_requested) @map("approval_status")
+  approvalRequestedBy   String?                          @map("approval_requested_by") @db.Uuid
+  approvalRequestedAt   DateTime?                        @map("approval_requested_at")
+  approvedBy            String?                          @map("approved_by") @db.Uuid
+  approvedAt            DateTime?                        @map("approved_at")
+  approvalRejectedBy    String?                          @map("approval_rejected_by") @db.Uuid
+  approvalRejectedAt    DateTime?                        @map("approval_rejected_at")
+  approvalRejectionReason String?                        @map("approval_rejection_reason")
+  preflightStatus       ProviderActionPreflightStatus    @default(not_run) @map("preflight_status")
+  preflightJson         Json                             @default("{}") @map("preflight_json")
+  preStateSnapshotJson  Json                             @default("{}") @map("pre_state_snapshot_json")
+  postStateSnapshotJson Json                             @default("{}") @map("post_state_snapshot_json")
+  verificationStatus    ProviderActionVerificationStatus @default(not_run) @map("verification_status")
+  verificationJson      Json                             @default("{}") @map("verification_json")
+  evidenceArtifactIds   String[]                         @default([]) @map("evidence_artifact_ids")
+  checklistTaskIds      String[]                         @default([]) @map("checklist_task_ids")
+  workerJobJson         Json                             @default("{}") @map("worker_job_json")
+  failureReason         String?                          @map("failure_reason")
+  closedBy              String?                          @map("closed_by") @db.Uuid
+  closedAt              DateTime?                        @map("closed_at")
+  executedByService     String?                          @map("executed_by_service")
+  executedAt            DateTime?                        @map("executed_at")
+  runJson               Json                             @default("{}") @map("run_json")
+  sourceReferencesJson  Json                             @default("[]") @map("source_references_json")
+  createdAt             DateTime                         @default(now()) @map("created_at")
+  updatedAt             DateTime                         @updatedAt @map("updated_at")
 
   @@map("provider_action_runs")
 }
@@ -1302,6 +1364,9 @@ model EvidenceArtifact {
   mimeType             String             @map("mime_type")
   sizeBytes            BigInt?            @map("size_bytes")
   scanStatus           EvidenceScanStatus @default(pending) @map("scan_status")
+  scanScannerName      String?            @map("scan_scanner_name")
+  scanFindingsJson     Json               @default("[]") @map("scan_findings_json")
+  scannedAt            DateTime?          @map("scanned_at")
   createdBy            String?            @map("created_by") @db.Uuid
   createdAt            DateTime           @default(now()) @map("created_at")
   validFrom            DateTime?          @map("valid_from")

@@ -31,6 +31,25 @@ export interface PureSocConfig {
   reports: {
     legalCaveatRequired: boolean;
     renderer: string;
+    defaultExportFormat: "json" | "pdf";
+    storeGeneratedReportsAsEvidence: boolean;
+  };
+  storage: {
+    objectStorage: {
+      provider: "memory" | "s3";
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      forcePathStyle: boolean;
+    };
+    uploadScanner: {
+      mode: "noop" | "mock" | "http";
+      endpoint: string;
+      mockStatus: "pending" | "clean" | "infected" | "failed" | "skipped";
+      allowNoopInProduction: boolean;
+    };
   };
   billing: BillingRuntimeConfig;
 }
@@ -58,6 +77,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     connectors: readJson<PureSocConfig["connectors"]>(defaultsDir, "connectors"),
     compliance: readJson<PureSocConfig["compliance"]>(defaultsDir, "compliance"),
     reports: readJson<PureSocConfig["reports"]>(defaultsDir, "reports"),
+    storage: readJson<PureSocConfig["storage"]>(defaultsDir, "storage"),
     billing: readJson<PureSocConfig["billing"]>(defaultsDir, "billing")
   };
 
@@ -74,6 +94,57 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       ...config.auth,
       localEnabled: readBoolean(env.PURESOC_AUTH_LOCAL_ENABLED, config.auth.localEnabled),
       authBrokerEnabled: readBoolean(env.PURESOC_AUTH_BROKER_ENABLED, config.auth.authBrokerEnabled)
+    },
+    reports: {
+      ...config.reports,
+      defaultExportFormat:
+        env.PURESOC_REPORT_DEFAULT_EXPORT_FORMAT === "pdf" ? "pdf" : config.reports.defaultExportFormat,
+      storeGeneratedReportsAsEvidence: readBoolean(
+        env.PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE,
+        config.reports.storeGeneratedReportsAsEvidence
+      )
+    },
+    storage: {
+      ...config.storage,
+      objectStorage: {
+        ...config.storage.objectStorage,
+        provider:
+          env.PURESOC_OBJECT_STORAGE_PROVIDER === "s3" ? "s3" : config.storage.objectStorage.provider,
+        endpoint: env.PURESOC_OBJECT_STORAGE_ENDPOINT ?? config.storage.objectStorage.endpoint,
+        region: env.PURESOC_OBJECT_STORAGE_REGION ?? config.storage.objectStorage.region,
+        bucket: env.PURESOC_OBJECT_STORAGE_BUCKET ?? config.storage.objectStorage.bucket,
+        accessKeyId:
+          env.PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID ??
+          env.MINIO_ACCESS_KEY ??
+          config.storage.objectStorage.accessKeyId,
+        secretAccessKey:
+          env.PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY ??
+          env.MINIO_SECRET_KEY ??
+          config.storage.objectStorage.secretAccessKey,
+        forcePathStyle: readBoolean(
+          env.PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE,
+          config.storage.objectStorage.forcePathStyle
+        )
+      },
+      uploadScanner: {
+        ...config.storage.uploadScanner,
+        mode:
+          env.PURESOC_UPLOAD_SCANNER_MODE === "mock" || env.PURESOC_UPLOAD_SCANNER_MODE === "http"
+            ? env.PURESOC_UPLOAD_SCANNER_MODE
+            : config.storage.uploadScanner.mode,
+        endpoint: env.PURESOC_UPLOAD_SCANNER_ENDPOINT ?? config.storage.uploadScanner.endpoint,
+        mockStatus:
+          env.PURESOC_UPLOAD_SCANNER_MOCK_STATUS === "infected" ||
+          env.PURESOC_UPLOAD_SCANNER_MOCK_STATUS === "failed" ||
+          env.PURESOC_UPLOAD_SCANNER_MOCK_STATUS === "skipped" ||
+          env.PURESOC_UPLOAD_SCANNER_MOCK_STATUS === "pending"
+            ? env.PURESOC_UPLOAD_SCANNER_MOCK_STATUS
+            : config.storage.uploadScanner.mockStatus,
+        allowNoopInProduction: readBoolean(
+          env.PURESOC_UPLOAD_SCANNER_ALLOW_NOOP_IN_PRODUCTION,
+          config.storage.uploadScanner.allowNoopInProduction
+        )
+      }
     },
     billing: {
       ...config.billing,

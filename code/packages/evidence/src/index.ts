@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from "node:crypto";
+import { createHash, createHmac, randomUUID } from "node:crypto";
 
 export type EvidenceSourceType =
   | "provider_snapshot"
@@ -56,6 +56,9 @@ export interface EvidenceArtifactMetadata {
   mimeType: string;
   sizeBytes: number;
   scanStatus: EvidenceScanStatus;
+  scanScannerName?: string;
+  scanFindings?: string[];
+  scannedAt?: string;
   createdBy?: string;
   createdAt: string;
   validFrom?: string;
@@ -109,6 +112,17 @@ export interface ObjectStorageAdapter {
   readObject(input: ObjectStorageGetInput): Promise<ObjectStorageReadResult>;
 }
 
+export interface S3ObjectStorageAdapterOptions {
+  endpoint: string;
+  region: string;
+  bucket: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  forcePathStyle?: boolean;
+  fetchImpl?: typeof fetch;
+  now?: () => Date;
+}
+
 export interface UploadScanInput {
   organizationId: string;
   objectKey: string;
@@ -125,6 +139,13 @@ export interface UploadScanResult {
 
 export interface UploadScanningHook {
   scan(input: UploadScanInput): Promise<UploadScanResult>;
+}
+
+export interface HttpUploadScannerOptions {
+  endpoint: string;
+  scannerName?: string;
+  fetchImpl?: typeof fetch;
+  now?: () => Date;
 }
 
 export interface EvidenceRepository {
@@ -190,9 +211,26 @@ export class EvidenceAccessError extends Error {
 
 export class NoopUploadScanner implements UploadScanningHook {
   private readonly now: () => Date;
+  private readonly reason: string;
 
-  constructor(options: { now?: () => Date } = {}) {
+  constructor(
+    options: {
+      now?: () => Date;
+      environment?: string;
+      allowInProduction?: boolean;
+      reason?: string;
+    } = {}
+  ) {
+    if (options.environment === "production" && options.allowInProduction !== true) {
+      throw new EvidenceAccessError(
+        "upload_scanner_required",
+        "No-op upload scanning is not allowed in production without an explicit override.",
+        500
+      );
+    }
+
     this.now = options.now ?? (() => new Date());
+    this.reason = options.reason ?? "local_development_explicit_noop";
   }
 
   async scan(): Promise<UploadScanResult> {
@@ -200,8 +238,97 @@ export class NoopUploadScanner implements UploadScanningHook {
       status: "skipped",
       scannerName: "noop-deferred-scanner",
       scannedAt: this.now().toISOString(),
-      findings: []
+      findings: [this.reason]
     };
+  }
+}
+
+export class MockUploadScanner implements UploadScanningHook {
+  private readonly status: EvidenceScanStatus;
+  private readonly findings: string[];
+  private readonly scannerName: string;
+  private readonly now: () => Date;
+
+  constructor(options: {
+    status?: EvidenceScanStatus;
+    findings?: string[];
+    scannerName?: string;
+    now?: () => Date;
+  } = {}) {
+    this.status = options.status ?? "clean";
+    this.findings = options.findings ?? [];
+    this.scannerName = options.scannerName ?? "mock-upload-scanner";
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async scan(): Promise<UploadScanResult> {
+    return {
+      status: this.status,
+      scannerName: this.scannerName,
+      scannedAt: this.now().toISOString(),
+      findings: [...this.findings]
+    };
+  }
+}
+
+export class HttpUploadScanner implements UploadScanningHook {
+  private readonly endpoint: string;
+  private readonly scannerName: string;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => Date;
+
+  constructor(options: HttpUploadScannerOptions) {
+    if (!options.endpoint) {
+      throw new EvidenceAccessError("invalid_scanner_config", "Scanner endpoint is required.", 500);
+    }
+
+    this.endpoint = options.endpoint;
+    this.scannerName = options.scannerName ?? "http-upload-scanner";
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async scan(input: UploadScanInput): Promise<UploadScanResult> {
+    try {
+      const response = await this.fetchImpl(this.endpoint, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          organizationId: input.organizationId,
+          objectKey: input.objectKey,
+          mimeType: input.mimeType,
+          sizeBytes: input.body.byteLength,
+          contentHashSha256: sha256Hex(input.body),
+          bodyBase64: Buffer.from(input.body).toString("base64")
+        })
+      });
+
+      if (!response.ok) {
+        return {
+          status: "failed",
+          scannerName: this.scannerName,
+          scannedAt: this.now().toISOString(),
+          findings: [`scanner_http_${response.status}`]
+        };
+      }
+
+      const payload = (await response.json()) as Partial<UploadScanResult>;
+      return {
+        status: isEvidenceScanStatus(payload.status) ? payload.status : "failed",
+        scannerName: payload.scannerName ?? this.scannerName,
+        scannedAt: payload.scannedAt ?? this.now().toISOString(),
+        findings: Array.isArray(payload.findings) ? payload.findings.filter(isString) : []
+      };
+    } catch {
+      return {
+        status: "failed",
+        scannerName: this.scannerName,
+        scannedAt: this.now().toISOString(),
+        findings: ["scanner_unreachable"]
+      };
+    }
   }
 }
 
@@ -232,6 +359,170 @@ export class InMemoryObjectStorageAdapter implements ObjectStorageAdapter {
     return {
       ...object,
       body: new Uint8Array(object.body)
+    };
+  }
+}
+
+export class S3ObjectStorageAdapter implements ObjectStorageAdapter {
+  private readonly endpoint: string;
+  private readonly region: string;
+  private readonly bucket: string;
+  private readonly accessKeyId: string;
+  private readonly secretAccessKey: string;
+  private readonly forcePathStyle: boolean;
+  private readonly fetchImpl: typeof fetch;
+  private readonly now: () => Date;
+
+  constructor(options: S3ObjectStorageAdapterOptions) {
+    for (const [name, value] of Object.entries({
+      endpoint: options.endpoint,
+      region: options.region,
+      bucket: options.bucket,
+      accessKeyId: options.accessKeyId,
+      secretAccessKey: options.secretAccessKey
+    })) {
+      if (!value) {
+        throw new EvidenceAccessError("invalid_object_storage_config", `Missing S3 object storage setting: ${name}`, 500);
+      }
+    }
+
+    this.endpoint = options.endpoint.replace(/\/+$/g, "");
+    this.region = options.region;
+    this.bucket = options.bucket;
+    this.accessKeyId = options.accessKeyId;
+    this.secretAccessKey = options.secretAccessKey;
+    this.forcePathStyle = options.forcePathStyle ?? true;
+    this.fetchImpl = options.fetchImpl ?? fetch;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async putObject(input: ObjectStoragePutInput): Promise<ObjectStoragePutResult> {
+    const body = new Uint8Array(input.body);
+    const objectKey = this.scopedObjectKey(input.organizationId, input.objectKey);
+    const url = this.objectUrl(objectKey);
+    const headers = this.signedHeaders({
+      method: "PUT",
+      url,
+      payloadHash: sha256Hex(body),
+      contentType: input.mimeType,
+      metadata: input.metadata
+    });
+    const response = await this.fetchImpl(url, {
+      method: "PUT",
+      headers,
+      body
+    });
+
+    if (!response.ok) {
+      throw new EvidenceAccessError(
+        "object_storage_put_failed",
+        `Object storage rejected evidence upload with status ${response.status}.`,
+        502
+      );
+    }
+
+    return {
+      storageUri: `s3://${this.bucket}/${objectKey}`,
+      sizeBytes: body.byteLength
+    };
+  }
+
+  async readObject(input: ObjectStorageGetInput): Promise<ObjectStorageReadResult> {
+    const objectKey = this.storageUriToObjectKey(input);
+    const url = this.objectUrl(objectKey);
+    const headers = this.signedHeaders({
+      method: "GET",
+      url,
+      payloadHash: sha256Hex(new Uint8Array())
+    });
+    const response = await this.fetchImpl(url, {
+      method: "GET",
+      headers
+    });
+
+    if (!response.ok) {
+      throw new EvidenceAccessError(
+        "evidence_not_found",
+        `Evidence object was not found for this organization in object storage.`,
+        404
+      );
+    }
+
+    return {
+      storageUri: input.storageUri,
+      body: new Uint8Array(await response.arrayBuffer()),
+      mimeType: response.headers.get("content-type") ?? undefined
+    };
+  }
+
+  private scopedObjectKey(organizationId: string, objectKey: string): string {
+    return ["evidence", organizationId, objectKey].join("/").replace(/\/{2,}/g, "/");
+  }
+
+  private storageUriToObjectKey(input: ObjectStorageGetInput): string {
+    const prefix = `s3://${this.bucket}/`;
+    if (!input.storageUri.startsWith(prefix)) {
+      throw new EvidenceAccessError("evidence_not_found", "Evidence object was not found for this organization.", 404);
+    }
+
+    const objectKey = input.storageUri.slice(prefix.length);
+    if (!objectKey.startsWith(`evidence/${input.organizationId}/`)) {
+      throw new EvidenceAccessError("evidence_not_found", "Evidence object was not found for this organization.", 404);
+    }
+
+    return objectKey;
+  }
+
+  private objectUrl(objectKey: string): URL {
+    const endpointUrl = new URL(this.endpoint);
+    const url = new URL(endpointUrl.toString());
+
+    if (this.forcePathStyle) {
+      url.pathname = joinUrlPath(url.pathname, this.bucket, objectKey);
+    } else {
+      url.hostname = `${this.bucket}.${url.hostname}`;
+      url.pathname = joinUrlPath(url.pathname, objectKey);
+    }
+
+    return url;
+  }
+
+  private signedHeaders(input: {
+    method: "GET" | "PUT";
+    url: URL;
+    payloadHash: string;
+    contentType?: string;
+    metadata?: Record<string, string>;
+  }): Record<string, string> {
+    const { amzDate, dateStamp } = toAmzDates(this.now());
+    const headers: Record<string, string> = {
+      host: input.url.host,
+      "x-amz-content-sha256": input.payloadHash,
+      "x-amz-date": amzDate
+    };
+
+    if (input.contentType) {
+      headers["content-type"] = input.contentType;
+    }
+
+    for (const [key, value] of Object.entries(input.metadata ?? {})) {
+      headers[`x-amz-meta-${key.toLowerCase()}`] = value;
+    }
+
+    const signed = signS3Request({
+      method: input.method,
+      url: input.url,
+      headers,
+      payloadHash: input.payloadHash,
+      accessKeyId: this.accessKeyId,
+      secretAccessKey: this.secretAccessKey,
+      region: this.region,
+      dateStamp
+    });
+
+    return {
+      ...headers,
+      authorization: signed.authorization
     };
   }
 }
@@ -272,17 +563,20 @@ export class EvidenceVault {
   private readonly storage: ObjectStorageAdapter;
   private readonly scanner: UploadScanningHook;
   private readonly now: () => Date;
+  private readonly rejectUnscannedUploads: boolean;
 
   constructor(options: {
     repository: EvidenceRepository;
     storage: ObjectStorageAdapter;
     scanner: UploadScanningHook;
     now?: () => Date;
+    rejectUnscannedUploads?: boolean;
   }) {
     this.repository = options.repository;
     this.storage = options.storage;
     this.scanner = options.scanner;
     this.now = options.now ?? (() => new Date());
+    this.rejectUnscannedUploads = options.rejectUnscannedUploads ?? false;
   }
 
   async uploadEvidence(input: EvidenceUploadInput): Promise<EvidenceArtifactMetadata> {
@@ -299,6 +593,14 @@ export class EvidenceVault {
 
     if (scan.status === "infected") {
       throw new EvidenceAccessError("upload_rejected_by_scanner", "Evidence upload was rejected by the scanner.", 422);
+    }
+
+    if (this.rejectUnscannedUploads && scan.status !== "clean") {
+      throw new EvidenceAccessError(
+        "upload_rejected_by_scanner",
+        "Evidence upload was rejected because scanning did not complete cleanly.",
+        422
+      );
     }
 
     const stored = await this.storage.putObject({
@@ -335,6 +637,9 @@ export class EvidenceVault {
       mimeType: input.mimeType,
       sizeBytes: stored.sizeBytes,
       scanStatus: scan.status,
+      scanScannerName: scan.scannerName,
+      scanFindings: scan.findings,
+      scannedAt: scan.scannedAt,
       createdBy: input.actorUserId,
       createdAt: now,
       validFrom: input.validFrom,
@@ -407,6 +712,81 @@ export const evidenceArtifactToComplianceState = (artifact: EvidenceArtifactMeta
 
 export const sha256Hex = (body: Uint8Array): string => createHash("sha256").update(body).digest("hex");
 
+const isEvidenceScanStatus = (value: unknown): value is EvidenceScanStatus =>
+  value === "pending" || value === "clean" || value === "infected" || value === "failed" || value === "skipped";
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const joinUrlPath = (...parts: string[]): string => {
+  const joined = parts
+    .flatMap((part) => part.split("/"))
+    .filter((part) => part.length > 0)
+    .map((part) => encodeURIComponent(part))
+    .join("/");
+
+  return `/${joined}`;
+};
+
+const toAmzDates = (date: Date) => {
+  const iso = date.toISOString().replace(/[:-]|\.\d{3}/g, "");
+  return {
+    amzDate: iso,
+    dateStamp: iso.slice(0, 8)
+  };
+};
+
+const signS3Request = (input: {
+  method: "GET" | "PUT";
+  url: URL;
+  headers: Record<string, string>;
+  payloadHash: string;
+  accessKeyId: string;
+  secretAccessKey: string;
+  region: string;
+  dateStamp: string;
+}): { authorization: string } => {
+  const normalizedHeaders = Object.fromEntries(
+    Object.entries(input.headers).map(([key, value]) => [key.toLowerCase(), value.trim().replace(/\s+/g, " ")])
+  );
+  const signedHeaderNames = Object.keys(normalizedHeaders).sort();
+  const canonicalHeaders = signedHeaderNames.map((key) => `${key}:${normalizedHeaders[key]}`).join("\n");
+  const canonicalQuery = [...input.url.searchParams.entries()]
+    .sort(([left], [right]) => left.localeCompare(right))
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+    .join("&");
+  const canonicalRequest = [
+    input.method,
+    input.url.pathname,
+    canonicalQuery,
+    `${canonicalHeaders}\n`,
+    signedHeaderNames.join(";"),
+    input.payloadHash
+  ].join("\n");
+  const credentialScope = `${input.dateStamp}/${input.region}/s3/aws4_request`;
+  const stringToSign = [
+    "AWS4-HMAC-SHA256",
+    normalizedHeaders["x-amz-date"],
+    credentialScope,
+    sha256Hex(Buffer.from(canonicalRequest, "utf8"))
+  ].join("\n");
+  const signingKey = hmac(
+    hmac(hmac(hmac(Buffer.from(`AWS4${input.secretAccessKey}`, "utf8"), input.dateStamp), input.region), "s3"),
+    "aws4_request"
+  );
+  const signature = createHmac("sha256", signingKey).update(stringToSign).digest("hex");
+
+  return {
+    authorization: [
+      `AWS4-HMAC-SHA256 Credential=${input.accessKeyId}/${credentialScope}`,
+      `SignedHeaders=${signedHeaderNames.join(";")}`,
+      `Signature=${signature}`
+    ].join(", ")
+  };
+};
+
+const hmac = (key: Buffer | Uint8Array | string, value: string): Buffer =>
+  createHmac("sha256", key).update(value).digest();
+
 const normalizeBody = (body: Uint8Array | string): Uint8Array =>
   typeof body === "string" ? Buffer.from(body, "utf8") : new Uint8Array(body);
 
@@ -449,6 +829,14 @@ const buildDefaultLinks = (
       targetType: "assessment",
       targetId: input.linkedAssessmentId,
       relation: "assessment_evidence"
+    });
+  }
+
+  if (input.linkedActionId) {
+    links.push({
+      targetType: "action_run",
+      targetId: input.linkedActionId,
+      relation: "action_evidence"
     });
   }
 
