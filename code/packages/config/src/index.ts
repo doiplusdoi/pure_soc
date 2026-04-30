@@ -15,6 +15,28 @@ export interface PureSocConfig {
     localEnabled: boolean;
     authBrokerEnabled: boolean;
     providers: string[];
+    socialLogin: {
+      stateTtlMs: number;
+      providers: Record<
+        "microsoft_entra" | "google" | "github",
+        {
+          enabled: boolean;
+          mode: "oidc" | "oauth_profile";
+          issuer: string;
+          authorizationEndpoint: string;
+          tokenEndpoint: string;
+          jwksUri: string;
+          profileEndpoint: string;
+          emailEndpoint: string;
+          clientId: string;
+          clientSecret: string;
+          redirectUri: string;
+          scopes: string[];
+          pkceRequired: boolean;
+          nonceRequired: boolean;
+        }
+      >;
+    };
   };
   connectors: {
     readOnlyByDefault: boolean;
@@ -93,7 +115,19 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     auth: {
       ...config.auth,
       localEnabled: readBoolean(env.PURESOC_AUTH_LOCAL_ENABLED, config.auth.localEnabled),
-      authBrokerEnabled: readBoolean(env.PURESOC_AUTH_BROKER_ENABLED, config.auth.authBrokerEnabled)
+      authBrokerEnabled: readBoolean(env.PURESOC_AUTH_BROKER_ENABLED, config.auth.authBrokerEnabled),
+      socialLogin: {
+        ...config.auth.socialLogin,
+        providers: {
+          microsoft_entra: withSocialLoginEnvOverrides(
+            "PURESOC_AUTH_MICROSOFT_ENTRA",
+            config.auth.socialLogin.providers.microsoft_entra,
+            env
+          ),
+          google: withSocialLoginEnvOverrides("PURESOC_AUTH_GOOGLE", config.auth.socialLogin.providers.google, env),
+          github: withSocialLoginEnvOverrides("PURESOC_AUTH_GITHUB", config.auth.socialLogin.providers.github, env)
+        }
+      }
     },
     reports: {
       ...config.reports,
@@ -167,5 +201,32 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
         }
       }
     }
+  };
+};
+
+const withSocialLoginEnvOverrides = <
+  T extends PureSocConfig["auth"]["socialLogin"]["providers"]["microsoft_entra"]
+>(
+  prefix: string,
+  provider: T,
+  env: NodeJS.ProcessEnv
+): T => {
+  const scopes = env[`${prefix}_SCOPES`];
+
+  return {
+    ...provider,
+    enabled: readBoolean(env[`${prefix}_ENABLED`], provider.enabled),
+    issuer: env[`${prefix}_ISSUER`] ?? provider.issuer,
+    authorizationEndpoint: env[`${prefix}_AUTHORIZATION_ENDPOINT`] ?? provider.authorizationEndpoint,
+    tokenEndpoint: env[`${prefix}_TOKEN_ENDPOINT`] ?? provider.tokenEndpoint,
+    jwksUri: env[`${prefix}_JWKS_URI`] ?? provider.jwksUri,
+    profileEndpoint: env[`${prefix}_PROFILE_ENDPOINT`] ?? provider.profileEndpoint,
+    emailEndpoint: env[`${prefix}_EMAIL_ENDPOINT`] ?? provider.emailEndpoint,
+    clientId: env[`${prefix}_CLIENT_ID`] ?? provider.clientId,
+    clientSecret: env[`${prefix}_CLIENT_SECRET`] ?? provider.clientSecret,
+    redirectUri: env[`${prefix}_REDIRECT_URI`] ?? provider.redirectUri,
+    scopes: scopes ? scopes.split(/[,\s]+/).filter(Boolean) : provider.scopes,
+    pkceRequired: readBoolean(env[`${prefix}_PKCE_REQUIRED`], provider.pkceRequired),
+    nonceRequired: readBoolean(env[`${prefix}_NONCE_REQUIRED`], provider.nonceRequired)
   };
 };

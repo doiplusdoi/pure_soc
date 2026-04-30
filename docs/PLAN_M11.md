@@ -80,4 +80,64 @@ pnpm test -- --runInBand auth oidc social-login session audit redaction
 
 ## Completion Log
 
-Pending implementation.
+Started 2026-04-30.
+
+Initial implementation assumptions:
+
+- Reuse the existing local-auth/session/audit harness and add OIDC as an auth abstraction extension, not a provider-connection flow.
+- Prefer deterministic in-memory repositories and injectable token/client verification for tests; live provider discovery/network setup is out of scope for this milestone.
+- Keep provider secrets, authorization codes, tokens, state, nonce, and PKCE verifier values out of audit metadata and errors.
+
+Completed 2026-04-30.
+
+Implemented:
+
+- Added `@puresoc/auth-oidc` callback service with provider config validation, transient state store, state/nonce/PKCE generation and validation, JWKS-backed ID token verifier, GitHub OAuth profile/email lookup support, and explicit account-link approval semantics.
+- Wired API routes:
+  - `POST /auth/oidc/:provider/begin`
+  - `GET|POST /auth/oidc/:provider/callback`
+- Reused the existing PureSOC session model and audit writer for social-login sessions.
+- Added in-memory identity-account repository methods for provider-subject lookup, external identity creation, and explicit account linking.
+- Added auth config defaults for disabled-by-default Microsoft Entra, Google, and GitHub sign-in providers.
+- Added API integration tests for state mismatch, nonce, PKCE verifier exchange, invalid issuer/audience/expiry/signature/email-verification claims, provider-subject sign-in, email-collision link approval, GitHub profile callback, session behavior, audit events, redaction, and Microsoft 365 consent separation.
+
+Changed files:
+
+- `code/packages/auth/oidc/src/index.ts`
+- `code/packages/auth/oidc/package.json`
+- `code/packages/auth/core/src/index.ts`
+- `code/packages/audit/src/index.ts`
+- `code/packages/config/src/index.ts`
+- `code/config/defaults/auth.json`
+- `code/apps/api/package.json`
+- `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/auth/routes.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/__tests__/auth-oidc-social-login.test.ts`
+- `code/pnpm-lock.yaml`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/PLAN_M12.md`
+
+Validation:
+
+```sh
+flatpak-spawn --host sh -lc 'cd /mnt/solodata/SoloCode/pure_soc/code && npx pnpm@10.33.2 lint'
+flatpak-spawn --host sh -lc 'cd /mnt/solodata/SoloCode/pure_soc/code && npx pnpm@10.33.2 test -- --runInBand auth oidc social-login session audit redaction'
+```
+
+Results:
+
+- `pnpm lint`: passed.
+- `pnpm test -- --runInBand auth oidc social-login session audit redaction`: passed, 44 files / 153 tests.
+
+Gap movement:
+
+- GAP-003 resolved for callback/account-linking implementation.
+- GAP-032 added for live OIDC provider app registration, callback smoke, secret rotation, and deployed cookie validation.
+
+Acceptance status:
+
+- Accepted for M11 contract/API harness.
+- Live social-login provider enablement remains deferred to GAP-032.

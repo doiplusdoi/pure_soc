@@ -44,12 +44,12 @@ Status: Resolved 2026-04-28 for repository decision.
 
 Severity: High
 Area: Auth
-Current state: ADR-013 records the boundary between local auth, OIDC/social login, optional Keycloak broker behavior, and Microsoft 365 managed-provider admin consent. Phase C added local email/password auth, session handling, token redaction tests, and OIDC/social-login placeholders that keep user sign-in separate from managed-provider onboarding.
-Impact: OIDC callback and account-linking behavior remains intentionally deferred; Microsoft/Google/GitHub sign-in must still avoid trusting email alone and must not share code paths with Microsoft 365 admin consent.
-Next action: When OIDC callbacks are explicitly in scope, update or confirm ADR-013 and add state, nonce, PKCE, issuer/audience/expiry/signature, account-linking conflict, and provider-consent separation tests.
+Current state: ADR-013 records the boundary between local auth, OIDC/social login, optional Keycloak broker behavior, and Microsoft 365 managed-provider admin consent. Phase C added local email/password auth, session handling, token redaction tests, and OIDC/social-login placeholders. PLAN_M11 implemented Microsoft Entra, Google, and GitHub user sign-in callback contracts with state, nonce, PKCE, issuer/audience/expiry/signature validation, provider-subject lookup, explicit signed-in account-link approval for email collisions, session creation, audit events, and separation from Microsoft 365 managed-provider consent.
+Impact: The product identity boundary is now executable in the in-memory/API harness, and email alone is not accepted for linking. Production live-provider setup and smoke coverage still need real app registrations, redirect URI validation, JWKS/profile endpoint reachability, and deployed secret handling before social login is enabled for customers.
+Next action: Use GAP-032 for live-provider OIDC/OAuth operational smoke and secret rotation before production enablement.
 Owner: Codex
 Target phase: Phase C
-Status: Resolved 2026-04-28 for Phase C local auth and boundary placeholders; OIDC callback implementation remains deferred by design.
+Status: Resolved 2026-04-30 for M11 callback/account-linking implementation; live-provider operational validation tracked separately.
 
 ### GAP-004: Multitenancy Isolation Strategy Needs Enforcement Tests
 
@@ -323,6 +323,17 @@ Current state: PLAN_M10 added a deterministic operational console renderer, shar
 Impact: Source, caveat, responsive CSS, focus affordance, and approval-state semantics are testable, but real browser layout, screenshot diffing, pointer/keyboard traversal, and text-overlap checks are not yet proven in Chromium/WebKit/Firefox.
 Next action: When the served web runtime is in scope, add Next.js route wiring or equivalent, install/configure Playwright, capture desktop and mobile screenshots for dashboard/gaps/evidence/approval/login flows, and fail CI on overlap or inaccessible focus regressions.
 Owner: Codex/Frontend
+Target phase: Phase K
+Status: Open
+
+### GAP-032: Live OIDC Provider Registration And Callback Smoke Deferred
+
+Severity: Medium
+Area: Auth operations
+Current state: PLAN_M11 added OIDC/social callback contracts, provider config validation, transient state/nonce/PKCE storage, JWKS ID-token verification support, GitHub OAuth profile/email lookup support, explicit account-link approval, session creation, and API tests with deterministic fake token/profile clients. Defaults keep Microsoft Entra, Google, and GitHub sign-in disabled until provider credentials are configured.
+Impact: Contract behavior is covered, but deployed environments still need live Microsoft Entra, Google, and GitHub app registrations, exact redirect URI setup, JWKS/profile endpoint smoke tests, callback URL and SameSite cookie validation, provider secret rotation, and operational monitoring before customer-facing social login is enabled.
+Next action: Add a deployment smoke that exercises each configured provider in a test tenant/app, verifies callback cookies and audit events, and documents client secret/key rotation.
+Owner: Codex/DevOps
 Target phase: Phase K
 Status: Open
 

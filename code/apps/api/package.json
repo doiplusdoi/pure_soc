@@ -10,6 +10,7 @@
     "@puresoc/audit": "workspace:*",
     "@puresoc/auth-core": "workspace:*",
     "@puresoc/auth-local": "workspace:*",
+    "@puresoc/auth-oidc": "workspace:*",
     "@puresoc/billing-core": "workspace:*",
     "@puresoc/billing-stripe": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",

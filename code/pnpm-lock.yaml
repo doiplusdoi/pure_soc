@@ -62,6 +62,9 @@ importers:
       '@puresoc/auth-local':
         specifier: workspace:*
         version: link:../../packages/auth/local
+      '@puresoc/auth-oidc':
+        specifier: workspace:*
+        version: link:../../packages/auth/oidc
       '@puresoc/billing-core':
         specifier: workspace:*
         version: link:../../packages/billing/core
@@ -181,6 +184,9 @@ importers:
       '@puresoc/auth-core':
         specifier: workspace:*
         version: link:../core
+      '@puresoc/auth-local':
+        specifier: workspace:*
+        version: link:../local
 
   packages/billing/core: {}
 

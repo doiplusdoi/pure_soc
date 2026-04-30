@@ -4,6 +4,14 @@ import {
   FailedLoginRateLimiter,
   LocalAuthService
 } from "@puresoc/auth-local";
+import {
+  InMemoryOidcAuthorizationStateStore,
+  OidcSocialLoginService,
+  type OauthProfileClient,
+  type OidcProviderConfig,
+  type OidcTokenClient,
+  type OidcTokenVerifier
+} from "@puresoc/auth-oidc";
 import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
@@ -35,6 +43,7 @@ export interface ApiServices {
   auditSink: InMemoryAuditSink;
   auditWriter: AuditWriter;
   localAuth: LocalAuthService;
+  oidcAuth: OidcSocialLoginService;
   organizations: OrganizationService;
   providerConnections: ProviderConnectionsService;
   microsoft365ProviderConnections: Microsoft365ProviderConnectionService;
@@ -56,6 +65,9 @@ export const createApiServices = (
     config?: PureSocConfig;
     evidenceStorage?: ObjectStorageAdapter;
     uploadScanner?: UploadScanningHook;
+    oidcTokenClient?: OidcTokenClient;
+    oidcTokenVerifier?: OidcTokenVerifier;
+    oauthProfileClient?: OauthProfileClient;
   } = {}
 ): ApiServices => {
   const config = options.config ?? loadConfig();
@@ -77,6 +89,17 @@ export const createApiServices = (
     passwordHasher: new Argon2idPasswordHasher(),
     rateLimiter,
     now: options.now
+  });
+  const oidcAuth = new OidcSocialLoginService({
+    repository,
+    auditWriter,
+    stateStore: new InMemoryOidcAuthorizationStateStore(),
+    providers: toOidcProviderConfigs(config),
+    tokenClient: options.oidcTokenClient,
+    tokenVerifier: options.oidcTokenVerifier,
+    profileClient: options.oauthProfileClient,
+    now: options.now,
+    stateTtlMs: config.auth.socialLogin.stateTtlMs
   });
   const organizations = new OrganizationService({
     repository,
@@ -144,6 +167,7 @@ export const createApiServices = (
     auditSink,
     auditWriter,
     localAuth,
+    oidcAuth,
     organizations,
     providerConnections,
     microsoft365ProviderConnections,
@@ -158,6 +182,25 @@ export const createApiServices = (
     actions
   };
 };
+
+const toOidcProviderConfigs = (config: PureSocConfig): OidcProviderConfig[] =>
+  (["microsoft_entra", "google", "github"] as const).map((providerKey) => ({
+    providerKey,
+    enabled: config.auth.socialLogin.providers[providerKey].enabled,
+    mode: config.auth.socialLogin.providers[providerKey].mode,
+    issuer: config.auth.socialLogin.providers[providerKey].issuer,
+    authorizationEndpoint: config.auth.socialLogin.providers[providerKey].authorizationEndpoint,
+    tokenEndpoint: config.auth.socialLogin.providers[providerKey].tokenEndpoint,
+    jwksUri: config.auth.socialLogin.providers[providerKey].jwksUri || null,
+    profileEndpoint: config.auth.socialLogin.providers[providerKey].profileEndpoint || null,
+    emailEndpoint: config.auth.socialLogin.providers[providerKey].emailEndpoint || null,
+    clientId: config.auth.socialLogin.providers[providerKey].clientId,
+    clientSecret: config.auth.socialLogin.providers[providerKey].clientSecret || null,
+    redirectUri: config.auth.socialLogin.providers[providerKey].redirectUri,
+    scopes: config.auth.socialLogin.providers[providerKey].scopes,
+    pkceRequired: config.auth.socialLogin.providers[providerKey].pkceRequired,
+    nonceRequired: config.auth.socialLogin.providers[providerKey].nonceRequired
+  }));
 
 const createEvidenceObjectStorage = (config: PureSocConfig): ObjectStorageAdapter | undefined => {
   if (config.storage.objectStorage.provider !== "s3") {

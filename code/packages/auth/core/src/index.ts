@@ -103,7 +103,11 @@ export type AuthErrorCode =
   | "account_locked"
   | "rate_limited"
   | "session_invalid"
-  | "forbidden";
+  | "forbidden"
+  | "provider_disabled"
+  | "oidc_callback_invalid"
+  | "account_link_required"
+  | "account_link_rejected";
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;

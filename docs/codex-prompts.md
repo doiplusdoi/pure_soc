@@ -2,7 +2,7 @@
 
 Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-04-30 after reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M1.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
 
-Completed Phase A through the contract-level Phase I output work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
+Completed Phase A through the contract-level Phase I output work and M11 OIDC/social-login callback work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
 ## Repository Path Convention
 
@@ -40,6 +40,7 @@ The repository currently contains:
 - PLAN_M8 production evidence/report adapters: S3/MinIO object-storage adapter, explicit no-op/mock/HTTP scanner adapters with production fail-closed behavior, Prisma evidence metadata/access-log repository, generated-report evidence artifacts, report/export audit events, and deterministic report-renderer JSON/PDF artifacts.
 - PLAN_M9 safe remediation foundation: recommendation-to-action templates/runs, preflight/approval/snapshot/verification/evidence metadata, action audit events, action API routes, Prisma action repository metadata, and future worker job contracts without live provider writes.
 - PLAN_M10 operational UI/design system: ADR-014, `@puresoc/ui` OKLCH tokens and semantic primitives, `apps/web` contract-backed operational console renderer, login focus surface, source/caveat indicators, approval affordances, and static `@ui-smoke` coverage.
+- PLAN_M11 OIDC/social-login callbacks: Microsoft Entra, Google, and GitHub user sign-in callback contracts with state, nonce, PKCE, issuer/audience/expiry/signature validation, provider-subject lookup, explicit signed-in account-link approval, session creation, audit events, redaction coverage, and separation from Microsoft 365 managed-provider consent.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -57,7 +58,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 7 / `docs/PLAN_M8.md` is completed.
 - Prompt 8 / `docs/PLAN_M9.md` is completed.
 - Prompt 9 / `docs/PLAN_M10.md` is completed.
-- Prompt 10 starts at `docs/PLAN_M11.md`.
+- Prompt 10 / `docs/PLAN_M11.md` is completed.
+- Prompt 11 starts at `docs/PLAN_M12.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -72,13 +74,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-2. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-3. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-4. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-5. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+2. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+3. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+4. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 10 through 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
+Prompts 11 through 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
 ## Required Prompt Template
 
@@ -294,83 +295,21 @@ Validated with:
 - `pnpm test -- --runInBand web dashboard reports`
 - `pnpm test:e2e -- --grep "@ui-smoke"`
 
-## Prompt 10 / PLAN_M11: OIDC/Social Login Callback Implementation
+## Completed Prompt 10 / PLAN_M11: OIDC/Social Login Callback Implementation
 
-```txt
-You are implementing user sign-in OIDC/social callbacks, not Microsoft 365 managed-provider consent.
+Completed on 2026-04-30.
 
-Use skills:
-- puresoc-oidc-social-login
+Summary:
+- `@puresoc/auth-oidc` now implements disabled-by-default Microsoft Entra, Google, and GitHub user sign-in callbacks through the auth abstraction, separate from Microsoft 365 managed-provider consent.
+- Callback state, nonce, PKCE verifier exchange, issuer, audience, expiry, signature status, verified email, and provider subject are validated before session creation.
+- Email collisions require a signed-in user to explicitly approve account linking; email alone is not trusted.
+- Social-login sessions reuse the existing PureSOC session model, and login, failed login, account-linked, and account-link-rejected paths write audit events without serializing OAuth codes, tokens, state, nonce, cookies, or PKCE verifiers.
+- API routes now expose `POST /auth/oidc/:provider/begin` and `GET|POST /auth/oidc/:provider/callback`.
+- GAP-003 is resolved for callback/account-linking implementation; GAP-032 tracks live provider registration, callback smoke, secret rotation, and deployed cookie validation.
 
-Read:
-- docs/puresoc_vision.md sections 6, 7, 22, 27, 28, 32
-- docs/master-plan.md sections 7, 11, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/adr/ADR-013-auth-oidc-social-login-and-managed-provider-consent-boundaries.md
-
-Goal:
-Implement Microsoft Entra, Google, and GitHub user sign-in callback flows through the auth abstraction while preserving account-linking safety and the boundary from Microsoft 365 tenant admin consent.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M11.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M12.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M11.md
-- docs/PLAN_M12.md
-- docs/codex-prompts.md
-- packages/auth/oidc
-- packages/auth/core
-- apps/api/src/auth
-- apps/web auth screens if needed
-- packages/database/prisma/schema.prisma and auth repository files if Prisma is available
-- config/defaults/auth.json
-- docs/implementation-gaps.md
-
-Implement:
-- State, nonce, and PKCE handling where supported.
-- Issuer, audience, expiry, and signature validation.
-- Provider subject based identity lookup.
-- Explicit account-linking flow for email collisions.
-- Session creation through the existing session model.
-- Audit events for login, failed login, account linked, and account-link rejected.
-- Provider-specific config validation.
-
-Negative constraints:
-- Do not use email alone as proof of account ownership for linking.
-- Do not mix user-login OIDC with Microsoft 365 admin consent/provider connection code.
-- Do not log authorization codes, ID tokens, access tokens, refresh tokens, cookies, state, nonce, or PKCE verifier.
-- Do not require a Microsoft 365 tenant connection for Microsoft user sign-in.
-
-Tests:
-- State/nonce/PKCE validation.
-- Invalid issuer/audience/expiry/signature rejection.
-- Existing account by provider subject signs in.
-- Email collision requires explicit link approval.
-- Login session and logout behavior still work.
-- Audit events are written.
-- Secret redaction tests cover tokens and codes.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand auth oidc social-login session audit redaction
-
-Gap updates:
-- Update GAP-003 with callback/account-linking status.
-- Add provider-specific deferred gaps if any callback remains placeholder-only.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M11 updated
-- PLAN_M12 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand auth oidc social-login session audit redaction`
 
 ## Prompt 11 / PLAN_M12: Microsoft 365 Read-Only Module Expansion
 

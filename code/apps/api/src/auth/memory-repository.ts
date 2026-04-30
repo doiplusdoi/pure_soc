@@ -22,12 +22,13 @@ import type {
   PasswordResetTokenRecord,
   SessionRecord
 } from "@puresoc/auth-local";
+import type { OidcIdentityRepository, OidcSocialProviderKey } from "@puresoc/auth-oidc";
 import type { OrganizationRecord, OrganizationRepository } from "../organizations/service";
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
 export class InMemoryPureSocRepository
   extends InMemoryBillingRepository
-  implements LocalAuthRepository, OrganizationRepository, RbacRepository, EvidenceRepository
+  implements LocalAuthRepository, OidcIdentityRepository, OrganizationRepository, RbacRepository, EvidenceRepository
 {
   readonly users = new Map<string, LocalAuthUserRecord>();
   readonly identityAccounts = new Map<string, IdentityAccountRecord>();
@@ -63,6 +64,11 @@ export class InMemoryPureSocRepository
     return this.users.get(userId) ?? null;
   }
 
+  async findUsersByEmail(email: string): Promise<LocalAuthUserRecord[]> {
+    const normalizedEmail = normalizeEmail(email);
+    return [...this.users.values()].filter((user) => user.email === normalizedEmail);
+  }
+
   async findLocalCredentialByEmail(email: string): Promise<LocalCredentialRecord | null> {
     const normalizedEmail = normalizeEmail(email);
     return [...this.localCredentials.values()].find((credential) => credential.email === normalizedEmail) ?? null;
@@ -78,6 +84,39 @@ export class InMemoryPureSocRepository
     this.localCredentials.set(input.credential.id, input.credential);
     this.emailVerificationTokens.set(input.emailVerificationToken.id, input.emailVerificationToken);
     return input.user;
+  }
+
+  async findIdentityAccountByProviderSubject(
+    providerKey: OidcSocialProviderKey,
+    providerSubject: string
+  ): Promise<(IdentityAccountRecord & { user: LocalAuthUserRecord }) | null> {
+    const account =
+      [...this.identityAccounts.values()].find(
+        (candidate) => candidate.providerKey === providerKey && candidate.providerSubject === providerSubject
+      ) ?? null;
+    const user = account ? this.users.get(account.userId) : null;
+    return account && user ? { ...account, user } : null;
+  }
+
+  async createExternalIdentityAccount(input: {
+    user: LocalAuthUserRecord;
+    identityAccount: IdentityAccountRecord;
+  }): Promise<LocalAuthUserRecord> {
+    this.users.set(input.user.id, input.user);
+    this.identityAccounts.set(input.identityAccount.id, input.identityAccount);
+    return input.user;
+  }
+
+  async createIdentityAccount(input: IdentityAccountRecord): Promise<IdentityAccountRecord> {
+    const duplicate = [...this.identityAccounts.values()].find(
+      (candidate) => candidate.providerKey === input.providerKey && candidate.providerSubject === input.providerSubject
+    );
+    if (duplicate) {
+      throw new Error(`Identity account already exists for provider subject: ${input.providerKey}`);
+    }
+
+    this.identityAccounts.set(input.id, input);
+    return input;
   }
 
   async updateLocalCredential(

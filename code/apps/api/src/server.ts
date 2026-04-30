@@ -1,7 +1,14 @@
 import { createServer } from "node:http";
 
 import { getApiHealth } from "./health";
-import { loginRoute, logoutRoute, registerRoute, sessionRoute } from "./auth/routes";
+import {
+  beginOidcAuthorizationRoute,
+  completeOidcCallbackRoute,
+  loginRoute,
+  logoutRoute,
+  registerRoute,
+  sessionRoute
+} from "./auth/routes";
 import { countryPackStatusRoute } from "./compliance/nis2/routes";
 import { evaluateComplianceAssessmentRoute } from "./compliance/routes";
 import {
@@ -96,6 +103,28 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
       if (request.method === "GET" && url.pathname === "/auth/session") {
         sendJson(response, await sessionRoute(request.headers.cookie, services));
+        return;
+      }
+
+      const oidcBeginRouteMatch = url.pathname.match(/^\/auth\/oidc\/([^/]+)\/begin$/);
+      if (oidcBeginRouteMatch && request.method === "POST") {
+        sendJson(response, await beginOidcAuthorizationRoute(oidcBeginRouteMatch[1] ?? "", services));
+        return;
+      }
+
+      const oidcCallbackRouteMatch = url.pathname.match(/^\/auth\/oidc\/([^/]+)\/callback$/);
+      if (oidcCallbackRouteMatch && (request.method === "GET" || request.method === "POST")) {
+        const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+        sendJson(
+          response,
+          await completeOidcCallbackRoute(
+            oidcCallbackRouteMatch[1] ?? "",
+            callbackInput,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
         return;
       }
 

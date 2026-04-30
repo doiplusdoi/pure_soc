@@ -7,6 +7,7 @@ import {
   type RequestContext
 } from "../http";
 import { AuthError } from "@puresoc/auth-core";
+import { isOidcSocialProviderKey } from "@puresoc/auth-oidc";
 import type { ApiServices } from "./services";
 
 const requireString = (body: Record<string, unknown>, field: string): string => {
@@ -86,4 +87,73 @@ export const logoutRoute = async (
     },
     body: await services.localAuth.logout(sessionToken ?? "", context)
   };
+};
+
+export const beginOidcAuthorizationRoute = async (
+  providerKey: string,
+  services: ApiServices
+): Promise<JsonResult> => {
+  if (!isOidcSocialProviderKey(providerKey)) {
+    throw new AuthError("invalid_request", "Unsupported OIDC provider.", 400);
+  }
+
+  return {
+    statusCode: 200,
+    body: await services.oidcAuth.beginAuthorization({
+      providerKey
+    })
+  };
+};
+
+export const completeOidcCallbackRoute = async (
+  providerKey: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  if (!isOidcSocialProviderKey(providerKey)) {
+    throw new AuthError("invalid_request", "Unsupported OIDC provider.", 400);
+  }
+
+  const linkAccount = optionalBoolean(body, "linkAccount");
+  const currentSession = linkAccount ? await getOptionalCurrentSession(cookieHeader, services) : null;
+  const callback = await services.oidcAuth.completeCallback(
+    {
+      providerKey,
+      state: requireString(body, "state"),
+      code: requireString(body, "code"),
+      linkAccount,
+      authenticatedUserId: currentSession?.user.id ?? null,
+      activeOrganizationId: currentSession?.session.activeOrganizationId ?? null
+    },
+    context
+  );
+  const { sessionToken, ...safeBody } = callback;
+
+  return {
+    statusCode: 200,
+    headers: {
+      "set-cookie": createSessionCookie(sessionToken, callback.session.expiresAt)
+    },
+    body: safeBody
+  };
+};
+
+const optionalBoolean = (body: Record<string, unknown>, field: string): boolean => {
+  const value = body[field];
+  return value === true || value === "true";
+};
+
+const getOptionalCurrentSession = async (cookieHeader: string | undefined, services: ApiServices) => {
+  const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
+  if (!sessionToken) {
+    return null;
+  }
+
+  try {
+    return await services.localAuth.getSession(sessionToken);
+  } catch {
+    return null;
+  }
 };
