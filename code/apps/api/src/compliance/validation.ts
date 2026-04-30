@@ -1,4 +1,4 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
+import { AuthError } from "@puresoc/auth-core";
 import type {
   ChecklistState,
   ComplianceGap,
@@ -8,7 +8,7 @@ import type {
   GapSeverity,
   ManualChecklistItemState,
   SourceReference
-} from "../../../../packages/compliance/core/src/index";
+} from "@puresoc/compliance-core";
 
 export interface ParsedComplianceEvaluationBody {
   assessmentId: string;

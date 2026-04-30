@@ -3,7 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 import { providerResourceIdempotencyKey, providerResourceIdentityFields } from "../index";
-import { providerResourceIdempotencyParts } from "../../../providers/core/src/index";
+import { providerResourceIdempotencyParts } from "@puresoc/providers-core";
 
 const schemaPath = fileURLToPath(new URL("../../prisma/schema.prisma", import.meta.url));
 const schema = readFileSync(schemaPath, "utf8");

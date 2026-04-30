@@ -16,7 +16,7 @@ import {
   type ProviderFindingInput,
   type SyncInput,
   type TenantProfileInput
-} from "../../core/src/index";
+} from "@puresoc/providers-core";
 
 export type MockProviderScenarioKey =
   | "healthy_tenant"

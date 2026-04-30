@@ -5,5 +5,12 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@puresoc/provider-microsoft365": "workspace:*",
+    "@puresoc/providers-core": "workspace:*"
+  },
+  "devDependencies": {
+    "@puresoc/provider-mock": "workspace:*"
   }
 }

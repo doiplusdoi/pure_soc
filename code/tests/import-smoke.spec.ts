@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { getApiHealth } from "../apps/api/src/index";
-import { loadConfig } from "../packages/config/src/index";
-import { euMemberStates, providerResourceIdempotencyKey } from "../packages/database/src/index";
-import { createReportShell } from "../packages/reports/src/index";
-import { requiredServiceNames } from "../packages/shared/src/index";
+import { getApiHealth } from "@puresoc/api";
+import { loadConfig } from "@puresoc/config";
+import { euMemberStates, providerResourceIdempotencyKey } from "@puresoc/database";
+import { createReportShell } from "@puresoc/reports";
+import { requiredServiceNames } from "@puresoc/shared";
 
 describe("workspace import smoke tests", () => {
   it("exposes initial app and package contracts", () => {

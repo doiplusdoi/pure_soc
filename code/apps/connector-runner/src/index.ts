@@ -3,7 +3,7 @@ import {
   type CloudProviderConnector,
   type ProviderPipelineResult,
   type ProviderResourceStore
-} from "../../../packages/providers/core/src/index";
+} from "@puresoc/providers-core";
 
 export { createMicrosoft365ConnectorRunnerRegistry } from "./microsoft365/index";
 

@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { EU_MEMBER_STATE_COUNT } from "../../../../packages/database/src/index";
+import { EU_MEMBER_STATE_COUNT } from "@puresoc/database";
 import { startApiServer } from "../server";
 
 const readJson = async <T>(response: Response): Promise<T> => (await response.json()) as T;

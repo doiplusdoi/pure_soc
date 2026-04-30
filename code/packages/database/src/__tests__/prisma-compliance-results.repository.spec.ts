@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { PrismaComplianceResultRepository, type PrismaComplianceResultClient } from "../index";
-import type { ComplianceResultSet } from "../../../compliance/core/src/index";
-import type { RecommendationContract } from "../../../recommendations/src/index";
+import type { ComplianceResultSet } from "@puresoc/compliance-core";
+import type { RecommendationContract } from "@puresoc/recommendations";
 
 const ORG_A = "11111111-1111-4111-8111-111111111111";
 const ORG_B = "22222222-2222-4222-8222-222222222222";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PURESOC_LEGAL_CAVEAT } from "../../../shared/src/index";
+import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,

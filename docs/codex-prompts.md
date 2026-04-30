@@ -34,6 +34,7 @@ The repository currently contains:
 - PLAN_M2 hardening: legal-review country-pack warnings, no-signal provider-mapped control guard, compliance/recommendation request validation, synchronous `200` evaluation response, and audit events for evaluation/recommendation generation.
 - PLAN_M3 contract alignment: logical control IDs in Prisma output references, split finding/actionable severity, date-only readiness due dates, gap/recommendation/plan source identity fields, and an in-memory `ComplianceResultRepository` port.
 - PLAN_M4 Prisma persistence slice: pinned Prisma 6.19.3 CLI/client workflow, generated initial migration, Prisma client factory, compliance-result snapshot table, and `PrismaComplianceResultRepository` with organization-scoped adapter tests.
+- PLAN_M5 workspace import policy: cross-package imports now go through `@puresoc/*` package exports, workspace dependencies are declared, shared source/reference/recommendation/finding contracts live in `@puresoc/shared`, compliance-core no longer imports provider-core types, and `scripts/check-layout.mjs` enforces package boundaries.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -45,7 +46,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 1 / `docs/PLAN_M2.md` is completed.
 - Prompt 2 / `docs/PLAN_M3.md` is completed.
 - Prompt 3 / `docs/PLAN_M4.md` is completed.
-- Prompt 4 starts at `docs/PLAN_M5.md`.
+- Prompt 4 / `docs/PLAN_M5.md` is completed.
+- Prompt 5 starts at `docs/PLAN_M6.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -60,17 +62,16 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
-2. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
-3. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
-4. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-5. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-6. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-7. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-8. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-9. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-10. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-11. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
+2. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+3. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+4. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+5. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+6. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+7. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+8. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+9. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+10. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
 Prompts 5 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
@@ -183,82 +184,21 @@ Validated with:
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
-## Prompt 4 / PLAN_M5: Workspace Import Policy And Shared Type Boundaries
+## Completed Prompt 4 / PLAN_M5: Workspace Import Policy And Shared Type Boundaries
 
-```txt
-You are tightening monorepo package boundaries.
+Completed on 2026-04-30.
 
-Read:
-- docs/puresoc_vision.md sections 5, 8, 10, 14
-- docs/master-plan.md sections 6, 7, 9, 13, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md sections REC-006, REC-009, REC-017, REC-023
-- docs/adr/ADR-001-template-aligned-monorepo.md
-- docs/adr/ADR-006-provider-interface-and-resource-lifecycle-versioning.md
+Summary:
+- Cross-package imports now use `@puresoc/*` package exports instead of deep relative `packages/.../src` paths.
+- Workspace package manifests declare the `@puresoc/*` dependencies they consume, and `code/pnpm-lock.yaml` was refreshed.
+- `scripts/check-layout.mjs` now rejects cross-package deep relative imports, deep `@puresoc/*/src` imports, and missing workspace dependency declarations.
+- Shared source-reference, confidence, recommendation summary, and provider-finding-for-compliance contracts live in `@puresoc/shared`.
+- Compliance-core evaluates neutral `ProviderFindingForCompliance` inputs instead of importing provider-core types.
+- Cross-package integration tests were moved to root `code/tests` to avoid package dependency cycles.
 
-Goal:
-Stop deep relative cross-package imports from eroding package boundaries, and extract shared types where duplication is causing drift.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M5.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M6.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M5.md
-- docs/PLAN_M6.md
-- docs/codex-prompts.md
-- tsconfig.base.json
-- package.json files for affected apps/packages
-- scripts/check-layout.mjs
-- packages/shared/src/*
-- packages/compliance/core/src/*
-- packages/providers/core/src/*
-- packages/recommendations/src/*
-- packages/reports/src/*
-- packages/dashboards/src/*
-- apps/*/src/* imports as needed
-- docs/adr/* if a workspace import ADR is created
-
-Implement:
-- Add workspace dependencies for package consumers that import `@puresoc/*` packages.
-- Switch cross-package imports from deep relative `../../../packages/.../src` paths to package exports.
-- Keep package-internal relative imports acceptable.
-- Add a lint/layout guard that rejects new cross-package deep relative imports.
-- Extract shared source-reference, severity, recommendation summary, or provider-finding-for-compliance types only where they reduce real duplication.
-- Remove compliance-core's direct dependency on provider implementation types if a smaller neutral type is enough.
-
-Negative constraints:
-- Do not change runtime behavior except import paths and shared type definitions.
-- Do not create circular package dependencies.
-- Do not make generic compliance packages import Microsoft-specific packages.
-- Do not weaken package `exports` boundaries to make deep imports pass.
-
-Tests:
-- Workspace import smoke tests pass through package exports.
-- Layout guard fails on cross-package deep relative imports.
-- Compliance/recommendation/provider tests still pass.
-- Typecheck catches package boundary regressions.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand import-smoke compliance recommendations provider
-
-Gap updates:
-- Update GAP-025.
-- Add ADR/gap references for any import-boundary decision deferred.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M5 updated
-- PLAN_M6 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand import-smoke compliance recommendations provider`
 
 ## Prompt 5 / PLAN_M6: Regulatory Review Workflow And Source Activation Persistence
 

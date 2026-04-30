@@ -5,9 +5,9 @@ import {
   recommendationToReadinessPlanItemInput,
   recommendationToReportFinding,
   type RecommendationContract
-} from "../../../recommendations/src/index";
-import { createStoredAnalysisDashboardSnapshot } from "../../../dashboards/src/index";
-import { createReportShell } from "../../../reports/src/index";
+} from "@puresoc/recommendations";
+import { createStoredAnalysisDashboardSnapshot } from "@puresoc/dashboards";
+import { createReportShell } from "@puresoc/reports";
 
 const recommendation: RecommendationContract = {
   id: "rec_1",

@@ -1,4 +1,13 @@
-import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+import type {
+  ActionableSeverity,
+  FindingSeverity,
+  ProviderFindingForCompliance,
+  ProviderFindingForComplianceStatus,
+  RecommendationActionType,
+  RecommendationAutomationMode,
+  RecommendationStatus,
+  SourceReference
+} from "@puresoc/shared";
 
 export type ProviderKey = "microsoft365" | "google_workspace" | "google-workspace" | "mock";
 
@@ -19,20 +28,13 @@ export type ProviderSyncModuleStatus =
 
 export type ProviderFindingSeverity = FindingSeverity;
 
-export type ProviderFindingStatus = "open" | "acknowledged" | "resolved" | "suppressed";
+export type ProviderFindingStatus = ProviderFindingForComplianceStatus;
 
-export type ProviderRecommendationType =
-  | "manual"
-  | "guided"
-  | "technical"
-  | "process"
-  | "evidence_upload"
-  | "country_registration"
-  | "incident_reporting";
+export type ProviderRecommendationType = RecommendationActionType;
 
-export type ProviderAutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
+export type ProviderAutomationMode = RecommendationAutomationMode;
 
-export type ProviderRecommendationStatus = "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+export type ProviderRecommendationStatus = RecommendationStatus;
 
 export type ProviderResourceType =
   | "cloud_tenant"
@@ -119,7 +121,7 @@ export interface ProviderFindingInput {
   observedAt?: string;
 }
 
-export interface ProviderFinding {
+export interface ProviderFinding extends ProviderFindingForCompliance {
   id: string;
   organizationId: string;
   providerConnectionId: string;
@@ -161,7 +163,7 @@ export interface ProviderRecommendationInput {
   blastRadius?: string;
   manualFallback?: string;
   evidenceRequired: boolean;
-  sourceReferences?: Record<string, unknown>[];
+  sourceReferences?: SourceReference[];
   status?: ProviderRecommendationStatus;
 }
 
@@ -187,7 +189,7 @@ export interface ProviderRecommendation {
   blastRadius?: string;
   manualFallback?: string;
   evidenceRequired: boolean;
-  sourceReferences?: Record<string, unknown>[];
+  sourceReferences?: SourceReference[];
   status: ProviderRecommendationStatus;
   createdAt: string;
   updatedAt: string;

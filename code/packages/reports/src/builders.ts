@@ -1,4 +1,4 @@
-import { PURESOC_LEGAL_CAVEAT } from "../../shared/src/index";
+import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 
 import type {
   InternalReadinessReport,

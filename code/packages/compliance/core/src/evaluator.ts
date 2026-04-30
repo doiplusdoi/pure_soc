@@ -1,4 +1,4 @@
-import type { ProviderFinding } from "../../../providers/core/src/index";
+import type { ProviderFindingForCompliance } from "@puresoc/shared";
 
 import { uniqueSourceReferences } from "./control-catalog";
 import type {
@@ -22,7 +22,7 @@ export interface ComplianceEvaluationInput {
   assessmentId: string;
   jurisdiction?: string;
   controls: readonly ComplianceControl[];
-  providerFindings?: readonly ProviderFinding[];
+  providerFindings?: readonly ProviderFindingForCompliance[];
   evidenceArtifacts?: readonly EvidenceArtifactState[];
   manualTasks?: readonly ManualChecklistItemState[];
   countryPackWarnings?: readonly CountryPackWarning[];
@@ -140,7 +140,7 @@ export const evaluateComplianceControls = (input: ComplianceEvaluationInput): Co
   });
 };
 
-const matchesFinding = (mapping: ProviderControlMapping, finding: ProviderFinding): boolean => {
+const matchesFinding = (mapping: ProviderControlMapping, finding: ProviderFindingForCompliance): boolean => {
   if (mapping.providerKey !== finding.providerKey || mapping.moduleKey !== finding.moduleKey) {
     return false;
   }
@@ -149,7 +149,7 @@ const matchesFinding = (mapping: ProviderControlMapping, finding: ProviderFindin
   return mapping.signalKeys.some((signalKey) => signalKeys.has(signalKey));
 };
 
-const providerFindingSignalKeys = (finding: ProviderFinding): Set<string> => {
+const providerFindingSignalKeys = (finding: ProviderFindingForCompliance): Set<string> => {
   const keys = new Set<string>([finding.findingKey]);
   const evidence = finding.evidence;
   const signalKey = evidence.signalKey;
@@ -170,7 +170,7 @@ const providerFindingSignalKeys = (finding: ProviderFinding): Set<string> => {
   return keys;
 };
 
-const providerSignalSummary = (finding: ProviderFinding): ProviderSignalSummary => ({
+const providerSignalSummary = (finding: ProviderFindingForCompliance): ProviderSignalSummary => ({
   id: finding.id,
   providerKey: finding.providerKey,
   moduleKey: finding.moduleKey,
@@ -210,7 +210,7 @@ const hasCompletedManualSatisfaction = (manualTasks: readonly ManualChecklistIte
 
 const resolveStatus = (input: {
   control: ComplianceControl;
-  matchedFindings: readonly ProviderFinding[];
+  matchedFindings: readonly ProviderFindingForCompliance[];
   missingEvidence: readonly EvidenceRequirement[];
   incompleteManualTasks: readonly ManualChecklistItemState[];
   implicitManualMissing: boolean;
@@ -256,7 +256,7 @@ const resolveStatus = (input: {
 
 const resolveConfidence = (
   status: ComplianceStatus,
-  matchedFindings: readonly ProviderFinding[],
+  matchedFindings: readonly ProviderFindingForCompliance[],
   countryPackWarnings: readonly CountryPackWarning[],
   providerSignalPending: boolean
 ): Confidence => {

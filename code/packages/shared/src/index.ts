@@ -12,6 +12,70 @@ export type ActionableSeverity = (typeof actionableSeverities)[number];
 export const isActionableSeverity = (severity: FindingSeverity | string): severity is ActionableSeverity =>
   (actionableSeverities as readonly string[]).includes(severity);
 
+export type Confidence = "low" | "medium" | "high";
+
+export interface SourceReference {
+  sourceRecordId: string;
+  article?: string;
+  paragraph?: string;
+  annex?: string;
+  nationalReference?: string;
+  sourceUrl?: string;
+  sourceVersion?: string;
+  label?: string;
+}
+
+export type ProviderFindingForComplianceStatus = "open" | "acknowledged" | "resolved" | "suppressed";
+
+export interface ProviderFindingForCompliance {
+  id: string;
+  providerKey: string;
+  moduleKey: string;
+  findingKey: string;
+  title: string;
+  summary: string;
+  severity: FindingSeverity;
+  status: ProviderFindingForComplianceStatus;
+  evidence: Record<string, unknown>;
+}
+
+export type RecommendationActionType =
+  | "manual"
+  | "guided"
+  | "technical"
+  | "process"
+  | "evidence_upload"
+  | "country_registration"
+  | "incident_reporting";
+
+export type RecommendationAutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
+
+export type RecommendationStatus = "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+
+export interface RecommendationSummary {
+  id: string;
+  organizationId?: string;
+  sourceFindingId?: string;
+  sourceFindingIds?: readonly string[];
+  manualTaskIds?: readonly string[];
+  controlId: string;
+  jurisdiction: string;
+  title: string;
+  summary: string;
+  severity?: ActionableSeverity;
+  confidence?: Confidence;
+  recommendationType: RecommendationActionType;
+  automationMode: RecommendationAutomationMode;
+  requiredPermissions: readonly string[];
+  requiredLicense: readonly string[];
+  expectedChange?: string;
+  blastRadius?: string;
+  manualFallback?: string;
+  evidenceRequired: boolean;
+  status: RecommendationStatus;
+  sourceReferences?: readonly SourceReference[];
+}
+
 export const requiredServiceNames = [
   "puresoc-web",
   "puresoc-api",

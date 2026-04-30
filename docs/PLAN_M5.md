@@ -97,8 +97,43 @@ git diff --check
 
 ## Completion Log
 
-Pending implementation.
+Completed on 2026-04-30.
+
+Actual changed files:
+
+- Rewrote cross-package imports across `code/apps`, `code/packages`, and `code/tests` to use `@puresoc/*` package exports.
+- Updated affected package manifests and `code/pnpm-lock.yaml` so consumers declare workspace dependencies.
+- Expanded `code/scripts/check-layout.mjs` with an import-boundary guard for cross-package deep relative imports, deep `@puresoc/*/src` imports, and missing workspace dependencies; the guard includes a self-test for the negative cases.
+- Added shared source-reference, confidence, recommendation summary, provider finding for compliance, and recommendation status/action-mode contracts in `code/packages/shared/src/index.ts`.
+- Updated compliance, provider, recommendation, report, and dashboard packages to consume the shared contracts where they remove duplication.
+- Removed compliance-core's type dependency on provider-core by evaluating against `ProviderFindingForCompliance`.
+- Moved cross-package integration tests from package-local `src/__tests__` folders to root `code/tests` so package manifests do not need circular dev dependencies.
+- `code/tsconfig.base.json` did not require changes; package-name imports resolve through pnpm workspace links, and dependency declarations are enforced by the layout guard.
+
+Validation results:
+
+```sh
+pnpm lint
+pnpm test -- --runInBand import-smoke compliance recommendations provider
+```
+
+Both commands passed on 2026-04-30.
+
+Acceptance status:
+
+- Workspace import smoke tests now import through `@puresoc/*` package exports.
+- Layout guard rejects cross-package deep relative imports, deep package-path imports, and missing workspace dependency declarations.
+- Compliance/recommendation/provider tests passed after the package-boundary migration.
+- Typecheck passed through `pnpm lint`.
+
+Gaps updated:
+
+- `GAP-025` resolved for PLAN_M5.
+
+Residual risk:
+
+- The guard enforces root package exports only; if future packages intentionally add public subpath exports, the policy should be revised deliberately instead of bypassed.
 
 ## Handoff For Next Milestone
 
-After M5 completes, `docs/PLAN_M6.md` should be generated from the next active prompt in `docs/codex-prompts.md`, currently Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
+`docs/PLAN_M6.md` was generated from Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.

@@ -10,9 +10,18 @@
     "@puresoc/audit": "workspace:*",
     "@puresoc/auth-core": "workspace:*",
     "@puresoc/auth-local": "workspace:*",
+    "@puresoc/compliance-core": "workspace:*",
     "@puresoc/config": "workspace:*",
+    "@puresoc/country-pack-ro": "workspace:*",
+    "@puresoc/country-packs-core": "workspace:*",
     "@puresoc/dashboards": "workspace:*",
+    "@puresoc/database": "workspace:*",
     "@puresoc/evidence": "workspace:*",
-    "@puresoc/reports": "workspace:*"
+    "@puresoc/provider-microsoft365": "workspace:*",
+    "@puresoc/provider-mock": "workspace:*",
+    "@puresoc/providers-core": "workspace:*",
+    "@puresoc/recommendations": "workspace:*",
+    "@puresoc/reports": "workspace:*",
+    "@puresoc/shared": "workspace:*"
   }
 }

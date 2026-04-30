@@ -9,8 +9,8 @@ import {
   type EvidenceSourceType,
   type EvidenceUploadInput,
   type UploadScanningHook
-} from "../../../../packages/evidence/src/index";
-import type { AuditWriter } from "../../../../packages/audit/src/index";
+} from "@puresoc/evidence";
+import type { AuditWriter } from "@puresoc/audit";
 
 export interface EvidenceApiServiceOptions {
   repository: EvidenceRepository;

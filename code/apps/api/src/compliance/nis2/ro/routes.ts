@@ -6,7 +6,7 @@ import {
   type Nis2Classification,
   type RoNis2ClassificationInput,
   type RoNis2OnboardingAnswers
-} from "../../../../../../packages/compliance/nis2/country-packs/ro/src/index";
+} from "@puresoc/country-pack-ro";
 import type { JsonResult } from "../../../http";
 
 export const roNis2ClassificationRoute = async (body: Record<string, unknown>): Promise<JsonResult> => ({

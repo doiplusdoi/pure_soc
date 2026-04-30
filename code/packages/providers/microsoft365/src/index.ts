@@ -19,7 +19,7 @@ import {
   type ProviderRawResourceInput,
   type SyncInput,
   type TenantProfileInput
-} from "../../core/src/index";
+} from "@puresoc/providers-core";
 import { createLocalMicrosoft365TokenCipher, type Microsoft365TokenCipher } from "./crypto";
 import { MicrosoftGraphClient, type MicrosoftGraphHttpClient } from "./graph-client";
 import {

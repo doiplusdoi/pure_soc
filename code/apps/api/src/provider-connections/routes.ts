@@ -1,5 +1,5 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
-import { mockProviderScenarioKeys, type MockProviderScenarioKey } from "../../../../packages/providers/mock/src/index";
+import { AuthError } from "@puresoc/auth-core";
+import { mockProviderScenarioKeys, type MockProviderScenarioKey } from "@puresoc/provider-mock";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";

@@ -1,5 +1,5 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
-import type { StoredRomaniaNotificationDraftInput } from "../../../../packages/reports/src/index";
+import { AuthError } from "@puresoc/auth-core";
+import type { StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult } from "../http";
 import { requireOrganizationRole } from "../rbac/index";

@@ -1,3 +1,5 @@
+import type { ActionableSeverity } from "@puresoc/shared";
+
 export type DashboardSnapshotSource = "stored_analysis";
 
 export interface DashboardWidgetContract {
@@ -5,7 +7,7 @@ export interface DashboardWidgetContract {
   title: string;
   value: number | string | boolean;
   sourceQuery: string;
-  severity?: "low" | "medium" | "high" | "critical";
+  severity?: ActionableSeverity;
 }
 
 export interface DashboardSnapshotContract {

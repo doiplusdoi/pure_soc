@@ -1,4 +1,4 @@
-import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+import type { ActionableSeverity, FindingSeverity } from "@puresoc/shared";
 
 export type ComplianceStatus =
   | "not_started"

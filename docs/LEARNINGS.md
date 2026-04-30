@@ -11,6 +11,7 @@ Keep entries short, specific, and actionable.
 - EU NIS2 baseline logic and Romania country-pack logic must stay separate. Romania-specific code belongs under `code/packages/compliance/nis2/country-packs/ro`.
 - Regulatory workbook/source mappings are application data under `code/data/regulatory`; do not hardcode workbook-derived rules in UI code.
 - Provider write/remediation actions stay disabled until audit logging, approval, preflight, snapshots, verification, and evidence metadata exist.
+- Cross-package TypeScript imports must use `@puresoc/*` package exports; `code/scripts/check-layout.mjs` rejects deep relative package imports, deep package subpaths, and missing workspace dependency declarations.
 
 ## How To Add Learnings
 

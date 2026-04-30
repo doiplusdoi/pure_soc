@@ -5,7 +5,7 @@ import {
   ProviderConnectorError,
   runProviderConnectorPipeline,
   type ProviderResourceStore
-} from "../../../core/src/index";
+} from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,

@@ -1,29 +1,13 @@
-import { uniqueSourceReferences } from "./control-catalog";
-import type { ComplianceGap, ReadinessPlan, ReadinessPlanItem, RecommendationActionType, SourceReference } from "./types";
+import type { RecommendationSummary } from "@puresoc/shared";
 
-interface RecommendationLike {
-  id: string;
-  sourceFindingId?: string;
-  sourceFindingIds?: readonly string[];
-  manualTaskIds?: readonly string[];
-  controlId: string;
-  jurisdiction: string;
-  title: string;
-  summary: string;
-  recommendationType: RecommendationActionType;
-  automationMode: "manual" | "guided" | "preflightable" | "executable_later";
-  requiredPermissions: string[];
-  requiredLicense: string[];
-  evidenceRequired: boolean;
-  status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
-  sourceReferences?: SourceReference[];
-}
+import { uniqueSourceReferences } from "./control-catalog";
+import type { ComplianceGap, ReadinessPlan, ReadinessPlanItem, RecommendationActionType } from "./types";
 
 export interface GenerateReadinessPlanInput {
   organizationId: string;
   assessmentId: string;
   gaps: readonly ComplianceGap[];
-  recommendations?: readonly RecommendationLike[];
+  recommendations?: readonly RecommendationSummary[];
   defaultOwnerUserId?: string;
   generatedAt?: string;
   title?: string;
@@ -61,7 +45,7 @@ const readinessPlanItemForGap = (input: {
   planId: string;
   gap: ComplianceGap;
   index: number;
-  recommendation?: RecommendationLike;
+  recommendation?: RecommendationSummary;
   ownerUserId: string;
   generatedAt: string;
 }): ReadinessPlanItem => {

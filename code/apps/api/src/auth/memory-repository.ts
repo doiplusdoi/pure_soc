@@ -1,11 +1,11 @@
 import { randomUUID } from "node:crypto";
 
-import { defaultRoleDefinitions, normalizeEmail, type PureSocRoleKey } from "../../../../packages/auth/core/src/index";
+import { defaultRoleDefinitions, normalizeEmail, type PureSocRoleKey } from "@puresoc/auth-core";
 import type {
   EvidenceAccessLogEntry,
   EvidenceArtifactMetadata,
   EvidenceRepository
-} from "../../../../packages/evidence/src/index";
+} from "@puresoc/evidence";
 import type {
   DashboardSnapshotRecord,
   GeneratedReportRecord,
@@ -20,7 +20,7 @@ import type {
   LocalCredentialRecord,
   PasswordResetTokenRecord,
   SessionRecord
-} from "../../../../packages/auth/local/src/index";
+} from "@puresoc/auth-local";
 import type { OrganizationRecord, OrganizationRepository } from "../organizations/service";
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 

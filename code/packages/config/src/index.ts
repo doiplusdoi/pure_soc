@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 
-import { PURESOC_LEGAL_CAVEAT } from "../../shared/src/index";
+import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 
 export interface PureSocConfig {
   app: {

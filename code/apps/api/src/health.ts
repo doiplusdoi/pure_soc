@@ -1,4 +1,4 @@
-import { loadConfig } from "../../../packages/config/src/index";
+import { loadConfig } from "@puresoc/config";
 
 export interface ApiHealth {
   service: "puresoc-api";

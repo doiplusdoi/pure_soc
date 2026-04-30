@@ -1,4 +1,4 @@
-import { buildCountryPackStatus, type CountryPackStatus } from "../../core/src/index";
+import { buildCountryPackStatus, type CountryPackStatus } from "@puresoc/country-packs-core";
 
 export const romaniaCountryPackStatus: CountryPackStatus = buildCountryPackStatus({
   countryCode: "RO",

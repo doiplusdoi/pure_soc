@@ -1,17 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { createMockConnector, type MockProviderScenarioKey } from "../../../../providers/mock/src/index";
-import {
-  InMemoryProviderResourceStore,
-  runProviderConnectorPipeline,
-  type ProviderPipelineResult
-} from "../../../../providers/core/src/index";
-import {
-  generateStructuredRecommendations,
-  recommendationToDashboardSignal,
-  recommendationToReadinessPlanItemInput,
-  recommendationToReportFinding
-} from "../../../../recommendations/src/index";
 import {
   calculateComplianceGaps,
   countryPackWarningsFromStatus,
@@ -20,7 +8,19 @@ import {
   generateReadinessPlan,
   InMemoryComplianceResultRepository,
   loadDefaultControlCatalog
-} from "../index";
+} from "@puresoc/compliance-core";
+import { createMockConnector, type MockProviderScenarioKey } from "@puresoc/provider-mock";
+import {
+  InMemoryProviderResourceStore,
+  runProviderConnectorPipeline,
+  type ProviderPipelineResult
+} from "@puresoc/providers-core";
+import {
+  generateStructuredRecommendations,
+  recommendationToDashboardSignal,
+  recommendationToReadinessPlanItemInput,
+  recommendationToReportFinding
+} from "@puresoc/recommendations";
 
 const fixedNow = () => new Date("2026-04-30T09:00:00.000Z");
 

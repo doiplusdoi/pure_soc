@@ -1,4 +1,4 @@
-import { emptyProviderModuleSyncResult, ProviderConnectorError, type CloudProviderConnector } from "../../core/src/index";
+import { emptyProviderModuleSyncResult, ProviderConnectorError, type CloudProviderConnector } from "@puresoc/providers-core";
 
 export const googleWorkspaceProviderKey = "google_workspace";
 

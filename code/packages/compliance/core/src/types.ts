@@ -1,4 +1,10 @@
-import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+import type {
+  ActionableSeverity,
+  Confidence,
+  FindingSeverity,
+  RecommendationActionType,
+  SourceReference
+} from "@puresoc/shared";
 
 export type ComplianceStatus =
   | "not_started"
@@ -14,7 +20,7 @@ export type { ActionableSeverity, FindingSeverity };
 
 export type GapSeverity = ActionableSeverity;
 
-export type Confidence = "low" | "medium" | "high";
+export type { Confidence, RecommendationActionType, SourceReference };
 
 export type ControlImplementationType = "technical" | "process" | "hybrid";
 
@@ -32,17 +38,6 @@ export type ChecklistState =
   | "approved"
   | "overdue"
   | "requires_legal_review";
-
-export interface SourceReference {
-  sourceRecordId: string;
-  article?: string;
-  paragraph?: string;
-  annex?: string;
-  nationalReference?: string;
-  sourceUrl?: string;
-  sourceVersion?: string;
-  label?: string;
-}
 
 export interface EvidenceRequirement {
   requirementKey: string;
@@ -196,15 +191,6 @@ export interface ComplianceGap {
   countryPackWarnings: string[];
   sourceReferences: SourceReference[];
 }
-
-export type RecommendationActionType =
-  | "manual"
-  | "guided"
-  | "technical"
-  | "process"
-  | "evidence_upload"
-  | "country_registration"
-  | "incident_reporting";
 
 export interface ReadinessPlan {
   id: string;

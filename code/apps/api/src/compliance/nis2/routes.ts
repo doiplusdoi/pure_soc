@@ -1,5 +1,5 @@
-import { buildCountryPackStatuses } from "../../../../../packages/compliance/nis2/country-packs/core/src/index";
-import { EU_MEMBER_STATE_COUNT, euMemberStates } from "../../../../../packages/database/src/index";
+import { buildCountryPackStatuses } from "@puresoc/country-packs-core";
+import { EU_MEMBER_STATE_COUNT, euMemberStates } from "@puresoc/database";
 import type { JsonResult } from "../../http";
 
 export const countryPackStatusRoute = async (): Promise<JsonResult> => {

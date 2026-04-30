@@ -1,4 +1,4 @@
-import { AuthError, type OrganizationMemberStatus, type PureSocRoleKey } from "../../../../packages/auth/core/src/index";
+import { AuthError, type OrganizationMemberStatus, type PureSocRoleKey } from "@puresoc/auth-core";
 
 export interface OrganizationMembershipRecord {
   id: string;

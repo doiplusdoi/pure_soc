@@ -1,4 +1,4 @@
-import { ProviderConnectorError } from "../../core/src/index";
+import { ProviderConnectorError } from "@puresoc/providers-core";
 
 export const microsoft365ProviderKey = "microsoft365";
 

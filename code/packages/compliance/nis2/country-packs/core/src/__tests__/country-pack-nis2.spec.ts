@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { EU_MEMBER_STATE_COUNT, euMemberStates } from "../../../../../../database/src/index";
+import { EU_MEMBER_STATE_COUNT, euMemberStates } from "@puresoc/database";
 import { buildCountryPackStatuses } from "../index";
 
 describe("nis2 country-pack status", () => {

@@ -1,14 +1,14 @@
-import { AuditWriter, InMemoryAuditSink } from "../../../../packages/audit/src/index";
+import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
 import {
   Argon2idPasswordHasher,
   FailedLoginRateLimiter,
   LocalAuthService
-} from "../../../../packages/auth/local/src/index";
+} from "@puresoc/auth-local";
 import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
-import { InMemoryProviderResourceStore } from "../../../../packages/providers/core/src/index";
-import { InMemoryComplianceResultRepository } from "../../../../packages/compliance/core/src/index";
-import type { RecommendationContract } from "../../../../packages/recommendations/src/index";
+import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
+import { InMemoryComplianceResultRepository } from "@puresoc/compliance-core";
+import type { RecommendationContract } from "@puresoc/recommendations";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { ComplianceEvaluationService } from "../compliance/service";
 import { RecommendationApiService } from "../recommendations/service";

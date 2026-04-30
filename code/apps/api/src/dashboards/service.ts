@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import {
   aggregateDashboardFromStoredAnalysis,
   type DashboardSnapshotContract
-} from "../../../../packages/dashboards/src/index";
+} from "@puresoc/dashboards";
 import type { DashboardSnapshotRecord, StoredAnalysisRecord } from "../output-records";
 
 export interface DashboardRepository {

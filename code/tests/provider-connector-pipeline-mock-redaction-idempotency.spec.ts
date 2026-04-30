@@ -3,14 +3,14 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
-import { createMockConnector, type MockProviderScenarioKey } from "../../../mock/src/index";
+import { createMockConnector, type MockProviderScenarioKey } from "@puresoc/provider-mock";
 import {
   InMemoryProviderResourceStore,
   ProviderConnectorError,
   ProviderStoreIsolationError,
   redactProviderSecrets,
   runProviderConnectorPipeline
-} from "../index";
+} from "@puresoc/providers-core";
 
 const fixedNow = () => new Date("2026-04-28T10:00:00.000Z");
 
@@ -205,7 +205,7 @@ describe("provider connector pipeline mock redaction idempotency", () => {
   });
 
   it("keeps generic compliance code from importing Microsoft provider code", () => {
-    const workspaceRoot = fileURLToPath(new URL("../../../../..", import.meta.url));
+    const workspaceRoot = fileURLToPath(new URL("..", import.meta.url));
     const complianceRoot = join(workspaceRoot, "packages", "compliance");
     const files = collectTypeScriptFiles(complianceRoot);
 

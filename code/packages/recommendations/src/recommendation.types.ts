@@ -1,20 +1,20 @@
-import type { SourceReference } from "../../compliance/core/src/index";
-import type { ActionableSeverity } from "../../shared/src/index";
+import type {
+  ActionableSeverity,
+  Confidence,
+  RecommendationActionType,
+  RecommendationAutomationMode,
+  RecommendationStatus,
+  RecommendationSummary,
+  SourceReference
+} from "@puresoc/shared";
 
 export type RecommendationSeverity = ActionableSeverity;
 
-export type RecommendationAutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
+export type { RecommendationAutomationMode };
 
-export type RecommendationType =
-  | "manual"
-  | "guided"
-  | "technical"
-  | "process"
-  | "evidence_upload"
-  | "country_registration"
-  | "incident_reporting";
+export type RecommendationType = RecommendationActionType;
 
-export interface RecommendationContract {
+export interface RecommendationContract extends RecommendationSummary {
   id: string;
   organizationId: string;
   sourceFindingId?: string;
@@ -25,7 +25,7 @@ export interface RecommendationContract {
   title: string;
   summary: string;
   severity: RecommendationSeverity;
-  confidence: "low" | "medium" | "high";
+  confidence: Confidence;
   recommendationType: RecommendationType;
   automationMode: RecommendationAutomationMode;
   requiredPermissions: string[];
@@ -34,7 +34,7 @@ export interface RecommendationContract {
   blastRadius?: string;
   manualFallback?: string;
   evidenceRequired: boolean;
-  status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+  status: RecommendationStatus;
   sourceReferences?: SourceReference[];
 }
 

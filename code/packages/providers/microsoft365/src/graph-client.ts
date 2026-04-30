@@ -1,4 +1,4 @@
-import { ProviderConnectorError, redactProviderSecrets } from "../../core/src/index";
+import { ProviderConnectorError, redactProviderSecrets } from "@puresoc/providers-core";
 
 export interface MicrosoftGraphRequest {
   method: "GET" | "POST";

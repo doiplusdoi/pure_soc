@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 
-import { defaultRoleDefinitions, publicUserView, type AuthenticatedUser } from "../../../../packages/auth/core/src/index";
-import type { LocalAuthAuditWriter } from "../../../../packages/auth/local/src/index";
+import { defaultRoleDefinitions, publicUserView, type AuthenticatedUser } from "@puresoc/auth-core";
+import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import type { OrganizationMembershipRecord, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
 export interface OrganizationRecord {

@@ -1,4 +1,4 @@
-import type { RegulatorySourceRecord } from "../../../../regulatory-sources/src/index";
+import type { RegulatorySourceRecord } from "@puresoc/regulatory-sources";
 
 export type ImplementingRegulationDigitalService =
   | "dns_service_provider"

@@ -2,7 +2,7 @@ import {
   changedLegalLogicDefaultStatus,
   type RegulatorySourceActivationStatus,
   type RegulatorySourceRecord
-} from "../../../../../regulatory-sources/src/index";
+} from "@puresoc/regulatory-sources";
 
 export type EuCountryCode =
   | "AT"

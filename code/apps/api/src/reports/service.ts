@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { PURESOC_LEGAL_CAVEAT } from "../../../../packages/shared/src/index";
+import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,
@@ -8,7 +8,7 @@ import {
   type InternalReadinessReport,
   type RomaniaNotificationDraftExport,
   type StoredRomaniaNotificationDraftInput
-} from "../../../../packages/reports/src/index";
+} from "@puresoc/reports";
 import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-records";
 
 export interface ReportRepository {

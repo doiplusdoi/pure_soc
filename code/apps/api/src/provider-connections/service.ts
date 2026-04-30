@@ -1,4 +1,4 @@
-import type { LocalAuthAuditWriter } from "../../../../packages/auth/local/src/index";
+import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import {
   InMemoryProviderResourceStore,
   runProviderConnectorPipeline,
@@ -7,11 +7,11 @@ import {
   type ProviderPipelineResult,
   type ProviderResourceStore,
   type ProviderSyncModuleRecord
-} from "../../../../packages/providers/core/src/index";
+} from "@puresoc/providers-core";
 import {
   createMockConnector,
   type MockProviderScenarioKey
-} from "../../../../packages/providers/mock/src/index";
+} from "@puresoc/provider-mock";
 
 export interface ProviderConnectionView {
   id: string;

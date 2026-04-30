@@ -5,5 +5,11 @@
   "private": true,
   "exports": {
     ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@puresoc/regulatory-sources": "workspace:*"
+  },
+  "devDependencies": {
+    "@puresoc/database": "workspace:*"
   }
 }

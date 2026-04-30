@@ -1,4 +1,4 @@
-import { stableJsonExport } from "../../../packages/reports/src/index";
+import { stableJsonExport } from "@puresoc/reports";
 
 export const reportRendererAppRole = "puresoc-report-renderer";
 

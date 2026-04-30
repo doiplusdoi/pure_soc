@@ -1,4 +1,4 @@
-import type { RegulatorySourceRecord } from "../../../../regulatory-sources/src/index";
+import type { RegulatorySourceRecord } from "@puresoc/regulatory-sources";
 
 export interface RegulatoryFrameworkSeed {
   key: "nis2";

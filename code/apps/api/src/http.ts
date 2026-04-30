@@ -1,8 +1,8 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { assertNoSensitiveResponseFields } from "../../../packages/audit/src/index";
-import { AuthError } from "../../../packages/auth/core/src/index";
-import { EvidenceAccessError } from "../../../packages/evidence/src/index";
+import { assertNoSensitiveResponseFields } from "@puresoc/audit";
+import { AuthError } from "@puresoc/auth-core";
+import { EvidenceAccessError } from "@puresoc/evidence";
 
 export interface RequestContext {
   ipAddress: string | null;

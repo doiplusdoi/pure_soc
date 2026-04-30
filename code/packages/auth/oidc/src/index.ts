@@ -1,4 +1,4 @@
-import type { AuthProviderKey } from "../../core/src/index";
+import type { AuthProviderKey } from "@puresoc/auth-core";
 
 export const oidcLoginBoundary = "user-login-not-managed-provider-connection";
 

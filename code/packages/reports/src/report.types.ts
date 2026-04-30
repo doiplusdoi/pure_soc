@@ -1,4 +1,4 @@
-import { PURESOC_LEGAL_CAVEAT } from "../../shared/src/index";
+import { PURESOC_LEGAL_CAVEAT, type ActionableSeverity, type SourceReference } from "@puresoc/shared";
 
 export type ReportType =
   | "internal_readiness"
@@ -10,26 +10,18 @@ export type ReportType =
 
 export type ReportExportFormat = "json" | "pdf" | "csv";
 
-export interface ReportSourceReference {
-  sourceRecordId: string;
+export interface ReportSourceReference extends SourceReference {
   title?: string;
   jurisdiction: string;
-  sourceUrl?: string;
-  sourceVersion?: string;
-  article?: string;
-  paragraph?: string;
-  annex?: string;
-  nationalReference?: string;
   sourceLocation?: string;
   fieldKey?: string;
-  label?: string;
 }
 
 export interface ReportRecommendationSummary {
   controlId: string;
   jurisdiction: string;
   title: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: ActionableSeverity;
   summary: string;
   requiredEvidence: boolean;
   sourceReferences?: ReportSourceReference[];
@@ -57,7 +49,7 @@ export interface ReportGapSummary {
   controlId: string;
   controlCode?: string;
   jurisdiction: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: ActionableSeverity;
   summary: string;
   missingEvidence: string[];
   recommendedActions: string[];

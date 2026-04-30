@@ -6,7 +6,7 @@ import {
   type JsonResult,
   type RequestContext
 } from "../http";
-import { AuthError } from "../../../../packages/auth/core/src/index";
+import { AuthError } from "@puresoc/auth-core";
 import type { ApiServices } from "./services";
 
 const requireString = (body: Record<string, unknown>, field: string): string => {

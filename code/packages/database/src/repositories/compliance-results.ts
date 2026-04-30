@@ -7,8 +7,8 @@ import type {
   ComplianceResultSet,
   ManualChecklistItemState,
   ReadinessPlan
-} from "../../../compliance/core/src/index";
-import type { RecommendationContract } from "../../../recommendations/src/index";
+} from "@puresoc/compliance-core";
+import type { RecommendationContract } from "@puresoc/recommendations";
 
 type ComplianceResultTransaction = Pick<
   Prisma.TransactionClient,

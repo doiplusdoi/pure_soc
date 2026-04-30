@@ -1,9 +1,9 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
-import type { ComplianceGap } from "../../../../packages/compliance/core/src/index";
+import { AuthError } from "@puresoc/auth-core";
+import type { ComplianceGap } from "@puresoc/compliance-core";
 import {
   generateStructuredRecommendations,
   type ProviderRecommendationLike
-} from "../../../../packages/recommendations/src/index";
+} from "@puresoc/recommendations";
 
 export interface RecommendationApiServiceInput {
   organizationId: string;

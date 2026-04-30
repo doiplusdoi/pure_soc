@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { InMemoryProviderResourceStore } from "../../../../packages/providers/core/src/index";
-import { createMockConnector } from "../../../../packages/providers/mock/src/index";
+import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
+import { createMockConnector } from "@puresoc/provider-mock";
 import { createProviderSyncJob, runConnectorRunnerJob } from "../index";
 
 describe("connector runner provider job contract", () => {

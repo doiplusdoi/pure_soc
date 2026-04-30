@@ -9,7 +9,7 @@ import {
   type AuthenticatedSession,
   type AuthenticatedUser,
   type AuthProviderKey
-} from "../../core/src/index";
+} from "@puresoc/auth-core";
 
 export const localAuthProviderKey: AuthProviderKey = "local";
 export const passwordHashAlgorithm = "argon2id" as const;

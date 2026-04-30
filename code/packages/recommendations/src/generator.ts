@@ -1,8 +1,8 @@
 import {
   uniqueSourceReferences,
-  type ComplianceGap,
-  type SourceReference
-} from "../../compliance/core/src/index";
+  type ComplianceGap
+} from "@puresoc/compliance-core";
+import type { SourceReference } from "@puresoc/shared";
 
 import type {
   RecommendationAutomationMode,
@@ -36,7 +36,7 @@ export interface ProviderRecommendationLike {
   manualFallback?: string;
   evidenceRequired: boolean;
   status: RecommendationContract["status"];
-  sourceReferences?: Record<string, unknown>[];
+  sourceReferences?: SourceReference[];
 }
 
 export const generateStructuredRecommendations = (
@@ -74,7 +74,7 @@ export const generateStructuredRecommendations = (
         status: providerRecommendation.status,
         sourceReferences: uniqueSourceReferences([
           ...gap.sourceReferences,
-          ...sourceReferencesFromUnknown(providerRecommendation.sourceReferences)
+          ...(providerRecommendation.sourceReferences ?? [])
         ])
       };
     }
@@ -158,21 +158,5 @@ const expectedChangeForGap = (gap: ComplianceGap): string => {
 
   return "Manual readiness task is completed and retained as evidence.";
 };
-
-const sourceReferencesFromUnknown = (sourceReferences: readonly Record<string, unknown>[] = []): SourceReference[] =>
-  sourceReferences
-    .filter((reference): reference is Record<string, unknown> & { sourceRecordId: string } => {
-      return typeof reference.sourceRecordId === "string";
-    })
-    .map((reference) => ({
-      sourceRecordId: reference.sourceRecordId,
-      article: typeof reference.article === "string" ? reference.article : undefined,
-      paragraph: typeof reference.paragraph === "string" ? reference.paragraph : undefined,
-      annex: typeof reference.annex === "string" ? reference.annex : undefined,
-      nationalReference: typeof reference.nationalReference === "string" ? reference.nationalReference : undefined,
-      sourceUrl: typeof reference.sourceUrl === "string" ? reference.sourceUrl : undefined,
-      sourceVersion: typeof reference.sourceVersion === "string" ? reference.sourceVersion : undefined,
-      label: typeof reference.label === "string" ? reference.label : undefined
-    }));
 
 const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.filter(Boolean))];

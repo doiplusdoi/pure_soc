@@ -1,4 +1,4 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
+import { AuthError } from "@puresoc/auth-core";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";

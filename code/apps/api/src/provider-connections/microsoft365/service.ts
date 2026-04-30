@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import type { LocalAuthAuditWriter } from "../../../../../packages/auth/local/src/index";
+import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import {
   InMemoryProviderResourceStore,
   runProviderConnectorPipeline,
@@ -11,7 +11,7 @@ import {
   type ProviderPipelineResult,
   type ProviderResourceStore,
   type ProviderSyncModuleRecord
-} from "../../../../../packages/providers/core/src/index";
+} from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
@@ -21,8 +21,8 @@ import {
   type Microsoft365CredentialResolver,
   type Microsoft365StoredCredential,
   type Microsoft365TokenCipher
-} from "../../../../../packages/providers/microsoft365/src/index";
-import { AuthError } from "../../../../../packages/auth/core/src/index";
+} from "@puresoc/provider-microsoft365";
+import { AuthError } from "@puresoc/auth-core";
 import { safeConnectionView, type ProviderConnectionView } from "../service";
 
 export interface Microsoft365ConsentBeginInput {

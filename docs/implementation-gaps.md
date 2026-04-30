@@ -297,9 +297,9 @@ Status: Resolved 2026-04-30 for PLAN_M2 route validation and audit coverage.
 
 Severity: Medium
 Area: Developer platform/domain boundaries
-Current state: Packages declare `@puresoc/*` names and exports, but many consumers import through deep relative paths. PLAN_M3 extracted shared finding/actionable severity types and aligned recommendation/gap severity contracts, but broader source-reference, recommendation summary, and provider-finding-for-compliance shapes are still duplicated across packages.
-Impact: Severity drift is reduced, but package boundaries remain easy to bypass, circular dependencies can remain hidden, and other shared type drift can appear before persistence and provider expansion are wired.
-Next action: Run Prompt 4 / PLAN_M5 to switch cross-package imports to workspace exports, add a layout guard, and extract remaining shared types only where they reduce drift.
+Current state: PLAN_M5 switched cross-package imports to `@puresoc/*` package exports, added workspace dependencies for package consumers, moved cross-package integration tests to root `code/tests` to avoid package dependency cycles, and expanded `code/scripts/check-layout.mjs` to reject cross-package deep relative imports, deep `@puresoc/*/src` imports, and missing workspace dependency declarations. Shared source-reference, confidence, recommendation summary, and provider-finding-for-compliance contracts now live in `@puresoc/shared`, and compliance-core no longer imports provider-core types.
+Impact: Package export boundaries are now enforced by `pnpm lint`, type drift is reduced for the shared analysis/output contracts touched by M5, and future package-boundary regressions should fail before tests run.
+Next action: Keep the layout guard in the standard lint gate and add new shared contracts only when they remove concrete duplication without introducing circular dependencies.
 Owner: Codex
 Target phase: Platform hardening
-Status: Open
+Status: Resolved 2026-04-30 for PLAN_M5 workspace import policy and shared type boundary enforcement.

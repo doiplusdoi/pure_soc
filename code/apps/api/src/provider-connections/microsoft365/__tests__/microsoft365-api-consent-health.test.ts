@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { AuditWriter, InMemoryAuditSink } from "../../../../../../packages/audit/src/index";
-import { InMemoryProviderResourceStore } from "../../../../../../packages/providers/core/src/index";
+import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
+import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
   permissionsForMicrosoft365Bundles,
   type Microsoft365StoredCredential
-} from "../../../../../../packages/providers/microsoft365/src/index";
-import type { MicrosoftGraphHttpClient } from "../../../../../../packages/providers/microsoft365/src/graph-client";
+} from "@puresoc/provider-microsoft365";
+import type { MicrosoftGraphHttpClient } from "@puresoc/provider-microsoft365";
 import { Microsoft365ProviderConnectionService } from "../service";
 
 const fixedNow = () => new Date("2026-04-28T10:00:00.000Z");

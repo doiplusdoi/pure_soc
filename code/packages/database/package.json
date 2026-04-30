@@ -12,9 +12,15 @@
     "prisma:migrate:status": "prisma migrate status --schema prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "6.19.3"
+    "@prisma/client": "6.19.3",
+    "@puresoc/compliance-core": "workspace:*",
+    "@puresoc/recommendations": "workspace:*",
+    "@puresoc/shared": "workspace:*"
   },
   "devDependencies": {
+    "@puresoc/dashboards": "workspace:*",
+    "@puresoc/providers-core": "workspace:*",
+    "@puresoc/reports": "workspace:*",
     "prisma": "6.19.3"
   }
 }

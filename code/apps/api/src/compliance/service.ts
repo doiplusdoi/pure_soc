@@ -9,16 +9,16 @@ import {
   type CountryPackWarning,
   type EvidenceArtifactState,
   type ManualChecklistItemState
-} from "../../../../packages/compliance/core/src/index";
+} from "@puresoc/compliance-core";
 import {
   evidenceArtifactToComplianceState,
   type EvidenceArtifactMetadata
-} from "../../../../packages/evidence/src/index";
-import type { ProviderResourceStore } from "../../../../packages/providers/core/src/index";
+} from "@puresoc/evidence";
+import type { ProviderResourceStore } from "@puresoc/providers-core";
 import {
   generateStructuredRecommendations,
   type RecommendationContract
-} from "../../../../packages/recommendations/src/index";
+} from "@puresoc/recommendations";
 import type { StoredAnalysisRecord } from "../output-records";
 
 export interface ComplianceAssessmentEvaluationInput {

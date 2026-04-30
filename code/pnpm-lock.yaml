@@ -8,6 +8,33 @@ importers:
 
   .:
     devDependencies:
+      '@puresoc/api':
+        specifier: workspace:*
+        version: link:apps/api
+      '@puresoc/compliance-core':
+        specifier: workspace:*
+        version: link:packages/compliance/core
+      '@puresoc/config':
+        specifier: workspace:*
+        version: link:packages/config
+      '@puresoc/database':
+        specifier: workspace:*
+        version: link:packages/database
+      '@puresoc/provider-mock':
+        specifier: workspace:*
+        version: link:packages/providers/mock
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:packages/providers/core
+      '@puresoc/recommendations':
+        specifier: workspace:*
+        version: link:packages/recommendations
+      '@puresoc/reports':
+        specifier: workspace:*
+        version: link:packages/reports
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:packages/shared
       '@types/node':
         specifier: ^22.10.10
         version: 22.19.17
@@ -32,20 +59,58 @@ importers:
       '@puresoc/auth-local':
         specifier: workspace:*
         version: link:../../packages/auth/local
+      '@puresoc/compliance-core':
+        specifier: workspace:*
+        version: link:../../packages/compliance/core
       '@puresoc/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@puresoc/country-pack-ro':
+        specifier: workspace:*
+        version: link:../../packages/compliance/nis2/country-packs/ro
+      '@puresoc/country-packs-core':
+        specifier: workspace:*
+        version: link:../../packages/compliance/nis2/country-packs/core
       '@puresoc/dashboards':
         specifier: workspace:*
         version: link:../../packages/dashboards
+      '@puresoc/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@puresoc/evidence':
         specifier: workspace:*
         version: link:../../packages/evidence
+      '@puresoc/provider-microsoft365':
+        specifier: workspace:*
+        version: link:../../packages/providers/microsoft365
+      '@puresoc/provider-mock':
+        specifier: workspace:*
+        version: link:../../packages/providers/mock
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../../packages/providers/core
+      '@puresoc/recommendations':
+        specifier: workspace:*
+        version: link:../../packages/recommendations
       '@puresoc/reports':
         specifier: workspace:*
         version: link:../../packages/reports
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
 
-  apps/connector-runner: {}
+  apps/connector-runner:
+    dependencies:
+      '@puresoc/provider-microsoft365':
+        specifier: workspace:*
+        version: link:../../packages/providers/microsoft365
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../../packages/providers/core
+    devDependencies:
+      '@puresoc/provider-mock':
+        specifier: workspace:*
+        version: link:../../packages/providers/mock
 
   apps/regulatory-importer: {}
 
@@ -90,9 +155,21 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/compliance/core: {}
+  packages/compliance/core:
+    dependencies:
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
-  packages/compliance/nis2/country-packs/core: {}
+  packages/compliance/nis2/country-packs/core:
+    dependencies:
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../../../regulatory-sources
+    devDependencies:
+      '@puresoc/database':
+        specifier: workspace:*
+        version: link:../../../../database
 
   packages/compliance/nis2/country-packs/ro:
     dependencies:
@@ -100,9 +177,17 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/compliance/nis2/eu: {}
+  packages/compliance/nis2/eu:
+    dependencies:
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../../regulatory-sources
 
-  packages/compliance/nis2/implementing-regulation-2024-2690: {}
+  packages/compliance/nis2/implementing-regulation-2024-2690:
+    dependencies:
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../../regulatory-sources
 
   packages/config:
     dependencies:
@@ -110,23 +195,53 @@ importers:
         specifier: workspace:*
         version: link:../shared
 
-  packages/dashboards: {}
+  packages/dashboards:
+    dependencies:
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/database:
     dependencies:
       '@prisma/client':
         specifier: 6.19.3
         version: 6.19.3(prisma@6.19.3(typescript@5.9.3))(typescript@5.9.3)
+      '@puresoc/compliance-core':
+        specifier: workspace:*
+        version: link:../compliance/core
+      '@puresoc/recommendations':
+        specifier: workspace:*
+        version: link:../recommendations
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
+      '@puresoc/dashboards':
+        specifier: workspace:*
+        version: link:../dashboards
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../providers/core
+      '@puresoc/reports':
+        specifier: workspace:*
+        version: link:../reports
       prisma:
         specifier: 6.19.3
         version: 6.19.3(typescript@5.9.3)
 
   packages/evidence: {}
 
-  packages/providers/core: {}
+  packages/providers/core:
+    dependencies:
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../shared
 
-  packages/providers/google-workspace: {}
+  packages/providers/google-workspace:
+    dependencies:
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../core
 
   packages/providers/microsoft365:
     dependencies:
@@ -140,7 +255,14 @@ importers:
         specifier: workspace:*
         version: link:../core
 
-  packages/recommendations: {}
+  packages/recommendations:
+    dependencies:
+      '@puresoc/compliance-core':
+        specifier: workspace:*
+        version: link:../compliance/core
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../shared
 
   packages/regulatory-sources: {}
 

@@ -1,8 +1,8 @@
-import type { DashboardSnapshotContract } from "../../../packages/dashboards/src/index";
-import type { EvidenceArtifactMetadata } from "../../../packages/evidence/src/index";
-import type { ComplianceControlResult, ComplianceGap, ReadinessPlan } from "../../../packages/compliance/core/src/index";
-import type { RecommendationContract } from "../../../packages/recommendations/src/index";
-import type { InternalReadinessReport, RomaniaNotificationDraftExport } from "../../../packages/reports/src/index";
+import type { DashboardSnapshotContract } from "@puresoc/dashboards";
+import type { EvidenceArtifactMetadata } from "@puresoc/evidence";
+import type { ComplianceControlResult, ComplianceGap, ReadinessPlan } from "@puresoc/compliance-core";
+import type { RecommendationContract } from "@puresoc/recommendations";
+import type { InternalReadinessReport, RomaniaNotificationDraftExport } from "@puresoc/reports";
 
 export interface StoredAnalysisRecord {
   organizationId: string;

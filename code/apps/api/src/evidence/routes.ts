@@ -1,5 +1,5 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
-import type { EvidenceSourceType } from "../../../../packages/evidence/src/index";
+import { AuthError } from "@puresoc/auth-core";
+import type { EvidenceSourceType } from "@puresoc/evidence";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";

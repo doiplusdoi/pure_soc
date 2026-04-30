@@ -1,7 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { PURESOC_LEGAL_CAVEAT } from "../../../../packages/shared/src/index";
+import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import { createApiServices } from "../auth/services";
 import { startApiServer } from "../server";
 
