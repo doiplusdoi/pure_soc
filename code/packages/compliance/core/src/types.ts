@@ -1,3 +1,5 @@
+import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+
 export type ComplianceStatus =
   | "not_started"
   | "not_applicable"
@@ -8,9 +10,9 @@ export type ComplianceStatus =
   | "needs_evidence"
   | "accepted_risk";
 
-export type FindingSeverity = "informational" | "low" | "medium" | "high" | "critical";
+export type { ActionableSeverity, FindingSeverity };
 
-export type GapSeverity = Exclude<FindingSeverity, "informational">;
+export type GapSeverity = ActionableSeverity;
 
 export type Confidence = "low" | "medium" | "high";
 
@@ -184,10 +186,12 @@ export interface ComplianceGap {
   severity: GapSeverity;
   confidence: Confidence;
   summary: string;
+  findingIds: string[];
   findings: string[];
   missingEvidence: string[];
   recommendedActions: string[];
   providerSignals: string[];
+  manualTaskIds: string[];
   manualTasks: string[];
   countryPackWarnings: string[];
   sourceReferences: SourceReference[];
@@ -218,6 +222,7 @@ export interface ReadinessPlanItem {
   organizationId: string;
   readinessPlanId: string;
   controlId: string;
+  providerRecommendationId?: string;
   jurisdiction: string;
   gapSummary: string;
   recommendedAction: string;
@@ -226,6 +231,8 @@ export interface ReadinessPlanItem {
   dueDate: string;
   automationAvailable: boolean;
   evidenceRequired: boolean;
+  findingIds: string[];
+  manualTaskIds: string[];
   dependencies: string[];
   status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
   legalReviewRequired: boolean;

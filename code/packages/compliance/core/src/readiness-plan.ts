@@ -3,6 +3,9 @@ import type { ComplianceGap, ReadinessPlan, ReadinessPlanItem, RecommendationAct
 
 interface RecommendationLike {
   id: string;
+  sourceFindingId?: string;
+  sourceFindingIds?: readonly string[];
+  manualTaskIds?: readonly string[];
   controlId: string;
   jurisdiction: string;
   title: string;
@@ -75,6 +78,7 @@ const readinessPlanItemForGap = (input: {
     organizationId: input.gap.organizationId,
     readinessPlanId: input.planId,
     controlId: input.gap.controlId,
+    providerRecommendationId: recommendation?.id,
     jurisdiction: input.gap.jurisdiction,
     gapSummary: input.gap.summary,
     recommendedAction: recommendation?.title ?? input.gap.recommendedActions[0] ?? "Review control readiness",
@@ -84,6 +88,12 @@ const readinessPlanItemForGap = (input: {
     automationAvailable:
       recommendation?.automationMode === "preflightable" || recommendation?.automationMode === "executable_later",
     evidenceRequired: recommendation?.evidenceRequired ?? input.gap.missingEvidence.length > 0,
+    findingIds: uniqueStrings([
+      ...input.gap.findingIds,
+      ...(recommendation?.sourceFindingIds ?? []),
+      ...(recommendation?.sourceFindingId ? [recommendation.sourceFindingId] : [])
+    ]),
+    manualTaskIds: uniqueStrings([...input.gap.manualTaskIds, ...(recommendation?.manualTaskIds ?? [])]),
     dependencies,
     status: recommendation?.status ?? "proposed",
     legalReviewRequired:

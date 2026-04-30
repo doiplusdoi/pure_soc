@@ -14,6 +14,19 @@ const modelBlocks = new Map(
   })
 );
 
+const enumBlocks = new Map(
+  [...schema.matchAll(/enum\s+(\w+)\s+\{([\s\S]*?)\n\}/g)].map(([, enumName, body]) => [enumName, body] as const)
+);
+
+const fieldLine = (tableName: string, fieldName: string): string => {
+  const body = modelBlocks.get(tableName);
+  const line = body?.split("\n").find((candidate) => candidate.trim().startsWith(`${fieldName} `));
+
+  expect(body, `missing table ${tableName}`).toBeDefined();
+  expect(line, `missing field ${tableName}.${fieldName}`).toBeDefined();
+  return line ?? "";
+};
+
 describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
@@ -56,5 +69,37 @@ describe("database schema groups", () => {
     expect(new Set(euMemberStates.map((state) => state.countryCode)).size).toBe(27);
     expect(euMemberStates.every((state) => state.officialLanguages.length > 0)).toBe(true);
     expect(euMemberStates.find((state) => state.countryCode === "RO")?.countryPackStatus).toBe("planned_full_pack");
+  });
+
+  it("stores logical control identifiers as strings instead of UUID-only fields", () => {
+    for (const [tableName, fieldName] of [
+      ["provider_recommendations", "controlId"],
+      ["control_versions", "controlId"],
+      ["control_legal_references", "controlId"],
+      ["control_provider_mappings", "controlId"],
+      ["control_evidence_requirements", "controlId"],
+      ["compliance_control_results", "controlId"],
+      ["compliance_gaps", "controlId"],
+      ["readiness_plan_items", "controlId"],
+      ["risk_acceptances", "controlId"],
+      ["checklist_templates", "sourceControlId"],
+      ["evidence_artifacts", "controlId"]
+    ] as const) {
+      expect(fieldLine(tableName, fieldName), `${tableName}.${fieldName} must accept logical control IDs`).not.toContain(
+        "@db.Uuid"
+      );
+    }
+  });
+
+  it("splits provider finding severity from actionable gap and recommendation severity", () => {
+    expect(enumBlocks.get("FindingSeverity")).toContain("informational");
+    expect(enumBlocks.get("ActionableSeverity")).not.toContain("informational");
+    expect(fieldLine("provider_findings", "severity")).toContain("FindingSeverity");
+    expect(fieldLine("provider_recommendations", "severity")).toContain("ActionableSeverity");
+    expect(fieldLine("compliance_gaps", "severity")).toContain("ActionableSeverity");
+  });
+
+  it("stores readiness plan due dates as date-only values", () => {
+    expect(fieldLine("readiness_plan_items", "dueDate")).toContain("@db.Date");
   });
 });

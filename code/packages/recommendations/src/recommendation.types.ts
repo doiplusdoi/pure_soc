@@ -1,6 +1,7 @@
 import type { SourceReference } from "../../compliance/core/src/index";
+import type { ActionableSeverity } from "../../shared/src/index";
 
-export type RecommendationSeverity = "low" | "medium" | "high" | "critical";
+export type RecommendationSeverity = ActionableSeverity;
 
 export type RecommendationAutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
 
@@ -17,6 +18,8 @@ export interface RecommendationContract {
   id: string;
   organizationId: string;
   sourceFindingId?: string;
+  sourceFindingIds: string[];
+  manualTaskIds: string[];
   controlId: string;
   jurisdiction: string;
   title: string;
@@ -39,6 +42,8 @@ export interface RecommendationPlanItemInput {
   organizationId: string;
   providerRecommendationId: string;
   controlId: string;
+  findingIds: string[];
+  manualTaskIds: string[];
   jurisdiction: string;
   gapSummary: string;
   recommendedAction: string;
@@ -77,6 +82,8 @@ export const recommendationToReadinessPlanItemInput = (
   organizationId: recommendation.organizationId,
   providerRecommendationId: recommendation.id,
   controlId: recommendation.controlId,
+  findingIds: recommendation.sourceFindingIds,
+  manualTaskIds: recommendation.manualTaskIds,
   jurisdiction: recommendation.jurisdiction,
   gapSummary: recommendation.summary,
   recommendedAction: recommendation.title,

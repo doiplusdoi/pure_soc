@@ -1,3 +1,5 @@
+import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+
 export type ProviderKey = "microsoft365" | "google_workspace" | "google-workspace" | "mock";
 
 export type ProviderConnectionStatus = "pending" | "connected" | "degraded" | "revoked" | "failed";
@@ -15,7 +17,7 @@ export type ProviderSyncModuleStatus =
   | "rate_limited"
   | "revoked_consent";
 
-export type ProviderFindingSeverity = "informational" | "low" | "medium" | "high" | "critical";
+export type ProviderFindingSeverity = FindingSeverity;
 
 export type ProviderFindingStatus = "open" | "acknowledged" | "resolved" | "suppressed";
 
@@ -149,7 +151,7 @@ export interface ProviderRecommendationInput {
   jurisdiction: string;
   title: string;
   summary: string;
-  severity: Exclude<ProviderFindingSeverity, "informational">;
+  severity: ActionableSeverity;
   confidence: "low" | "medium" | "high";
   recommendationType: ProviderRecommendationType;
   automationMode: ProviderAutomationMode;
@@ -175,7 +177,7 @@ export interface ProviderRecommendation {
   jurisdiction: string;
   title: string;
   summary: string;
-  severity: Exclude<ProviderFindingSeverity, "informational">;
+  severity: ActionableSeverity;
   confidence: "low" | "medium" | "high";
   recommendationType: ProviderRecommendationType;
   automationMode: ProviderAutomationMode;

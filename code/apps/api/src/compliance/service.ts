@@ -5,6 +5,7 @@ import {
   generateManualChecklistItems,
   generateReadinessPlan,
   loadDefaultControlCatalog,
+  type ComplianceResultRepository,
   type CountryPackWarning,
   type EvidenceArtifactState,
   type ManualChecklistItemState
@@ -14,7 +15,10 @@ import {
   type EvidenceArtifactMetadata
 } from "../../../../packages/evidence/src/index";
 import type { ProviderResourceStore } from "../../../../packages/providers/core/src/index";
-import { generateStructuredRecommendations } from "../../../../packages/recommendations/src/index";
+import {
+  generateStructuredRecommendations,
+  type RecommendationContract
+} from "../../../../packages/recommendations/src/index";
 import type { StoredAnalysisRecord } from "../output-records";
 
 export interface ComplianceAssessmentEvaluationInput {
@@ -40,21 +44,25 @@ export interface ComplianceEvaluationServiceOptions {
     listArtifacts(organizationId: string): Promise<EvidenceArtifactMetadata[]>;
     saveStoredAnalysis(record: StoredAnalysisRecord): Promise<StoredAnalysisRecord>;
   };
+  resultRepository?: ComplianceResultRepository<RecommendationContract>;
   now?: () => Date;
 }
 
 export class ComplianceEvaluationService {
   private readonly store: ProviderResourceStore;
   private readonly analysisRepository?: ComplianceEvaluationServiceOptions["analysisRepository"];
+  private readonly resultRepository?: ComplianceResultRepository<RecommendationContract>;
   private readonly now: () => Date;
 
   constructor(options: ComplianceEvaluationServiceOptions) {
     this.store = options.store;
     this.analysisRepository = options.analysisRepository;
+    this.resultRepository = options.resultRepository;
     this.now = options.now ?? (() => new Date());
   }
 
   async evaluateAssessment(input: ComplianceAssessmentEvaluationInput) {
+    const recordedAt = this.now().toISOString();
     const catalog = loadDefaultControlCatalog();
     const providerFindings = input.providerConnectionId
       ? await this.store.listFindings(input.organizationId, input.providerConnectionId)
@@ -85,7 +93,8 @@ export class ComplianceEvaluationService {
       providerFindings,
       evidenceArtifacts,
       manualTasks: checklistItems,
-      countryPackWarnings
+      countryPackWarnings,
+      evaluatedAt: recordedAt
     });
     const gaps = calculateComplianceGaps({ results });
     const recommendations = generateStructuredRecommendations({
@@ -98,14 +107,27 @@ export class ComplianceEvaluationService {
       assessmentId: input.assessmentId,
       gaps,
       recommendations,
-      defaultOwnerUserId: input.ownerUserId
+      defaultOwnerUserId: input.ownerUserId,
+      generatedAt: recordedAt
+    });
+    await this.resultRepository?.saveComplianceResults({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      jurisdiction: input.jurisdiction ?? catalog.jurisdiction,
+      catalogVersion: catalog.catalogVersion,
+      recordedAt,
+      results,
+      gaps,
+      recommendations,
+      readinessPlan,
+      checklistItems
     });
     await this.analysisRepository?.saveStoredAnalysis({
       organizationId: input.organizationId,
       assessmentId: input.assessmentId,
       jurisdiction: input.jurisdiction ?? catalog.jurisdiction,
       catalogVersion: catalog.catalogVersion,
-      recordedAt: this.now().toISOString(),
+      recordedAt,
       results,
       gaps,
       recommendations,

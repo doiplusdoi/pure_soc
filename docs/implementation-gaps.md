@@ -220,12 +220,12 @@ Status: Resolved 2026-04-30 for Phase I JSON builders and dashboard aggregation;
 
 Severity: Medium
 Area: Database/developer platform
-Current state: `schema.prisma` defines the Phase B database model and Phase C auth indexes, while `packages/database/src/client.ts` exposes a client factory boundary. Phase C auth/organization behavior uses repository interfaces with an in-memory API adapter for tests; the workspace still does not include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
-Impact: Auth, organization, RBAC, and audit behavior can be tested, but the API does not yet persist these flows through PostgreSQL/Prisma.
-Next action: Add Prisma dependencies, generate the initial migration, and replace the in-memory API adapter with a Prisma-backed repository when the first database-backed service slice is implemented.
+Current state: `schema.prisma` now reflects PLAN_M3 persistable compliance-output alignment for logical control IDs, actionable gap/recommendation severity, date-only readiness due dates, and source identity fields. `packages/database/src/client.ts` still exposes only a client factory boundary, and the workspace still does not include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
+Impact: Schema/contract mismatches are reduced before persistence work, but auth, organization, compliance results, evidence, reports, and audit behavior still do not persist through PostgreSQL/Prisma.
+Next action: Run Prompt 3 / PLAN_M4 to add Prisma dependencies, generate the initial migration/client workflow, and implement the first narrow Prisma-backed repository slice.
 Owner: Codex
 Target phase: Phase C/D
-Status: Open
+Status: Open; PLAN_M3 intentionally deferred Prisma client/migration/adapter work to PLAN_M4.
 
 ### GAP-019: Regulatory Source Activation Lifecycle Not Implemented
 
@@ -253,12 +253,12 @@ Status: Open
 
 Severity: High
 Area: Compliance persistence/database
-Current state: Phase H evaluation returns control results, gaps, recommendations, readiness plans, and checklist items, and Phase I output builders can store in-memory analysis records for tests. The Prisma schema still has control-reference fields typed as UUIDs while the control catalog and code use logical IDs such as `nis2.access-control.mfa`; there is no Prisma-backed repository for evaluation outputs.
-Impact: The first real persistence attempt can fail at the schema boundary, and reports, evidence links, dashboards, and action runs cannot reliably reference stable persisted evaluation records.
-Next action: Run Prompt 2 to align schema/contracts and Prompt 3 to add Prisma workflow plus a narrow repository adapter slice.
+Current state: PLAN_M3 aligned TypeScript contracts and Prisma schema so compliance output control references use logical IDs, gaps/recommendations use actionable severity, readiness due dates are date-only, and gaps/recommendations/readiness-plan items retain provider finding and manual task IDs. A `ComplianceResultRepository` port with an in-memory implementation now covers control results, gaps, recommendations, readiness plans, and checklist items. There is still no Prisma-backed repository for evaluation outputs.
+Impact: Compliance outputs are now persistence-ready at the contract/schema boundary, but reports, evidence links, dashboards, and action runs still depend on in-memory stored analysis until the Prisma adapter exists.
+Next action: Run Prompt 3 / PLAN_M4 to wire Prisma dependencies, migration/client generation, and a narrow compliance-result repository adapter with organization-scoped tests.
 Owner: Codex
 Target phase: Phase H/I hardening
-Status: Open
+Status: Open; schema/contract alignment resolved on 2026-04-30 by PLAN_M3, Prisma-backed persistence remains.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 
@@ -286,9 +286,9 @@ Status: Resolved 2026-04-30 for PLAN_M2 route validation and audit coverage.
 
 Severity: Medium
 Area: Developer platform/domain boundaries
-Current state: Packages declare `@puresoc/*` names and exports, but many consumers import through deep relative paths. Related severity, recommendation, source-reference, and provider-finding shapes are duplicated across packages.
-Impact: Package boundaries are easy to bypass, circular dependencies can remain hidden, and type drift can appear before persistence and provider expansion are wired.
-Next action: Run Prompt 4 to switch cross-package imports to workspace exports, add a layout guard, and extract shared types only where they reduce drift.
+Current state: Packages declare `@puresoc/*` names and exports, but many consumers import through deep relative paths. PLAN_M3 extracted shared finding/actionable severity types and aligned recommendation/gap severity contracts, but broader source-reference, recommendation summary, and provider-finding-for-compliance shapes are still duplicated across packages.
+Impact: Severity drift is reduced, but package boundaries remain easy to bypass, circular dependencies can remain hidden, and other shared type drift can appear before persistence and provider expansion are wired.
+Next action: Run Prompt 4 / PLAN_M5 to switch cross-package imports to workspace exports, add a layout guard, and extract remaining shared types only where they reduce drift.
 Owner: Codex
 Target phase: Platform hardening
 Status: Open

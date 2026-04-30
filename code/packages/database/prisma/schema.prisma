@@ -65,6 +65,13 @@ enum FindingSeverity {
   critical
 }
 
+enum ActionableSeverity {
+  low
+  medium
+  high
+  critical
+}
+
 enum FindingStatus {
   open
   acknowledged
@@ -727,13 +734,15 @@ model ProviderRecommendation {
   organizationId       String               @map("organization_id") @db.Uuid
   providerConnectionId String?              @map("provider_connection_id") @db.Uuid
   sourceFindingId      String?              @map("source_finding_id") @db.Uuid
+  sourceFindingIds     String[]             @default([]) @map("source_finding_ids")
+  manualTaskIds        String[]             @default([]) @map("manual_task_ids")
   providerKey          String               @map("provider_key")
   moduleKey            String?              @map("module_key")
-  controlId            String?              @map("control_id") @db.Uuid
+  controlId            String?              @map("control_id")
   jurisdiction         String
   title                String
   summary              String
-  severity             FindingSeverity
+  severity             ActionableSeverity
   confidence           String
   recommendationType   RecommendationType   @map("recommendation_type")
   automationMode       AutomationMode       @map("automation_mode")
@@ -987,7 +996,7 @@ model ControlCatalog {
 
 model ControlVersion {
   id          String   @id @default(uuid()) @db.Uuid
-  controlId   String   @map("control_id") @db.Uuid
+  controlId   String   @map("control_id")
   version     String
   bodyJson    Json     @map("body_json")
   status      RegulatorySourceStatus @default(draft)
@@ -1000,7 +1009,7 @@ model ControlVersion {
 
 model ControlLegalReference {
   id              String  @id @default(uuid()) @db.Uuid
-  controlId        String  @map("control_id") @db.Uuid
+  controlId        String  @map("control_id")
   sourceRecordId   String  @map("source_record_id") @db.Uuid
   article          String?
   paragraph        String?
@@ -1014,7 +1023,7 @@ model ControlLegalReference {
 
 model ControlProviderMapping {
   id                    String   @id @default(uuid()) @db.Uuid
-  controlId              String   @map("control_id") @db.Uuid
+  controlId              String   @map("control_id")
   providerKey            String   @map("provider_key")
   moduleKey              String   @map("module_key")
   signalKeys             String[] @map("signal_keys")
@@ -1029,7 +1038,7 @@ model ControlProviderMapping {
 
 model ControlEvidenceRequirement {
   id             String @id @default(uuid()) @db.Uuid
-  controlId      String @map("control_id") @db.Uuid
+  controlId      String @map("control_id")
   jurisdiction   String
   requirementKey String @map("requirement_key")
   title          String
@@ -1077,7 +1086,7 @@ model ComplianceControlResult {
   id             String           @id @default(uuid()) @db.Uuid
   organizationId String           @map("organization_id") @db.Uuid
   assessmentId   String           @map("assessment_id") @db.Uuid
-  controlId      String           @map("control_id") @db.Uuid
+  controlId      String           @map("control_id")
   jurisdiction   String
   status         ComplianceStatus
   confidence     String
@@ -1098,16 +1107,18 @@ model ComplianceGap {
   organizationId     String          @map("organization_id") @db.Uuid
   assessmentId       String          @map("assessment_id") @db.Uuid
   controlResultId    String?         @map("control_result_id") @db.Uuid
-  controlId          String          @map("control_id") @db.Uuid
+  controlId          String          @map("control_id")
   jurisdiction       String
   status             ComplianceStatus
-  severity           FindingSeverity
+  severity           ActionableSeverity
+  findingIds         String[]        @default([]) @map("finding_ids")
   confidence         String
   summary            String
   findingsJson       Json            @default("[]") @map("findings_json")
   missingEvidenceJson Json           @default("[]") @map("missing_evidence_json")
   recommendedActionsJson Json        @default("[]") @map("recommended_actions_json")
   providerSignalsJson Json           @default("[]") @map("provider_signals_json")
+  manualTaskIds      String[]        @default([]) @map("manual_task_ids")
   manualTasksJson    Json            @default("[]") @map("manual_tasks_json")
   countryPackWarningsJson Json       @default("[]") @map("country_pack_warnings_json")
   sourceReferencesJson Json          @default("[]") @map("source_references_json")
@@ -1133,16 +1144,18 @@ model ReadinessPlanItem {
   id                  String               @id @default(uuid()) @db.Uuid
   organizationId      String               @map("organization_id") @db.Uuid
   readinessPlanId     String               @map("readiness_plan_id") @db.Uuid
-  controlId           String?              @map("control_id") @db.Uuid
-  providerRecommendationId String?         @map("provider_recommendation_id") @db.Uuid
+  controlId           String?              @map("control_id")
+  providerRecommendationId String?         @map("provider_recommendation_id")
   jurisdiction        String
   gapSummary          String               @map("gap_summary")
   recommendedAction   String               @map("recommended_action")
   actionType          RecommendationType   @map("action_type")
   ownerUserId         String?              @map("owner_user_id") @db.Uuid
-  dueDate             DateTime?            @map("due_date")
+  dueDate             DateTime?            @map("due_date") @db.Date
   automationAvailable Boolean              @default(false) @map("automation_available")
   evidenceRequired    Boolean              @default(false) @map("evidence_required")
+  findingIds          String[]             @default([]) @map("finding_ids")
+  manualTaskIds       String[]             @default([]) @map("manual_task_ids")
   dependenciesJson    Json                 @default("[]") @map("dependencies_json")
   status              RecommendationStatus @default(proposed)
   legalReviewRequired Boolean              @default(false) @map("legal_review_required")
@@ -1155,7 +1168,7 @@ model ReadinessPlanItem {
 model RiskAcceptance {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
-  controlId      String   @map("control_id") @db.Uuid
+  controlId      String   @map("control_id")
   assessmentId   String?  @map("assessment_id") @db.Uuid
   acceptedBy     String   @map("accepted_by") @db.Uuid
   reason         String
@@ -1171,7 +1184,7 @@ model ChecklistTemplate {
   templateKey    String  @map("template_key")
   title          String
   jurisdiction   String?
-  sourceControlId String? @map("source_control_id") @db.Uuid
+  sourceControlId String? @map("source_control_id")
 
   @@map("checklist_templates")
 }
@@ -1216,7 +1229,7 @@ model ChecklistRunItem {
 model EvidenceArtifact {
   id                   String             @id @default(uuid()) @db.Uuid
   organizationId       String             @map("organization_id") @db.Uuid
-  controlId            String?            @map("control_id") @db.Uuid
+  controlId            String?            @map("control_id")
   jurisdiction         String?
   sourceType           EvidenceSourceType @map("source_type")
   sourceProvider       String?            @map("source_provider")

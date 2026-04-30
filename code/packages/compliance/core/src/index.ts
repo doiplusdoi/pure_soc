@@ -8,7 +8,13 @@ export { generateManualChecklistItems } from "./checklist";
 export { calculateComplianceGaps } from "./gaps";
 export { countryPackWarningsFromStatus, evaluateComplianceControls } from "./evaluator";
 export { generateReadinessPlan } from "./readiness-plan";
+export {
+  InMemoryComplianceResultRepository,
+  type ComplianceResultRepository,
+  type ComplianceResultSet
+} from "./results-repository";
 export type {
+  ActionableSeverity,
   ChecklistState,
   ComplianceControl,
   ComplianceControlResult,

@@ -13,6 +13,8 @@ const recommendation: RecommendationContract = {
   id: "rec_1",
   organizationId: "org_1",
   sourceFindingId: "finding_1",
+  sourceFindingIds: ["finding_1"],
+  manualTaskIds: ["manual_task_1"],
   controlId: "control_1",
   jurisdiction: "EU",
   title: "Enable phishing-resistant MFA for admins",
@@ -40,6 +42,8 @@ describe("recommendations, reports, and dashboards contract", () => {
       organizationId: "org_1",
       providerRecommendationId: "rec_1",
       controlId: "control_1",
+      findingIds: ["finding_1"],
+      manualTaskIds: ["manual_task_1"],
       jurisdiction: "EU",
       evidenceRequired: true
     });

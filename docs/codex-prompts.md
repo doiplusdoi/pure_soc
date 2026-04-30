@@ -32,6 +32,7 @@ The repository currently contains:
 - Compliance evaluator, gap generation, recommendation generation, readiness plan, checklist generation, and representative control catalog.
 - Evidence metadata, access audit, JSON report/export builders, dashboard aggregation, and API routes backed by stored in-memory analysis records.
 - PLAN_M2 hardening: legal-review country-pack warnings, no-signal provider-mapped control guard, compliance/recommendation request validation, synchronous `200` evaluation response, and audit events for evaluation/recommendation generation.
+- PLAN_M3 contract alignment: logical control IDs in Prisma output references, split finding/actionable severity, date-only readiness due dates, gap/recommendation/plan source identity fields, and an in-memory `ComplianceResultRepository` port.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -41,7 +42,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
 - Prompt 1 / `docs/PLAN_M2.md` is completed.
-- Prompt 2 starts at `docs/PLAN_M3.md`.
+- Prompt 2 / `docs/PLAN_M3.md` is completed.
+- Prompt 3 starts at `docs/PLAN_M4.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -56,19 +58,18 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 2 / `PLAN_M3`: Schema And Contract Alignment For Persistable Results.
-2. Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
-3. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
-4. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
-5. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
-6. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-7. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-8. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-9. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-10. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-11. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-12. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-13. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
+2. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
+3. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
+4. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+5. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+6. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+7. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+8. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+9. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+10. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+11. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+12. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
 Prompts 5 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
@@ -148,84 +149,20 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand compliance recommendations audit validation`
 
-## Prompt 2 / PLAN_M3: Schema And Contract Alignment For Persistable Results
+## Completed Prompt 2 / PLAN_M3: Schema And Contract Alignment For Persistable Results
 
-```txt
-You are aligning TypeScript contracts and Prisma schema before persistence is wired.
+Completed on 2026-04-30.
 
-Read:
-- docs/puresoc_vision.md sections 14, 15, 17, 18, 21, 22
-- docs/master-plan.md sections 7, 13, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md sections REC-001, REC-002, REC-007, REC-010, REC-021
-- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
-- docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md
-- docs/adr/ADR-012-dashboard-aggregation-and-report-data-contracts.md
+Summary:
+- Logical control IDs such as `nis2.access-control.mfa` are now compatible with Prisma output/control-reference fields instead of UUID-only columns.
+- Provider finding severity is split from actionable gap/recommendation severity; `informational` remains valid for findings but not gaps or recommendations.
+- Readiness plan item due dates now use date-only schema semantics.
+- Gap, recommendation, and readiness plan outputs retain provider finding IDs and manual task IDs alongside human-readable summaries.
+- A `ComplianceResultRepository` port and in-memory implementation now cover control results, gaps, recommendations, readiness plans, and checklist items.
 
-Goal:
-Make control IDs, severity types, date semantics, and evaluation output contracts persistable without surprising Prisma/database failures.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M3.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M4.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M3.md
-- docs/PLAN_M4.md
-- docs/codex-prompts.md
-- packages/database/prisma/schema.prisma
-- packages/database/src/contracts/*.ts
-- packages/database/src/__tests__/*
-- packages/compliance/core/src/types.ts
-- packages/compliance/core/src/gaps.ts
-- packages/compliance/core/src/readiness-plan.ts
-- packages/recommendations/src/recommendation.types.ts
-- packages/providers/core/src/resources.ts if severity contracts are touched
-- packages/shared/src/index.ts if shared severity/source-reference types are extracted
-- docs/adr/* only if a new decision record is needed
-- docs/implementation-gaps.md
-
-Implement:
-- Resolve the mismatch between logical control IDs such as `nis2.access-control.mfa` and Prisma columns currently typed as UUIDs.
-- Choose and document a single actionable severity contract, or split `FindingSeverity` and `ActionableSeverity` across code and schema.
-- Preserve provider finding IDs and manual task IDs through gap/recommendation/readiness-plan outputs where downstream evidence or audit drilldown needs them.
-- Align readiness-plan due-date semantics with schema storage. Prefer date-only if that matches product behavior.
-- Add a `ComplianceResultRepository` contract or equivalent persistence-ready port for control results, gaps, recommendations, readiness plans, and checklist outputs.
-- Keep in-memory implementations available for existing tests until the Prisma adapter exists.
-
-Negative constraints:
-- Do not introduce Microsoft-specific IDs into generic compliance schema.
-- Do not rewrite the whole Prisma schema beyond the persistence-alignment fields needed here.
-- Do not remove legal source references from outputs.
-- Do not claim scores or persisted results represent legal certification.
-
-Tests:
-- Schema contract test proves control ID fields accept the implemented logical ID strategy.
-- Severity round-trip tests prevent `informational` recommendation/gap records if not supported.
-- Gap outputs retain finding/task identity alongside human summaries.
-- Readiness plan due-date test matches schema semantics.
-- Repository contract test covers write/read shape using in-memory implementation.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand database schema compliance gaps recommendations readiness-plan
-
-Gap updates:
-- Update GAP-022 and GAP-025.
-- Update GAP-020 only if Prisma client/migration work is intentionally deferred to Prompt 3.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M3 updated
-- PLAN_M4 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand database schema compliance gaps recommendations readiness-plan`
 
 ## Prompt 3 / PLAN_M4: Prisma Migration, Generated Client, And Repository Adapter Slice
 

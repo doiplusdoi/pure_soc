@@ -7,6 +7,8 @@ import {
 import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "../../../../packages/providers/core/src/index";
+import { InMemoryComplianceResultRepository } from "../../../../packages/compliance/core/src/index";
+import type { RecommendationContract } from "../../../../packages/recommendations/src/index";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { ComplianceEvaluationService } from "../compliance/service";
 import { RecommendationApiService } from "../recommendations/service";
@@ -55,6 +57,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     now: options.now
   });
   const providerStore = new InMemoryProviderResourceStore({ now: options.now });
+  const complianceResultRepository = new InMemoryComplianceResultRepository<RecommendationContract>();
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -68,6 +71,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
   const compliance = new ComplianceEvaluationService({
     store: providerStore,
     analysisRepository: repository,
+    resultRepository: complianceResultRepository,
     now: options.now
   });
   const recommendations = new RecommendationApiService();

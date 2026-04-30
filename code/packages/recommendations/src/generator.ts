@@ -52,6 +52,11 @@ export const generateStructuredRecommendations = (
         id: providerRecommendation.id,
         organizationId: input.organizationId,
         sourceFindingId: providerRecommendation.sourceFindingId,
+        sourceFindingIds: uniqueStrings([
+          ...gap.findingIds,
+          ...(providerRecommendation.sourceFindingId ? [providerRecommendation.sourceFindingId] : [])
+        ]),
+        manualTaskIds: gap.manualTaskIds,
         controlId: gap.controlId,
         jurisdiction: gap.jurisdiction,
         title: providerRecommendation.title,
@@ -88,6 +93,9 @@ const recommendationFromGap = (
   return {
     id: [gap.assessmentId, gap.controlId, "recommendation", index + 1].join(":"),
     organizationId,
+    sourceFindingId: gap.findingIds[0],
+    sourceFindingIds: gap.findingIds,
+    manualTaskIds: gap.manualTaskIds,
     controlId: gap.controlId,
     jurisdiction: gap.jurisdiction,
     title: gap.recommendedActions[0] ?? "Review internal readiness gap",
@@ -166,3 +174,5 @@ const sourceReferencesFromUnknown = (sourceReferences: readonly Record<string, u
       sourceVersion: typeof reference.sourceVersion === "string" ? reference.sourceVersion : undefined,
       label: typeof reference.label === "string" ? reference.label : undefined
     }));
+
+const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.filter(Boolean))];

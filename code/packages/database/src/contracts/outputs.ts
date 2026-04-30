@@ -1,3 +1,5 @@
+import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+
 export type ComplianceStatus =
   | "not_started"
   | "not_applicable"
@@ -8,7 +10,9 @@ export type ComplianceStatus =
   | "needs_evidence"
   | "accepted_risk";
 
-export type Severity = "informational" | "low" | "medium" | "high" | "critical";
+export type Severity = FindingSeverity;
+
+export type ActionableSeverityContract = ActionableSeverity;
 
 export type AutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
 
@@ -41,13 +45,15 @@ export interface ComplianceGapContract {
   jurisdiction: string;
   controlId: string;
   status: ComplianceStatus;
-  severity: Exclude<Severity, "informational">;
+  severity: ActionableSeverityContract;
   confidence: "low" | "medium" | "high";
   summary: string;
+  findingIds: string[];
   findings: string[];
   missingEvidence: string[];
   recommendedActions: string[];
   providerSignals: string[];
+  manualTaskIds: string[];
   manualTasks: string[];
   countryPackWarnings: string[];
   sourceReferences: Record<string, unknown>[];
@@ -68,6 +74,8 @@ export interface ReadinessPlanItemContract {
   readinessPlanId: string;
   controlId?: string;
   providerRecommendationId?: string;
+  findingIds: string[];
+  manualTaskIds: string[];
   jurisdiction: string;
   gapSummary: string;
   recommendedAction: string;

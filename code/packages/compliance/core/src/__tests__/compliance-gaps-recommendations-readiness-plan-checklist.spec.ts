@@ -18,6 +18,7 @@ import {
   evaluateComplianceControls,
   generateManualChecklistItems,
   generateReadinessPlan,
+  InMemoryComplianceResultRepository,
   loadDefaultControlCatalog
 } from "../index";
 
@@ -68,10 +69,14 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       evaluatedAt: fixedNow().toISOString()
     });
     const mfaResult = results.find((result) => result.controlId === "nis2.access-control.mfa");
+    const gaps = calculateComplianceGaps({ results });
+    const mfaGap = gaps.find((gap) => gap.controlId === "nis2.access-control.mfa");
 
     expect(mfaResult?.status).toBe("failing");
     expect(mfaResult?.providerSignalIds).toContain(providerRun.findings[0]?.id);
     expect(mfaResult?.matchedFindings[0]?.findingKey).toBe("mock.identity.admin_mfa_missing.admin_1");
+    expect(mfaGap?.findingIds).toContain(providerRun.findings[0]?.id);
+    expect(mfaGap?.providerSignals).toContain("mock.identity.admin_mfa_missing.admin_1");
     expect(mfaResult?.summary.toLowerCase()).not.toContain("certification");
   });
 
@@ -239,12 +244,16 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       generatedAt: fixedNow().toISOString()
     });
     const mfaItem = readinessPlan.items.find((item) => item.controlId === "nis2.access-control.mfa");
+    const mfaGap = gaps.find((gap) => gap.controlId === "nis2.access-control.mfa");
 
     expect(mfaItem).toMatchObject({
       ownerUserId: "owner_1",
       dueDate: "2026-05-14",
-      status: "proposed"
+      status: "proposed",
+      findingIds: mfaGap?.findingIds,
+      manualTaskIds: mfaGap?.manualTaskIds
     });
+    expect(mfaItem?.providerRecommendationId).toBeDefined();
     expect(mfaItem?.dependencies).toContain("Directory.Read.All");
     expect(mfaItem?.sourceReferences.length).toBeGreaterThan(0);
   });
@@ -282,5 +291,116 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       automationMode: "guided",
       evidenceRequired: true
     });
+  });
+
+  it("does not promote informational findings into actionable gap severity", () => {
+    const catalog = loadDefaultControlCatalog();
+    const control = catalog.controls.find((candidate) => candidate.id === "nis2.access-control.mfa")!;
+    const gaps = calculateComplianceGaps({
+      results: [
+        {
+          id: "assessment_info:nis2.access-control.mfa:EU",
+          organizationId: "org_phase_h",
+          assessmentId: "assessment_info",
+          controlId: control.id,
+          controlCode: control.code,
+          jurisdiction: "EU",
+          status: "partial",
+          confidence: "medium",
+          providerSignalIds: ["finding_info"],
+          evidenceArtifactIds: [],
+          checklistRunItemIds: [],
+          summary: "Informational signal should not become actionable severity.",
+          matchedFindings: [
+            {
+              id: "finding_info",
+              providerKey: "mock",
+              moduleKey: "identity-posture",
+              findingKey: "mock.info",
+              title: "Informational posture note",
+              summary: "This is a non-actionable finding.",
+              severity: "informational",
+              evidence: {}
+            }
+          ],
+          missingEvidence: [],
+          manualTasks: [],
+          countryPackWarnings: [],
+          sourceReferences: control.sourceReferences,
+          evidenceCompleteness: {
+            required: 0,
+            present: 0,
+            missing: 0,
+            ratio: 1
+          },
+          evaluatedAt: fixedNow().toISOString()
+        }
+      ]
+    });
+
+    expect(gaps[0]?.severity).toBe("medium");
+    expect(gaps[0]?.severity).not.toBe("informational");
+  });
+
+  it("stores and reads compliance result sets through the in-memory repository contract", async () => {
+    const catalog = loadDefaultControlCatalog();
+    const providerRun = await runMicrosoftMockScenario("missing_mfa");
+    const checklistItems = generateManualChecklistItems({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_repo",
+      controls: catalog.controls,
+      templates: catalog.manualChecklistTemplates,
+      ownerUserId: "owner_1"
+    });
+    const results = evaluateComplianceControls({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_repo",
+      controls: catalog.controls,
+      providerFindings: providerRun.findings,
+      manualTasks: checklistItems,
+      evaluatedAt: fixedNow().toISOString()
+    });
+    const gaps = calculateComplianceGaps({ results });
+    const recommendations = generateStructuredRecommendations({
+      organizationId: "org_phase_h",
+      gaps,
+      providerRecommendations: providerRun.recommendations
+    });
+    const readinessPlan = generateReadinessPlan({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_repo",
+      gaps,
+      recommendations,
+      generatedAt: fixedNow().toISOString()
+    });
+    const repository = new InMemoryComplianceResultRepository<(typeof recommendations)[number]>();
+
+    await repository.saveComplianceResults({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_repo",
+      jurisdiction: "EU",
+      catalogVersion: catalog.catalogVersion,
+      recordedAt: fixedNow().toISOString(),
+      results,
+      gaps,
+      recommendations,
+      readinessPlan,
+      checklistItems
+    });
+
+    const found = await repository.findComplianceResults({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_repo"
+    });
+    const crossOrganization = await repository.findComplianceResults({
+      organizationId: "org_other",
+      assessmentId: "assessment_repo"
+    });
+
+    expect(found?.gaps.find((gap) => gap.controlId === "nis2.access-control.mfa")?.findingIds.length).toBeGreaterThan(0);
+    expect(found?.recommendations.find((recommendation) => recommendation.controlId === "nis2.access-control.mfa")?.sourceFindingIds.length).toBeGreaterThan(0);
+    expect(found?.readinessPlan.items.find((item) => item.controlId === "nis2.access-control.mfa")?.findingIds.length).toBeGreaterThan(0);
+    expect(found?.checklistItems.length).toBeGreaterThan(0);
+    expect(crossOrganization).toBeNull();
   });
 });

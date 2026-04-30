@@ -1,3 +1,5 @@
+import type { ActionableSeverity, FindingSeverity } from "../../../shared/src/index";
+
 export type ProviderConnectionStatus = "pending" | "connected" | "degraded" | "revoked" | "failed";
 
 export type ProviderModuleStatus =
@@ -91,7 +93,7 @@ export interface ProviderFindingRecord {
   findingKey: string;
   title: string;
   summary: string;
-  severity: "informational" | "low" | "medium" | "high" | "critical";
+  severity: FindingSeverity;
   status: "open" | "acknowledged" | "resolved" | "suppressed";
 }
 
@@ -100,13 +102,15 @@ export interface ProviderRecommendationRecord {
   organizationId: string;
   providerConnectionId?: string;
   sourceFindingId?: string;
+  sourceFindingIds: string[];
+  manualTaskIds: string[];
   providerKey: string;
   moduleKey?: string;
   controlId?: string;
   jurisdiction: string;
   title: string;
   summary: string;
-  severity: "low" | "medium" | "high" | "critical";
+  severity: ActionableSeverity;
   confidence: "low" | "medium" | "high";
   recommendationType: "manual" | "guided" | "technical" | "process" | "evidence_upload" | "country_registration" | "incident_reporting";
   automationMode: "manual" | "guided" | "preflightable" | "executable_later";

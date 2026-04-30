@@ -35,10 +35,12 @@ export const calculateComplianceGaps = (input: CalculateComplianceGapsInput): Co
       severity: gapSeverity(result),
       confidence: result.confidence,
       summary: result.summary,
+      findingIds: result.matchedFindings.map((finding) => finding.id),
       findings: result.matchedFindings.map((finding) => finding.summary || finding.title),
       missingEvidence: result.missingEvidence.map((requirement) => requirement.title),
       recommendedActions: recommendedActionsForResult(result),
       providerSignals: result.matchedFindings.map((finding) => finding.findingKey),
+      manualTaskIds: result.manualTasks.map((task) => task.id),
       manualTasks: result.manualTasks.map((task) => `${task.title} (${task.status})`),
       countryPackWarnings: result.countryPackWarnings.map((warning) => warning.reason),
       sourceReferences: uniqueSourceReferences(result.sourceReferences)

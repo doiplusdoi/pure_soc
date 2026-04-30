@@ -114,10 +114,12 @@ const parseComplianceGap = (value: unknown, path: string, organizationId: string
     severity,
     confidence,
     summary: requiredString(record, `${path}.summary`),
+    findingIds: parseOptionalStringArray(record.findingIds, `${path}.findingIds`),
     findings: parseOptionalStringArray(record.findings, `${path}.findings`),
     missingEvidence: parseOptionalStringArray(record.missingEvidence, `${path}.missingEvidence`),
     recommendedActions: parseOptionalStringArray(record.recommendedActions, `${path}.recommendedActions`),
     providerSignals: parseOptionalStringArray(record.providerSignals, `${path}.providerSignals`),
+    manualTaskIds: parseOptionalStringArray(record.manualTaskIds, `${path}.manualTaskIds`),
     manualTasks: parseOptionalStringArray(record.manualTasks, `${path}.manualTasks`),
     countryPackWarnings: parseOptionalStringArray(record.countryPackWarnings, `${path}.countryPackWarnings`),
     sourceReferences: parseOptionalArray(record.sourceReferences, `${path}.sourceReferences`, parseSourceReference) ?? []

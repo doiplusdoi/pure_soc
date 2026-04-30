@@ -99,8 +99,74 @@ git diff --check
 
 ## Completion Log
 
-Pending implementation.
+Implementation started on 2026-04-30.
+
+Working assumptions:
+
+- Use logical control IDs such as `nis2.access-control.mfa` as provider-neutral persisted references, not UUID-only database fields.
+- Split severities into provider finding severity, which may be `informational`, and actionable severity for gaps/recommendations, which cannot be `informational`.
+- Treat readiness plan due dates as date-only SLA targets, persisted as PostgreSQL `date` semantics.
+- Add a persistence-ready compliance result repository port now, while deferring Prisma client generation, migrations, and the first Prisma adapter to PLAN_M4.
+
+Implementation completed on 2026-04-30.
+
+Implemented:
+
+- Prisma control-reference fields now accept logical string IDs across compliance, catalog mapping, evidence, checklist template, risk acceptance, and provider recommendation records.
+- Prisma now splits `FindingSeverity` from `ActionableSeverity`; provider findings can remain informational, while compliance gaps and recommendations cannot persist informational severity.
+- Readiness plan item due dates now use `@db.Date`, matching the existing `YYYY-MM-DD` contract.
+- Gap outputs now retain `findingIds` and `manualTaskIds` alongside human summaries, provider signal keys, and manual task labels.
+- Structured recommendations and readiness plan items now carry source finding/manual task identity forward for future evidence and audit drilldown.
+- Added a generic `ComplianceResultRepository` port plus `InMemoryComplianceResultRepository` covering control results, gaps, recommendations, readiness plans, and checklist items.
+- The API compliance evaluation service now writes generated result sets through the repository port while preserving the existing stored-analysis path used by reports and dashboards.
+
+Changed files:
+
+- `code/packages/shared/src/index.ts`
+- `code/packages/providers/core/src/resources.ts`
+- `code/packages/compliance/core/src/types.ts`
+- `code/packages/compliance/core/src/gaps.ts`
+- `code/packages/compliance/core/src/readiness-plan.ts`
+- `code/packages/compliance/core/src/results-repository.ts`
+- `code/packages/compliance/core/src/index.ts`
+- `code/packages/compliance/core/src/__tests__/compliance-gaps-recommendations-readiness-plan-checklist.spec.ts`
+- `code/packages/recommendations/src/generator.ts`
+- `code/packages/recommendations/src/recommendation.types.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/src/contracts/connector.ts`
+- `code/packages/database/src/contracts/outputs.ts`
+- `code/packages/database/src/__tests__/database-schema.spec.ts`
+- `code/packages/database/src/__tests__/recommendations-reports-dashboards.spec.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/compliance/service.ts`
+- `code/apps/api/src/compliance/validation.ts`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/PLAN_M3.md`
+- `docs/PLAN_M4.md`
+
+Validation results:
+
+- `pnpm lint` passed via host `npx pnpm@10.33.2 lint`.
+- `pnpm test -- --runInBand database schema compliance gaps recommendations readiness-plan` passed via host `npx pnpm@10.33.2 test -- --runInBand database schema compliance gaps recommendations readiness-plan` with 30 files / 100 tests passing.
+- `git diff --check` passed.
+
+Acceptance status:
+
+- Accepted for PLAN_M3.
+
+Gaps updated:
+
+- GAP-020 updated to keep Prisma dependencies, generated client, migration, and adapter work open for PLAN_M4.
+- GAP-022 updated for PLAN_M3 schema/contract alignment and repository-port completion; Prisma-backed persistence remains open under PLAN_M4/GAP-020.
+- GAP-025 updated to record the shared actionable/finding severity extraction while keeping broader workspace import and shared type consolidation open.
+
+Residual risk:
+
+- The new repository port is in-memory only; no Prisma client, migration, or database adapter exists yet.
+- Provider capability/module status is still not persisted as evaluator input, so Prompt 3 should preserve room for unavailable/missing-permission signal semantics.
+- Shared type extraction is intentionally narrow; Prompt 4 still needs the workspace import and package-boundary pass.
 
 ## Handoff For Next Milestone
 
-After M3 completes, `docs/PLAN_M4.md` should be generated from the next active prompt in `docs/codex-prompts.md`, currently Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
+`docs/PLAN_M4.md` has been generated from the next active prompt in `docs/codex-prompts.md`: Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
