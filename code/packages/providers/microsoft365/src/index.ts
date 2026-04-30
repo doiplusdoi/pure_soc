@@ -17,12 +17,14 @@ import {
   type ProviderNormalizedResourceInput,
   type ProviderPermissionBundleInput,
   type ProviderRawResourceInput,
+  type ProviderRecommendationInput,
   type SyncInput,
   type TenantProfileInput
 } from "@puresoc/providers-core";
 import { createLocalMicrosoft365TokenCipher, type Microsoft365TokenCipher } from "./crypto";
 import { MicrosoftGraphClient, type MicrosoftGraphHttpClient } from "./graph-client";
 import {
+  microsoft365DeferredReadModules,
   microsoft365DefaultReadModules,
   microsoft365ModuleRequirements,
   microsoft365PermissionBundles,
@@ -31,11 +33,13 @@ import {
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   missingPermissions,
+  type Microsoft365CloudEnvironment,
   type Microsoft365ModuleKey,
   type Microsoft365ReadPermissionBundleKey
 } from "./permissions";
 
 export {
+  microsoft365DeferredReadModules,
   microsoft365DefaultReadModules,
   microsoft365ModuleRequirements,
   microsoft365PermissionBundles,
@@ -45,6 +49,8 @@ export {
   microsoft365WritePermissionBundles,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
+  type Microsoft365CloudEnvironment,
+  type Microsoft365DeferredReadModuleKey,
   type Microsoft365ModuleKey,
   type Microsoft365PermissionBundleKey,
   type Microsoft365ReadPermissionBundleKey,
@@ -79,6 +85,7 @@ export interface Microsoft365StoredCredential {
   grantedPermissions: string[];
   requestedPermissionBundles: Microsoft365ReadPermissionBundleKey[];
   consentedAt: string;
+  cloudEnvironment?: Microsoft365CloudEnvironment;
 }
 
 export interface Microsoft365CredentialResolverInput {
@@ -305,13 +312,21 @@ export const createMicrosoft365Connector = (
       });
 
       const credential = await resolveCredential(input);
-      const requested = new Set(input.requestedModules ?? microsoft365DefaultReadModules);
+      const requestedModules = input.requestedModules ?? [...microsoft365DefaultReadModules];
+      const requested = new Set(requestedModules);
+      const supportedModules = new Set<string>(microsoft365ReadModules);
       const modules = microsoft365ReadModules.filter((moduleKey) => requested.has(moduleKey));
       const detectedLicenses = new Set<string>();
       const results: ProviderModuleSyncResult[] = [];
 
       for (const moduleKey of modules) {
         const requirement = microsoft365ModuleRequirements[moduleKey];
+        const nationalCloudStatus = nationalCloudUnsupportedResult(moduleKey, credential);
+        if (nationalCloudStatus) {
+          results.push(nationalCloudStatus);
+          continue;
+        }
+
         const missing = missingPermissions(requirement.permissionsRequired, credential.grantedPermissions);
         if (missing.length > 0) {
           results.push({
@@ -347,6 +362,27 @@ export const createMicrosoft365Connector = (
             }
           }
         }
+      }
+
+      const unsupportedRequested = new Set<string>();
+      for (const requestedModule of requestedModules) {
+        if (supportedModules.has(requestedModule) || unsupportedRequested.has(requestedModule)) {
+          continue;
+        }
+
+        unsupportedRequested.add(requestedModule);
+        const knownDeferred = microsoft365DeferredReadModules.includes(
+          requestedModule as (typeof microsoft365DeferredReadModules)[number]
+        );
+        results.push(
+          emptyProviderModuleSyncResult(
+            requestedModule,
+            "unsupported_api",
+            knownDeferred
+              ? "Microsoft Graph-first posture module is deferred until a reliable read-only signal is selected."
+              : "Requested Microsoft 365 module is not supported by this connector."
+          )
+        );
       }
 
       return results;
@@ -472,6 +508,18 @@ const runMicrosoft365Module = async (input: RunModuleInput): Promise<ProviderMod
       return await syncApplications(input);
     }
 
+    if (input.moduleKey === "conditional-access") {
+      return await syncConditionalAccess(input);
+    }
+
+    if (input.moduleKey === "entra-audit-logs") {
+      return await syncEntraAuditLogs(input);
+    }
+
+    if (input.moduleKey === "entra-sign-in-logs") {
+      return await syncEntraSignInLogs(input);
+    }
+
     if (input.moduleKey === "secure-score") {
       return await syncSecureScore(input);
     }
@@ -488,6 +536,24 @@ const runMicrosoft365Module = async (input: RunModuleInput): Promise<ProviderMod
   } catch (error) {
     return moduleErrorResult(input.moduleKey, error);
   }
+};
+
+const nationalCloudUnsupportedResult = (
+  moduleKey: Microsoft365ModuleKey,
+  credential: Microsoft365StoredCredential
+): ProviderModuleSyncResult | undefined => {
+  const cloudEnvironment = credential.cloudEnvironment ?? "global";
+  const requirement = microsoft365ModuleRequirements[moduleKey];
+
+  if (requirement.unsupportedNationalClouds?.includes(cloudEnvironment)) {
+    return emptyProviderModuleSyncResult(
+      moduleKey,
+      "unsupported_api",
+      `Microsoft Graph module ${moduleKey} is not available in the configured ${cloudEnvironment} national cloud.`
+    );
+  }
+
+  return undefined;
 };
 
 const moduleErrorResult = (moduleKey: Microsoft365ModuleKey, error: unknown): ProviderModuleSyncResult => {
@@ -665,6 +731,72 @@ const syncApplications = async (input: RunModuleInput): Promise<ProviderModuleSy
   );
 };
 
+const syncConditionalAccess = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
+  const policies = await input.graphClient.list({
+    path: "/identity/conditionalAccess/policies",
+    accessToken: input.credential.accessToken,
+    maxRetries: input.maxRetries
+  });
+  const rawResources = policies.items.map((policy) => raw(input, "conditionalAccessPolicy", stringValue(policy.id), policy));
+  const normalizedResources = policies.items.map((policy) =>
+    normalized(input, "conditionalAccessPolicy", stringValue(policy.id), "cloud_policy", {
+      displayName: stringValue(policy.displayName),
+      policyType: "conditional_access",
+      enabled: stringValue(policy.state).toLowerCase() === "enabled",
+      state: stringValue(policy.state),
+      conditions: asRecord(policy.conditions),
+      grantControls: asRecord(policy.grantControls),
+      sessionControls: asRecord(policy.sessionControls)
+    })
+  );
+
+  return succeeded(input, rawResources, normalizedResources, policies.pagesRead, policies.retryCount);
+};
+
+const syncEntraAuditLogs = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
+  const audits = await input.graphClient.list({
+    path:
+      "/auditLogs/directoryAudits?$top=50&$select=id,activityDateTime,activityDisplayName,category,result,initiatedBy,targetResources",
+    accessToken: input.credential.accessToken,
+    maxRetries: input.maxRetries
+  });
+  const rawResources = audits.items.map((event) => raw(input, "directoryAudit", stringValue(event.id), event));
+  const normalizedResources = audits.items.map((event) =>
+    normalized(input, "directoryAudit", stringValue(event.id), "cloud_audit_event", {
+      eventType: stringValue(event.activityDisplayName) || stringValue(event.category) || "directory_audit",
+      actor: auditActor(event),
+      occurredAt: stringValue(event.activityDateTime),
+      result: stringValue(event.result),
+      category: stringValue(event.category)
+    })
+  );
+
+  return succeeded(input, rawResources, normalizedResources, audits.pagesRead, audits.retryCount);
+};
+
+const syncEntraSignInLogs = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
+  const signIns = await input.graphClient.list({
+    path:
+      "/auditLogs/signIns?$top=50&$select=id,createdDateTime,userPrincipalName,userDisplayName,appDisplayName,ipAddress,conditionalAccessStatus,riskLevelAggregated,status",
+    accessToken: input.credential.accessToken,
+    maxRetries: input.maxRetries
+  });
+  const rawResources = signIns.items.map((event) => raw(input, "signIn", stringValue(event.id), event));
+  const normalizedResources = signIns.items.map((event) =>
+    normalized(input, "signIn", stringValue(event.id), "cloud_audit_event", {
+      eventType: "sign_in",
+      actor: stringValue(event.userPrincipalName) || stringValue(event.userDisplayName),
+      occurredAt: stringValue(event.createdDateTime),
+      result: signInResult(event),
+      application: stringValue(event.appDisplayName),
+      conditionalAccessStatus: stringValue(event.conditionalAccessStatus),
+      riskLevel: stringValue(event.riskLevelAggregated)
+    })
+  );
+
+  return succeeded(input, rawResources, normalizedResources, signIns.pagesRead, signIns.retryCount);
+};
+
 const syncSecureScore = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
   const secureScores = await input.graphClient.list({
     path: "/security/secureScores?$top=1",
@@ -702,20 +834,69 @@ const syncIntuneDevices = async (input: RunModuleInput): Promise<ProviderModuleS
 
 const syncDefenderXdr = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
   const incidents = await input.graphClient.list({
-    path: "/security/incidents",
+    path: "/security/incidents?$top=50",
     accessToken: input.credential.accessToken,
     maxRetries: input.maxRetries
   });
-  const rawResources = incidents.items.map((incident) => raw(input, "incident", stringValue(incident.id), incident));
-  const normalizedResources = incidents.items.map((incident) =>
+  const alerts = await input.graphClient.list({
+    path: "/security/alerts_v2?$top=50",
+    accessToken: input.credential.accessToken,
+    maxRetries: input.maxRetries
+  });
+  const incidentResources = incidents.items.map((incident) => raw(input, "incident", stringValue(incident.id), incident));
+  const alertResources = alerts.items.map((alert) => raw(input, "securityAlert", stringValue(alert.id), alert));
+  const normalizedIncidents = incidents.items.map((incident) =>
     normalized(input, "incident", stringValue(incident.id), "cloud_incident", {
       title: stringValue(incident.displayName) || stringValue(incident.title),
       severity: severityValue(incident.severity),
-      status: stringValue(incident.status)
+      status: stringValue(incident.status),
+      assignedTo: stringValue(incident.assignedTo),
+      incidentWebUrl: stringValue(incident.incidentWebUrl),
+      lastUpdateDateTime: stringValue(incident.lastUpdateDateTime)
     })
   );
+  const normalizedAlerts = alerts.items.map((alert) =>
+    normalized(input, "securityAlert", stringValue(alert.id), "cloud_security_alert", {
+      title: stringValue(alert.title) || stringValue(alert.displayName),
+      severity: severityValue(alert.severity),
+      status: stringValue(alert.status),
+      serviceSource: stringValue(alert.serviceSource),
+      incidentId: stringValue(alert.incidentId),
+      alertWebUrl: stringValue(alert.alertWebUrl),
+      lastUpdateDateTime: stringValue(alert.lastUpdateDateTime)
+    })
+  );
+  const incidentFindings = incidents.items.filter(isOpenHighSeveritySecurityItem).map((incident) =>
+    defenderIncidentFinding(input, incident)
+  );
+  const alertFindings = alerts.items.filter(isOpenHighSeveritySecurityItem).map((alert) => defenderAlertFinding(input, alert));
+  const recommendations = incidentFindings.map((finding) => ({
+    organizationId: input.input.organizationId,
+    providerConnectionId: input.input.providerConnectionId,
+    providerKey: microsoft365ProviderKey,
+    moduleKey: input.moduleKey,
+    sourceFindingKey: finding.findingKey,
+    jurisdiction: "EU",
+    title: "Triage high severity Defender incident",
+    summary: "Review the open high severity Defender incident and attach triage evidence to the NIS2 incident-handling control.",
+    severity: "high" as const,
+    confidence: "high" as const,
+    recommendationType: "incident_reporting" as const,
+    automationMode: "manual" as const,
+    requiredPermissions: ["SecurityIncident.Read.All"],
+    requiredLicense: ["DEFENDER_XDR"],
+    evidenceRequired: true
+  }));
 
-  return succeeded(input, rawResources, normalizedResources, incidents.pagesRead, incidents.retryCount);
+  return succeeded(
+    input,
+    [...incidentResources, ...alertResources],
+    [...normalizedIncidents, ...normalizedAlerts],
+    incidents.pagesRead + alerts.pagesRead,
+    incidents.retryCount + alerts.retryCount,
+    [...incidentFindings, ...alertFindings],
+    recommendations
+  );
 };
 
 const getTenantProfileFromGraph = async (input: {
@@ -809,7 +990,8 @@ const succeeded = (
   normalizedResources: ProviderNormalizedResourceInput[],
   pagesRead: number,
   retryCount: number,
-  findings: ProviderFindingInput[] = []
+  findings: ProviderFindingInput[] = [],
+  recommendations: ProviderRecommendationInput[] = []
 ): ProviderModuleSyncResult => ({
   moduleKey: input.moduleKey,
   status: "succeeded",
@@ -818,7 +1000,7 @@ const succeeded = (
   rawResources,
   normalizedResources,
   findings,
-  recommendations: [],
+  recommendations,
   pagesRead,
   retryCount
 });
@@ -890,6 +1072,99 @@ const arrayOfStrings = (value: unknown): string[] => {
   }
 
   return [];
+};
+
+const auditActor = (event: Record<string, unknown>): string => {
+  const initiatedBy = asRecord(event.initiatedBy);
+  const user = asRecord(initiatedBy.user);
+  const app = asRecord(initiatedBy.app);
+
+  return (
+    stringValue(user.userPrincipalName) ||
+    stringValue(user.displayName) ||
+    stringValue(app.displayName) ||
+    stringValue(app.appId)
+  );
+};
+
+const signInResult = (event: Record<string, unknown>): string => {
+  const status = asRecord(event.status);
+  const errorCode = status.errorCode;
+
+  if (typeof errorCode === "number") {
+    return errorCode === 0 ? "success" : "failure";
+  }
+
+  return stringValue(status.failureReason) ? "failure" : "unknown";
+};
+
+const isOpenHighSeveritySecurityItem = (item: Record<string, unknown>): boolean => {
+  const severity = severityValue(item.severity);
+  const status = stringValue(item.status).toLowerCase();
+
+  return (
+    (severity === "high" || severity === "critical") &&
+    status !== "resolved" &&
+    status !== "redirected" &&
+    status !== "dismissed"
+  );
+};
+
+const defenderIncidentFinding = (input: RunModuleInput, incident: Record<string, unknown>): ProviderFindingInput => {
+  const incidentId = stringValue(incident.id);
+  const severity = severityValue(incident.severity);
+  const title = stringValue(incident.displayName) || stringValue(incident.title) || `Defender incident ${incidentId}`;
+
+  return {
+    organizationId: input.input.organizationId,
+    providerConnectionId: input.input.providerConnectionId,
+    providerKey: microsoft365ProviderKey,
+    moduleKey: input.moduleKey,
+    findingKey: `microsoft365.defender.high_severity_incident.${incidentId}`,
+    title: "Open high severity Defender incident",
+    summary: `Microsoft Defender XDR reports an open ${severity} incident: ${title}.`,
+    severity,
+    status: "open",
+    resourceExternalId: incidentId,
+    resourceType: "cloud_incident",
+    evidence: {
+      signalKey: "high_severity_incident",
+      incidentId,
+      status: stringValue(incident.status),
+      severity,
+      incidentWebUrl: stringValue(incident.incidentWebUrl),
+      lastUpdateDateTime: stringValue(incident.lastUpdateDateTime)
+    }
+  };
+};
+
+const defenderAlertFinding = (input: RunModuleInput, alert: Record<string, unknown>): ProviderFindingInput => {
+  const alertId = stringValue(alert.id);
+  const severity = severityValue(alert.severity);
+  const title = stringValue(alert.title) || stringValue(alert.displayName) || `Defender alert ${alertId}`;
+
+  return {
+    organizationId: input.input.organizationId,
+    providerConnectionId: input.input.providerConnectionId,
+    providerKey: microsoft365ProviderKey,
+    moduleKey: input.moduleKey,
+    findingKey: `microsoft365.defender.high_severity_alert.${alertId}`,
+    title: "Open high severity Defender alert",
+    summary: `Microsoft Defender XDR reports an open ${severity} alert: ${title}.`,
+    severity,
+    status: "open",
+    resourceExternalId: alertId,
+    resourceType: "cloud_security_alert",
+    evidence: {
+      signalKey: "high_severity_alert",
+      alertId,
+      incidentId: stringValue(alert.incidentId),
+      status: stringValue(alert.status),
+      severity,
+      alertWebUrl: stringValue(alert.alertWebUrl),
+      lastUpdateDateTime: stringValue(alert.lastUpdateDateTime)
+    }
+  };
 };
 
 const servicePlansFromSku = (sku: Record<string, unknown>): string[] =>

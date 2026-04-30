@@ -88,12 +88,12 @@ Status: Open
 
 Severity: Medium
 Area: Microsoft connector
-Current state: ADR-009 records the permission-bundle strategy and read-only-first boundary. Phase G validated the read-only V1 bundle mapping against Microsoft Learn on 2026-04-28 and recorded endpoint-to-permission details in `docs/microsoft365-permissions.md`. Implemented bundles are `m365_read_baseline`, `m365_security_read`, and `m365_intune_read`; write bundles remain disabled and separate.
-Impact: First onboarding now requests read-only Graph permissions through named bundles, tracks granted permissions, and degrades unavailable modules through module status instead of failing the full connection. Conditional Access, Entra audit/sign-in logs, Exchange, SharePoint, Teams, Purview, Defender XDR live coverage, national-cloud behavior, and app permission-grant introspection still need per-endpoint validation before production enablement.
-Next action: Revalidate Microsoft Learn endpoint permissions before enabling the deferred modules or any write/remediation bundle, and keep `docs/microsoft365-permissions.md` current with API limitations.
+Current state: ADR-009 records the permission-bundle strategy and read-only-first boundary. Phase G validated the initial read-only V1 bundle mapping against Microsoft Learn on 2026-04-28. PLAN_M12 revalidated Microsoft Learn on 2026-04-30 and updated `docs/microsoft365-permissions.md`: `m365_read_baseline` now includes `Policy.Read.All` and `AuditLog.Read.All`; `m365_security_read` now includes `SecurityAlert.Read.All`; fixture-backed modules now cover Conditional Access policies, Entra directory audit logs, Entra sign-in logs, Secure Score, Defender XDR incidents, and Defender XDR alerts. Write bundles remain disabled and separate.
+Impact: First onboarding still uses named read-only bundles, tracks granted permissions, and degrades missing permissions, missing licenses, unsupported APIs, China-cloud unsupported Graph security paths, throttling, revoked consent, and connector errors through module status instead of failing the full connection. Exchange, SharePoint, Teams, Purview, app permission-grant introspection, sovereign-cloud base URL selection, and live customer-tenant smoke remain deferred.
+Next action: Before production enablement, run live tenant smoke for each enabled read module, validate real service-plan/license detection for Defender XDR and Intune, configure sovereign-cloud Graph base URLs, and keep `docs/microsoft365-permissions.md` current before adding any write/remediation bundle.
 Owner: Codex
 Target phase: Phase G
-Status: Resolved 2026-04-28 for Phase G read-only onboarding and discovery bundles; deferred Microsoft API limitations remain documented.
+Status: Resolved 2026-04-30 for PLAN_M12 read-only module permission revalidation and fixture-backed expansion; deferred Microsoft API/runtime limitations remain documented.
 
 ### GAP-008: Evidence Metadata, Access, And Export Model Needs ADR
 
@@ -335,6 +335,17 @@ Impact: Contract behavior is covered, but deployed environments still need live 
 Next action: Add a deployment smoke that exercises each configured provider in a test tenant/app, verifies callback cookies and audit events, and documents client secret/key rotation.
 Owner: Codex/DevOps
 Target phase: Phase K
+Status: Open
+
+### GAP-033: Microsoft Collaboration And Purview Posture Read Modules Deferred
+
+Severity: Medium
+Area: Microsoft connector
+Current state: PLAN_M12 intentionally returns `unsupported_api` for requested `exchange-posture`, `sharepoint-posture`, `teams-posture`, and `purview-posture` modules. Reliable Graph-first read-only signal selection, permission mapping, fixture coverage, and control mapping for these collaboration/data-protection areas are not implemented.
+Impact: M365 collaboration and Purview posture areas remain manual/guided or covered indirectly by Secure Score until specific read modules are validated. The connector is honest about unsupported state, but technical posture coverage is incomplete for external sharing, Teams guest/external access, mailbox forwarding/risky inbox rules, DLP, retention, and sensitivity-label posture.
+Next action: Revalidate current Microsoft Learn endpoints and permissions for each posture area, choose a minimal reliable read-only signal set, add mocked Graph fixtures and module degradation tests, then map provider-neutral findings to NIS2 controls without adding write scopes.
+Owner: Codex/Product
+Target phase: Microsoft read-module expansion
 Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal

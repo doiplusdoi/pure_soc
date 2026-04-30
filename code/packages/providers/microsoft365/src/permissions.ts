@@ -7,6 +7,9 @@ export const microsoft365ReadModules = [
   "licensing",
   "users-groups-roles",
   "applications",
+  "conditional-access",
+  "entra-audit-logs",
+  "entra-sign-in-logs",
   "secure-score",
   "intune-devices",
   "defender-xdr"
@@ -17,10 +20,24 @@ export const microsoft365DefaultReadModules = [
   "licensing",
   "users-groups-roles",
   "applications",
+  "conditional-access",
+  "entra-audit-logs",
+  "entra-sign-in-logs",
   "secure-score"
 ] as const;
 
 export type Microsoft365ModuleKey = (typeof microsoft365ReadModules)[number];
+
+export const microsoft365DeferredReadModules = [
+  "exchange-posture",
+  "sharepoint-posture",
+  "teams-posture",
+  "purview-posture"
+] as const;
+
+export type Microsoft365DeferredReadModuleKey = (typeof microsoft365DeferredReadModules)[number];
+
+export type Microsoft365CloudEnvironment = "global" | "usgov_l4" | "usgov_l5" | "china";
 
 export const microsoft365ReadPermissionBundles = [
   "m365_read_baseline",
@@ -47,7 +64,7 @@ export interface Microsoft365PermissionBundle {
 export const microsoft365PermissionBundles: Record<Microsoft365PermissionBundleKey, Microsoft365PermissionBundle> = {
   m365_read_baseline: {
     bundleKey: "m365_read_baseline",
-    purpose: "Read tenant profile, domains, licenses, users, groups, roles, and applications.",
+    purpose: "Read tenant profile, domains, licenses, users, groups, roles, applications, policies, and Entra audit data.",
     defaultEnabled: true,
     readOnly: true,
     permissions: [
@@ -57,15 +74,17 @@ export const microsoft365PermissionBundles: Record<Microsoft365PermissionBundleK
       "User.Read.All",
       "GroupMember.Read.All",
       "RoleManagement.Read.Directory",
-      "Application.Read.All"
+      "Application.Read.All",
+      "Policy.Read.All",
+      "AuditLog.Read.All"
     ]
   },
   m365_security_read: {
     bundleKey: "m365_security_read",
-    purpose: "Read Microsoft Secure Score and Defender XDR security incidents where licensed.",
+    purpose: "Read Microsoft Secure Score and Defender XDR security incidents and alerts where licensed.",
     defaultEnabled: false,
     readOnly: true,
-    permissions: ["SecurityEvents.Read.All", "SecurityIncident.Read.All"]
+    permissions: ["SecurityEvents.Read.All", "SecurityIncident.Read.All", "SecurityAlert.Read.All"]
   },
   m365_intune_read: {
     bundleKey: "m365_intune_read",
@@ -94,6 +113,7 @@ export interface Microsoft365ModuleRequirement {
   moduleKey: Microsoft365ModuleKey;
   permissionsRequired: string[];
   licenseRequired: string[];
+  unsupportedNationalClouds?: Microsoft365CloudEnvironment[];
 }
 
 export const microsoft365ModuleRequirements: Record<Microsoft365ModuleKey, Microsoft365ModuleRequirement> = {
@@ -117,10 +137,26 @@ export const microsoft365ModuleRequirements: Record<Microsoft365ModuleKey, Micro
     permissionsRequired: ["Application.Read.All"],
     licenseRequired: []
   },
+  "conditional-access": {
+    moduleKey: "conditional-access",
+    permissionsRequired: ["Policy.Read.All"],
+    licenseRequired: []
+  },
+  "entra-audit-logs": {
+    moduleKey: "entra-audit-logs",
+    permissionsRequired: ["AuditLog.Read.All"],
+    licenseRequired: []
+  },
+  "entra-sign-in-logs": {
+    moduleKey: "entra-sign-in-logs",
+    permissionsRequired: ["AuditLog.Read.All", "Policy.Read.All"],
+    licenseRequired: []
+  },
   "secure-score": {
     moduleKey: "secure-score",
     permissionsRequired: ["SecurityEvents.Read.All"],
-    licenseRequired: []
+    licenseRequired: [],
+    unsupportedNationalClouds: ["china"]
   },
   "intune-devices": {
     moduleKey: "intune-devices",
@@ -129,8 +165,9 @@ export const microsoft365ModuleRequirements: Record<Microsoft365ModuleKey, Micro
   },
   "defender-xdr": {
     moduleKey: "defender-xdr",
-    permissionsRequired: ["SecurityIncident.Read.All"],
-    licenseRequired: ["DEFENDER_XDR"]
+    permissionsRequired: ["SecurityIncident.Read.All", "SecurityAlert.Read.All"],
+    licenseRequired: ["DEFENDER_XDR"],
+    unsupportedNationalClouds: ["china"]
   }
 };
 

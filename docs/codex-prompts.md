@@ -1,8 +1,8 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-04-30 after reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M1.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-04-30 after completing PLAN_M12 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M1.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
 
-Completed Phase A through the contract-level Phase I output work and M11 OIDC/social-login callback work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
+Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, and M12 Microsoft read-only module expansion work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
 ## Repository Path Convention
 
@@ -41,6 +41,7 @@ The repository currently contains:
 - PLAN_M9 safe remediation foundation: recommendation-to-action templates/runs, preflight/approval/snapshot/verification/evidence metadata, action audit events, action API routes, Prisma action repository metadata, and future worker job contracts without live provider writes.
 - PLAN_M10 operational UI/design system: ADR-014, `@puresoc/ui` OKLCH tokens and semantic primitives, `apps/web` contract-backed operational console renderer, login focus surface, source/caveat indicators, approval affordances, and static `@ui-smoke` coverage.
 - PLAN_M11 OIDC/social-login callbacks: Microsoft Entra, Google, and GitHub user sign-in callback contracts with state, nonce, PKCE, issuer/audience/expiry/signature validation, provider-subject lookup, explicit signed-in account-link approval, session creation, audit events, redaction coverage, and separation from Microsoft 365 managed-provider consent.
+- PLAN_M12 Microsoft read-only module expansion: Microsoft Learn permissions were revalidated on 2026-04-30; `@puresoc/provider-microsoft365` now has fixture-backed Conditional Access, Entra directory audit log, Entra sign-in log, Defender XDR incident, and Defender XDR alert read modules, provider-neutral incident/alert resources and findings, module-level degradation for missing permissions/licenses, unsupported APIs, China-cloud Graph security limitations, throttling/revoked consent/connector errors, and updated permission documentation.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -59,7 +60,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 8 / `docs/PLAN_M9.md` is completed.
 - Prompt 9 / `docs/PLAN_M10.md` is completed.
 - Prompt 10 / `docs/PLAN_M11.md` is completed.
-- Prompt 11 starts at `docs/PLAN_M12.md`.
+- Prompt 11 / `docs/PLAN_M12.md` is completed.
+- Prompt 12 starts at `docs/PLAN_M13.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -74,12 +76,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-2. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-3. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-4. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+2. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+3. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 11 through 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
+Prompts 12 and 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
 ## Required Prompt Template
 
@@ -311,88 +312,21 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand auth oidc social-login session audit redaction`
 
-## Prompt 11 / PLAN_M12: Microsoft 365 Read-Only Module Expansion
+## Completed Prompt 11 / PLAN_M12: Microsoft 365 Read-Only Module Expansion
 
-```txt
-You are expanding Microsoft 365 read-only discovery after revalidating current official Microsoft documentation.
+Completed on 2026-04-30.
 
-Use skills:
-- puresoc-provider-connector
-- puresoc-microsoft365-graph-connector
-- puresoc-connector-test-harness
+Summary:
+- Microsoft Learn endpoint and permission assumptions were revalidated for Conditional Access policies, Entra directory audit logs, Entra sign-in logs, Secure Score, Defender XDR incidents, and Defender XDR alerts.
+- `m365_read_baseline` now includes `Policy.Read.All` and `AuditLog.Read.All`; `m365_security_read` now includes `SecurityAlert.Read.All`; write bundles remain disabled.
+- `@puresoc/provider-microsoft365` now syncs Conditional Access policies, Entra audit/sign-in events, Defender XDR incidents, and Defender XDR alerts as raw resources before provider-neutral normalization.
+- Open high severity Defender incidents and alerts produce provider-neutral findings, and high severity incidents produce manual incident-triage recommendations without adding write-back.
+- Missing permissions, missing licenses, deferred/unsupported posture modules, China-cloud Graph security limitations, throttling, revoked consent, and connector errors are recorded as module statuses.
+- `docs/microsoft365-permissions.md` and GAP-007 were updated; GAP-033 tracks deferred Exchange, SharePoint, Teams, and Purview posture modules.
 
-Read:
-- docs/puresoc_vision.md sections 8, 9, 20, 22, 23, 29, 32
-- docs/master-plan.md sections 9, 11, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/microsoft365-permissions.md
-- docs/adr/ADR-009-microsoft-graph-permission-bundles.md
-
-Goal:
-Add deferred read-only Microsoft modules with module-level degradation and updated permission documentation.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M12.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M13.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M12.md
-- docs/PLAN_M13.md
-- docs/codex-prompts.md
-- packages/providers/microsoft365
-- apps/api/src/provider-connections/microsoft365
-- apps/connector-runner/src/microsoft365
-- packages/providers/core if neutral resource/finding types need extension
-- docs/microsoft365-permissions.md
-- mock Graph fixtures/tests
-
-Implement candidates:
-- Conditional Access read sync if permissions and API behavior are validated.
-- Entra audit/sign-in logs read sync where licensed and permitted.
-- Exchange/SharePoint/Teams/Purview posture read modules where Graph supports reliable read-only signals.
-- Defender XDR incidents/alerts read module if docs and fixtures support it.
-- Capability detection for missing license, missing permission, unsupported API, national-cloud limitation, and connector error.
-- Provider-neutral resources/findings only after raw payload capture.
-
-Negative constraints:
-- Do not request write scopes during onboarding.
-- Do not store Global Administrator credentials.
-- Do not fail the whole connection if one module lacks permission or license.
-- Do not put Microsoft-specific branching in the generic NIS2 evaluator.
-- Do not log OAuth codes, access tokens, refresh tokens, tenant secrets, or authorization headers.
-- Do not rely on stale Microsoft permission assumptions; re-check official docs during implementation and cite/update `docs/microsoft365-permissions.md`.
-
-Tests:
-- Permission mapping fixture tests.
-- Missing permission module status.
-- Missing license module status.
-- Unsupported API module status.
-- Graph pagination handling.
-- Throttling/retry behavior.
-- Mocked Graph sync happy paths for each new module.
-- Token redaction assertions.
-- Generic compliance still consumes provider-neutral findings.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand microsoft365 graph-sync permissions redaction provider
-
-Gap updates:
-- Update GAP-007 with revalidated permission details and unresolved Microsoft API limitations.
-- Add deferred module gaps if docs/API coverage is insufficient.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M12 updated
-- PLAN_M13 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand microsoft365 graph-sync permissions redaction provider`
 
 ## Prompt 12 / PLAN_M13: Full Control Catalog And Readiness Scoring Calibration
 

@@ -10,6 +10,7 @@ import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
   permissionsForMicrosoft365Bundles,
+  type Microsoft365CloudEnvironment,
   type Microsoft365StoredCredential
 } from "../index";
 import type { MicrosoftGraphHttpClient } from "../graph-client";
@@ -180,11 +181,107 @@ const createFixtureGraphHttpClient = (scenario: GraphScenario): MicrosoftGraphHt
       };
     }
 
+    if (path.startsWith("/v1.0/identity/conditionalAccess/policies")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "ca_policy_1",
+              displayName: "Require MFA for admins",
+              state: "enabled",
+              conditions: { users: { includeRoles: ["global-admin-role"] } },
+              grantControls: { builtInControls: ["mfa"] }
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.startsWith("/v1.0/auditLogs/directoryAudits")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "audit_1",
+              activityDateTime: "2026-04-28T09:55:00.000Z",
+              activityDisplayName: "Add member to role",
+              category: "RoleManagement",
+              result: "success",
+              initiatedBy: { user: { userPrincipalName: "admin@contoso.com" } },
+              targetResources: [{ id: "admin_1", type: "User" }]
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.startsWith("/v1.0/auditLogs/signIns")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "signin_1",
+              createdDateTime: "2026-04-28T09:50:00.000Z",
+              userPrincipalName: "admin@contoso.com",
+              userDisplayName: "Admin User",
+              appDisplayName: "Microsoft Azure Portal",
+              ipAddress: "203.0.113.10",
+              conditionalAccessStatus: "success",
+              riskLevelAggregated: "none",
+              status: { errorCode: 0 }
+            }
+          ]
+        }
+      };
+    }
+
     if (path.startsWith("/v1.0/security/secureScores")) {
       return {
         status: 200,
         body: {
           value: [{ id: "score_1", currentScore: 72, maxScore: 100 }]
+        }
+      };
+    }
+
+    if (path.startsWith("/v1.0/security/incidents")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "incident_1",
+              displayName: "Endpoint malware incident",
+              severity: "high",
+              status: "active",
+              assignedTo: "security@contoso.com",
+              incidentWebUrl: "https://security.microsoft.com/incidents/incident_1",
+              lastUpdateDateTime: "2026-04-28T09:45:00.000Z"
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.startsWith("/v1.0/security/alerts_v2")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "alert_1",
+              incidentId: "incident_1",
+              title: "Suspicious PowerShell execution",
+              severity: "high",
+              status: "new",
+              serviceSource: "microsoftDefenderForEndpoint",
+              alertWebUrl: "https://security.microsoft.com/alerts/alert_1",
+              lastUpdateDateTime: "2026-04-28T09:42:00.000Z"
+            }
+          ]
         }
       };
     }
@@ -210,14 +307,18 @@ const user = (id: string, displayName: string) => ({
   userType: "Member"
 });
 
-const createCredential = (roles: string[]): Microsoft365StoredCredential => ({
+const createCredential = (
+  roles: string[],
+  options: { cloudEnvironment?: Microsoft365CloudEnvironment } = {}
+): Microsoft365StoredCredential => ({
   tenantId,
   accessToken: jwt({ roles }),
   tokenType: "Bearer",
   expiresAt: "2026-04-28T11:00:00.000Z",
   grantedPermissions: roles,
   requestedPermissionBundles: ["m365_read_baseline", "m365_security_read"],
-  consentedAt: "2026-04-28T10:00:00.000Z"
+  consentedAt: "2026-04-28T10:00:00.000Z",
+  cloudEnvironment: options.cloudEnvironment
 });
 
 const createConnectedStore = async (input: {
@@ -242,6 +343,9 @@ const createConnectedStore = async (input: {
 
 describe("microsoft365 consent graph sync permissions redaction", () => {
   it("generates a read-only Microsoft admin-consent URL and rejects write bundles", async () => {
+    expect(baselinePermissions).toEqual(expect.arrayContaining(["Policy.Read.All", "AuditLog.Read.All"]));
+    expect(securityPermissions).toEqual(expect.arrayContaining(["SecurityAlert.Read.All"]));
+
     const connector = createMicrosoft365Connector({
       clientId: "client-id",
       clientSecret: "client-secret",
@@ -334,7 +438,7 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     ).rejects.toMatchObject({ code: "microsoft365_tenant_mismatch" });
   });
 
-  it("syncs tenant, license, users, groups, roles, apps, and secure score through mocked Graph", async () => {
+  it("syncs tenant, license, identity, policy, audit, sign-in, app, and secure score modules through mocked Graph", async () => {
     const credential = createCredential([...baselinePermissions, ...securityPermissions]);
     const { store, connection } = await createConnectedStore({ credential });
     const connector = createMicrosoft365Connector({
@@ -355,7 +459,44 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     expect(result.rawResources.some((resource) => resource.externalResourceType === "subscribedSku")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_user")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_application")).toBe(true);
+    expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_policy")).toBe(true);
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "directoryAudit")).toBe(true);
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "signIn")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_secure_score")).toBe(true);
+  });
+
+  it("syncs Defender XDR incidents and alerts into provider-neutral resources, findings, and manual recommendations", async () => {
+    const credential = createCredential([...baselinePermissions, ...securityPermissions]);
+    const { store, connection } = await createConnectedStore({ credential });
+    const connector = createMicrosoft365Connector({
+      clientId: "client-id",
+      graphHttpClient: createFixtureGraphHttpClient("healthy"),
+      staticCredential: credential,
+      now: fixedNow
+    });
+
+    const result = await runProviderConnectorPipeline({
+      connector,
+      store,
+      organizationId: "org_1",
+      providerConnectionId: connection.id,
+      requestedModules: ["licensing", "defender-xdr"]
+    });
+
+    expect(result.modules.find((module) => module.moduleKey === "defender-xdr")?.status).toBe("succeeded");
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "incident")).toBe(true);
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "securityAlert")).toBe(true);
+    expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_incident")).toBe(true);
+    expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_security_alert")).toBe(true);
+    expect(result.findings.map((finding) => finding.evidence.signalKey)).toEqual(
+      expect.arrayContaining(["high_severity_incident", "high_severity_alert"])
+    );
+    expect(result.recommendations[0]).toMatchObject({
+      title: "Triage high severity Defender incident",
+      automationMode: "manual",
+      requiredPermissions: ["SecurityIncident.Read.All"],
+      requiredLicense: ["DEFENDER_XDR"]
+    });
   });
 
   it("handles Graph pagination through nextLink fixtures", async () => {
@@ -466,6 +607,95 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
       requestedModules: ["tenant-profile"]
     });
     expect(revokedResult.modules[0]?.status).toBe("revoked_consent");
+  });
+
+  it("records Defender missing alert permission, unsupported posture modules, national-cloud limits, and connector errors", async () => {
+    const defenderMissingPermissionCredential = createCredential([
+      ...baselinePermissions,
+      "SecurityEvents.Read.All",
+      "SecurityIncident.Read.All"
+    ]);
+    const { store: permissionStore, connection: permissionConnection } = await createConnectedStore({
+      credential: defenderMissingPermissionCredential
+    });
+    const permissionConnector = createMicrosoft365Connector({
+      clientId: "client-id",
+      graphHttpClient: createFixtureGraphHttpClient("healthy"),
+      staticCredential: defenderMissingPermissionCredential,
+      now: fixedNow
+    });
+    const permissionResult = await runProviderConnectorPipeline({
+      connector: permissionConnector,
+      store: permissionStore,
+      organizationId: "org_1",
+      providerConnectionId: permissionConnection.id,
+      requestedModules: ["licensing", "defender-xdr"]
+    });
+    expect(permissionResult.modules.find((module) => module.moduleKey === "defender-xdr")?.status).toBe(
+      "missing_permission"
+    );
+    expect(permissionResult.modules.find((module) => module.moduleKey === "defender-xdr")?.missingPermissions).toEqual([
+      "SecurityAlert.Read.All"
+    ]);
+
+    const unsupportedCredential = createCredential(baselinePermissions);
+    const { store: unsupportedStore, connection: unsupportedConnection } = await createConnectedStore({
+      credential: unsupportedCredential
+    });
+    const unsupportedConnector = createMicrosoft365Connector({
+      clientId: "client-id",
+      graphHttpClient: createFixtureGraphHttpClient("healthy"),
+      staticCredential: unsupportedCredential,
+      now: fixedNow
+    });
+    const unsupportedResult = await runProviderConnectorPipeline({
+      connector: unsupportedConnector,
+      store: unsupportedStore,
+      organizationId: "org_1",
+      providerConnectionId: unsupportedConnection.id,
+      requestedModules: ["exchange-posture"]
+    });
+    expect(unsupportedResult.modules[0]).toMatchObject({
+      moduleKey: "exchange-posture",
+      status: "unsupported_api"
+    });
+
+    const chinaCredential = createCredential([...baselinePermissions, ...securityPermissions], { cloudEnvironment: "china" });
+    const { store: chinaStore, connection: chinaConnection } = await createConnectedStore({ credential: chinaCredential });
+    const chinaConnector = createMicrosoft365Connector({
+      clientId: "client-id",
+      graphHttpClient: createFixtureGraphHttpClient("healthy"),
+      staticCredential: chinaCredential,
+      now: fixedNow
+    });
+    const chinaResult = await runProviderConnectorPipeline({
+      connector: chinaConnector,
+      store: chinaStore,
+      organizationId: "org_1",
+      providerConnectionId: chinaConnection.id,
+      requestedModules: ["secure-score", "defender-xdr"]
+    });
+    expect(chinaResult.modules.map((module) => module.status)).toEqual(["unsupported_api", "unsupported_api"]);
+    expect(chinaResult.modules[0]?.statusReason).toContain("china");
+
+    const failedCredential = createCredential(baselinePermissions);
+    const { store: failedStore, connection: failedConnection } = await createConnectedStore({ credential: failedCredential });
+    const failedConnector = createMicrosoft365Connector({
+      clientId: "client-id",
+      graphHttpClient: createFixtureGraphHttpClient("server_error"),
+      staticCredential: failedCredential,
+      now: fixedNow
+    });
+    const failedResult = await runProviderConnectorPipeline({
+      connector: failedConnector,
+      store: failedStore,
+      organizationId: "org_1",
+      providerConnectionId: failedConnection.id,
+      requestedModules: ["tenant-profile"]
+    });
+    expect(failedResult.modules[0]?.status).toBe("failed");
+    expect(JSON.stringify(failedResult)).not.toContain("fixture_access_token");
+    expect(JSON.stringify(failedResult)).not.toContain(failedCredential.accessToken);
   });
 
   it("redacts OAuth codes, access tokens, authorization headers, and refresh tokens from errors", async () => {
