@@ -21,8 +21,10 @@ export type {
 export type {
   ComplianceControlResultContract,
   ComplianceGapContract,
+  EvidenceAccessLogContract,
   DashboardSnapshotContract,
   EvidenceArtifactContract,
+  EvidenceLinkContract,
   GeneratedReportContract,
   NotificationDraftContract,
   ReadinessPlanContract,

@@ -24,6 +24,13 @@ export interface ComplianceControlResultContract {
   evidenceArtifactIds: string[];
   checklistRunItemIds: string[];
   summary: string;
+  evidenceCompleteness?: {
+    required: number;
+    present: number;
+    missing: number;
+    ratio: number;
+  };
+  sourceReferences?: Record<string, unknown>[];
   evaluatedAt: string;
 }
 
@@ -43,6 +50,7 @@ export interface ComplianceGapContract {
   providerSignals: string[];
   manualTasks: string[];
   countryPackWarnings: string[];
+  sourceReferences: Record<string, unknown>[];
 }
 
 export interface ReadinessPlanContract {
@@ -78,6 +86,7 @@ export interface ReadinessPlanItemContract {
   dependencies: string[];
   status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
   legalReviewRequired: boolean;
+  sourceReferences: Record<string, unknown>[];
 }
 
 export interface EvidenceArtifactContract {
@@ -100,11 +109,53 @@ export interface EvidenceArtifactContract {
     | "country_registration_draft"
     | "incident_reporting_draft";
   sourceProvider?: string;
+  providerConnectionId?: string;
+  manualSourceLabel?: string;
   title: string;
+  description?: string;
   storageUri: string;
   contentHashSha256: string;
   mimeType: string;
+  scanStatus?: "pending" | "clean" | "infected" | "failed" | "skipped";
   createdBy?: string;
+  createdAt: string;
+  validFrom?: string;
+  validUntil?: string;
+  linkedAssessmentId?: string;
+  linkedActionId?: string;
+  linkedSourceRecordId?: string;
+  exportGroupKey?: string;
+  retentionPolicy?: string;
+  retentionExpiresAt?: string;
+}
+
+export interface EvidenceLinkContract {
+  id: string;
+  organizationId: string;
+  evidenceArtifactId: string;
+  targetType:
+    | "control"
+    | "jurisdiction"
+    | "regulatory_source"
+    | "assessment"
+    | "provider_sync_run"
+    | "checklist_run"
+    | "action_run"
+    | "report"
+    | "notification_draft";
+  targetId: string;
+  relation: string;
+  createdAt: string;
+}
+
+export interface EvidenceAccessLogContract {
+  id: string;
+  organizationId: string;
+  evidenceArtifactId: string;
+  actorUserId?: string;
+  action: "download" | "export";
+  ipAddress?: string | null;
+  userAgent?: string | null;
   createdAt: string;
 }
 

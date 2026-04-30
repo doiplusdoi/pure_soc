@@ -9,9 +9,12 @@ export interface DashboardWidgetContract {
 }
 
 export interface DashboardSnapshotContract {
+  schemaVersion: "puresoc.dashboard.snapshot.v1";
   organizationId: string;
   assessmentId?: string;
+  snapshotType: "readiness_overview" | "evidence_overview" | "provider_overview" | string;
   source: DashboardSnapshotSource;
+  generatedAt: string;
   readinessScores: {
     euApplicability: number;
     countryPackCompleteness: number;
@@ -21,14 +24,23 @@ export interface DashboardSnapshotContract {
     overallInternalReadiness: number;
   };
   widgets: DashboardWidgetContract[];
+  sourceRecordCounts: {
+    controlResults: number;
+    gaps: number;
+    recommendations: number;
+    evidenceArtifacts: number;
+  };
 }
 
 export const createStoredAnalysisDashboardSnapshot = (
   organizationId: string,
   widgets: DashboardWidgetContract[] = []
 ): DashboardSnapshotContract => ({
+  schemaVersion: "puresoc.dashboard.snapshot.v1",
   organizationId,
+  snapshotType: "readiness_overview",
   source: "stored_analysis",
+  generatedAt: new Date(0).toISOString(),
   readinessScores: {
     euApplicability: 0,
     countryPackCompleteness: 0,
@@ -37,6 +49,11 @@ export const createStoredAnalysisDashboardSnapshot = (
     evidenceCompleteness: 0,
     overallInternalReadiness: 0
   },
-  widgets
+  widgets,
+  sourceRecordCounts: {
+    controlResults: 0,
+    gaps: 0,
+    recommendations: 0,
+    evidenceArtifacts: 0
+  }
 });
-

@@ -99,12 +99,12 @@ Status: Resolved 2026-04-28 for Phase G read-only onboarding and discovery bundl
 
 Severity: High
 Area: Evidence/reporting
-Current state: ADR-007 records the report-renderer strategy and ADR-008 records evidence metadata, access audit, object-storage, and export-model boundaries. The concrete implementation is not yet built.
-Impact: Evidence vault, reports, and dashboards now have a documented contract boundary, but implementation still needs cross-organization, access-audit, legal-caveat, and source-reference tests.
-Next action: Implement Prompt 9 using ADR-007 and ADR-008 as the output/evidence contract.
+Current state: ADR-007 records the report-renderer strategy and ADR-008 records evidence metadata, access audit, object-storage, and export-model boundaries. Phase I now adds evidence metadata/contracts, object-storage and upload-scanner interfaces, in-memory evidence storage, evidence-control/jurisdiction/source links, authorization-checked and audited downloads, stable JSON report/export builders, API routes, and tests for cross-organization rejection, legal caveats, source references, Romania source-mapped draft exports, dashboard aggregation, and JSON snapshot stability.
+Impact: The Phase I product contract is executable without making evidence or reports public by URL, and outputs are generated from stored analysis records. Runtime production adapters are still deferred: MinIO/S3 object storage, ClamAV or equivalent upload scanner service, persisted Prisma repositories, generated report evidence-package storage, and PDF rendering behind `apps/report-renderer`.
+Next action: Implement production storage/scanner/Prisma adapters and PDF rendering when runtime dependencies are wired; keep the current in-memory adapter as the contract and test harness.
 Owner: Codex
 Target phase: Phase I
-Status: Resolved 2026-04-28 for ADR coverage; implementation remains in Phase I.
+Status: Resolved 2026-04-30 for Phase I contracts, in-memory implementation, and output tests; production adapters remain deferred as runtime work.
 
 ### GAP-009: UX Design System Not Chosen
 
@@ -209,12 +209,12 @@ Status: Resolved 2026-04-28 for prompt coverage.
 
 Severity: High
 Area: Outputs/analytics
-Current state: Phase B added report and dashboard TypeScript contracts backed by stored analysis records, plus tests proving recommendations can feed plan items, reports, and dashboard signals. Concrete report builders, evidence package generation, and dashboard aggregation queries remain Phase I work.
-Impact: UI and output implementations now have stable contract shapes, but customer-facing builders still need implementation before the output gate is complete.
-Next action: Implement concrete report builders, legal-caveat checks, source-reference joins, and dashboard aggregation queries in Prompt 9.
+Current state: Phase B added report and dashboard TypeScript contracts backed by stored analysis records, plus tests proving recommendations can feed plan items, reports, and dashboard signals. Phase I now adds concrete internal readiness report builders, Romania notification draft JSON export builders, stable JSON export serialization, dashboard aggregation from stored control/gap/recommendation/evidence records, dashboard snapshot records, and API routes that reject cross-organization access.
+Impact: Reports and dashboards now have executable builders with legal caveats and regulatory source references. PDF rendering, CSV table exports, and full evidence-package binary bundling remain deferred to the production renderer/storage adapters tracked under GAP-008.
+Next action: Expand renderer templates and export formats after the production report-renderer and object-storage adapters are wired.
 Owner: Codex
 Target phase: Phase B/I
-Status: Resolved 2026-04-28 for Phase B contracts; Phase I builders remain planned.
+Status: Resolved 2026-04-30 for Phase I JSON builders and dashboard aggregation; PDF/CSV/evidence-package binary exports remain deferred.
 
 ### GAP-020: Prisma Migration And Generated Client Workflow Not Wired
 
@@ -237,3 +237,14 @@ Next action: Expand the skeleton during Phase E importer work with persisted sou
 Owner: Codex/Product/legal
 Target phase: Phase D/E
 Status: Resolved 2026-04-28 for Phase D skeleton; persistence and review workflow remain tracked by GAP-006 and Phase E tasks.
+
+### GAP-021: Control Catalog Coverage And Readiness Scoring Need Product Calibration
+
+Severity: Medium
+Area: Compliance engine/scoring
+Current state: Phase H added a provider-neutral control catalog seed loader, initial source-linked EU controls, provider finding mappings, evidence completeness, gap generation, structured recommendations, readiness plan items, and checklist generation. The current readiness status is an internal operational model and intentionally does not claim legal certification.
+Impact: The engine can prove the control-result -> gap -> recommendation -> readiness-plan flow, but the catalog only covers the first representative controls and does not yet encode a product-approved weighting/scoring methodology across the full NIS2 baseline and country overlays.
+Next action: Expand the control catalog to the full EU baseline and reviewed country overlays, define score weighting and stale-evidence rules with product/legal, and keep score labels framed as internal readiness only.
+Owner: Product/legal/Codex
+Target phase: Phase H/I
+Status: Open

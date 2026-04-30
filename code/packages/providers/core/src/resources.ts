@@ -159,6 +159,7 @@ export interface ProviderRecommendationInput {
   blastRadius?: string;
   manualFallback?: string;
   evidenceRequired: boolean;
+  sourceReferences?: Record<string, unknown>[];
   status?: ProviderRecommendationStatus;
 }
 
@@ -184,6 +185,7 @@ export interface ProviderRecommendation {
   blastRadius?: string;
   manualFallback?: string;
   evidenceRequired: boolean;
+  sourceReferences?: Record<string, unknown>[];
   status: ProviderRecommendationStatus;
   createdAt: string;
   updatedAt: string;

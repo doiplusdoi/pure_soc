@@ -2,6 +2,7 @@ import type { IncomingMessage, ServerResponse } from "node:http";
 
 import { assertNoSensitiveResponseFields } from "../../../packages/audit/src/index";
 import { AuthError } from "../../../packages/auth/core/src/index";
+import { EvidenceAccessError } from "../../../packages/evidence/src/index";
 
 export interface RequestContext {
   ipAddress: string | null;
@@ -66,6 +67,18 @@ export const clearSessionCookie = (): string =>
 
 export const toJsonResultError = (error: unknown): JsonResult => {
   if (error instanceof AuthError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof EvidenceAccessError) {
     return {
       statusCode: error.statusCode,
       body: {

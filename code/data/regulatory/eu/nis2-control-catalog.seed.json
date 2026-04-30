@@ -1,0 +1,186 @@
+{
+  "schemaVersion": "0.1.0",
+  "frameworkKey": "nis2",
+  "catalogVersion": "phase-h-0.1.0",
+  "jurisdiction": "EU",
+  "jurisdictionScope": "EU",
+  "manualChecklistTemplates": [
+    {
+      "id": "risk-policy-review",
+      "title": "Review risk analysis and security policy evidence",
+      "frequency": "quarterly",
+      "items": [
+        {
+          "key": "risk-policy-current",
+          "title": "Confirm the risk analysis and information security policy are current",
+          "description": "Attach the latest approved risk analysis or policy evidence."
+        },
+        {
+          "key": "risk-register-review",
+          "title": "Confirm open risks were reviewed by the assigned owner",
+          "description": "Record review outcome and risk owner."
+        }
+      ]
+    },
+    {
+      "id": "mfa-rollout-review",
+      "title": "Review privileged user MFA coverage",
+      "frequency": "monthly",
+      "items": [
+        {
+          "key": "admin-mfa-coverage",
+          "title": "Confirm privileged accounts are covered by MFA policy",
+          "description": "Attach provider export or manual attestation for privileged MFA coverage."
+        }
+      ]
+    },
+    {
+      "id": "incident-handling-review",
+      "title": "Review incident handling process",
+      "frequency": "weekly",
+      "items": [
+        {
+          "key": "open-incident-triage",
+          "title": "Triage open high-severity incidents and attach evidence",
+          "description": "Record owner, status, and retained incident response evidence."
+        },
+        {
+          "key": "incident-contact-validation",
+          "title": "Validate incident reporting contacts",
+          "description": "Confirm reporting contacts and escalation route are still valid."
+        }
+      ]
+    }
+  ],
+  "controls": [
+    {
+      "id": "nis2.risk-policy",
+      "code": "NIS2-EU-RISK-001",
+      "title": "Risk analysis and information system security policies",
+      "description": "Maintain risk analysis and information system security policies as internal readiness evidence.",
+      "controlGroup": "NIS2-EU-RISK",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(a)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "risk-policy-evidence",
+          "title": "Approved risk analysis or information security policy",
+          "description": "Current policy, risk register, or management-approved review evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["risk-policy-review"]
+    },
+    {
+      "id": "nis2.access-control.mfa",
+      "code": "NIS2-EU-MFA-001",
+      "title": "Multi-factor authentication and secure communications where appropriate",
+      "description": "Privileged access should be covered by MFA or equivalent strong authentication controls.",
+      "controlGroup": "NIS2-EU-MFA",
+      "implementationType": "technical",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(j)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [
+        {
+          "providerKey": "microsoft365",
+          "moduleKey": "identity-posture",
+          "signalKeys": ["admin_mfa_missing", "mock.identity.admin_mfa_missing.admin_1"],
+          "recommendationKeys": ["enable_admin_mfa", "mock.identity.admin_mfa_missing.admin_1"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": [],
+          "permissionRequirements": ["Directory.Read.All"]
+        },
+        {
+          "providerKey": "mock",
+          "moduleKey": "identity-posture",
+          "signalKeys": ["admin_mfa_missing", "mock.identity.admin_mfa_missing.admin_1"],
+          "recommendationKeys": ["enable_admin_mfa", "mock.identity.admin_mfa_missing.admin_1"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": [],
+          "permissionRequirements": ["Directory.Read.All"]
+        }
+      ],
+      "evidenceRequired": [
+        {
+          "requirementKey": "mfa-coverage-evidence",
+          "title": "Privileged MFA coverage evidence",
+          "description": "Provider export, policy evidence, or manual attestation for privileged MFA coverage."
+        }
+      ],
+      "manualChecklistTemplateIds": ["mfa-rollout-review"]
+    },
+    {
+      "id": "nis2.incident-handling",
+      "code": "NIS2-EU-INC-001",
+      "title": "Incident handling",
+      "description": "Maintain incident handling procedures and evidence for open incident triage.",
+      "controlGroup": "NIS2-EU-INC",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(b)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        },
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "23",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [
+        {
+          "providerKey": "microsoft365",
+          "moduleKey": "defender-xdr",
+          "signalKeys": ["mock.defender.high_incident.incident_1", "high_severity_incident"],
+          "recommendationKeys": ["triage_high_severity_incident"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": ["DEFENDER_XDR"],
+          "permissionRequirements": ["SecurityIncident.Read.All"]
+        },
+        {
+          "providerKey": "mock",
+          "moduleKey": "defender-xdr",
+          "signalKeys": ["mock.defender.high_incident.incident_1", "high_severity_incident"],
+          "recommendationKeys": ["triage_high_severity_incident"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": ["DEFENDER_XDR"],
+          "permissionRequirements": ["SecurityIncident.Read.All"]
+        }
+      ],
+      "evidenceRequired": [
+        {
+          "requirementKey": "incident-handling-evidence",
+          "title": "Incident handling procedure or triage record",
+          "description": "Incident response process, tabletop record, or retained incident triage evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["incident-handling-review"]
+    }
+  ]
+}

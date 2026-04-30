@@ -1,4 +1,9 @@
 export {
+  generateStructuredRecommendations,
+  type GenerateStructuredRecommendationsInput,
+  type ProviderRecommendationLike
+} from "./generator";
+export {
   recommendationToDashboardSignal,
   recommendationToReadinessPlanItemInput,
   recommendationToReportFinding,

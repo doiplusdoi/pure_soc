@@ -744,6 +744,7 @@ model ProviderRecommendation {
   manualFallback       String?              @map("manual_fallback")
   evidenceRequired     Boolean              @default(false) @map("evidence_required")
   status               RecommendationStatus @default(proposed)
+  sourceReferencesJson Json                 @default("[]") @map("source_references_json")
   createdAt            DateTime             @default(now()) @map("created_at")
   updatedAt            DateTime             @updatedAt @map("updated_at")
 
@@ -1084,6 +1085,8 @@ model ComplianceControlResult {
   evidenceArtifactIds String[]    @map("evidence_artifact_ids")
   checklistRunItemIds String[]    @map("checklist_run_item_ids")
   summary        String
+  evidenceCompletenessJson Json    @default("{}") @map("evidence_completeness_json")
+  sourceReferencesJson Json        @default("[]") @map("source_references_json")
   evaluatedAt    DateTime         @default(now()) @map("evaluated_at")
 
   @@unique([assessmentId, controlId, jurisdiction], map: "compliance_control_results_assessment_control_jurisdiction_key")
@@ -1107,6 +1110,7 @@ model ComplianceGap {
   providerSignalsJson Json           @default("[]") @map("provider_signals_json")
   manualTasksJson    Json            @default("[]") @map("manual_tasks_json")
   countryPackWarningsJson Json       @default("[]") @map("country_pack_warnings_json")
+  sourceReferencesJson Json          @default("[]") @map("source_references_json")
   createdAt          DateTime        @default(now()) @map("created_at")
 
   @@map("compliance_gaps")
@@ -1142,6 +1146,7 @@ model ReadinessPlanItem {
   dependenciesJson    Json                 @default("[]") @map("dependencies_json")
   status              RecommendationStatus @default(proposed)
   legalReviewRequired Boolean              @default(false) @map("legal_review_required")
+  sourceReferencesJson Json                @default("[]") @map("source_references_json")
   createdAt           DateTime             @default(now()) @map("created_at")
 
   @@map("readiness_plan_items")
@@ -1215,6 +1220,8 @@ model EvidenceArtifact {
   jurisdiction         String?
   sourceType           EvidenceSourceType @map("source_type")
   sourceProvider       String?            @map("source_provider")
+  providerConnectionId String?            @map("provider_connection_id") @db.Uuid
+  manualSourceLabel    String?            @map("manual_source_label")
   title                String
   description          String?
   storageUri           String             @map("storage_uri")
@@ -1230,6 +1237,8 @@ model EvidenceArtifact {
   linkedActionId       String?            @map("linked_action_id") @db.Uuid
   linkedSourceRecordId String?            @map("linked_source_record_id") @db.Uuid
   exportGroupKey       String?            @map("export_group_key")
+  retentionPolicy      String?            @map("retention_policy")
+  retentionExpiresAt   DateTime?          @map("retention_expires_at")
 
   @@map("evidence_artifacts")
 }

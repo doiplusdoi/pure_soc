@@ -2,6 +2,16 @@ import { randomUUID } from "node:crypto";
 
 import { defaultRoleDefinitions, normalizeEmail, type PureSocRoleKey } from "../../../../packages/auth/core/src/index";
 import type {
+  EvidenceAccessLogEntry,
+  EvidenceArtifactMetadata,
+  EvidenceRepository
+} from "../../../../packages/evidence/src/index";
+import type {
+  DashboardSnapshotRecord,
+  GeneratedReportRecord,
+  StoredAnalysisRecord
+} from "../output-records";
+import type {
   CreateLocalAccountInput,
   EmailVerificationTokenRecord,
   IdentityAccountRecord,
@@ -14,7 +24,9 @@ import type {
 import type { OrganizationRecord, OrganizationRepository } from "../organizations/service";
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
-export class InMemoryPureSocRepository implements LocalAuthRepository, OrganizationRepository, RbacRepository {
+export class InMemoryPureSocRepository
+  implements LocalAuthRepository, OrganizationRepository, RbacRepository, EvidenceRepository
+{
   readonly users = new Map<string, LocalAuthUserRecord>();
   readonly identityAccounts = new Map<string, IdentityAccountRecord>();
   readonly localCredentials = new Map<string, LocalCredentialRecord>();
@@ -25,6 +37,11 @@ export class InMemoryPureSocRepository implements LocalAuthRepository, Organizat
   readonly organizationMembers = new Map<string, OrganizationMembershipRecord>();
   readonly roles = new Map<string, RoleRecord>();
   readonly roleBindings = new Map<string, RoleBindingRecord>();
+  readonly evidenceArtifacts = new Map<string, EvidenceArtifactMetadata>();
+  readonly evidenceAccessLogs: EvidenceAccessLogEntry[] = [];
+  readonly storedAnalyses = new Map<string, StoredAnalysisRecord>();
+  readonly generatedReports = new Map<string, GeneratedReportRecord>();
+  readonly dashboardSnapshots = new Map<string, DashboardSnapshotRecord>();
 
   constructor() {
     const now = new Date("2026-04-28T00:00:00.000Z");
@@ -243,4 +260,71 @@ export class InMemoryPureSocRepository implements LocalAuthRepository, Organizat
       createdAt: new Date()
     });
   }
+
+  async saveArtifact(artifact: EvidenceArtifactMetadata): Promise<EvidenceArtifactMetadata> {
+    this.evidenceArtifacts.set(artifact.id, artifact);
+    return artifact;
+  }
+
+  async findArtifactById(id: string): Promise<EvidenceArtifactMetadata | null> {
+    return this.evidenceArtifacts.get(id) ?? null;
+  }
+
+  async listArtifacts(organizationId: string): Promise<EvidenceArtifactMetadata[]> {
+    return [...this.evidenceArtifacts.values()].filter((artifact) => artifact.organizationId === organizationId);
+  }
+
+  async saveAccessLog(entry: EvidenceAccessLogEntry): Promise<EvidenceAccessLogEntry> {
+    this.evidenceAccessLogs.push(entry);
+    return entry;
+  }
+
+  async listAccessLogs(organizationId: string, evidenceArtifactId?: string): Promise<EvidenceAccessLogEntry[]> {
+    return this.evidenceAccessLogs.filter(
+      (entry) =>
+        entry.organizationId === organizationId &&
+        (evidenceArtifactId === undefined || entry.evidenceArtifactId === evidenceArtifactId)
+    );
+  }
+
+  async saveStoredAnalysis(record: StoredAnalysisRecord): Promise<StoredAnalysisRecord> {
+    this.storedAnalyses.set(storedAnalysisKey(record.organizationId, record.assessmentId), record);
+    return record;
+  }
+
+  async findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord | null> {
+    return this.storedAnalyses.get(storedAnalysisKey(organizationId, assessmentId)) ?? null;
+  }
+
+  async saveGeneratedReport(record: GeneratedReportRecord): Promise<GeneratedReportRecord> {
+    this.generatedReports.set(record.id, record);
+    return record;
+  }
+
+  async findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecord | null> {
+    const report = this.generatedReports.get(reportId);
+    return report && report.organizationId === organizationId ? report : null;
+  }
+
+  async saveDashboardSnapshot(record: DashboardSnapshotRecord): Promise<DashboardSnapshotRecord> {
+    this.dashboardSnapshots.set(record.id, record);
+    return record;
+  }
+
+  async findLatestDashboardSnapshot(
+    organizationId: string,
+    assessmentId?: string
+  ): Promise<DashboardSnapshotRecord | null> {
+    const snapshots = [...this.dashboardSnapshots.values()]
+      .filter(
+        (snapshot) =>
+          snapshot.organizationId === organizationId &&
+          (assessmentId === undefined || snapshot.assessmentId === assessmentId)
+      )
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
+
+    return snapshots[0] ?? null;
+  }
 }
+
+const storedAnalysisKey = (organizationId: string, assessmentId: string): string => `${organizationId}:${assessmentId}`;

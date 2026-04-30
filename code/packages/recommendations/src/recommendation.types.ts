@@ -1,3 +1,5 @@
+import type { SourceReference } from "../../compliance/core/src/index";
+
 export type RecommendationSeverity = "low" | "medium" | "high" | "critical";
 
 export type RecommendationAutomationMode = "manual" | "guided" | "preflightable" | "executable_later";
@@ -30,6 +32,7 @@ export interface RecommendationContract {
   manualFallback?: string;
   evidenceRequired: boolean;
   status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+  sourceReferences?: SourceReference[];
 }
 
 export interface RecommendationPlanItemInput {
@@ -44,6 +47,10 @@ export interface RecommendationPlanItemInput {
   evidenceRequired: boolean;
   dependencies: string[];
   legalReviewRequired: boolean;
+  ownerUserId?: string;
+  dueDate?: string;
+  status?: RecommendationContract["status"];
+  sourceReferences?: SourceReference[];
 }
 
 export interface RecommendationReportFinding {
@@ -53,6 +60,7 @@ export interface RecommendationReportFinding {
   severity: RecommendationSeverity;
   summary: string;
   requiredEvidence: boolean;
+  sourceReferences?: SourceReference[];
 }
 
 export interface RecommendationDashboardSignal {
@@ -60,6 +68,7 @@ export interface RecommendationDashboardSignal {
   severity: RecommendationSeverity;
   automationMode: RecommendationAutomationMode;
   evidenceRequired: boolean;
+  sourceReferenceCount?: number;
 }
 
 export const recommendationToReadinessPlanItemInput = (
@@ -78,7 +87,9 @@ export const recommendationToReadinessPlanItemInput = (
   dependencies: [...recommendation.requiredPermissions, ...recommendation.requiredLicense],
   legalReviewRequired:
     recommendation.recommendationType === "country_registration" ||
-    recommendation.recommendationType === "incident_reporting"
+    recommendation.recommendationType === "incident_reporting",
+  status: recommendation.status,
+  sourceReferences: recommendation.sourceReferences
 });
 
 export const recommendationToReportFinding = (
@@ -89,7 +100,8 @@ export const recommendationToReportFinding = (
   title: recommendation.title,
   severity: recommendation.severity,
   summary: recommendation.summary,
-  requiredEvidence: recommendation.evidenceRequired
+  requiredEvidence: recommendation.evidenceRequired,
+  sourceReferences: recommendation.sourceReferences
 });
 
 export const recommendationToDashboardSignal = (
@@ -98,6 +110,6 @@ export const recommendationToDashboardSignal = (
   key: recommendation.id,
   severity: recommendation.severity,
   automationMode: recommendation.automationMode,
-  evidenceRequired: recommendation.evidenceRequired
+  evidenceRequired: recommendation.evidenceRequired,
+  sourceReferenceCount: recommendation.sourceReferences?.length
 });
-

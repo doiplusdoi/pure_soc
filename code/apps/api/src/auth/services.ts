@@ -8,6 +8,11 @@ import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "../../../../packages/providers/core/src/index";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
+import { ComplianceEvaluationService } from "../compliance/service";
+import { RecommendationApiService } from "../recommendations/service";
+import { EvidenceApiService } from "../evidence/service";
+import { DashboardApiService } from "../dashboards/service";
+import { ReportApiService } from "../reports/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
 
 export interface ApiServices {
@@ -18,6 +23,11 @@ export interface ApiServices {
   organizations: OrganizationService;
   providerConnections: ProviderConnectionsService;
   microsoft365ProviderConnections: Microsoft365ProviderConnectionService;
+  compliance: ComplianceEvaluationService;
+  recommendations: RecommendationApiService;
+  evidence: EvidenceApiService;
+  reports: ReportApiService;
+  dashboards: DashboardApiService;
 }
 
 export const createApiServices = (options: { now?: () => Date } = {}): ApiServices => {
@@ -55,6 +65,25 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     auditWriter,
     now: options.now
   });
+  const compliance = new ComplianceEvaluationService({
+    store: providerStore,
+    analysisRepository: repository,
+    now: options.now
+  });
+  const recommendations = new RecommendationApiService();
+  const evidence = new EvidenceApiService({
+    repository,
+    auditWriter,
+    now: options.now
+  });
+  const reports = new ReportApiService({
+    repository,
+    now: options.now
+  });
+  const dashboards = new DashboardApiService({
+    repository,
+    now: options.now
+  });
 
   return {
     repository,
@@ -63,6 +92,11 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     localAuth,
     organizations,
     providerConnections,
-    microsoft365ProviderConnections
+    microsoft365ProviderConnections,
+    compliance,
+    recommendations,
+    evidence,
+    reports,
+    dashboards
   };
 };

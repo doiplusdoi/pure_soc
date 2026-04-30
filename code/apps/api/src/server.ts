@@ -3,6 +3,7 @@ import { createServer } from "node:http";
 import { getApiHealth } from "./health";
 import { loginRoute, logoutRoute, registerRoute, sessionRoute } from "./auth/routes";
 import { countryPackStatusRoute } from "./compliance/nis2/routes";
+import { evaluateComplianceAssessmentRoute } from "./compliance/routes";
 import {
   roNis2ClassificationRoute,
   roNis2NotificationDraftRoute,
@@ -23,6 +24,13 @@ import {
   getMicrosoft365ConnectionHealthRoute,
   runMicrosoft365SyncRoute
 } from "./provider-connections/microsoft365/routes";
+import { generateRecommendationsRoute } from "./recommendations/routes";
+import { downloadEvidenceRoute, listEvidenceRoute, uploadEvidenceRoute } from "./evidence/routes";
+import {
+  buildInternalReadinessReportRoute,
+  buildRomaniaNotificationDraftReportRoute
+} from "./reports/routes";
+import { createDashboardSnapshotRoute } from "./dashboards/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   const server = createServer(async (request, response) => {
@@ -60,6 +68,120 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
       if (request.method === "GET" && url.pathname === "/compliance/nis2/country-packs/status") {
         sendJson(response, await countryPackStatusRoute());
+        return;
+      }
+
+      const complianceEvaluateRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/compliance\/evaluate$/);
+      if (complianceEvaluateRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await evaluateComplianceAssessmentRoute(
+            complianceEvaluateRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const recommendationRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/recommendations\/generate$/);
+      if (recommendationRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await generateRecommendationsRoute(
+            recommendationRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const evidenceCollectionRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence$/);
+      if (evidenceCollectionRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listEvidenceRoute(evidenceCollectionRouteMatch[1] ?? "", request.headers.cookie, services)
+        );
+        return;
+      }
+
+      const evidenceUploadRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence\/upload$/);
+      if (evidenceUploadRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await uploadEvidenceRoute(
+            evidenceUploadRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const evidenceDownloadRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence\/([^/]+)\/download$/);
+      if (evidenceDownloadRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await downloadEvidenceRoute(
+            evidenceDownloadRouteMatch[1] ?? "",
+            evidenceDownloadRouteMatch[2] ?? "",
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const internalReadinessReportRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/reports\/internal-readiness$/
+      );
+      if (internalReadinessReportRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await buildInternalReadinessReportRoute(
+            internalReadinessReportRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const romaniaNotificationReportRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/
+      );
+      if (romaniaNotificationReportRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await buildRomaniaNotificationDraftReportRoute(
+            romaniaNotificationReportRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const dashboardSnapshotRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/dashboards\/snapshots$/);
+      if (dashboardSnapshotRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createDashboardSnapshotRoute(
+            dashboardSnapshotRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            services
+          )
+        );
         return;
       }
 

@@ -117,4 +117,5 @@ export interface ProviderRecommendationRecord {
   manualFallback?: string;
   evidenceRequired: boolean;
   status: "proposed" | "accepted" | "planned" | "completed" | "dismissed";
+  sourceReferences?: Record<string, unknown>[];
 }
