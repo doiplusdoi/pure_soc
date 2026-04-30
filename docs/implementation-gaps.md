@@ -176,12 +176,12 @@ Status: Resolved 2026-04-28 for schema and data-contract baseline.
 
 Severity: High
 Area: Codex execution
-Current state: The previous prompt suite was uneven against `docs/prompt-tests.md`. `docs/codex-prompts.md` now includes a required template and project-specific prompts with expected files, constraints, tests, acceptance commands, and gap updates.
-Impact: Future prompts can still drift if not checked after phases.
+Current state: The initial prompt suite was rewritten on 2026-04-28. On 2026-04-30, `docs/codex-prompts.md` was refreshed again after implementation and `docs/claude_rec.md` review; completed Phase A through contract-level Phase I output prompts were removed from the active list, and next-step prompts now target hardening, persistence, billing, production adapters, remediation, UI, OIDC, Microsoft expansion, catalog/scoring, and release review. The prompt suite and `docs/PLAN.md` now require every prompt run to update its current `docs/PLAN_Mx.md`, update `docs/codex-prompts.md`, and create the next `PLAN_M{x+1}.md` stub; `docs/PLAN_M2.md` starts the new active sequence.
+Impact: Future prompts can still drift if not checked after phases, but the active suite no longer asks Codex to reimplement completed slices and now has an explicit milestone handoff mechanism.
 Next action: Use Prompt 14 after each phase to audit prompt quality and update gaps.
 Owner: Codex
 Target phase: Ongoing
-Status: Resolved 2026-04-28 for initial prompt rewrite; ongoing QA remains required.
+Status: Resolved 2026-04-30 for refreshed next-step prompt suite; ongoing QA remains required.
 
 ### GAP-016: Provider Connector Test Harness Incomplete
 
@@ -198,12 +198,12 @@ Status: Resolved 2026-04-28 for the provider-neutral mock harness.
 
 Severity: Medium
 Area: Billing
-Current state: A dedicated billing prompt now exists as Prompt 10, covering provider abstraction, Stripe, webhook idempotency, entitlements, and `BILLING_PROVIDER=none`. Product pricing and plan definitions remain tracked in GAP-012.
+Current state: A dedicated billing prompt now exists as Prompt 6 in `docs/codex-prompts.md`, covering provider abstraction, Stripe, webhook idempotency, entitlements, and `BILLING_PROVIDER=none`. Product pricing and plan definitions remain tracked in GAP-012.
 Impact: Billing implementation is now executable, but product entitlements still need business decisions.
-Next action: Keep GAP-012 open; run Prompt 10 when Phase I billing foundation starts.
+Next action: Keep GAP-012 open; run Prompt 6 when billing foundation starts.
 Owner: Codex/Product
 Target phase: Phase I
-Status: Resolved 2026-04-28 for prompt coverage.
+Status: Resolved 2026-04-30 for refreshed prompt coverage.
 
 ### GAP-018: Dashboard And Report Data Contracts Not Implemented
 
@@ -247,4 +247,48 @@ Impact: The engine can prove the control-result -> gap -> recommendation -> read
 Next action: Expand the control catalog to the full EU baseline and reviewed country overlays, define score weighting and stale-evidence rules with product/legal, and keep score labels framed as internal readiness only.
 Owner: Product/legal/Codex
 Target phase: Phase H/I
+Status: Open
+
+### GAP-022: Compliance Results Are Not Persisted And Schema IDs Need Alignment
+
+Severity: High
+Area: Compliance persistence/database
+Current state: Phase H evaluation returns control results, gaps, recommendations, readiness plans, and checklist items, and Phase I output builders can store in-memory analysis records for tests. The Prisma schema still has control-reference fields typed as UUIDs while the control catalog and code use logical IDs such as `nis2.access-control.mfa`; there is no Prisma-backed repository for evaluation outputs.
+Impact: The first real persistence attempt can fail at the schema boundary, and reports, evidence links, dashboards, and action runs cannot reliably reference stable persisted evaluation records.
+Next action: Run Prompt 2 to align schema/contracts and Prompt 3 to add Prisma workflow plus a narrow repository adapter slice.
+Owner: Codex
+Target phase: Phase H/I hardening
+Status: Open
+
+### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
+
+Severity: High
+Area: Compliance engine correctness
+Current state: PLAN_M2 corrected `requires_legal_review` warning semantics and added provider-signal pending handling so provider-mapped controls cannot pass from silence. Completed manual fallback with evidence remains an explicit pass path. Regression tests cover legal-review warnings, no-signal provider-mapped controls, and manual fallback behavior.
+Impact: The evaluator now preserves regulatory-review uncertainty and avoids false readiness from missing provider signals in the current in-memory compliance flow.
+Next action: Keep expanding evaluator signal semantics during Prompt 2/Prompt 3 persistence alignment, especially if provider capability/module status becomes a persisted input.
+Owner: Codex
+Target phase: Phase H hardening
+Status: Resolved 2026-04-30 for PLAN_M2 evaluator semantics; persisted provider capability signal modeling remains future refinement.
+
+### GAP-024: Compliance And Recommendation Routes Need Typed Validation And Audit Coverage
+
+Severity: High
+Area: API security/compliance audit
+Current state: PLAN_M2 added hand-written request parsers for compliance evaluation and recommendation generation, removed unsafe casts on evidence/manual/country-pack/gap inputs, rejects mismatched recommendation gap organization IDs, returns `200` for synchronous evaluation, and audits `compliance.assessment.evaluated` plus `compliance.recommendations.generated` with actor, organization, assessment, and count summaries.
+Impact: Invalid or cross-organization request data is rejected before domain generation, and sensitive compliance analysis events now appear in the audit trail.
+Next action: Keep using the M2 validation helpers until Prompt 4 consolidates workspace imports/shared type boundaries or a later API contract pass introduces a validation library.
+Owner: Codex
+Target phase: Phase H hardening
+Status: Resolved 2026-04-30 for PLAN_M2 route validation and audit coverage.
+
+### GAP-025: Workspace Import Boundaries And Shared Type Contracts Need Consolidation
+
+Severity: Medium
+Area: Developer platform/domain boundaries
+Current state: Packages declare `@puresoc/*` names and exports, but many consumers import through deep relative paths. Related severity, recommendation, source-reference, and provider-finding shapes are duplicated across packages.
+Impact: Package boundaries are easy to bypass, circular dependencies can remain hidden, and type drift can appear before persistence and provider expansion are wired.
+Next action: Run Prompt 4 to switch cross-package imports to workspace exports, add a layout guard, and extract shared types only where they reduce drift.
+Owner: Codex
+Target phase: Platform hardening
 Status: Open

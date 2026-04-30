@@ -1,6 +1,8 @@
 # Codex Prompts
 
-Use these prompts as implementation tickets. Each implementation prompt must include source documents, expected files or packages, negative constraints, tests, acceptance commands, gap-register updates, and a final summary.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-04-30 after reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M1.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
+
+Completed Phase A through the contract-level Phase I output work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
 ## Repository Path Convention
 
@@ -17,7 +19,84 @@ data/regulatory -> code/data/regulatory
 
 Run package manager, test, and Compose commands from `code/`.
 
+## Current Implementation Baseline
+
+The repository currently contains:
+
+- Template-aligned `code/` monorepo, Compose catalog, config defaults, Dockerfiles, and smoke tests.
+- Prisma schema and TypeScript data contracts for identity, organizations, providers, regulatory sources, compliance, evidence, reports, dashboards, and billing.
+- Local auth, session, organization, RBAC, and audit foundations using in-memory repositories for API tests.
+- EU NIS2 foundation, all 27 member-state country-pack statuses, and source activation skeleton.
+- Romania workbook importer outputs, source maps, classification service, onboarding schema, and notification-draft contracts.
+- Provider-neutral connector contracts, connector runner, mock provider scenarios, and Microsoft 365 consent/read-only baseline with documented permission bundles.
+- Compliance evaluator, gap generation, recommendation generation, readiness plan, checklist generation, and representative control catalog.
+- Evidence metadata, access audit, JSON report/export builders, dashboard aggregation, and API routes backed by stored in-memory analysis records.
+- PLAN_M2 hardening: legal-review country-pack warnings, no-signal provider-mapped control guard, compliance/recommendation request validation, synchronous `200` evaluation response, and audit events for evaluation/recommendation generation.
+
+Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
+
+## Incremental Milestone Plan Rule
+
+Each active prompt is paired with an incremental milestone file under `docs/PLAN_Mx.md`.
+
+- `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
+- Prompt 1 / `docs/PLAN_M2.md` is completed.
+- Prompt 2 starts at `docs/PLAN_M3.md`.
+- Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
+
+During each prompt run:
+
+1. Create or update the current `docs/PLAN_Mx.md` at the start of implementation with scope, assumptions, expected files, validation plan, and expected gap movement.
+2. Complete the implementation and validation.
+3. Update the same `docs/PLAN_Mx.md` with actual changed files, validation results, acceptance status, gaps updated, residual risk, and deferred work.
+4. Update `docs/codex-prompts.md` based on the implementation results, retiring completed work and rewriting or reordering the remaining prompts as needed.
+5. Create the next `docs/PLAN_M{x+1}.md` stub from the next active prompt after `docs/codex-prompts.md` has been updated.
+
+## Active Prompt Order
+
+Recommended next sequence:
+
+1. Prompt 2 / `PLAN_M3`: Schema And Contract Alignment For Persistable Results.
+2. Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
+3. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
+4. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
+5. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+6. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+7. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+8. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+9. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+10. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+11. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+12. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+13. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+
+Prompts 5 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
+
 ## Required Prompt Template
+
+Each implementation prompt must include:
+
+```txt
+Read:
+- docs/puresoc_vision.md
+- docs/master-plan.md
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+```
+
+Add narrower source files, ADRs, skills, or review documents inside the prompt as needed.
+
+Each implementation prompt must include:
+
+```txt
+Negative constraints:
+- Do not put Microsoft-specific logic in generic compliance packages.
+- Do not put Romania-specific logic in EU baseline packages.
+- Do not hardcode regulatory facts in UI conditionals.
+- Do not add provider write/remediation actions unless the prompt explicitly asks for an approved safety-gated model.
+- Do not make legal certification claims.
+```
 
 Each implementation prompt must end with:
 
@@ -27,666 +106,492 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
+- PLAN_Mx updated
+- Next PLAN_Mx created
+- Codex prompts updated
 - Residual risk
 ```
 
-Each implementation prompt must also include:
+Gap updates:
 
 ```txt
-Read:
-- docs/puresoc_vision.md
-- docs/master-plan.md
-- docs/implementation-gaps.md
-
-Negative constraints:
-- Do not put Microsoft-specific logic in generic compliance packages.
-- Do not put Romania-specific logic in EU baseline packages.
-- Do not hardcode regulatory facts in UI conditionals.
-- Do not add provider write/remediation actions unless the prompt explicitly asks for an approved safety-gated path.
-- Do not make legal certification claims.
-
-Gap updates:
-- Update docs/implementation-gaps.md with blockers, assumptions, deferred decisions, or missing tests.
+Update docs/implementation-gaps.md with blockers, assumptions, deferred decisions, missing tests, or resolved gap status.
+Keep resolved gaps for auditability.
 ```
 
-## Prompt 1A: Bootstrap Monorepo And Service Image Catalog
+Milestone plan updates:
 
 ```txt
-You are implementing PureSOC Phase A.
+At the start of implementation:
+- Create or update the current docs/PLAN_Mx.md for this prompt.
+
+Before final response:
+- Update the same docs/PLAN_Mx.md with implementation results and validation.
+- Update docs/codex-prompts.md based on completed work, changed ordering, split prompts, or newly discovered gaps.
+- Create the next docs/PLAN_M{x+1}.md stub from the next active prompt.
+```
+
+## Completed Prompt 1 / PLAN_M2: Compliance Correctness, Input Validation, And Audit Hardening
+
+Completed on 2026-04-30.
+
+Summary:
+- `requires_legal_review` country-pack completeness now emits a visible warning.
+- Provider-mapped controls no longer pass from silence; they require a mapped signal or completed manual fallback with evidence.
+- Compliance and recommendation routes now validate request bodies before handing data to domain services.
+- Recommendation gaps with mismatched organizations are rejected.
+- Synchronous compliance evaluation returns `200`.
+- Compliance evaluation and recommendation generation write audit events with count summaries.
+- Caller-supplied manual tasks take precedence without generating unused checklist items.
+
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand compliance recommendations audit validation`
+
+## Prompt 2 / PLAN_M3: Schema And Contract Alignment For Persistable Results
+
+```txt
+You are aligning TypeScript contracts and Prisma schema before persistence is wired.
 
 Read:
-- docs/puresoc_vision.md
-- docs/master-plan.md
+- docs/puresoc_vision.md sections 14, 15, 17, 18, 21, 22
+- docs/master-plan.md sections 7, 13, 14, 15
 - docs/implementation-gaps.md
-- docs/prompt-tests.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md sections REC-001, REC-002, REC-007, REC-010, REC-021
+- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
+- docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md
+- docs/adr/ADR-012-dashboard-aggregation-and-report-data-contracts.md
 
 Goal:
-Create the TypeScript monorepo skeleton and Docker Compose service catalog. Compose is only a project-owned image/service manifest; do not design dev/staging/prod infrastructure.
+Make control IDs, severity types, date semantics, and evaluation output contracts persistable without surprising Prisma/database failures.
 
-Expected files/packages:
+Milestone plan:
+- Current milestone file: `docs/PLAN_M3.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M4.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M3.md
+- docs/PLAN_M4.md
+- docs/codex-prompts.md
+- packages/database/prisma/schema.prisma
+- packages/database/src/contracts/*.ts
+- packages/database/src/__tests__/*
+- packages/compliance/core/src/types.ts
+- packages/compliance/core/src/gaps.ts
+- packages/compliance/core/src/readiness-plan.ts
+- packages/recommendations/src/recommendation.types.ts
+- packages/providers/core/src/resources.ts if severity contracts are touched
+- packages/shared/src/index.ts if shared severity/source-reference types are extracted
+- docs/adr/* only if a new decision record is needed
+- docs/implementation-gaps.md
+
+Implement:
+- Resolve the mismatch between logical control IDs such as `nis2.access-control.mfa` and Prisma columns currently typed as UUIDs.
+- Choose and document a single actionable severity contract, or split `FindingSeverity` and `ActionableSeverity` across code and schema.
+- Preserve provider finding IDs and manual task IDs through gap/recommendation/readiness-plan outputs where downstream evidence or audit drilldown needs them.
+- Align readiness-plan due-date semantics with schema storage. Prefer date-only if that matches product behavior.
+- Add a `ComplianceResultRepository` contract or equivalent persistence-ready port for control results, gaps, recommendations, readiness plans, and checklist outputs.
+- Keep in-memory implementations available for existing tests until the Prisma adapter exists.
+
+Negative constraints:
+- Do not introduce Microsoft-specific IDs into generic compliance schema.
+- Do not rewrite the whole Prisma schema beyond the persistence-alignment fields needed here.
+- Do not remove legal source references from outputs.
+- Do not claim scores or persisted results represent legal certification.
+
+Tests:
+- Schema contract test proves control ID fields accept the implemented logical ID strategy.
+- Severity round-trip tests prevent `informational` recommendation/gap records if not supported.
+- Gap outputs retain finding/task identity alongside human summaries.
+- Readiness plan due-date test matches schema semantics.
+- Repository contract test covers write/read shape using in-memory implementation.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand database schema compliance gaps recommendations readiness-plan
+
+Gap updates:
+- Update GAP-022 and GAP-025.
+- Update GAP-020 only if Prisma client/migration work is intentionally deferred to Prompt 3.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M3 updated
+- PLAN_M4 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 3 / PLAN_M4: Prisma Migration, Generated Client, And Repository Adapter Slice
+
+```txt
+You are implementing the first real Prisma-backed persistence slice.
+
+Read:
+- docs/puresoc_vision.md sections 7, 21, 22, 27, 28
+- docs/master-plan.md sections 7, 13, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md sections REC-001, REC-002
+- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
+- Prompt 2 output and changed files
+
+Goal:
+Wire Prisma dependencies, generated client workflow, initial migration, and one narrow repository adapter so the in-memory runtime does not drift from the database contract.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M4.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M5.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M4.md
+- docs/PLAN_M5.md
+- docs/codex-prompts.md
 - package.json
-- pnpm-workspace.yaml
+- pnpm-lock.yaml
+- packages/database/package.json
+- packages/database/prisma/schema.prisma
+- packages/database/prisma/migrations/*
+- packages/database/src/client.ts
+- packages/database/src/repositories/*
+- packages/database/src/__tests__/*
+- apps/api/src/auth/services.ts only for dependency injection of the selected repository
+- apps/api/src/compliance/service.ts or output-record repository files if compliance persistence is the selected first slice
+- infra/compose/docker-compose*.yml only if test database wiring is needed
+
+Implement:
+- Add Prisma CLI/client dependencies and package scripts for validate/generate/migrate status where appropriate.
+- Generate an initial migration from the current schema after Prompt 2 contract alignment.
+- Implement one Prisma-backed repository slice, preferably compliance evaluation output persistence, because reports/dashboards/evidence require stored analysis records.
+- Keep in-memory repositories available for fast unit tests.
+- Add repository integration tests that can run deterministically in the project test environment.
+- Document how to run Prisma validation/generation from `code/`.
+
+Negative constraints:
+- Do not replace every in-memory repository in one broad pass.
+- Do not require live provider credentials or Stripe credentials.
+- Do not skip organization-scoped query filters.
+- Do not log provider credentials, auth tokens, reset tokens, or evidence URLs.
+
+Tests:
+- Prisma schema validates.
+- Prisma client generation works.
+- Repository integration test rejects cross-organization reads.
+- Repository integration test persists and reloads the selected slice.
+- Existing in-memory API tests still pass.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand database prisma repository compliance
+- pnpm exec prisma validate --schema packages/database/prisma/schema.prisma
+
+Gap updates:
+- Update GAP-020.
+- Update GAP-022 if compliance outputs become persistable.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M4 updated
+- PLAN_M5 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 4 / PLAN_M5: Workspace Import Policy And Shared Type Boundaries
+
+```txt
+You are tightening monorepo package boundaries.
+
+Read:
+- docs/puresoc_vision.md sections 5, 8, 10, 14
+- docs/master-plan.md sections 6, 7, 9, 13, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md sections REC-006, REC-009, REC-017, REC-023
+- docs/adr/ADR-001-template-aligned-monorepo.md
+- docs/adr/ADR-006-provider-interface-and-resource-lifecycle-versioning.md
+
+Goal:
+Stop deep relative cross-package imports from eroding package boundaries, and extract shared types where duplication is causing drift.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M5.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M6.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M5.md
+- docs/PLAN_M6.md
+- docs/codex-prompts.md
 - tsconfig.base.json
-- .env.example
-- apps/web
-- apps/api
-- apps/worker
-- apps/scheduler
-- apps/connector-runner
-- apps/regulatory-importer
-- apps/report-renderer
-- packages/shared
-- packages/config
-- packages/database
-- packages/audit
-- packages/providers/core
-- packages/providers/microsoft365
-- packages/providers/google-workspace
-- packages/providers/mock
-- packages/compliance/core
-- packages/compliance/nis2/eu
-- packages/compliance/nis2/implementing-regulation-2024-2690
-- packages/compliance/nis2/country-packs/core
-- packages/compliance/nis2/country-packs/ro
-- packages/recommendations
-- packages/evidence
-- packages/reports
-- packages/dashboards
+- package.json files for affected apps/packages
+- scripts/check-layout.mjs
+- packages/shared/src/*
+- packages/compliance/core/src/*
+- packages/providers/core/src/*
+- packages/recommendations/src/*
+- packages/reports/src/*
+- packages/dashboards/src/*
+- apps/*/src/* imports as needed
+- docs/adr/* if a workspace import ADR is created
+
+Implement:
+- Add workspace dependencies for package consumers that import `@puresoc/*` packages.
+- Switch cross-package imports from deep relative `../../../packages/.../src` paths to package exports.
+- Keep package-internal relative imports acceptable.
+- Add a lint/layout guard that rejects new cross-package deep relative imports.
+- Extract shared source-reference, severity, recommendation summary, or provider-finding-for-compliance types only where they reduce real duplication.
+- Remove compliance-core's direct dependency on provider implementation types if a smaller neutral type is enough.
+
+Negative constraints:
+- Do not change runtime behavior except import paths and shared type definitions.
+- Do not create circular package dependencies.
+- Do not make generic compliance packages import Microsoft-specific packages.
+- Do not weaken package `exports` boundaries to make deep imports pass.
+
+Tests:
+- Workspace import smoke tests pass through package exports.
+- Layout guard fails on cross-package deep relative imports.
+- Compliance/recommendation/provider tests still pass.
+- Typecheck catches package boundary regressions.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand import-smoke compliance recommendations provider
+
+Gap updates:
+- Update GAP-025.
+- Add ADR/gap references for any import-boundary decision deferred.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M5 updated
+- PLAN_M6 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 5 / PLAN_M6: Regulatory Review Workflow And Source Activation Persistence
+
+```txt
+You are implementing the regulatory review workflow needed before source-derived legal logic is activated.
+
+Use skills:
+- puresoc-regulatory-xlsx-importer
+
+Read:
+- docs/puresoc_vision.md sections 2, 10, 11, 20, 21, 22, 28
+- docs/master-plan.md sections 10, 13, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/adr/ADR-005-regulatory-seed-and-source-map-format.md
+- docs/adr/ADR-011-regulatory-source-activation-lifecycle.md
+
+Goal:
+Persist regulatory source versions, review tasks, review decisions, activation, and supersession so imported Romania and future country-pack logic cannot silently become active.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M6.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M7.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M6.md
+- docs/PLAN_M7.md
+- docs/codex-prompts.md
+- packages/regulatory-sources
+- packages/database/prisma/schema.prisma and repository files if Prisma is available
+- apps/api/src/regulatory-sources
+- apps/scheduler/src/regulatory-sources if source-monitor scheduling is touched
+- data/regulatory/countries/ro/*.generated.json only if source metadata needs regeneration
+- docs/implementation-gaps.md
+
+Implement:
+- Persist source versions, source maps, import validation reports, review tasks, reviewer decisions, activation timestamps, and supersession links.
+- Create API routes for listing review tasks, marking reviewed/rejected/activated, and reading source-map traceability.
+- Enforce `regulatory_admin` role for review and activation actions.
+- Keep changed legal logic in `review_required` until an authorized review decision activates it.
+- Preserve immutable source/version history for historic assessments.
+- Add optional source monitor task creation without auto-activation.
+
+Negative constraints:
+- Do not auto-activate changed national legal logic from importer output or source monitor output.
+- Do not treat secondary trackers as primary legal truth.
+- Do not put Romania-specific review logic in EU baseline packages.
+- Do not submit anything to DNSC or national authorities.
+- Do not make legal certification claims.
+
+Tests:
+- Changed source import creates `review_required` state and review task.
+- `regulatory_admin` can activate reviewed source version.
+- Non-regulatory admin cannot activate source version.
+- Superseded versions remain readable for historic assessments.
+- Source-map traceability survives activation.
+- Source monitor creates a review task, not active legal logic.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand regulatory source-activation review-task source-map
+
+Gap updates:
+- Update GAP-006 and GAP-019-related notes.
+- Add product/legal workflow gaps if reviewer ownership or policy remains undefined.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M6 updated
+- PLAN_M7 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 6 / PLAN_M7: Billing Provider And Entitlements
+
+```txt
+You are implementing the billing foundation that was not completed by the output-contract work.
+
+Use skills:
+- puresoc-stripe-billing
+
+Read:
+- docs/puresoc_vision.md sections 18, 19, 20, 21, 22, 27, 28
+- docs/master-plan.md sections 3, 7, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
+
+Goal:
+Add billing provider abstraction, Stripe integration, webhook idempotency, entitlement calculation, and `BILLING_PROVIDER=none` behavior.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M7.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M8.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M7.md
+- docs/PLAN_M8.md
+- docs/codex-prompts.md
 - packages/billing/core
 - packages/billing/stripe
-- infra/docker
-- infra/compose/docker-compose.yml
-- infra/compose/docker-compose.data.yml
-- infra/compose/docker-compose.storage.yml
-- infra/compose/docker-compose.webservices.yml
-- infra/compose/docker-compose.jobs.yml
-- infra/compose/docker-compose.connectors.yml
-- infra/compose/docker-compose.reports.yml
-- infra/compose/docker-compose.config.yml
-- config/defaults/app.json
-- config/defaults/auth.json
-- config/defaults/connectors.json
-- config/defaults/compliance.json
-- config/defaults/reports.json
+- apps/api/src/billing
+- packages/database/prisma/schema.prisma and billing repository files if Prisma is available
 - config/defaults/billing.json
+- packages/audit if billing audit helpers are needed
+- docs/implementation-gaps.md
 
 Implement:
-- pnpm workspace scripts for lint, test, typecheck
-- minimal API health endpoint
-- minimal package exports
-- Dockerfiles for web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer
-- Compose services for puresoc-web, puresoc-api, puresoc-worker, puresoc-scheduler, puresoc-connector-runner, puresoc-regulatory-importer, puresoc-report-renderer, puresoc-postgres, puresoc-redis, puresoc-object-storage
-- typed config loader with defaults and environment override support
-- ADR template under docs/adr/
+- Billing provider interface.
+- Stripe checkout session creation.
+- Stripe customer portal session creation.
+- Webhook endpoint with raw-body signature verification.
+- Billing event ledger with idempotent webhook handling.
+- Subscription status mapping.
+- Entitlement calculation from configured plan/price mapping.
+- `BILLING_PROVIDER=none` behavior that allows core app usage without external billing.
+- `BILLING_PROVIDER=offline_license` placeholder with explicit unsupported-state behavior.
+- Billing audit events.
 
 Negative constraints:
-- Do not implement real Microsoft Graph calls.
-- Do not implement Romania workbook parsing yet.
-- Do not add provider write/remediation actions.
-- Do not add production infrastructure hardening policy; keep Compose focused on image definitions and default config.
+- Do not trust client-provided subscription state.
+- Do not log Stripe secrets, webhook signatures, customer secrets, or raw payment payloads beyond safe IDs.
+- Do not let entitlements replace RBAC.
+- Do not block core app operation when `BILLING_PROVIDER=none`.
+- Do not invent final commercial packaging if product plan decisions are still open; use clearly named configurable defaults and keep GAP-012 open.
 
 Tests:
-- API health endpoint unit or integration test
-- config loader test
-- package import smoke tests
-
-Acceptance commands:
-- cd code
-- pnpm install
-- pnpm lint
-- pnpm test
-- docker compose -f infra/compose/docker-compose.yml config
-
-Gap updates:
-- Resolve or update GAP-001 and GAP-002 where applicable.
-```
-
-## Prompt 1B: Database Schema And Core Data Contracts
-
-```txt
-You are implementing PureSOC Phase B.
-
-Read:
-- docs/puresoc_vision.md sections 6, 7, 8, 10, 14, 15, 17, 18, 21, 22, 23
-- docs/master-plan.md sections 7, 9, 10, 14, 15
-- docs/implementation-gaps.md
-- docs/prompt-tests.md
-
-Goal:
-Create the application database schema and core data contracts before feature implementation.
-
-Expected files/packages:
-- packages/database/prisma/schema.prisma
-- packages/database/src/client.ts
-- packages/database/src/seed/eu-member-states.ts
-- packages/database/src/contracts/*.ts
-- packages/database/src/__tests__/*.spec.ts
-- packages/providers/core/src/resources.ts
-- packages/recommendations/src/recommendation.types.ts
-- packages/reports/src/report.types.ts
-- packages/dashboards/src/dashboard.types.ts
-
-Implement schema groups:
-- identity and organization
-- customer/business metadata
-- connector configuration and telemetry
-- regulatory and country-pack data
-- compliance analysis
-- evidence, reports, dashboards, and exports
-- billing
-- audit logs
-
-Implement connector data contracts:
-- provider_connections
-- provider_sync_runs
-- provider_sync_modules
-- provider_raw_resources
-- provider_normalized_resources
-- provider_findings
-- provider_recommendations
-- provider_action_templates
-- provider_action_runs
-
-Implement output contracts:
-- compliance_control_results
-- compliance_gaps
-- readiness_plans
-- readiness_plan_items
-- evidence_artifacts
-- generated_reports
-- dashboard_snapshots
-- notification_drafts
-
-Negative constraints:
-- Do not add provider-specific schema names to generic compliance tables except through provider_key/module_key fields.
-- Do not store regulatory facts as UI-only constants.
-- Do not store credentials in provider connection metadata.
-- Do not skip organization_id on tenant-owned rows unless the row is global seed data.
-
-Tests:
-- required schema groups exist
-- tenant-owned tables include organization_id
-- provider resource idempotency key is represented
-- raw and normalized resource models are distinct
-- recommendation model can feed plan items, reports, and dashboards
-- EU member state seed includes all 27 Member States
+- Webhook signature rejection.
+- Duplicate webhook idempotency.
+- Subscription status transitions.
+- Entitlement calculation from config.
+- `BILLING_PROVIDER=none` bypass behavior.
+- Cross-organization billing access rejection.
+- Audit event creation for billing changes.
+- Stripe secrets redacted from errors/log-shaped outputs.
 
 Acceptance commands:
 - pnpm lint
-- pnpm test -- --runInBand database schema provider-resource recommendations reports dashboards
+- pnpm test -- --runInBand billing stripe entitlement webhook audit
 
 Gap updates:
-- Update GAP-004 and add any unresolved schema decisions.
+- Keep or update GAP-012 until actual products/prices are decided.
+- Add implementation gaps for deferred runtime Stripe details.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M7 updated
+- PLAN_M8 created
+- Codex prompts updated
+- Residual risk
 ```
 
-## Prompt 2: Auth, Organization, RBAC, Audit
+## Prompt 7 / PLAN_M8: Production Evidence, Object Storage, Scanner, And PDF Adapters
 
 ```txt
-You are implementing PureSOC Phase C.
-
-Read:
-- docs/puresoc_vision.md sections 6, 7, 21, 22, 27, 28
-- docs/master-plan.md sections 7, 11, 14, 15
-- docs/implementation-gaps.md
-- docs/prompt-tests.md
-
-Goal:
-Add local auth, organizations, RBAC, session handling, and audit events.
-
-Expected files/packages:
-- packages/auth/core
-- packages/auth/local
-- packages/auth/oidc
-- packages/audit
-- apps/api/src/auth
-- apps/api/src/organizations
-- apps/api/src/rbac
-- packages/database/prisma/schema.prisma updates
-
-Implement:
-- local email/password registration
-- Argon2id password hashing
-- email verification token model
-- password reset token model
-- login/logout/session endpoints
-- organization creation
-- organization membership model
-- RBAC guard
-- audit writer and audit table integration
-- rate limiting for failed login attempts
-- OIDC/social-login abstraction placeholders only
-
-Negative constraints:
-- Do not implement Microsoft 365 tenant admin consent here.
-- Do not treat Microsoft/Google/GitHub sign-in as cloud provider connections.
-- Do not trust email alone for account linking.
-- Do not serialize passwords, reset tokens, verification tokens, OAuth codes, access tokens, refresh tokens, or cookies in logs or responses.
-- Do not implement OIDC callbacks before ADR-013 is recorded or updated.
-
-Tests:
-- password hash verification
-- token expiry
-- local registration/login integration
-- session creation and logout invalidation
-- organization creation
-- cross-organization access rejection
-- failed login audit event
-- no password/token serialization in logs or responses
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand auth organization rbac audit session
-
-Gap updates:
-- Update GAP-003 and GAP-004 with any deferred auth/OIDC or isolation decisions.
-```
-
-## Prompt 3: EU Regulatory Foundation And Country-Pack Status
-
-```txt
-You are implementing PureSOC Phase D.
-
-Read:
-- docs/puresoc_vision.md sections 10, 12, 14, 20, 21, 28, 32
-- docs/master-plan.md sections 10, 14, 15
-- docs/implementation-gaps.md
-- docs/prompt-tests.md
-
-Goal:
-Create the EU NIS2 regulatory foundation, country-pack interface, and source activation skeleton without country-specific leakage.
-
-Expected files/packages:
-- packages/compliance/nis2/eu
-- packages/compliance/nis2/implementing-regulation-2024-2690
-- packages/compliance/nis2/country-packs/core
-- packages/regulatory-sources
-- packages/database/src/seed/eu-member-states.ts
-- apps/api/src/compliance/nis2
-- data/regulatory/eu/*.seed.json
-- data/regulatory/countries/member-states.seed.json
-
-Implement:
-- EU member state seed for all 27 countries
-- NIS2 framework and framework version records
-- Article 21 control seed shell
-- Article 23 incident workflow seed shell
-- Implementing Regulation 2024/2690 overlay shell
-- country-pack interface
-- country-pack completeness state
-- country-pack status API
-- Romania marked as planned full pack
-- other EU countries marked baseline-only until researched
-- regulatory source model skeleton
-- source activation lifecycle skeleton: draft, validated, review_required, active, superseded
-
-Negative constraints:
-- Do not put Romania-specific conditionals in EU modules.
-- Do not auto-activate changed legal logic.
-- Do not use secondary trackers as primary legal truth.
-- Do not hardcode regulatory facts in React components.
-
-Tests:
-- all 27 EU member states load
-- country-pack status returns all member states
-- Romania status differs from baseline-only countries
-- generic EU code has no Romania-specific imports or conditionals
-- regulatory source activation defaults to review_required for changed legal logic
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand nis2 country-pack regulatory source-activation
-
-Gap updates:
-- Update GAP-006 and add source lifecycle gaps if implementation is deferred.
-```
-
-## Prompt 4: Romania Workbook Importer And Source Map
-
-```txt
-You are implementing PureSOC Phase E importer.
-
-Use skill:
-- puresoc-regulatory-xlsx-importer
-
-Read:
-- docs/nis2ro-tool-v-2-1.xlsx
-- docs/puresoc_vision.md section 11
-- docs/master-plan.md sections 10, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Convert the Romanian NIS2@RO workbook into deterministic, versioned regulatory seed data with source maps.
-
-Expected files/packages:
-- apps/regulatory-importer/src/ro/*
-- packages/compliance/nis2/country-packs/ro
-- data/regulatory/countries/ro/ro-nis2.seed.generated.json
-- data/regulatory/countries/ro/ro-nis2-source-map.generated.json
-- data/regulatory/countries/ro/ro-nis2-import-report.generated.json
-- packages/database/prisma/schema.prisma updates if needed
-
-Required sheets:
-- Entity data
-- Entity assessment
-- Notification form
-- Liste
-- Ajutor
-- Algoritm clasificare
-
-Implement extraction for:
-- workbook versions
-- entity/contact fields
-- service sectors and service/entity type options
-- relationship-with-Romania questions
-- Article 9 questions
-- notification draft mapping
-- classification rules or encoded rules with source mapping
-- location/helper lists
-- importer validation report
-
-Negative constraints:
-- Do not manually copy workbook logic into React components.
-- Do not activate generated Romania legal logic without source-map validation.
-- Do not mix Romania-specific importer logic into EU baseline packages.
-
-Tests:
-- workbook version extraction
-- required sheet presence validation
-- key field extraction
-- service option extraction
-- classification rule extraction or encoded source mapping
-- source map coverage threshold
-- deterministic generated seed output
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand regulatory-import ro-workbook source-map
-
-Gap updates:
-- Update GAP-005 with parser limitations or unresolved workbook assumptions.
-```
-
-## Prompt 5: Romania Classification, Onboarding Schema, And Notification Draft
-
-```txt
-You are implementing PureSOC Phase E Romania business logic.
-
-Use skill:
-- puresoc-regulatory-xlsx-importer
-
-Read:
-- docs/puresoc_vision.md sections 11, 12, 13, 25, 28
-- docs/master-plan.md sections 10, 12, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Build a pure Romania classification service plus onboarding and notification-draft data contracts.
-
-Expected files/packages:
-- packages/compliance/nis2/country-packs/ro/classification.service.ts
-- packages/compliance/nis2/country-packs/ro/classification.service.spec.ts
-- packages/compliance/nis2/country-packs/ro/onboarding.schema.ts
-- packages/compliance/nis2/country-packs/ro/notification-draft.types.ts
-- apps/api/src/compliance/nis2/ro
-- packages/database/prisma/schema.prisma updates for Romania module tables
-
-Implement:
-- result type: insufficient_data, out_of_scope, voluntary_registration_possible, important_entity, essential_entity
-- reasons, matchedRules, missingRequiredFields, article9Required, notificationRecommended, sourceVersion
-- Romania onboarding schema for saved partial progress
-- notification draft JSON shape
-- source-map links from classification reasons and notification fields
-
-Negative constraints:
-- Do not put classification logic in API controllers or React components.
-- Do not submit to DNSC.
-- Do not make legal certification claims.
-- Do not use workbook text without source mapping.
-
-Tests:
-- insufficient data
-- out of scope
-- voluntary registration possible
-- important entity by sector/size
-- essential entity by special category
-- Article 9 required
-- public administration special case
-- critical entity Law 294/2024 case
-- partial onboarding save shape
-- notification draft source-mapped fields
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand ro classification onboarding notification-draft
-
-Gap updates:
-- Update Romania workbook or legal-review gaps with unresolved decisions.
-```
-
-## Prompt 6: Provider Core And Connector Data Pipeline
-
-```txt
-You are implementing PureSOC Phase F provider core.
+You are moving the Phase I evidence/report contract from in-memory behavior toward production adapters.
 
 Use skills:
-- puresoc-provider-connector
-- puresoc-connector-test-harness
-
-Read:
-- docs/puresoc_vision.md sections 8, 9, 14, 15, 20, 21, 22, 23, 29
-- docs/master-plan.md sections 7, 9, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Create provider-neutral connector contracts and the raw-to-normalized-to-finding data pipeline.
-
-Expected files/packages:
-- packages/providers/core
-- packages/providers/mock
-- packages/providers/microsoft365 skeleton
-- packages/providers/google-workspace stub
-- packages/database/prisma/schema.prisma provider updates
-- apps/connector-runner
-- apps/api/src/provider-connections
-
-Implement:
-- CloudProviderConnector interface
-- provider-neutral resource types
-- provider connection lifecycle types
-- provider sync-run and sync-module records
-- raw resource storage contract
-- normalized resource storage contract
-- provider finding contract
-- provider recommendation contract
-- connector runner job contract
-- mock provider scenarios
-
-Negative constraints:
-- Do not make live Microsoft Graph calls.
-- Do not add write/remediation actions.
-- Do not allow compliance packages to import Microsoft provider code.
-- Do not drop raw_json or normalized_json from provider resources.
-
-Tests:
-- provider contract tests
-- raw resource -> normalized resource -> finding -> recommendation pipeline test
-- idempotent upsert by external ID
-- module partial-failure test
-- pagination fixture test
-- retry/throttle fixture test
-- token/secret redaction test
-- no-live-write guard test
-- cross-organization provider-resource rejection
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand provider connector pipeline mock redaction idempotency
-
-Gap updates:
-- Update provider connector test harness gaps for missing scenarios.
-```
-
-## Prompt 7: Microsoft 365 Consent And Read-Only Sync
-
-```txt
-You are implementing PureSOC Phase G Microsoft provider onboarding and read-only discovery.
-
-Use skills:
-- puresoc-provider-connector
-- puresoc-microsoft365-graph-connector
-- puresoc-connector-test-harness
-
-Read:
-- docs/puresoc_vision.md sections 8, 9, 20, 22, 23, 29, 32
-- docs/master-plan.md sections 9, 11, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Add Microsoft 365 tenant onboarding and read-only sync modules using provider-neutral storage.
-
-Expected files/packages:
-- packages/providers/microsoft365
-- apps/api/src/provider-connections/microsoft365
-- apps/connector-runner/src/microsoft365
-- packages/database/prisma/schema.prisma provider updates if needed
-- docs/microsoft365-permissions.md
-
-Implement:
-- begin consent endpoint
-- callback endpoint with state validation
-- permission bundle tracking
-- tenant profile sync
-- license sync
-- users/groups/roles sync
-- app registrations/service principals sync
-- Secure Score sync
-- module status and connection health API
-- permission mapping documentation
-
-Negative constraints:
-- Do not request write scopes during first onboarding.
-- Do not store Global Administrator credentials.
-- Do not fail the whole connection if one module lacks permission or license.
-- Do not put Microsoft-specific branching in the generic NIS2 evaluator.
-- Do not log OAuth codes, access tokens, refresh tokens, tenant secrets, or authorization headers.
-
-Tests:
-- consent URL generation
-- callback state validation
-- tenant validation
-- encrypted token storage
-- permission bundle persistence
-- missing permission module status
-- missing license module status
-- revoked consent status
-- Graph pagination handling through fixtures
-- throttling/retry behavior through fixtures
-- mocked Graph sync happy path
-- token redaction assertions
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand microsoft365 consent graph-sync permissions redaction
-
-Gap updates:
-- Update GAP-007 with validated permission bundle details and unresolved API limitations.
-```
-
-## Prompt 8: Compliance Engine, Recommendations, And Readiness Plan
-
-```txt
-You are implementing PureSOC Phase H.
-
-Use skill:
-- puresoc-provider-connector
-
-Read:
-- docs/puresoc_vision.md sections 14, 15, 16, 20, 21, 28
-- docs/master-plan.md sections 7, 9, 10, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Map customer metadata, regulatory rules, provider findings, manual tasks, and evidence state into control results, gaps, recommendations, and readiness plans.
-
-Expected files/packages:
-- packages/compliance/core
-- packages/recommendations
-- apps/api/src/compliance
-- apps/api/src/recommendations
-- packages/database/prisma/schema.prisma compliance updates if needed
-- data/regulatory/eu/*control*.seed.json
-
-Implement:
-- control catalog seed loader
-- control mapping model
-- compliance control result evaluator
-- gap calculation service
-- structured recommendation generator
-- readiness plan and plan item generator
-- manual checklist generation
-- country-pack warning handling
-- source references in gap and recommendation output
-
-Negative constraints:
-- Do not map Microsoft raw API payloads directly to controls; use provider-neutral findings.
-- Do not let country-pack missing data become a false technical failure.
-- Do not label scores as legal certification.
-- Do not trigger provider write actions.
-
-Tests:
-- Microsoft mock findings map to controls through provider-neutral findings
-- manual controls generate checklist items
-- country-pack missing data creates warning, not false technical failure
-- evidence absence affects evidence completeness
-- gap plan has owner, due date, status, dependencies, and source references
-- recommendation records can feed reports, dashboards, and future action flows
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand compliance gaps recommendations readiness-plan checklist
-
-Gap updates:
-- Update unresolved control mapping and scoring gaps.
-```
-
-## Prompt 9: Evidence, Reports, Dashboards, And Exports
-
-```txt
-You are implementing PureSOC Phase I outputs.
-
-Use skill:
 - puresoc-evidence-reporting
 
 Read:
 - docs/puresoc_vision.md sections 17, 19, 20, 21, 22, 25, 27, 28
 - docs/master-plan.md sections 7, 8, 12, 14, 15
 - docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/adr/ADR-007-report-renderer-strategy.md
+- docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md
+- docs/adr/ADR-012-dashboard-aggregation-and-report-data-contracts.md
 
 Goal:
-Build evidence metadata, report/export contracts, and dashboard aggregation from stored analysis records.
+Implement object-storage, upload-scanner, repository, and PDF-renderer adapters while preserving the tested in-memory contracts.
 
-Expected files/packages:
+Milestone plan:
+- Current milestone file: `docs/PLAN_M8.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M9.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M8.md
+- docs/PLAN_M9.md
+- docs/codex-prompts.md
 - packages/evidence
 - packages/reports
-- packages/dashboards
+- packages/dashboards if persisted dashboard snapshots are touched
 - apps/api/src/evidence
 - apps/api/src/reports
 - apps/api/src/dashboards
 - apps/report-renderer
-- packages/database/prisma/schema.prisma evidence/report/dashboard updates if needed
+- packages/database/prisma/schema.prisma and repository files if Prisma is available
+- infra/compose/docker-compose*.yml if object storage or scanner service wiring changes
+- config/defaults/reports.json
+- config/defaults/app.json or storage config if needed
 
 Implement:
-- evidence metadata model
-- evidence upload metadata and object-storage adapter interface
-- upload scanning hook interface
-- evidence-control/jurisdiction/source links
-- evidence access audit
-- report data contract
-- internal readiness report data builder
-- Romania notification draft export data builder
-- dashboard aggregation queries
-- dashboard snapshot records
-- stable JSON export shapes
+- S3/MinIO-compatible object-storage adapter behind the evidence interface.
+- Upload scanner interface adapter, with local no-op or mock mode explicit and auditable.
+- Prisma-backed metadata/access-log repository if Prompt 3 has enabled Prisma.
+- Generated report storage as evidence artifacts.
+- PDF rendering route/job behind `apps/report-renderer`.
+- Evidence package export metadata that can later point to a binary bundle.
+- Audit for upload, download, report generation, and export creation.
 
 Negative constraints:
 - Do not make evidence or reports public by URL alone.
@@ -694,86 +599,37 @@ Negative constraints:
 - Do not omit the legal caveat.
 - Do not omit regulatory source references.
 - Do not mix cross-organization evidence or report data.
+- Do not silently skip malware scanning in production mode.
 
 Tests:
-- upload authorization
-- download authorization
-- evidence access audit entry
-- cross-organization evidence/report rejection
-- report includes legal caveat
-- report includes source references
-- Romania draft includes source-mapped fields
-- dashboard aggregates derive from stored compliance records
-- stable JSON export snapshot test
+- Object-storage adapter contract with fake/local implementation.
+- Upload scanner pass/fail behavior.
+- Evidence metadata persists and links to controls/jurisdictions/source records.
+- Download authorization and audit.
+- Report generation stores an evidence artifact.
+- PDF renderer returns deterministic output or a stable mocked artifact in tests.
+- Cross-organization evidence/report rejection.
 
 Acceptance commands:
 - pnpm lint
-- pnpm test -- --runInBand evidence reports dashboards exports
+- pnpm test -- --runInBand evidence reports dashboards exports renderer storage scanner
 
 Gap updates:
-- Update GAP-008 and evidence/report gaps for deferred storage or renderer decisions.
+- Update GAP-008 and GAP-018.
+- Add runtime gaps for deferred PDF/CSV/binary bundle features.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M8 updated
+- PLAN_M9 created
+- Codex prompts updated
+- Residual risk
 ```
 
-## Prompt 10: Billing Provider And Entitlements
-
-```txt
-You are implementing PureSOC billing foundation.
-
-Use skill:
-- puresoc-stripe-billing
-
-Read:
-- docs/puresoc_vision.md sections 18, 19, 20, 21, 22, 27, 28
-- docs/master-plan.md sections 3, 7, 14, 15
-- docs/implementation-gaps.md
-
-Goal:
-Add billing provider abstraction, Stripe integration, and entitlement gates.
-
-Expected files/packages:
-- packages/billing/core
-- packages/billing/stripe
-- apps/api/src/billing
-- packages/database/prisma/schema.prisma billing updates if needed
-- config/defaults/billing.json
-
-Implement:
-- billing provider interface
-- Stripe checkout session creation
-- Stripe customer portal session creation
-- webhook endpoint with raw-body signature verification
-- billing event ledger
-- idempotent webhook processing
-- subscription status mapping
-- entitlement calculation
-- BILLING_PROVIDER=none behavior
-- BILLING_PROVIDER=offline_license placeholder
-- billing audit events
-
-Negative constraints:
-- Do not trust client-provided subscription state.
-- Do not log Stripe secrets or webhook signatures.
-- Do not let entitlements replace RBAC.
-- Do not block core app operation when BILLING_PROVIDER=none.
-
-Tests:
-- webhook signature rejection
-- duplicate webhook idempotency
-- subscription status transitions
-- entitlement calculation
-- BILLING_PROVIDER=none bypass behavior
-- cross-organization billing access rejection
-- audit event creation for billing changes
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand billing stripe entitlement webhook
-
-Gap updates:
-- Keep GAP-012 open until actual product plans/prices are decided; add implementation gaps separately.
-```
-
-## Prompt 11: Safe Remediation Foundation
+## Prompt 8 / PLAN_M9: Safe Remediation Foundation
 
 ```txt
 You are implementing the remediation safety foundation, not broad automation.
@@ -782,52 +638,81 @@ Read:
 - docs/puresoc_vision.md sections 9.4, 9.5, 9.6, 15, 22, 23, 28
 - docs/master-plan.md sections 4, 9, 11, 14, 15
 - docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/adr/ADR-010-remediation-safety-model.md
+- docs/claude_rec.md sections REC-001, REC-010
 
 Goal:
-Create the recommendation-to-action lifecycle and approval model so future write actions have the required guardrails.
+Create the recommendation-to-action lifecycle and approval model so future write actions have the required guardrails and evidence hooks.
 
-Expected files/packages:
+Milestone plan:
+- Current milestone file: `docs/PLAN_M9.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M10.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M9.md
+- docs/PLAN_M10.md
+- docs/codex-prompts.md
 - packages/recommendations
 - packages/providers/core action types
 - apps/api/src/actions
 - apps/worker/src/actions
-- packages/database/prisma/schema.prisma action updates if needed
+- packages/database/prisma/schema.prisma action/repository updates if Prisma is available
+- packages/evidence only for action evidence-link integration
+- packages/audit only for action audit helpers
 
 Implement:
-- action template model
-- action run model
-- preflight result model
-- approval state model
-- pre-state and post-state snapshot metadata
-- verification result model
-- evidence link from action run
-- manual/guided action support
+- Action template model.
+- Action run model.
+- Preflight result model.
+- Approval state model.
+- Pre-state and post-state snapshot metadata.
+- Verification result model.
+- Evidence link from action run.
+- Manual/guided action support.
+- Worker job contract for future execution.
+- Audit events for preflight, approval, queued, failed, verified, and closed states.
 
 Negative constraints:
 - Do not implement live provider write actions.
 - Do not allow action apply without approval state.
 - Do not skip preflight, snapshot, verification, or evidence metadata in the model.
 - Do not include high-risk V1-forbidden actions as executable defaults.
+- Do not let entitlements replace RBAC or explicit approval.
 
 Tests:
-- action cannot apply without approval
-- action cannot apply without preflight
-- manual/guided action can create checklist/evidence tasks
-- failed action is auditable
-- action model links to recommendation, control, provider connection, and evidence
+- Action cannot apply without approval.
+- Action cannot apply without preflight.
+- Manual/guided action can create checklist/evidence tasks.
+- Failed action is auditable.
+- Action model links to recommendation, control, provider connection, and evidence.
+- Cross-organization action access is rejected.
+- High-risk forbidden action template cannot be executable by default.
 
 Acceptance commands:
 - pnpm lint
-- pnpm test -- --runInBand actions remediation approval preflight
+- pnpm test -- --runInBand actions remediation approval preflight evidence audit
 
 Gap updates:
 - Update remediation safety gaps with any deferred execution behavior.
+- Keep provider write/remediation automation disabled unless all safety preconditions are present.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M9 updated
+- PLAN_M10 created
+- Codex prompts updated
+- Residual risk
 ```
 
-## Prompt 12: Operational UI And Dashboard UX
+## Prompt 9 / PLAN_M10: Operational UI And Design System
 
 ```txt
-You are improving PureSOC frontend UX.
+You are building the usable PureSOC operational UI, not a marketing page.
 
 Use skills:
 - impeccable
@@ -838,29 +723,40 @@ Read:
 - docs/puresoc_vision.md sections 13, 24, 25
 - docs/master-plan.md sections 7, 12, 14, 15
 - docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md lower-priority UI/readme notes if relevant
 
 Goal:
-Build or polish the operational UI for customer metadata, connector health, compliance gaps, recommendations, evidence, reports, and dashboards.
+Choose and document the frontend design-system direction, then build or polish the operational UI for customer metadata, connector health, compliance gaps, recommendations, evidence, reports, dashboards, and approval affordances.
 
-Expected files/packages:
+Milestone plan:
+- Current milestone file: `docs/PLAN_M10.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M11.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M10.md
+- docs/PLAN_M11.md
+- docs/codex-prompts.md
 - apps/web
-- packages/ui if created
-- packages/dashboards
-- packages/reports shared types
+- packages/ui
+- packages/dashboards shared types if needed
+- packages/reports shared types if needed
+- code/README.md if the user-facing app state changes
+- docs/adr/* if a design-system ADR is created
+- docs/implementation-gaps.md
 
-Check:
-- app shell navigation
-- customer/business profile editing
-- EU and Romania onboarding save/resume behavior
-- country-pack warnings
-- Microsoft connection health
-- gap report scanning
-- recommendation backlog
-- remediation approval affordances
-- evidence/report exports
-- mobile and desktop layout
-- keyboard/focus states
-- legal caveat placement
+Implement:
+- Design-system decision and reusable UI primitives.
+- App shell navigation for the operational console.
+- Dashboard from stored aggregate data.
+- EU/country/Romania onboarding status surfaces.
+- Microsoft connection health surface.
+- Gap report and recommendation backlog surfaces.
+- Evidence/report export surfaces with legal caveat and source indicators.
+- Remediation approval affordances only if Prompt 8 model exists.
+- Responsive desktop and mobile layouts.
+- Keyboard/focus states for critical flows.
 
 Negative constraints:
 - Do not build a marketing landing page as the primary app screen.
@@ -868,13 +764,14 @@ Negative constraints:
 - Do not show legal certification claims.
 - Do not create risky remediation controls without blast radius and approval state.
 - Do not let UI depend on live provider calls where stored analysis data exists.
+- Do not use Romania-specific conditionals in EU baseline UI components.
 
 Tests:
-- Playwright screenshots for desktop and mobile
-- no overlapping text
-- keyboard/focus checks for critical flows
-- dashboard renders stored aggregate data
-- evidence/report surfaces show legal caveat and source indicators
+- Web/dashboard unit tests against stored aggregate data.
+- Playwright screenshots for desktop and mobile.
+- No overlapping text on critical pages.
+- Keyboard/focus checks for login, dashboard, gaps, evidence/report export, and approval flows.
+- Legal caveat and source indicators render on report/evidence surfaces.
 
 Acceptance commands:
 - pnpm lint
@@ -882,73 +779,365 @@ Acceptance commands:
 - pnpm test:e2e -- --grep "@ui-smoke"
 
 Gap updates:
-- Update UX/design-system gaps as decisions are made.
+- Update GAP-009 when the design-system decision is made.
+- Add UI gaps for deferred workflows or missing browser verification.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M10 updated
+- PLAN_M11 created
+- Codex prompts updated
+- Residual risk
 ```
 
-## Prompt 13: Security Threat Model Review
+## Prompt 10 / PLAN_M11: OIDC/Social Login Callback Implementation
 
 ```txt
-This is a review prompt, not an implementation prompt.
+You are implementing user sign-in OIDC/social callbacks, not Microsoft 365 managed-provider consent.
 
-Use skill:
+Use skills:
+- puresoc-oidc-social-login
+
+Read:
+- docs/puresoc_vision.md sections 6, 7, 22, 27, 28, 32
+- docs/master-plan.md sections 7, 11, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/adr/ADR-013-auth-oidc-social-login-and-managed-provider-consent-boundaries.md
+
+Goal:
+Implement Microsoft Entra, Google, and GitHub user sign-in callback flows through the auth abstraction while preserving account-linking safety and the boundary from Microsoft 365 tenant admin consent.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M11.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M12.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M11.md
+- docs/PLAN_M12.md
+- docs/codex-prompts.md
+- packages/auth/oidc
+- packages/auth/core
+- apps/api/src/auth
+- apps/web auth screens if needed
+- packages/database/prisma/schema.prisma and auth repository files if Prisma is available
+- config/defaults/auth.json
+- docs/implementation-gaps.md
+
+Implement:
+- State, nonce, and PKCE handling where supported.
+- Issuer, audience, expiry, and signature validation.
+- Provider subject based identity lookup.
+- Explicit account-linking flow for email collisions.
+- Session creation through the existing session model.
+- Audit events for login, failed login, account linked, and account-link rejected.
+- Provider-specific config validation.
+
+Negative constraints:
+- Do not use email alone as proof of account ownership for linking.
+- Do not mix user-login OIDC with Microsoft 365 admin consent/provider connection code.
+- Do not log authorization codes, ID tokens, access tokens, refresh tokens, cookies, state, nonce, or PKCE verifier.
+- Do not require a Microsoft 365 tenant connection for Microsoft user sign-in.
+
+Tests:
+- State/nonce/PKCE validation.
+- Invalid issuer/audience/expiry/signature rejection.
+- Existing account by provider subject signs in.
+- Email collision requires explicit link approval.
+- Login session and logout behavior still work.
+- Audit events are written.
+- Secret redaction tests cover tokens and codes.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand auth oidc social-login session audit redaction
+
+Gap updates:
+- Update GAP-003 with callback/account-linking status.
+- Add provider-specific deferred gaps if any callback remains placeholder-only.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M11 updated
+- PLAN_M12 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 11 / PLAN_M12: Microsoft 365 Read-Only Module Expansion
+
+```txt
+You are expanding Microsoft 365 read-only discovery after revalidating current official Microsoft documentation.
+
+Use skills:
+- puresoc-provider-connector
+- puresoc-microsoft365-graph-connector
+- puresoc-connector-test-harness
+
+Read:
+- docs/puresoc_vision.md sections 8, 9, 20, 22, 23, 29, 32
+- docs/master-plan.md sections 9, 11, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/microsoft365-permissions.md
+- docs/adr/ADR-009-microsoft-graph-permission-bundles.md
+
+Goal:
+Add deferred read-only Microsoft modules with module-level degradation and updated permission documentation.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M12.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M13.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M12.md
+- docs/PLAN_M13.md
+- docs/codex-prompts.md
+- packages/providers/microsoft365
+- apps/api/src/provider-connections/microsoft365
+- apps/connector-runner/src/microsoft365
+- packages/providers/core if neutral resource/finding types need extension
+- docs/microsoft365-permissions.md
+- mock Graph fixtures/tests
+
+Implement candidates:
+- Conditional Access read sync if permissions and API behavior are validated.
+- Entra audit/sign-in logs read sync where licensed and permitted.
+- Exchange/SharePoint/Teams/Purview posture read modules where Graph supports reliable read-only signals.
+- Defender XDR incidents/alerts read module if docs and fixtures support it.
+- Capability detection for missing license, missing permission, unsupported API, national-cloud limitation, and connector error.
+- Provider-neutral resources/findings only after raw payload capture.
+
+Negative constraints:
+- Do not request write scopes during onboarding.
+- Do not store Global Administrator credentials.
+- Do not fail the whole connection if one module lacks permission or license.
+- Do not put Microsoft-specific branching in the generic NIS2 evaluator.
+- Do not log OAuth codes, access tokens, refresh tokens, tenant secrets, or authorization headers.
+- Do not rely on stale Microsoft permission assumptions; re-check official docs during implementation and cite/update `docs/microsoft365-permissions.md`.
+
+Tests:
+- Permission mapping fixture tests.
+- Missing permission module status.
+- Missing license module status.
+- Unsupported API module status.
+- Graph pagination handling.
+- Throttling/retry behavior.
+- Mocked Graph sync happy paths for each new module.
+- Token redaction assertions.
+- Generic compliance still consumes provider-neutral findings.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand microsoft365 graph-sync permissions redaction provider
+
+Gap updates:
+- Update GAP-007 with revalidated permission details and unresolved Microsoft API limitations.
+- Add deferred module gaps if docs/API coverage is insufficient.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M12 updated
+- PLAN_M13 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 12 / PLAN_M13: Full Control Catalog And Readiness Scoring Calibration
+
+```txt
+You are expanding the representative Phase H control catalog into a fuller internal-readiness model.
+
+Read:
+- docs/puresoc_vision.md sections 10, 14, 15, 16, 23, 25, 28, 32
+- docs/master-plan.md sections 7, 10, 12, 14, 15
+- docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md sections REC-014, REC-015, REC-016
+
+Goal:
+Expand EU NIS2 controls and provider/manual/evidence mappings while keeping scores conservative, source-linked, and clearly labeled as PureSOC internal readiness.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M13.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M14.md` from the next active prompt.
+
+Expected file ownership:
+- docs/PLAN_M13.md
+- docs/PLAN_M14.md
+- docs/codex-prompts.md
+- data/regulatory/eu/*control*.seed.json
+- packages/compliance/core/src/control-catalog.ts
+- packages/compliance/core/src/evaluator.ts if score/confidence semantics change
+- packages/compliance/core/src/readiness-plan.ts
+- packages/compliance/core/src/__tests__/*
+- packages/reports and packages/dashboards if score presentation contracts change
+- docs/adr/* if scoring/confidence semantics need a decision record
+- docs/implementation-gaps.md
+
+Implement:
+- Expand Article 21 control coverage beyond the current representative controls.
+- Keep every control source-linked to EU directive or reviewed regulatory source records.
+- Add provider-neutral mappings for Microsoft findings where available and manual checklist mappings for process controls.
+- Replace brittle test control-ID literals with helper lookups by intent or code.
+- Define provisional score weighting, stale-evidence handling, and accepted-risk behavior, or explicitly leave score calibration as a product/legal gap.
+- Refine or remove confidence if it remains decorative.
+
+Negative constraints:
+- Do not make legal certification claims.
+- Do not treat baseline-only country packs as technical failures.
+- Do not hardcode regulatory facts in UI components.
+- Do not map Microsoft raw payloads directly to controls.
+- Do not add national overlays without source review/activation.
+
+Tests:
+- Control catalog seed validation for required fields, unique IDs/codes, source references, and evidence requirements.
+- Representative tests for every Article 21 group.
+- Provider-neutral findings map to controls.
+- Manual controls create checklist items.
+- Score labels remain internal-readiness wording.
+- Accepted-risk and stale-evidence behavior is tested if implemented.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand control-catalog compliance scoring readiness-plan reports dashboards
+
+Gap updates:
+- Update GAP-021.
+- Add product/legal calibration gaps for unresolved score weights or legal-source review.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M13 updated
+- PLAN_M14 created
+- Codex prompts updated
+- Residual risk
+```
+
+## Prompt 13 / PLAN_M14: Security Threat Model And Release Hardening
+
+```txt
+This is a review-and-fix prompt for release readiness.
+
+Use skills:
 - security-threat-model
 
 Read:
 - docs/puresoc_vision.md sections 6, 8, 9, 17, 18, 22, 23, 28
 - docs/master-plan.md sections 7, 9, 11, 14, 15
 - docs/implementation-gaps.md
+- docs/codex-prompts.md
+- docs/LEARNINGS.md
+- docs/claude_rec.md
 
 Goal:
-Find concrete product security risks and convert them into tests or implementation tickets.
+Threat model the implemented product surfaces, convert concrete risks into tests/fixes, and prepare the release-readiness checklist.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M14.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M15.md` from the next active prompt.
 
 Review:
-- local auth
-- OIDC callback handling
+- local auth and sessions
+- OIDC callbacks if implemented
 - provider token storage
 - organization scoping
 - provider raw payload storage
-- evidence downloads
+- evidence uploads/downloads
 - upload scanning hook
 - report export access
-- Stripe webhook validation
-- audit log integrity
-- remediation approval and execution model
+- Stripe webhook validation if implemented
+- audit log coverage and integrity
+- remediation approval and execution model if implemented
+- regulatory source activation workflow
 
-Output:
-- ranked findings
-- exploit path
-- affected files
-- required test
-- proposed fix
-- residual risk
+Expected outputs/files:
+- docs/PLAN_M14.md
+- docs/PLAN_M15.md
+- docs/codex-prompts.md
+- docs/threat-model.md or equivalent concise threat model
+- targeted code/test fixes for high-confidence issues
+- docs/implementation-gaps.md updates
+- backup/restore/rotate-secret script notes only if product code depends on them
 
 Negative constraints:
 - Do not make legal compliance claims.
 - Do not focus on host/infrastructure hardening unless it affects product code or data contracts.
+- Do not enable provider write actions as part of review.
+- Do not suppress a finding just because it is deferred; track it.
+
+Tests:
+- Add or update tests for every fixed high/medium issue.
+- Cross-organization isolation checks for affected surfaces.
+- Secret redaction checks for tokens, passwords, OAuth codes, provider credentials, webhook secrets, and evidence URLs.
+- Audit event checks for sensitive actions.
+
+Acceptance commands:
+- pnpm lint
+- pnpm test -- --runInBand auth audit encryption rbac evidence reports billing provider remediation regulatory
+
+Gap updates:
+- Update or add gaps for every unresolved high/medium threat.
+- Mark fixed security gaps resolved with date.
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M14 updated
+- PLAN_M15 created
+- Codex prompts updated
+- Residual risk
 ```
 
-## Prompt 14: Gap Register And Prompt QA
+## Prompt 14 / PLAN_M15: Gap Register And Prompt QA
 
 ```txt
 This is a maintenance prompt.
 
 Read:
+- docs/puresoc_vision.md
+- docs/master-plan.md
 - docs/implementation-gaps.md
 - docs/codex-prompts.md
+- docs/LEARNINGS.md
 - docs/prompt-tests.md
+- docs/claude_rec.md
 - latest changed files
 - latest test output
 
 Goal:
-Keep the project executable by updating gaps and validating prompts against the prompt test protocol.
+Keep the project executable by updating gaps and validating active prompts against the prompt test protocol.
+
+Milestone plan:
+- Current milestone file: `docs/PLAN_M15.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M16.md` from the next active prompt if a next prompt exists after QA.
 
 Check:
-- every implementation prompt has expected files/packages
-- every implementation prompt has negative constraints
-- every implementation prompt has tests
-- every implementation prompt has acceptance commands
-- every implementation prompt has gap update instruction
-- every implementation prompt has expected final summary
+- active prompts do not ask Codex to reimplement completed Phase A-I contract work.
+- every implementation prompt has expected files/packages.
+- every implementation prompt has negative constraints.
+- every implementation prompt has tests.
+- every implementation prompt has acceptance commands.
+- every implementation prompt has gap update instruction.
+- every implementation prompt has expected final summary.
+- prompt order still matches implementation reality and open gaps.
 
 Update docs/implementation-gaps.md with:
 - blockers
@@ -958,4 +1147,25 @@ Update docs/implementation-gaps.md with:
 - prompt quality issues
 
 Keep resolved gaps for auditability, marked as resolved with date.
+
+Expected files:
+- docs/PLAN_M15.md
+- docs/PLAN_M16.md if a next active prompt exists after QA
+- docs/codex-prompts.md
+- docs/implementation-gaps.md
+
+Acceptance commands:
+- pnpm lint if code changed
+- pnpm test for any touched implementation area
+- no test command required for docs-only prompt cleanup; run `git diff --check` instead
+
+Final response must include:
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- PLAN_M15 updated
+- PLAN_M16 created or explicitly not needed
+- Codex prompts updated
+- Residual risk
 ```

@@ -116,6 +116,83 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
     expect(gaps.some((gap) => gap.countryPackWarnings.length > 0)).toBe(true);
   });
 
+  it("surfaces country packs that require legal review as warnings", () => {
+    const warnings = countryPackWarningsFromStatus({
+      countryCode: "RO",
+      completeness: "requires_legal_review"
+    });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({
+      countryCode: "RO",
+      featureKey: "requires_legal_review"
+    });
+    expect(warnings[0]?.reason).toContain("requires_legal_review");
+  });
+
+  it("does not mark provider-mapped controls passing when no mapped provider signal exists", () => {
+    const catalog = loadDefaultControlCatalog();
+    const mfaControl = catalog.controls.find((control) => control.id === "nis2.access-control.mfa");
+    const providerMappedControl = {
+      ...mfaControl!,
+      manualChecklistTemplateIds: []
+    };
+
+    const results = evaluateComplianceControls({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_h",
+      controls: [providerMappedControl],
+      evidenceArtifacts: [
+        {
+          id: "evidence_mfa",
+          controlId: "nis2.access-control.mfa",
+          requirementKey: "mfa-coverage-evidence",
+          title: "Privileged MFA coverage evidence"
+        }
+      ],
+      evaluatedAt: fixedNow().toISOString()
+    });
+
+    expect(results[0]?.status).toBe("partial");
+    expect(results[0]?.summary).toContain("mapped provider signal");
+  });
+
+  it("allows completed manual fallback to satisfy a provider-mapped control when evidence is present", () => {
+    const catalog = loadDefaultControlCatalog();
+    const mfaControl = catalog.controls.find((control) => control.id === "nis2.access-control.mfa");
+
+    const results = evaluateComplianceControls({
+      organizationId: "org_phase_h",
+      assessmentId: "assessment_h",
+      controls: [mfaControl!],
+      evidenceArtifacts: [
+        {
+          id: "evidence_mfa",
+          controlId: "nis2.access-control.mfa",
+          requirementKey: "mfa-coverage-evidence",
+          title: "Privileged MFA coverage evidence"
+        }
+      ],
+      manualTasks: [
+        {
+          id: "manual_mfa",
+          organizationId: "org_phase_h",
+          assessmentId: "assessment_h",
+          controlId: "nis2.access-control.mfa",
+          templateId: "mfa-rollout-review",
+          itemKey: "admin-mfa-coverage",
+          title: "Confirm privileged accounts are covered by MFA policy",
+          status: "approved",
+          evidenceArtifactIds: ["evidence_mfa"],
+          sourceReferences: mfaControl!.sourceReferences
+        }
+      ],
+      evaluatedAt: fixedNow().toISOString()
+    });
+
+    expect(results[0]?.status).toBe("passing");
+  });
+
   it("lets evidence absence affect evidence completeness", async () => {
     const catalog = loadDefaultControlCatalog();
     const providerRun = await runMicrosoftMockScenario("missing_mfa");

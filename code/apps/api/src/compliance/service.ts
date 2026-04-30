@@ -30,6 +30,7 @@ export interface ComplianceAssessmentEvaluationInput {
     completeness?: string;
     countryPackStatus?: string;
     unsupportedFeatures?: Array<{ featureKey: string; reason: string }>;
+    sourceReferences?: CountryPackWarning["sourceReferences"];
   };
 }
 
@@ -66,15 +67,16 @@ export class ComplianceEvaluationService {
       ...storedEvidenceArtifacts.map(evidenceArtifactToComplianceState),
       ...(input.evidenceArtifacts ?? [])
     ];
-    const generatedChecklistItems = generateManualChecklistItems({
-      organizationId: input.organizationId,
-      assessmentId: input.assessmentId,
-      controls: catalog.controls,
-      templates: catalog.manualChecklistTemplates,
-      ownerUserId: input.ownerUserId
-    });
+    const checklistItems =
+      input.manualTasks ??
+      generateManualChecklistItems({
+        organizationId: input.organizationId,
+        assessmentId: input.assessmentId,
+        controls: catalog.controls,
+        templates: catalog.manualChecklistTemplates,
+        ownerUserId: input.ownerUserId
+      });
     const countryPackWarnings = buildCountryPackWarnings(input);
-    const manualTasks = input.manualTasks ?? generatedChecklistItems;
     const results = evaluateComplianceControls({
       organizationId: input.organizationId,
       assessmentId: input.assessmentId,
@@ -82,7 +84,7 @@ export class ComplianceEvaluationService {
       controls: catalog.controls,
       providerFindings,
       evidenceArtifacts,
-      manualTasks,
+      manualTasks: checklistItems,
       countryPackWarnings
     });
     const gaps = calculateComplianceGaps({ results });
@@ -117,7 +119,7 @@ export class ComplianceEvaluationService {
       gaps,
       recommendations,
       readinessPlan,
-      checklistItems: generatedChecklistItems,
+      checklistItems,
       countryPackWarnings
     };
   }

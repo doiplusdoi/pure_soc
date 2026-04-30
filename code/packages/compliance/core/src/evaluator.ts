@@ -55,7 +55,7 @@ export const countryPackWarningsFromStatus = (input: CountryPackWarningInput): C
   if (
     warnings.length === 0 &&
     input.completeness &&
-    !["full_pack_ready", "requires_legal_review"].includes(input.completeness)
+    input.completeness !== "full_pack_ready"
   ) {
     warnings.push({
       countryCode: input.countryCode,
@@ -90,17 +90,20 @@ export const evaluateComplianceControls = (input: ComplianceEvaluationInput): Co
     const controlManualTasks = manualTasks.filter((task) => task.controlId === control.id);
     const incompleteManualTasks = controlManualTasks.filter((task) => !completeManualStates.has(task.status));
     const implicitManualMissing = control.manualChecklistTemplateIds.length > 0 && controlManualTasks.length === 0;
+    const providerSignalPending =
+      control.providerMappings.length > 0 && matchedFindings.length === 0 && !hasCompletedManualSatisfaction(controlManualTasks);
     const status = resolveStatus({
       control,
       matchedFindings,
       missingEvidence,
       incompleteManualTasks,
       implicitManualMissing,
+      providerSignalPending,
       countryPackWarnings,
       accepted: acceptedRisks.has(control.id),
       notApplicable: notApplicable.has(control.id)
     });
-    const confidence = resolveConfidence(status, matchedFindings, countryPackWarnings);
+    const confidence = resolveConfidence(status, matchedFindings, countryPackWarnings, providerSignalPending);
 
     return {
       id: [input.assessmentId, control.id, input.jurisdiction ?? control.jurisdiction].join(":"),
@@ -119,6 +122,7 @@ export const evaluateComplianceControls = (input: ComplianceEvaluationInput): Co
         missingEvidence,
         incompleteManualTasks,
         implicitManualMissing,
+        providerSignalPending,
         countryPackWarnings
       }),
       matchedFindings: signalSummaries,
@@ -201,12 +205,16 @@ const calculateEvidenceCompleteness = (
   };
 };
 
+const hasCompletedManualSatisfaction = (manualTasks: readonly ManualChecklistItemState[]): boolean =>
+  manualTasks.length > 0 && manualTasks.every((task) => completeManualStates.has(task.status));
+
 const resolveStatus = (input: {
   control: ComplianceControl;
   matchedFindings: readonly ProviderFinding[];
   missingEvidence: readonly EvidenceRequirement[];
   incompleteManualTasks: readonly ManualChecklistItemState[];
   implicitManualMissing: boolean;
+  providerSignalPending: boolean;
   countryPackWarnings: readonly CountryPackWarning[];
   accepted: boolean;
   notApplicable: boolean;
@@ -235,6 +243,10 @@ const resolveStatus = (input: {
     return "partial";
   }
 
+  if (input.providerSignalPending) {
+    return "partial";
+  }
+
   if (input.control.providerMappings.length > 0 || input.control.evidenceRequired.length > 0) {
     return "passing";
   }
@@ -245,9 +257,14 @@ const resolveStatus = (input: {
 const resolveConfidence = (
   status: ComplianceStatus,
   matchedFindings: readonly ProviderFinding[],
-  countryPackWarnings: readonly CountryPackWarning[]
+  countryPackWarnings: readonly CountryPackWarning[],
+  providerSignalPending: boolean
 ): Confidence => {
   if (countryPackWarnings.length > 0 && matchedFindings.length === 0) {
+    return "low";
+  }
+
+  if (providerSignalPending) {
     return "low";
   }
 
@@ -270,6 +287,7 @@ const summarizeControlResult = (
     missingEvidence: readonly EvidenceRequirement[];
     incompleteManualTasks: readonly ManualChecklistItemState[];
     implicitManualMissing: boolean;
+    providerSignalPending: boolean;
     countryPackWarnings: readonly CountryPackWarning[];
   }
 ): string => {
@@ -283,6 +301,10 @@ const summarizeControlResult = (
 
   if (status === "partial" && context.countryPackWarnings.length > 0 && context.matchedFindings.length === 0) {
     return `${control.title} has country-pack warnings that require review, but no technical failure was inferred.`;
+  }
+
+  if (status === "partial" && context.providerSignalPending) {
+    return `${control.title} needs a mapped provider signal or completed manual fallback before it can be treated as internally ready.`;
   }
 
   if (status === "partial" || context.implicitManualMissing || context.incompleteManualTasks.length > 0) {

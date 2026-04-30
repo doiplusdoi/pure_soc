@@ -11,7 +11,9 @@ export type AuditAction =
   | "password_changed"
   | "organization_created"
   | "member_invited"
-  | "role_changed";
+  | "role_changed"
+  | "compliance.assessment.evaluated"
+  | "compliance.recommendations.generated";
 
 export interface AuditLogInput {
   actorUserId?: string | null;

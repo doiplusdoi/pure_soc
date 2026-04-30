@@ -94,6 +94,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             recommendationRouteMatch[1] ?? "",
             body,
             request.headers.cookie,
+            context,
             services
           )
         );

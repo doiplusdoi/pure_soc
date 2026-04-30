@@ -146,7 +146,7 @@ describe("api evidence reports dashboards exports", () => {
       },
       owner.cookie
     );
-    expect(evaluationResponse.status).toBe(202);
+    expect(evaluationResponse.status).toBe(200);
 
     const reportResponse = await postJson(
       `/organizations/${organization.id}/reports/internal-readiness`,

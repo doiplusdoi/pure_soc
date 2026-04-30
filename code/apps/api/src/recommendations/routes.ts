@@ -1,8 +1,8 @@
 import { AuthError } from "../../../../packages/auth/core/src/index";
-import type { ComplianceGap } from "../../../../packages/compliance/core/src/index";
 import type { ApiServices } from "../auth/services";
-import { parseCookies, sessionCookieName, type JsonResult } from "../http";
+import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
+import { parseComplianceGaps } from "../compliance/validation";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
@@ -14,6 +14,7 @@ export const generateRecommendationsRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
   cookieHeader: string | undefined,
+  context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
@@ -28,11 +29,31 @@ export const generateRecommendationsRoute = async (
     throw new AuthError("invalid_request", "gaps must be an array.", 400);
   }
 
+  const gaps = parseComplianceGaps(body.gaps, organizationId);
+  const recommendationResult = services.recommendations.generate({
+    organizationId,
+    gaps
+  });
+  const assessmentIds = [...new Set(gaps.map((gap) => gap.assessmentId))];
+
+  await services.auditWriter.write({
+    actorUserId,
+    organizationId,
+    targetType: "compliance_recommendations",
+    targetId: assessmentIds.length === 1 ? assessmentIds[0] : `${organizationId}:recommendations`,
+    action: "compliance.recommendations.generated",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    afterJson: {
+      assessmentIds,
+      gapsCount: gaps.length,
+      recommendationsCount: recommendationResult.recommendations.length,
+      controlIds: [...new Set(gaps.map((gap) => gap.controlId))]
+    }
+  });
+
   return {
     statusCode: 200,
-    body: services.recommendations.generate({
-      organizationId,
-      gaps: body.gaps as ComplianceGap[]
-    })
+    body: recommendationResult
   };
 };

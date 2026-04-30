@@ -1,7 +1,7 @@
-import { AuthError } from "../../../../packages/auth/core/src/index";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
+import { parseComplianceEvaluationBody } from "./validation";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
@@ -24,40 +24,39 @@ export const evaluateComplianceAssessmentRoute = async (
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
 
-  const assessmentId = typeof body.assessmentId === "string" ? body.assessmentId : `${organizationId}:nis2:assessment`;
-  const providerConnectionId = typeof body.providerConnectionId === "string" ? body.providerConnectionId : undefined;
+  const input = parseComplianceEvaluationBody(body, organizationId);
+  const evaluation = await services.compliance.evaluateAssessment({
+    organizationId,
+    assessmentId: input.assessmentId,
+    providerConnectionId: input.providerConnectionId,
+    jurisdiction: input.jurisdiction,
+    ownerUserId: actorUserId,
+    evidenceArtifacts: input.evidenceArtifacts,
+    manualTasks: input.manualTasks,
+    countryPack: input.countryPack
+  });
+
+  await services.auditWriter.write({
+    actorUserId,
+    organizationId,
+    targetType: "compliance_assessment",
+    targetId: input.assessmentId,
+    action: "compliance.assessment.evaluated",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    afterJson: {
+      assessmentId: input.assessmentId,
+      jurisdiction: input.jurisdiction ?? null,
+      controlsEvaluated: evaluation.results.length,
+      gapsCount: evaluation.gaps.length,
+      recommendationsCount: evaluation.recommendations.length,
+      checklistItemsCount: evaluation.checklistItems.length,
+      countryPackWarningsCount: evaluation.countryPackWarnings.length
+    }
+  });
 
   return {
-    statusCode: 202,
-    body: await services.compliance.evaluateAssessment({
-      organizationId,
-      assessmentId,
-      providerConnectionId,
-      jurisdiction: typeof body.jurisdiction === "string" ? body.jurisdiction : undefined,
-      ownerUserId: actorUserId,
-      evidenceArtifacts: Array.isArray(body.evidenceArtifacts) ? (body.evidenceArtifacts as never[]) : undefined,
-      manualTasks: Array.isArray(body.manualTasks) ? (body.manualTasks as never[]) : undefined,
-      countryPack: parseCountryPack(body.countryPack),
-      ...auditContext(context)
-    })
+    statusCode: 200,
+    body: evaluation
   };
 };
-
-const parseCountryPack = (value: unknown) => {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  if (!value || typeof value !== "object" || !("countryCode" in value)) {
-    throw new AuthError("invalid_request", "countryPack must include countryCode when provided.", 400);
-  }
-
-  return value as {
-    countryCode: string;
-    completeness?: string;
-    countryPackStatus?: string;
-    unsupportedFeatures?: Array<{ featureKey: string; reason: string }>;
-  };
-};
-
-const auditContext = (_context: RequestContext): Record<string, never> => ({});

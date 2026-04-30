@@ -23,6 +23,8 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Milestones
 
+The historic phase roadmap remains useful context:
+
 1. Phase A: template-aligned monorepo skeleton and service image catalog.
 2. Phase B: database schema and core data contracts.
 3. Phase C: auth, organizations, RBAC, sessions, and audit.
@@ -35,6 +37,40 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 10. Phase J: safe remediation foundation.
 11. Phase K: release readiness and threat model review.
 
+Active work now uses incremental milestone files:
+
+- `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
+- `docs/PLAN_M2.md` records the completed compliance correctness, validation, and audit hardening milestone.
+- `docs/PLAN_M3.md` is the next active milestone and corresponds to Prompt 2 in `docs/codex-prompts.md`.
+- Each subsequent prompt gets the next number: Prompt 2 writes `PLAN_M3.md`, Prompt 3 writes `PLAN_M4.md`, and so on unless `docs/codex-prompts.md` is intentionally reordered.
+
+## Incremental PLAN_Mx Workflow
+
+Every implementation prompt must maintain a milestone file in `docs/PLAN_Mx.md`.
+
+At the start of a prompt run, Codex must create or update the current milestone plan with:
+
+- summary and goal,
+- source inputs,
+- locked decisions and assumptions,
+- scope and out-of-scope items,
+- expected files and ownership,
+- validation plan,
+- gap-register items expected to move.
+
+At the end of the same prompt run, Codex must update that milestone file with:
+
+- implementation summary,
+- changed files,
+- validation results,
+- acceptance status,
+- gap-register updates,
+- residual risks and deferred work.
+
+Before finishing the prompt run, Codex must also update `docs/codex-prompts.md` based on what actually changed. Completed prompts should be retired, split, or rewritten; remaining prompts should be reordered if new gaps or implementation results make that necessary.
+
+After updating `docs/codex-prompts.md`, Codex must create the next incremental plan stub, `docs/PLAN_M{x+1}.md`, from the next active prompt so the next run starts with a concrete milestone handoff.
+
 ## Execution Rule
 
-Use the implementation prompts in `docs/codex-prompts.md`, but treat app paths as relative to `code/` unless a prompt explicitly names a root-level document.
+Use the implementation prompts in `docs/codex-prompts.md`, but treat app paths as relative to `code/` unless a prompt explicitly names a root-level document. Every prompt run must update its `docs/PLAN_Mx.md`, update `docs/codex-prompts.md`, and prepare the next `docs/PLAN_M{x+1}.md` stub.
