@@ -89,6 +89,9 @@ importers:
       '@puresoc/providers-core':
         specifier: workspace:*
         version: link:../../packages/providers/core
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../packages/regulatory-sources
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -209,6 +212,9 @@ importers:
       '@puresoc/compliance-core':
         specifier: workspace:*
         version: link:../compliance/core
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../regulatory-sources
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../recommendations

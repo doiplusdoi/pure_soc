@@ -27,6 +27,13 @@ import {
 import { generateRecommendationsRoute } from "./recommendations/routes";
 import { downloadEvidenceRoute, listEvidenceRoute, uploadEvidenceRoute } from "./evidence/routes";
 import {
+  activateRegulatorySourceVersionRoute,
+  listRegulatoryReviewTasksRoute,
+  markRegulatoryReviewTaskReviewedRoute,
+  readRegulatorySourceMapTraceabilityRoute,
+  rejectRegulatoryReviewTaskRoute
+} from "./regulatory-sources/routes";
+import {
   buildInternalReadinessReportRoute,
   buildRomaniaNotificationDraftReportRoute
 } from "./reports/routes";
@@ -179,6 +186,90 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
           await createDashboardSnapshotRoute(
             dashboardSnapshotRouteMatch[1] ?? "",
             body,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const regulatoryReviewTasksRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks$/
+      );
+      if (regulatoryReviewTasksRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listRegulatoryReviewTasksRoute(
+            regulatoryReviewTasksRouteMatch[1] ?? "",
+            url.searchParams,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const regulatoryReviewTaskActionRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks\/([^/]+)\/(review|reject|activate)$/
+      );
+      if (regulatoryReviewTaskActionRouteMatch && request.method === "POST") {
+        const organizationId = regulatoryReviewTaskActionRouteMatch[1] ?? "";
+        const taskId = regulatoryReviewTaskActionRouteMatch[2] ?? "";
+        const action = regulatoryReviewTaskActionRouteMatch[3];
+
+        if (action === "review") {
+          sendJson(
+            response,
+            await markRegulatoryReviewTaskReviewedRoute(
+              organizationId,
+              taskId,
+              body,
+              request.headers.cookie,
+              context,
+              services
+            )
+          );
+          return;
+        }
+
+        if (action === "reject") {
+          sendJson(
+            response,
+            await rejectRegulatoryReviewTaskRoute(
+              organizationId,
+              taskId,
+              body,
+              request.headers.cookie,
+              context,
+              services
+            )
+          );
+          return;
+        }
+
+        sendJson(
+          response,
+          await activateRegulatorySourceVersionRoute(
+            organizationId,
+            taskId,
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const regulatorySourceMapRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/regulatory-sources\/source-versions\/([^/]+)\/source-map$/
+      );
+      if (regulatorySourceMapRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await readRegulatorySourceMapTraceabilityRoute(
+            regulatorySourceMapRouteMatch[1] ?? "",
+            regulatorySourceMapRouteMatch[2] ?? "",
             request.headers.cookie,
             services
           )

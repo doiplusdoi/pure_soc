@@ -15,6 +15,13 @@ export {
 } from "./provider-connections/routes";
 export { ProviderConnectionsService, type ProviderConnectionView } from "./provider-connections/service";
 export { requireOrganizationRole } from "./rbac/index";
+export {
+  activateRegulatorySourceVersionRoute,
+  listRegulatoryReviewTasksRoute,
+  markRegulatoryReviewTaskReviewedRoute,
+  readRegulatorySourceMapTraceabilityRoute,
+  rejectRegulatoryReviewTaskRoute
+} from "./regulatory-sources/routes";
 export { EvidenceApiService } from "./evidence/service";
 export { ReportApiService } from "./reports/service";
 export { DashboardApiService } from "./dashboards/service";

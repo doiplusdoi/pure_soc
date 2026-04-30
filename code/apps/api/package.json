@@ -20,6 +20,7 @@
     "@puresoc/provider-microsoft365": "workspace:*",
     "@puresoc/provider-mock": "workspace:*",
     "@puresoc/providers-core": "workspace:*",
+    "@puresoc/regulatory-sources": "workspace:*",
     "@puresoc/recommendations": "workspace:*",
     "@puresoc/reports": "workspace:*",
     "@puresoc/shared": "workspace:*"

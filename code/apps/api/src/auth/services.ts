@@ -8,6 +8,7 @@ import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import { InMemoryComplianceResultRepository } from "@puresoc/compliance-core";
+import { InMemoryRegulatorySourceRepository, RegulatorySourceReviewService } from "@puresoc/regulatory-sources";
 import type { RecommendationContract } from "@puresoc/recommendations";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { ComplianceEvaluationService } from "../compliance/service";
@@ -27,6 +28,7 @@ export interface ApiServices {
   microsoft365ProviderConnections: Microsoft365ProviderConnectionService;
   compliance: ComplianceEvaluationService;
   recommendations: RecommendationApiService;
+  regulatorySources: RegulatorySourceReviewService;
   evidence: EvidenceApiService;
   reports: ReportApiService;
   dashboards: DashboardApiService;
@@ -58,6 +60,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
   });
   const providerStore = new InMemoryProviderResourceStore({ now: options.now });
   const complianceResultRepository = new InMemoryComplianceResultRepository<RecommendationContract>();
+  const regulatorySourceRepository = new InMemoryRegulatorySourceRepository();
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -75,6 +78,10 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     now: options.now
   });
   const recommendations = new RecommendationApiService();
+  const regulatorySources = new RegulatorySourceReviewService({
+    repository: regulatorySourceRepository,
+    now: options.now
+  });
   const evidence = new EvidenceApiService({
     repository,
     auditWriter,
@@ -99,6 +106,7 @@ export const createApiServices = (options: { now?: () => Date } = {}): ApiServic
     microsoft365ProviderConnections,
     compliance,
     recommendations,
+    regulatorySources,
     evidence,
     reports,
     dashboards

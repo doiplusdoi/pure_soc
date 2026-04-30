@@ -35,6 +35,7 @@ The repository currently contains:
 - PLAN_M3 contract alignment: logical control IDs in Prisma output references, split finding/actionable severity, date-only readiness due dates, gap/recommendation/plan source identity fields, and an in-memory `ComplianceResultRepository` port.
 - PLAN_M4 Prisma persistence slice: pinned Prisma 6.19.3 CLI/client workflow, generated initial migration, Prisma client factory, compliance-result snapshot table, and `PrismaComplianceResultRepository` with organization-scoped adapter tests.
 - PLAN_M5 workspace import policy: cross-package imports now go through `@puresoc/*` package exports, workspace dependencies are declared, shared source/reference/recommendation/finding contracts live in `@puresoc/shared`, compliance-core no longer imports provider-core types, and `scripts/check-layout.mjs` enforces package boundaries.
+- PLAN_M6 regulatory review workflow: source versions, validation reports, source maps, review tasks, review decisions, activation timestamps, supersession links, source-map traceability routes, and `regulatory_admin` authorization now prevent source-derived legal logic from silently becoming active.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -47,7 +48,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 2 / `docs/PLAN_M3.md` is completed.
 - Prompt 3 / `docs/PLAN_M4.md` is completed.
 - Prompt 4 / `docs/PLAN_M5.md` is completed.
-- Prompt 5 starts at `docs/PLAN_M6.md`.
+- Prompt 5 / `docs/PLAN_M6.md` is completed.
+- Prompt 6 starts at `docs/PLAN_M7.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -62,18 +64,17 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
-2. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
-3. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-4. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-5. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-6. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-7. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-8. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-9. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-10. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+2. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+3. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+4. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+5. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+6. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+7. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+8. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+9. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 5 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
+Prompts 6 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
 ## Required Prompt Template
 
@@ -200,82 +201,22 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand import-smoke compliance recommendations provider`
 
-## Prompt 5 / PLAN_M6: Regulatory Review Workflow And Source Activation Persistence
+## Completed Prompt 5 / PLAN_M6: Regulatory Review Workflow And Source Activation Persistence
 
-```txt
-You are implementing the regulatory review workflow needed before source-derived legal logic is activated.
+Completed on 2026-04-30.
 
-Use skills:
-- puresoc-regulatory-xlsx-importer
+Summary:
+- Regulatory source imports now persist source records, source versions, validation reports, source maps, review tasks, review decisions, activation timestamps, and supersession links through `@puresoc/regulatory-sources`.
+- Changed legal logic remains `review_required` and creates a `regulatory_admin` review task; source-monitor task creation creates review work without activating legal logic.
+- API routes list review tasks, mark tasks reviewed/rejected/activated, and read source-map traceability under organization RBAC.
+- Prisma schema, initial migration metadata, and a structural Prisma repository adapter now include source-version activation state, validation reports, review decisions, and supersession links.
+- GAP-006 remains open for product/legal reviewer operating procedure and UI; GAP-027 tracks runtime source-monitor scheduling.
 
-Read:
-- docs/puresoc_vision.md sections 2, 10, 11, 20, 21, 22, 28
-- docs/master-plan.md sections 10, 13, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/adr/ADR-005-regulatory-seed-and-source-map-format.md
-- docs/adr/ADR-011-regulatory-source-activation-lifecycle.md
-
-Goal:
-Persist regulatory source versions, review tasks, review decisions, activation, and supersession so imported Romania and future country-pack logic cannot silently become active.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M6.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M7.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M6.md
-- docs/PLAN_M7.md
-- docs/codex-prompts.md
-- packages/regulatory-sources
-- packages/database/prisma/schema.prisma and repository files if Prisma is available
-- apps/api/src/regulatory-sources
-- apps/scheduler/src/regulatory-sources if source-monitor scheduling is touched
-- data/regulatory/countries/ro/*.generated.json only if source metadata needs regeneration
-- docs/implementation-gaps.md
-
-Implement:
-- Persist source versions, source maps, import validation reports, review tasks, reviewer decisions, activation timestamps, and supersession links.
-- Create API routes for listing review tasks, marking reviewed/rejected/activated, and reading source-map traceability.
-- Enforce `regulatory_admin` role for review and activation actions.
-- Keep changed legal logic in `review_required` until an authorized review decision activates it.
-- Preserve immutable source/version history for historic assessments.
-- Add optional source monitor task creation without auto-activation.
-
-Negative constraints:
-- Do not auto-activate changed national legal logic from importer output or source monitor output.
-- Do not treat secondary trackers as primary legal truth.
-- Do not put Romania-specific review logic in EU baseline packages.
-- Do not submit anything to DNSC or national authorities.
-- Do not make legal certification claims.
-
-Tests:
-- Changed source import creates `review_required` state and review task.
-- `regulatory_admin` can activate reviewed source version.
-- Non-regulatory admin cannot activate source version.
-- Superseded versions remain readable for historic assessments.
-- Source-map traceability survives activation.
-- Source monitor creates a review task, not active legal logic.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand regulatory source-activation review-task source-map
-
-Gap updates:
-- Update GAP-006 and GAP-019-related notes.
-- Add product/legal workflow gaps if reviewer ownership or policy remains undefined.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M6 updated
-- PLAN_M7 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand regulatory source-activation review-task source-map`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
 ## Prompt 6 / PLAN_M7: Billing Provider And Entitlements
 

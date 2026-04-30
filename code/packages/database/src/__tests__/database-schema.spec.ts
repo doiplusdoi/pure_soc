@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(76);
+    expect(requiredTables).toHaveLength(77);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -109,5 +109,16 @@ describe("database schema groups", () => {
     expect(modelBlocks.get("compliance_result_snapshots")).toContain(
       "@@unique([organizationId, assessmentId]"
     );
+  });
+
+  it("stores regulatory source review decisions, activation state, and source-version traceability", () => {
+    expect(enumBlocks.get("RegulatorySourceStatus")).toContain("review_required");
+    expect(enumBlocks.get("RegulatorySourceStatus")).toContain("needs_review");
+    expect(modelBlocks.get("regulatory_source_versions")).toContain("importValidationReportJson");
+    expect(modelBlocks.get("regulatory_source_versions")).toContain("supersededByVersionId");
+    expect(modelBlocks.get("regulatory_review_tasks")).toContain("sourceVersionId");
+    expect(modelBlocks.get("regulatory_review_tasks")).toContain("createdForStatus");
+    expect(modelBlocks.get("regulatory_review_decisions")).toContain("RegulatoryReviewDecisionType");
+    expect(modelBlocks.get("regulatory_source_maps")).toContain("sourceVersionId");
   });
 });

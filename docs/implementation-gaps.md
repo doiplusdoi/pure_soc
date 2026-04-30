@@ -77,9 +77,9 @@ Status: Resolved 2026-04-28 for structured parser and generated source-mapped se
 
 Severity: High
 Area: Regulatory risk
-Current state: Product caveat is defined, ADR-011 records the source activation lifecycle, and Phase D added a regulatory source lifecycle skeleton in `code/packages/regulatory-sources` where changed legal logic defaults to `review_required` and creates a `regulatory_admin` review-task skeleton. Phase E now has source-mapped Romania preliminary classification, onboarding progress, and notification-draft contracts, but reviewer assignment rules, review persistence, approval UI, and legal/product operating procedure are still undefined.
-Impact: Incorrect national guidance could create commercial and customer risk if reviewers, approvals, and activation authority are not defined before source-derived Romania country-pack legal logic is activated for production guidance.
-Next action: Define reviewer roles and approval workflow, then implement persisted `regulatory_review_tasks` and activation/supersession UI before activating source-derived Romania country-pack or control changes.
+Current state: Product caveat is defined, ADR-011 records the source activation lifecycle, and PLAN_M6 added repository-backed regulatory source versions, validation reports, source maps, review tasks, review decisions, activation timestamps, supersession links, API routes, and `regulatory_admin` authorization. Changed Romania and future country-pack legal logic now remains `review_required` until reviewed and activated.
+Impact: Technical activation guardrails exist, but incorrect national guidance could still create commercial and customer risk if legal/product reviewer ownership, review evidence standards, escalation rules, and approval UI/operations are not defined before production activation.
+Next action: Define reviewer assignment, legal/product operating procedure, required review evidence, approval delegation, and activation UI before production use of source-derived Romania country-pack or control changes.
 Owner: Product/legal
 Target phase: Phase D and Phase K
 Status: Open
@@ -231,12 +231,12 @@ Status: Resolved 2026-04-30 for Prisma dependency, validation/generation, initia
 
 Severity: High
 Area: Regulatory/country packs
-Current state: Phase D added a source activation lifecycle skeleton in `code/packages/regulatory-sources`, including `draft`, `validated`, `review_required`, `active`, and `superseded` states, changed-legal-logic defaulting to `review_required`, and tests that prevent auto-activation of changed legal logic.
-Impact: The domain guard now exists for imports and source monitors, but persistence, immutable source-version history, and reviewer workflow still need concrete implementation before legal changes become operational.
-Next action: Expand the skeleton during Phase E importer work with persisted source versions, source maps, validation reports, and review-task writes.
+Current state: PLAN_M6 added persisted/domain-level source versions, source maps, import validation reports, review tasks, review decisions, activation timestamps, supersession links, source-map traceability reads, and API routes protected by `regulatory_admin`. Source monitor task creation now produces review tasks without activating legal logic.
+Impact: The source activation lifecycle is executable and historic source versions remain readable. Production reviewer policy and UI remain tracked by GAP-006, and live database/scheduler runtime rollout remains separate from this contract slice.
+Next action: Use the M6 contracts when wiring production regulatory review UI and any live source-monitor scheduler.
 Owner: Codex/Product/legal
 Target phase: Phase D/E
-Status: Resolved 2026-04-28 for Phase D skeleton; persistence and review workflow remain tracked by GAP-006 and Phase E tasks.
+Status: Resolved 2026-04-30 for PLAN_M6 persistence, API, source-map traceability, and activation/supersession workflow.
 
 ### GAP-021: Control Catalog Coverage And Readiness Scoring Need Product Calibration
 
@@ -268,6 +268,17 @@ Current state: PLAN_M4 validates the Prisma schema, generates the Prisma client,
 Impact: Type, mapping, organization-scope, and migration-script regressions are covered, but database-specific runtime issues such as extension availability, permissions, SQL execution, and actual transaction behavior remain unproven until a live database smoke test is added.
 Next action: Add a Docker-backed PostgreSQL migration/apply smoke test or CI service-container job once runtime database infrastructure is intentionally in scope.
 Owner: Codex/DevOps
+Target phase: Phase K
+Status: Open
+
+### GAP-027: Regulatory Source Monitor Runtime Not Scheduled
+
+Severity: Medium
+Area: Regulatory operations
+Current state: PLAN_M6 added source-monitor review-task creation semantics in `code/packages/regulatory-sources`, including `needs_review`, `stale`, and `unreachable` task states without auto-activation. No periodic scheduler job currently polls configured source URLs or writes these tasks on a runtime cadence.
+Impact: Source monitor behavior is testable as a domain contract, but deployed environments will not detect stale/unreachable/changed source URLs until the scheduler or worker runtime is wired.
+Next action: Implement `regulatory.monitorCountrySources` in the scheduler/worker runtime with configurable `REGULATORY_SOURCE_MONITOR_ENABLED`, URL metadata checks, and review-task creation only.
+Owner: Codex/Product/legal
 Target phase: Phase K
 Status: Open
 

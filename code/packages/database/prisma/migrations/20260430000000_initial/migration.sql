@@ -47,7 +47,13 @@ CREATE TYPE "RegulatorySourceType" AS ENUM ('directive', 'regulation', 'official
 CREATE TYPE "RegulatorySourceTrustLevel" AS ENUM ('primary', 'secondary', 'internal_seed');
 
 -- CreateEnum
-CREATE TYPE "RegulatorySourceStatus" AS ENUM ('draft', 'active', 'stale', 'superseded', 'unreachable');
+CREATE TYPE "RegulatorySourceStatus" AS ENUM ('draft', 'validated', 'review_required', 'active', 'stale', 'superseded', 'unreachable', 'needs_review', 'deprecated');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryReviewTaskStatus" AS ENUM ('open', 'reviewed', 'rejected', 'activated');
+
+-- CreateEnum
+CREATE TYPE "RegulatoryReviewDecisionType" AS ENUM ('reviewed', 'rejected', 'activated');
 
 -- CreateEnum
 CREATE TYPE "CountryPackCompleteness" AS ENUM ('baseline_only', 'planned_full_pack', 'official_sources_identified', 'registration_rules_partial', 'classification_rules_partial', 'incident_rules_partial', 'full_pack_ready', 'requires_legal_review', 'deprecated');
@@ -690,7 +696,11 @@ CREATE TABLE "regulatory_sources" (
     "authority_name" TEXT,
     "trust_level" "RegulatorySourceTrustLevel" NOT NULL,
     "status" "RegulatorySourceStatus" NOT NULL DEFAULT 'draft',
+    "activation_status" "RegulatorySourceStatus" NOT NULL DEFAULT 'draft',
+    "active_version_id" UUID,
     "notes" TEXT,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "regulatory_sources_pkey" PRIMARY KEY ("id")
 );
@@ -701,9 +711,14 @@ CREATE TABLE "regulatory_source_versions" (
     "source_id" UUID NOT NULL,
     "version_label" TEXT NOT NULL,
     "content_hash_sha256" TEXT,
+    "activation_status" "RegulatorySourceStatus" NOT NULL DEFAULT 'draft',
+    "validation_status" TEXT NOT NULL DEFAULT 'not_validated',
     "metadata_json" JSONB NOT NULL DEFAULT '{}',
+    "import_validation_report_json" JSONB NOT NULL DEFAULT '{}',
     "activated_at" TIMESTAMP(3),
+    "activated_by" UUID,
     "superseded_at" TIMESTAMP(3),
+    "superseded_by_version_id" UUID,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "regulatory_source_versions_pkey" PRIMARY KEY ("id")
@@ -726,14 +741,31 @@ CREATE TABLE "regulatory_review_tasks" (
     "id" UUID NOT NULL,
     "organization_id" UUID,
     "source_id" UUID,
+    "source_version_id" UUID,
     "country_pack_version_id" UUID,
-    "assigned_role_key" TEXT,
-    "status" TEXT NOT NULL DEFAULT 'open',
+    "assigned_role_key" TEXT NOT NULL DEFAULT 'regulatory_admin',
+    "status" "RegulatoryReviewTaskStatus" NOT NULL DEFAULT 'open',
     "reason" TEXT NOT NULL,
+    "created_for_status" "RegulatorySourceStatus" NOT NULL DEFAULT 'review_required',
+    "metadata_json" JSONB NOT NULL DEFAULT '{}',
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "resolved_at" TIMESTAMP(3),
 
     CONSTRAINT "regulatory_review_tasks_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "regulatory_review_decisions" (
+    "id" UUID NOT NULL,
+    "task_id" UUID NOT NULL,
+    "source_version_id" UUID,
+    "decision" "RegulatoryReviewDecisionType" NOT NULL,
+    "decided_by" UUID NOT NULL,
+    "decided_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "notes" TEXT,
+    "decision_json" JSONB NOT NULL DEFAULT '{}',
+
+    CONSTRAINT "regulatory_review_decisions_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable

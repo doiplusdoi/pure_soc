@@ -89,8 +89,43 @@ git diff --check
 
 ## Completion Log
 
-Pending implementation.
+Started 2026-04-30.
+
+Planned implementation shape:
+
+- Add a regulatory source review service with repository-backed source versions, validation reports, source-map entries, review tasks, review decisions, activation, and supersession behavior.
+- Keep an in-memory repository for API/unit tests and add a Prisma adapter boundary where the existing Prisma workflow can persist the same records.
+- Add API routes under organization scope that require `regulatory_admin` for review and activation actions.
+- Add a source-monitor task creation path that creates review work without activating legal logic.
+- Preserve GAP-006 as an open product/legal operating-procedure gap even after the technical workflow exists.
+
+Completed 2026-04-30.
+
+Actual implementation:
+
+- Added `RegulatorySourceReviewService`, `InMemoryRegulatorySourceRepository`, review decision records, source-version activation state, import validation report storage, source-map traceability reads, supersession behavior, and source-monitor review-task creation in `@puresoc/regulatory-sources`.
+- Added API routes for listing review tasks, marking reviewed/rejected/activated, and reading source-map traceability under `organizations/:organizationId/regulatory-sources/*`.
+- Enforced `regulatory_admin` on regulatory review and activation routes; owner-only users are rejected from activation.
+- Updated Prisma schema and initial migration metadata for source-version activation status, validation reports, review-task source-version links, review decisions, and supersession links.
+- Added a structural `PrismaRegulatorySourceRepository` adapter boundary.
+- Updated `docs/implementation-gaps.md`: GAP-006 remains open for product/legal reviewer process and UI; GAP-019 is resolved for the M6 technical workflow; GAP-027 now tracks runtime source-monitor scheduling.
+- Updated `docs/codex-prompts.md` to retire Prompt 5 and created `docs/PLAN_M7.md` from the billing prompt.
+
+Validation results:
+
+- Passed: `pnpm lint`
+- Passed: `pnpm test -- --runInBand regulatory source-activation review-task source-map`
+- Passed: `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- Passed: `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
+
+Acceptance status: Accepted for M6.
+
+Residual risk and deferred work:
+
+- Product/legal still needs to define reviewer assignment, required evidence for approval, delegation rules, and operational policy before production activation; tracked by GAP-006.
+- Source-monitor URL polling is not scheduled in `apps/scheduler`; the domain task creation path exists and runtime scheduling is tracked by GAP-027.
+- No live PostgreSQL migration/apply smoke was added in this slice; existing live database smoke gap remains GAP-026.
 
 ## Handoff For Next Milestone
 
-After M6 completes, `docs/PLAN_M7.md` should be generated from the next active prompt in `docs/codex-prompts.md`, currently Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+`docs/PLAN_M7.md` was generated from Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.

@@ -138,10 +138,27 @@ enum RegulatorySourceTrustLevel {
 
 enum RegulatorySourceStatus {
   draft
+  validated
+  review_required
   active
   stale
   superseded
   unreachable
+  needs_review
+  deprecated
+}
+
+enum RegulatoryReviewTaskStatus {
+  open
+  reviewed
+  rejected
+  activated
+}
+
+enum RegulatoryReviewDecisionType {
+  reviewed
+  rejected
+  activated
 }
 
 enum CountryPackCompleteness {
@@ -844,7 +861,11 @@ model RegulatorySource {
   authorityName  String?                    @map("authority_name")
   trustLevel     RegulatorySourceTrustLevel @map("trust_level")
   status         RegulatorySourceStatus     @default(draft)
+  activationStatus RegulatorySourceStatus   @default(draft) @map("activation_status")
+  activeVersionId String?                   @map("active_version_id") @db.Uuid
   notes          String?
+  createdAt      DateTime                   @default(now()) @map("created_at")
+  updatedAt      DateTime                   @updatedAt @map("updated_at")
 
   @@map("regulatory_sources")
 }
@@ -854,9 +875,14 @@ model RegulatorySourceVersion {
   sourceId            String   @map("source_id") @db.Uuid
   versionLabel        String   @map("version_label")
   contentHashSha256   String?  @map("content_hash_sha256")
+  activationStatus    RegulatorySourceStatus @default(draft) @map("activation_status")
+  validationStatus    String   @default("not_validated") @map("validation_status")
   metadataJson        Json     @default("{}") @map("metadata_json")
+  importValidationReportJson Json @default("{}") @map("import_validation_report_json")
   activatedAt         DateTime? @map("activated_at")
+  activatedBy         String?  @map("activated_by") @db.Uuid
   supersededAt        DateTime? @map("superseded_at")
+  supersededByVersionId String? @map("superseded_by_version_id") @db.Uuid
   createdAt           DateTime @default(now()) @map("created_at")
 
   @@unique([sourceId, versionLabel], map: "regulatory_source_versions_source_version_key")
@@ -878,14 +904,30 @@ model RegulatoryReviewTask {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String?  @map("organization_id") @db.Uuid
   sourceId       String?  @map("source_id") @db.Uuid
+  sourceVersionId String? @map("source_version_id") @db.Uuid
   countryPackVersionId String? @map("country_pack_version_id") @db.Uuid
-  assignedRoleKey String? @map("assigned_role_key")
-  status         String   @default("open")
+  assignedRoleKey String  @default("regulatory_admin") @map("assigned_role_key")
+  status         RegulatoryReviewTaskStatus @default(open)
   reason         String
+  createdForStatus RegulatorySourceStatus @default(review_required) @map("created_for_status")
+  metadataJson   Json     @default("{}") @map("metadata_json")
   createdAt      DateTime @default(now()) @map("created_at")
   resolvedAt     DateTime? @map("resolved_at")
 
   @@map("regulatory_review_tasks")
+}
+
+model RegulatoryReviewDecision {
+  id              String   @id @default(uuid()) @db.Uuid
+  taskId          String   @map("task_id") @db.Uuid
+  sourceVersionId String?  @map("source_version_id") @db.Uuid
+  decision        RegulatoryReviewDecisionType
+  decidedBy       String   @map("decided_by") @db.Uuid
+  decidedAt       DateTime @default(now()) @map("decided_at")
+  notes           String?
+  decisionJson    Json     @default("{}") @map("decision_json")
+
+  @@map("regulatory_review_decisions")
 }
 
 model Jurisdiction {

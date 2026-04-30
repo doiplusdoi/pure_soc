@@ -11,6 +11,10 @@ export {
   PrismaComplianceResultRepository,
   type PrismaComplianceResultClient
 } from "./repositories/compliance-results";
+export {
+  PrismaRegulatorySourceRepository,
+  type PrismaRegulatorySourceClient
+} from "./repositories/regulatory-sources";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,

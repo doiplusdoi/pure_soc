@@ -45,6 +45,7 @@ export const schemaGroups = {
     "regulatory_source_versions",
     "regulatory_source_snapshots",
     "regulatory_review_tasks",
+    "regulatory_review_decisions",
     "jurisdictions",
     "country_packs",
     "country_pack_versions",
