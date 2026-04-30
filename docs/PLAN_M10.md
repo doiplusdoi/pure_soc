@@ -89,7 +89,36 @@ Use browser verification where UI behavior or layout is changed, and record any 
 
 ## Completion Log
 
-Pending implementation.
+Completed on 2026-04-30.
+
+Actual changes:
+
+- Added ADR-014 for the PureSOC operational UI design-system decision.
+- Replaced the placeholder `@puresoc/ui` package with OKLCH design tokens, semantic CSS, status/source/meter/table/button/legal-caveat primitives, and primitive tests.
+- Replaced the placeholder `apps/web` export with a contract-backed operational console renderer, demo stored-analysis model, login form surface, dashboard/onboarding/provider/gap/recommendation/evidence/report/approval sections, and UI smoke tests.
+- Added `pnpm test:e2e -- --grep "@ui-smoke"` support through a static Vitest smoke runner.
+- Updated `code/README.md`, `docs/implementation-gaps.md`, `docs/codex-prompts.md`, and created `docs/PLAN_M11.md`.
+
+Validation results:
+
+```sh
+pnpm lint
+pnpm test -- --runInBand web dashboard reports
+pnpm test:e2e -- --grep "@ui-smoke"
+```
+
+Acceptance status:
+
+- Design-system decision is documented in ADR-014.
+- GAP-009 is resolved for the M10 design-system decision.
+- Dashboard, report, evidence, source, legal-caveat, focus, responsive CSS, and approval-state semantics are covered by unit/static smoke tests.
+- Remediation UI shows preflight, approval, snapshot, blast radius, and disabled queue state without exposing a provider write/apply control.
+- Browser-grade Playwright screenshots were not added because the repo still lacks a served web runtime and Playwright configuration; this is tracked in GAP-031.
+
+Residual risk:
+
+- The UI is a semantic static renderer rather than a Next.js route tree.
+- Desktop/mobile no-overlap verification is static/heuristic until Playwright and a served runtime are added.
 
 ## Handoff From M9
 

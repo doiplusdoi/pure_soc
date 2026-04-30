@@ -8,6 +8,7 @@ Run application tooling from this directory:
 pnpm install
 pnpm lint
 pnpm test
+pnpm test:e2e -- --grep "@ui-smoke"
 docker compose -f infra/compose/docker-compose.yml config
 ```
 
@@ -33,3 +34,9 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:mig
 - `infra/docker/`: service Dockerfiles.
 - `scripts/`: workspace maintenance scripts.
 - `tests/`: cross-package smoke tests.
+
+## Web UI
+
+The M10 UI milestone adds a contract-backed operational console renderer in `apps/web` and shared design-system primitives in `packages/ui`. The console renders from stored dashboard, report, evidence, and remediation action contracts; it does not call live providers directly and does not make legal certification claims.
+
+`pnpm test:e2e -- --grep "@ui-smoke"` runs the current static UI smoke checks. Browser-grade Playwright screenshots are tracked as deferred runtime hardening until the served web runtime is wired.

@@ -137,7 +137,23 @@ importers:
 
   apps/scheduler: {}
 
-  apps/web: {}
+  apps/web:
+    dependencies:
+      '@puresoc/dashboards':
+        specifier: workspace:*
+        version: link:../../packages/dashboards
+      '@puresoc/recommendations':
+        specifier: workspace:*
+        version: link:../../packages/recommendations
+      '@puresoc/reports':
+        specifier: workspace:*
+        version: link:../../packages/reports
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@puresoc/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
 
   apps/worker:
     dependencies:

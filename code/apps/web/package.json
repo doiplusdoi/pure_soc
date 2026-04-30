@@ -3,6 +3,13 @@
   "version": "0.1.0",
   "type": "module",
   "private": true,
+  "dependencies": {
+    "@puresoc/dashboards": "workspace:*",
+    "@puresoc/recommendations": "workspace:*",
+    "@puresoc/reports": "workspace:*",
+    "@puresoc/shared": "workspace:*",
+    "@puresoc/ui": "workspace:*"
+  },
   "exports": {
     ".": "./src/index.ts"
   }

@@ -8,6 +8,7 @@
     "lint": "node scripts/check-layout.mjs && tsc -p tsconfig.base.json --noEmit",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
     "test": "vitest run",
+    "test:e2e": "node scripts/run-ui-smoke.mjs",
     "test:watch": "vitest",
     "prisma:validate": "prisma validate --schema packages/database/prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema packages/database/prisma/schema.prisma",

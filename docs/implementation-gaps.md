@@ -110,12 +110,12 @@ Status: Resolved 2026-04-30 for Phase I contracts and in-memory implementation; 
 
 Severity: Medium
 Area: Frontend
-Current state: UX direction is defined, but component library/design tokens are not selected.
-Impact: UI may drift or slow down.
-Next action: Decide on Tailwind/shadcn or alternative during web app bootstrap; record in ADR.
+Current state: ADR-014 records the PureSOC operational design-system decision. PLAN_M10 added `@puresoc/ui` tokens and semantic primitives, plus an `apps/web` operational console renderer for dashboard, onboarding, Microsoft 365 health, gaps, recommendations, evidence/reports, login focus, and approval affordances backed by stored contracts.
+Impact: UI now has a consistent product-console direction and reusable primitives. The frontend runtime remains framework-light until a served Next.js app is intentionally wired.
+Next action: Preserve ADR-014 tokens and primitive semantics when implementing the full served React/Next.js runtime and browser screenshot harness tracked by GAP-031.
 Owner: Codex/product
 Target phase: Phase A
-Status: Open
+Status: Resolved 2026-04-30 for M10 design-system decision and static operational console primitives.
 
 ### GAP-010: Skill Installation Pending Approval
 
@@ -313,6 +313,17 @@ Impact: Future write actions have the required guardrail model, but deployed env
 Next action: Before enabling any provider write action, implement a persisted BullMQ `action-execution` worker path, wire `ProviderActionRun` persistence in runtime API services, add idempotent worker execution tests, add live database smoke coverage, and create provider-specific preflight/snapshot/apply/verify/evidence tests for each action template.
 Owner: Codex/DevOps/Product
 Target phase: Phase J/K
+Status: Open
+
+### GAP-031: Served Web Runtime And Browser Screenshot Harness Deferred
+
+Severity: Medium
+Area: Frontend/runtime
+Current state: PLAN_M10 added a deterministic operational console renderer, shared UI tokens/primitives, login form surface, and static `@ui-smoke` checks. The repository still does not include a served Next.js/React runtime, Playwright dependency/configuration, or browser-generated desktop/mobile screenshots.
+Impact: Source, caveat, responsive CSS, focus affordance, and approval-state semantics are testable, but real browser layout, screenshot diffing, pointer/keyboard traversal, and text-overlap checks are not yet proven in Chromium/WebKit/Firefox.
+Next action: When the served web runtime is in scope, add Next.js route wiring or equivalent, install/configure Playwright, capture desktop and mobile screenshots for dashboard/gaps/evidence/approval/login flows, and fail CI on overlap or inaccessible focus regressions.
+Owner: Codex/Frontend
+Target phase: Phase K
 Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal

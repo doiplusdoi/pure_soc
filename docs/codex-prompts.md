@@ -39,6 +39,7 @@ The repository currently contains:
 - PLAN_M7 billing foundation: billing provider contracts, configurable placeholder plans/entitlements, Stripe checkout/portal adapter, raw-body webhook signature verification, idempotent billing event ledger, subscription status mapping, `BILLING_PROVIDER=none` bypass behavior, Prisma billing repository adapter, API routes, and billing audit events.
 - PLAN_M8 production evidence/report adapters: S3/MinIO object-storage adapter, explicit no-op/mock/HTTP scanner adapters with production fail-closed behavior, Prisma evidence metadata/access-log repository, generated-report evidence artifacts, report/export audit events, and deterministic report-renderer JSON/PDF artifacts.
 - PLAN_M9 safe remediation foundation: recommendation-to-action templates/runs, preflight/approval/snapshot/verification/evidence metadata, action audit events, action API routes, Prisma action repository metadata, and future worker job contracts without live provider writes.
+- PLAN_M10 operational UI/design system: ADR-014, `@puresoc/ui` OKLCH tokens and semantic primitives, `apps/web` contract-backed operational console renderer, login focus surface, source/caveat indicators, approval affordances, and static `@ui-smoke` coverage.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -55,7 +56,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 6 / `docs/PLAN_M7.md` is completed.
 - Prompt 7 / `docs/PLAN_M8.md` is completed.
 - Prompt 8 / `docs/PLAN_M9.md` is completed.
-- Prompt 9 starts at `docs/PLAN_M10.md`.
+- Prompt 9 / `docs/PLAN_M10.md` is completed.
+- Prompt 10 starts at `docs/PLAN_M11.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -70,14 +72,13 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-2. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-3. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-4. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-5. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-6. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+2. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+3. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+4. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+5. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 8 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
+Prompts 10 through 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
 ## Required Prompt Template
 
@@ -276,89 +277,22 @@ Validated with:
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
-## Prompt 9 / PLAN_M10: Operational UI And Design System
+## Completed Prompt 9 / PLAN_M10: Operational UI And Design System
 
-```txt
-You are building the usable PureSOC operational UI, not a marketing page.
+Completed on 2026-04-30.
 
-Use skills:
-- impeccable
-- frontend-design-review
-- playwright-interactive where browser verification is needed
+Summary:
+- ADR-014 now documents the PureSOC operational design-system direction: restrained product UI, OKLCH tokens, semantic primitives, visible source/caveat/safety states, and stored-analysis-backed screens.
+- `@puresoc/ui` now provides reusable CSS tokens and primitives for status pills, source chips, meters, legal caveats, command buttons, and tables.
+- `apps/web` now renders a deterministic operational console from stored dashboard/report/evidence/remediation contracts, including dashboard, onboarding, country-pack, Microsoft 365 health, gaps, recommendations, evidence/report, login focus, and approval surfaces.
+- Remediation approval UI shows preflight checks, approval status, pre-state snapshots, blast radius, manual fallback, and a disabled queue affordance without adding provider write execution.
+- `pnpm test:e2e -- --grep "@ui-smoke"` now runs the static UI smoke check. Browser-grade Playwright screenshots remain deferred in GAP-031 until the served web runtime exists.
+- GAP-009 is resolved for the design-system decision; GAP-031 tracks the deferred served runtime and screenshot harness.
 
-Read:
-- docs/puresoc_vision.md sections 13, 24, 25
-- docs/master-plan.md sections 7, 12, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md lower-priority UI/readme notes if relevant
-
-Goal:
-Choose and document the frontend design-system direction, then build or polish the operational UI for customer metadata, connector health, compliance gaps, recommendations, evidence, reports, dashboards, and approval affordances.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M10.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M11.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M10.md
-- docs/PLAN_M11.md
-- docs/codex-prompts.md
-- apps/web
-- packages/ui
-- packages/dashboards shared types if needed
-- packages/reports shared types if needed
-- code/README.md if the user-facing app state changes
-- docs/adr/* if a design-system ADR is created
-- docs/implementation-gaps.md
-
-Implement:
-- Design-system decision and reusable UI primitives.
-- App shell navigation for the operational console.
-- Dashboard from stored aggregate data.
-- EU/country/Romania onboarding status surfaces.
-- Microsoft connection health surface.
-- Gap report and recommendation backlog surfaces.
-- Evidence/report export surfaces with legal caveat and source indicators.
-- Remediation approval affordances only if Prompt 8 model exists.
-- Responsive desktop and mobile layouts.
-- Keyboard/focus states for critical flows.
-
-Negative constraints:
-- Do not build a marketing landing page as the primary app screen.
-- Do not hide source/confidence indicators.
-- Do not show legal certification claims.
-- Do not create risky remediation controls without blast radius and approval state.
-- Do not let UI depend on live provider calls where stored analysis data exists.
-- Do not use Romania-specific conditionals in EU baseline UI components.
-
-Tests:
-- Web/dashboard unit tests against stored aggregate data.
-- Playwright screenshots for desktop and mobile.
-- No overlapping text on critical pages.
-- Keyboard/focus checks for login, dashboard, gaps, evidence/report export, and approval flows.
-- Legal caveat and source indicators render on report/evidence surfaces.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand web dashboard reports
-- pnpm test:e2e -- --grep "@ui-smoke"
-
-Gap updates:
-- Update GAP-009 when the design-system decision is made.
-- Add UI gaps for deferred workflows or missing browser verification.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M10 updated
-- PLAN_M11 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand web dashboard reports`
+- `pnpm test:e2e -- --grep "@ui-smoke"`
 
 ## Prompt 10 / PLAN_M11: OIDC/Social Login Callback Implementation
 
