@@ -9,10 +9,14 @@
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "prisma:validate": "prisma validate --schema packages/database/prisma/schema.prisma",
+    "prisma:generate": "prisma generate --schema packages/database/prisma/schema.prisma",
+    "prisma:migrate:status": "prisma migrate status --schema packages/database/prisma/schema.prisma",
     "compose:config": "docker compose -f infra/compose/docker-compose.yml config"
   },
   "devDependencies": {
     "@types/node": "^22.10.10",
+    "prisma": "6.19.3",
     "typescript": "^5.9.3",
     "vitest": "^3.2.4"
   }

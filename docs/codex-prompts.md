@@ -33,6 +33,7 @@ The repository currently contains:
 - Evidence metadata, access audit, JSON report/export builders, dashboard aggregation, and API routes backed by stored in-memory analysis records.
 - PLAN_M2 hardening: legal-review country-pack warnings, no-signal provider-mapped control guard, compliance/recommendation request validation, synchronous `200` evaluation response, and audit events for evaluation/recommendation generation.
 - PLAN_M3 contract alignment: logical control IDs in Prisma output references, split finding/actionable severity, date-only readiness due dates, gap/recommendation/plan source identity fields, and an in-memory `ComplianceResultRepository` port.
+- PLAN_M4 Prisma persistence slice: pinned Prisma 6.19.3 CLI/client workflow, generated initial migration, Prisma client factory, compliance-result snapshot table, and `PrismaComplianceResultRepository` with organization-scoped adapter tests.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -43,7 +44,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
 - Prompt 1 / `docs/PLAN_M2.md` is completed.
 - Prompt 2 / `docs/PLAN_M3.md` is completed.
-- Prompt 3 starts at `docs/PLAN_M4.md`.
+- Prompt 3 / `docs/PLAN_M4.md` is completed.
+- Prompt 4 starts at `docs/PLAN_M5.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -58,18 +60,17 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 3 / `PLAN_M4`: Prisma Migration, Generated Client, And Repository Adapter Slice.
-2. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
-3. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
-4. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
-5. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
-6. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
-7. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
-8. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
-9. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
-10. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-11. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-12. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
+2. Prompt 5 / `PLAN_M6`: Regulatory Review Workflow And Source Activation Persistence.
+3. Prompt 6 / `PLAN_M7`: Billing Provider And Entitlements.
+4. Prompt 7 / `PLAN_M8`: Production Evidence, Object Storage, Scanner, And PDF Adapters.
+5. Prompt 8 / `PLAN_M9`: Safe Remediation Foundation.
+6. Prompt 9 / `PLAN_M10`: Operational UI And Design System.
+7. Prompt 10 / `PLAN_M11`: OIDC/Social Login Callback Implementation.
+8. Prompt 11 / `PLAN_M12`: Microsoft 365 Read-Only Module Expansion.
+9. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
+10. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+11. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
 Prompts 5 through 12 can be reordered when dependencies are satisfied, but do not implement provider write actions before Prompt 8 exists and passes.
 
@@ -164,84 +165,23 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand database schema compliance gaps recommendations readiness-plan`
 
-## Prompt 3 / PLAN_M4: Prisma Migration, Generated Client, And Repository Adapter Slice
+## Completed Prompt 3 / PLAN_M4: Prisma Migration, Generated Client, And Repository Adapter Slice
 
-```txt
-You are implementing the first real Prisma-backed persistence slice.
+Completed on 2026-04-30.
 
-Read:
-- docs/puresoc_vision.md sections 7, 21, 22, 27, 28
-- docs/master-plan.md sections 7, 13, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md sections REC-001, REC-002
-- docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md
-- Prompt 2 output and changed files
+Summary:
+- Prisma CLI and `@prisma/client` are pinned to 6.19.3 to preserve the current schema datasource workflow; Prisma 7 migration is intentionally deferred.
+- Workspace and database-package scripts now cover Prisma validate, generate, and migrate status commands.
+- The initial migration SQL is generated under `packages/database/prisma/migrations/20260430000000_initial`.
+- `packages/database/src/client.ts` now exposes a Prisma client factory boundary.
+- A `compliance_result_snapshots` table preserves exact compliance result-set reloads, while granular control result, gap, recommendation, readiness-plan, and plan-item rows are written by `PrismaComplianceResultRepository`.
+- Repository tests cover persistence/reload behavior and organization-scoped reads/deletes through a deterministic fake Prisma delegate boundary.
 
-Goal:
-Wire Prisma dependencies, generated client workflow, initial migration, and one narrow repository adapter so the in-memory runtime does not drift from the database contract.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M4.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M5.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M4.md
-- docs/PLAN_M5.md
-- docs/codex-prompts.md
-- package.json
-- pnpm-lock.yaml
-- packages/database/package.json
-- packages/database/prisma/schema.prisma
-- packages/database/prisma/migrations/*
-- packages/database/src/client.ts
-- packages/database/src/repositories/*
-- packages/database/src/__tests__/*
-- apps/api/src/auth/services.ts only for dependency injection of the selected repository
-- apps/api/src/compliance/service.ts or output-record repository files if compliance persistence is the selected first slice
-- infra/compose/docker-compose*.yml only if test database wiring is needed
-
-Implement:
-- Add Prisma CLI/client dependencies and package scripts for validate/generate/migrate status where appropriate.
-- Generate an initial migration from the current schema after Prompt 2 contract alignment.
-- Implement one Prisma-backed repository slice, preferably compliance evaluation output persistence, because reports/dashboards/evidence require stored analysis records.
-- Keep in-memory repositories available for fast unit tests.
-- Add repository integration tests that can run deterministically in the project test environment.
-- Document how to run Prisma validation/generation from `code/`.
-
-Negative constraints:
-- Do not replace every in-memory repository in one broad pass.
-- Do not require live provider credentials or Stripe credentials.
-- Do not skip organization-scoped query filters.
-- Do not log provider credentials, auth tokens, reset tokens, or evidence URLs.
-
-Tests:
-- Prisma schema validates.
-- Prisma client generation works.
-- Repository integration test rejects cross-organization reads.
-- Repository integration test persists and reloads the selected slice.
-- Existing in-memory API tests still pass.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand database prisma repository compliance
-- pnpm exec prisma validate --schema packages/database/prisma/schema.prisma
-
-Gap updates:
-- Update GAP-020.
-- Update GAP-022 if compliance outputs become persistable.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M4 updated
-- PLAN_M5 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand database prisma repository compliance`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma validate --schema packages/database/prisma/schema.prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm exec prisma generate --schema packages/database/prisma/schema.prisma`
 
 ## Prompt 4 / PLAN_M5: Workspace Import Policy And Shared Type Boundaries
 

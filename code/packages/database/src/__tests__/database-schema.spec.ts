@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(75);
+    expect(requiredTables).toHaveLength(76);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -101,5 +101,13 @@ describe("database schema groups", () => {
 
   it("stores readiness plan due dates as date-only values", () => {
     expect(fieldLine("readiness_plan_items", "dueDate")).toContain("@db.Date");
+  });
+
+  it("stores exact compliance result-set snapshots for repository reloads", () => {
+    expect(modelBlocks.get("compliance_result_snapshots")).toContain('@map("organization_id")');
+    expect(fieldLine("compliance_result_snapshots", "resultSetJson")).toContain("Json");
+    expect(modelBlocks.get("compliance_result_snapshots")).toContain(
+      "@@unique([organizationId, assessmentId]"
+    );
   });
 });

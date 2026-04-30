@@ -220,12 +220,12 @@ Status: Resolved 2026-04-30 for Phase I JSON builders and dashboard aggregation;
 
 Severity: Medium
 Area: Database/developer platform
-Current state: `schema.prisma` now reflects PLAN_M3 persistable compliance-output alignment for logical control IDs, actionable gap/recommendation severity, date-only readiness due dates, and source identity fields. `packages/database/src/client.ts` still exposes only a client factory boundary, and the workspace still does not include Prisma CLI or `@prisma/client` dependencies, generated client output, or an initial migration.
-Impact: Schema/contract mismatches are reduced before persistence work, but auth, organization, compliance results, evidence, reports, and audit behavior still do not persist through PostgreSQL/Prisma.
-Next action: Run Prompt 3 / PLAN_M4 to add Prisma dependencies, generate the initial migration/client workflow, and implement the first narrow Prisma-backed repository slice.
+Current state: PLAN_M4 added pinned Prisma 6.19.3 CLI/client dependencies, workspace and database-package Prisma scripts, a generated initial migration, a Prisma client factory, documentation for validation/generation commands, and a first Prisma-backed compliance-result repository adapter. Prisma 7 was intentionally not adopted because it requires the newer datasource/client configuration model and would force unrelated migration work.
+Impact: The database schema now has an executable validate/generate/migration workflow and the first persistence adapter can be exercised through the generated Prisma delegate boundary. Runtime API services still default to in-memory repositories until production database wiring is intentionally enabled.
+Next action: Use the M4 Prisma workflow for future persisted adapters; add a live PostgreSQL migration/apply smoke test when runtime database infrastructure is in scope.
 Owner: Codex
 Target phase: Phase C/D
-Status: Open; PLAN_M3 intentionally deferred Prisma client/migration/adapter work to PLAN_M4.
+Status: Resolved 2026-04-30 for Prisma dependency, validation/generation, initial migration, and first adapter workflow.
 
 ### GAP-019: Regulatory Source Activation Lifecycle Not Implemented
 
@@ -253,12 +253,23 @@ Status: Open
 
 Severity: High
 Area: Compliance persistence/database
-Current state: PLAN_M3 aligned TypeScript contracts and Prisma schema so compliance output control references use logical IDs, gaps/recommendations use actionable severity, readiness due dates are date-only, and gaps/recommendations/readiness-plan items retain provider finding and manual task IDs. A `ComplianceResultRepository` port with an in-memory implementation now covers control results, gaps, recommendations, readiness plans, and checklist items. There is still no Prisma-backed repository for evaluation outputs.
-Impact: Compliance outputs are now persistence-ready at the contract/schema boundary, but reports, evidence links, dashboards, and action runs still depend on in-memory stored analysis until the Prisma adapter exists.
-Next action: Run Prompt 3 / PLAN_M4 to wire Prisma dependencies, migration/client generation, and a narrow compliance-result repository adapter with organization-scoped tests.
+Current state: PLAN_M3 aligned TypeScript contracts and Prisma schema so compliance output control references use logical IDs, gaps/recommendations use actionable severity, readiness due dates are date-only, and gaps/recommendations/readiness-plan items retain provider finding and manual task IDs. PLAN_M4 added `PrismaComplianceResultRepository`, a `compliance_result_snapshots` table for exact repository reloads, granular writes for control results, gaps, recommendations, readiness plans, and plan items, and organization-scoped repository tests.
+Impact: Compliance evaluation outputs now have a Prisma-backed persistence path while preserving the existing in-memory path for fast API/unit tests. Reports, evidence links, dashboards, and future action runs can build on persisted snapshots and granular output rows once runtime services opt into the Prisma adapter.
+Next action: Wire production API/database configuration to use the Prisma adapter when PostgreSQL runtime setup is in scope, and add live database migration/apply coverage.
 Owner: Codex
 Target phase: Phase H/I hardening
-Status: Open; schema/contract alignment resolved on 2026-04-30 by PLAN_M3, Prisma-backed persistence remains.
+Status: Resolved 2026-04-30 for PLAN_M4 first Prisma-backed compliance-result persistence slice.
+
+### GAP-026: Prisma Adapter Lacks Live PostgreSQL Migration Smoke
+
+Severity: Medium
+Area: Database/testing
+Current state: PLAN_M4 validates the Prisma schema, generates the Prisma client, generates the initial migration SQL, and tests the compliance-result repository through a deterministic fake Prisma delegate boundary. The acceptance environment did not require provisioning a live PostgreSQL database for `prisma migrate deploy` or real CRUD execution.
+Impact: Type, mapping, organization-scope, and migration-script regressions are covered, but database-specific runtime issues such as extension availability, permissions, SQL execution, and actual transaction behavior remain unproven until a live database smoke test is added.
+Next action: Add a Docker-backed PostgreSQL migration/apply smoke test or CI service-container job once runtime database infrastructure is intentionally in scope.
+Owner: Codex/DevOps
+Target phase: Phase K
+Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

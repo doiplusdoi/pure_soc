@@ -1,4 +1,16 @@
-export { createDatabaseClient, databaseSchemaPath, type DatabaseClient, type DatabaseClientFactory } from "./client";
+export {
+  PrismaDatabaseClientFactory,
+  createDatabaseClient,
+  createPrismaClient,
+  databaseSchemaPath,
+  type DatabaseClient,
+  type DatabaseClientFactory,
+  type PureSocPrismaClient
+} from "./client";
+export {
+  PrismaComplianceResultRepository,
+  type PrismaComplianceResultClient
+} from "./repositories/compliance-results";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,

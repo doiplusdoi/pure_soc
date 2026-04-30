@@ -732,6 +732,7 @@ model ProviderFinding {
 model ProviderRecommendation {
   id                   String               @id @default(uuid()) @db.Uuid
   organizationId       String               @map("organization_id") @db.Uuid
+  assessmentId         String?              @map("assessment_id") @db.Uuid
   providerConnectionId String?              @map("provider_connection_id") @db.Uuid
   sourceFindingId      String?              @map("source_finding_id") @db.Uuid
   sourceFindingIds     String[]             @default([]) @map("source_finding_ids")
@@ -1100,6 +1101,21 @@ model ComplianceControlResult {
 
   @@unique([assessmentId, controlId, jurisdiction], map: "compliance_control_results_assessment_control_jurisdiction_key")
   @@map("compliance_control_results")
+}
+
+model ComplianceResultSnapshot {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  assessmentId     String   @map("assessment_id") @db.Uuid
+  jurisdiction     String
+  catalogVersion   String?  @map("catalog_version")
+  recordedAt       DateTime @map("recorded_at")
+  resultSetJson    Json     @map("result_set_json")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  @@unique([organizationId, assessmentId], map: "compliance_result_snapshots_org_assessment_key")
+  @@map("compliance_result_snapshots")
 }
 
 model ComplianceGap {

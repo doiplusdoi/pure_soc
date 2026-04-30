@@ -106,8 +106,74 @@ git diff --check
 
 ## Completion Log
 
-Pending implementation.
+Implementation started on 2026-04-30.
+
+Working assumptions:
+
+- Use a generated Prisma client from the existing PLAN_M3-aligned schema without broad schema redesign.
+- Keep compliance output persistence as the first adapter slice because reports, dashboards, evidence, and future action runs all depend on stored analysis records.
+- Prefer deterministic repository tests that do not require a developer to provision live provider, Stripe, or Microsoft credentials.
+- Preserve the existing in-memory repository for fast unit/API coverage and add the Prisma adapter behind the same `ComplianceResultRepository` contract.
+- If the local environment cannot provide a real PostgreSQL test database, keep Prisma schema validation and client generation executable and make the repository adapter testable through a mocked Prisma delegate boundary rather than silently skipping scope checks.
+
+Implementation completed on 2026-04-30.
+
+Implemented:
+
+- Added pinned Prisma 6.19.3 CLI/client dependencies. Prisma 7 was tested first but rejected for this milestone because it no longer supports `url` in schema datasource blocks and would require unrelated config migration.
+- Added workspace and database-package scripts for Prisma validate, generate, and migrate status.
+- Generated the initial migration SQL from the current schema under `code/packages/database/prisma/migrations/20260430000000_initial/migration.sql`.
+- Added a Prisma client factory boundary in `packages/database/src/client.ts`.
+- Added `ProviderRecommendation.assessmentId` so generated compliance recommendations can be replaced/read by assessment scope.
+- Added `ComplianceResultSnapshot` to preserve exact `ComplianceResultRepository` contract reloads while granular tables become available for future queries.
+- Implemented `PrismaComplianceResultRepository`, which writes granular control results, gaps, recommendations, readiness plans, and readiness-plan items in an organization-scoped transaction, and reloads exact result sets from snapshots.
+- Added deterministic repository tests that verify persistence/reload behavior, cross-organization reads returning `null`, and organization-scoped replacement deletes.
+- Documented Prisma commands in `code/README.md`.
+
+Changed files:
+
+- `code/README.md`
+- `code/.env.example`
+- `code/package.json`
+- `code/pnpm-lock.yaml`
+- `code/packages/database/package.json`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/prisma/migrations/20260430000000_initial/migration.sql`
+- `code/packages/database/src/client.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/contracts/schema-groups.ts`
+- `code/packages/database/src/repositories/compliance-results.ts`
+- `code/packages/database/src/__tests__/database-schema.spec.ts`
+- `code/packages/database/src/__tests__/prisma-compliance-results.repository.spec.ts`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/PLAN_M4.md`
+- `docs/PLAN_M5.md`
+
+Validation results:
+
+- `pnpm lint` passed via host `npx pnpm@10.33.2 lint`.
+- `pnpm test -- --runInBand database prisma repository compliance` passed via host `npx pnpm@10.33.2 test -- --runInBand database prisma repository compliance` with 31 files / 103 tests passing.
+- `pnpm exec prisma validate --schema packages/database/prisma/schema.prisma` passed with `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc`.
+- `pnpm exec prisma generate --schema packages/database/prisma/schema.prisma` passed with `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc`.
+- `git diff --check` passed.
+
+Acceptance status:
+
+- Accepted for PLAN_M4.
+
+Gaps updated:
+
+- GAP-020 resolved for Prisma dependency, validation/generation, initial migration, and first adapter workflow.
+- GAP-022 resolved for the first Prisma-backed compliance-result persistence slice.
+- GAP-026 opened for a future live PostgreSQL migration/apply smoke test.
+
+Residual risk:
+
+- The new adapter is tested through a deterministic fake Prisma delegate, not a live PostgreSQL database; GAP-026 tracks the live migration/apply smoke.
+- API service construction still defaults to in-memory repositories until runtime database configuration is intentionally wired.
+- `ComplianceResultSnapshot` preserves exact domain contracts while granular rows use database UUIDs; future evidence/action links should choose the granular UUID rows deliberately.
 
 ## Handoff For Next Milestone
 
-After M4 completes, `docs/PLAN_M5.md` should be generated from the next active prompt in `docs/codex-prompts.md`, currently Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.
+`docs/PLAN_M5.md` has been generated from the next active prompt in `docs/codex-prompts.md`: Prompt 4 / `PLAN_M5`: Workspace Import Policy And Shared Type Boundaries.

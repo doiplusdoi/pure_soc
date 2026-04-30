@@ -13,6 +13,16 @@ docker compose -f infra/compose/docker-compose.yml config
 
 Repository-level docs remain in `../docs/`. App code, packages, tests, runtime config, Compose files, Dockerfiles, scripts, and regulatory seed data belong here.
 
+## Prisma
+
+Prisma commands run from this directory and expect `DATABASE_URL` in the environment or an ignored local `code/.env` file:
+
+```sh
+DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:validate
+DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:generate
+DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:migrate:status
+```
+
 ## Layout
 
 - `apps/`: service entrypoints and application roles.
