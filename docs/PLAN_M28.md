@@ -4,8 +4,10 @@
 
 Implement Prompt 27 from `docs/codex-prompts.md`: move audit log writes behind explicit memory and Prisma audit sinks selected by `PURESOC_PERSISTENCE_MODE`.
 
-Status: staged for implementation after M27.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -111,32 +113,62 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `PrismaAuditSink` under `@puresoc/database` with append and latest-anchor behavior for persisted `AuditLog` rows.
+- The sink stores the redacted canonical before/after payloads, `previousHash`, `entryHash`, `hashAlgorithm`, actor/organization/target metadata, and timestamps.
+- Same-process writes use the sink's in-process latest anchor so deterministic tests with fixed timestamps still preserve chain continuity; restarted sink instances can load the latest persisted per-organization/global anchor before appending.
+- `createApiServices()` now constructs the audit writer from the runtime-selected sink. Memory mode uses `InMemoryAuditSink`; Prisma mode uses `PrismaAuditSink`.
+- Prisma mode now reports `audit_logs` as persisted and leaves only `provider_connections_and_telemetry` plus `oidc_transient_state` memory-backed.
+- Added deterministic fake-Prisma sink tests for redacted payload storage and organization/global anchors.
+- Added Prisma-mode API coverage proving auth/org audit events persist through the Prisma audit sink with hash metadata and without plaintext password persistence.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/auth-organization-rbac-prisma-persistence.test.ts`
+- `code/apps/api/src/__tests__/runtime-persistence.test.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M28.md`
+- `docs/PLAN_M29.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm`/`docker` were not available. Validation used host-node/host-Docker equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- audit database prisma persistence api auth organization rbac evidence billing regulatory actions` passed: 42 test files, 140 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M28. Audit writes now use an explicit runtime-selected sink; memory mode remains deterministic; Prisma mode selects the Prisma audit sink and reports persisted audit logs honestly; repository/API tests prove persisted audit writes and organization/global hash-chain anchor behavior; existing auth, organization, RBAC, evidence, billing, regulatory, and remediation audit behavior remains compatible.
 
 Gaps updated:
 
-- Pending.
+- GAP-036 narrowed for audit-log runtime persistence selection in Prisma mode.
+- GAP-039 narrowed for persisted audit sink/hash-chain adapter coverage, while WORM storage, external signing/notarization, retention export, and concurrent multi-process hardening remain open.
+- GAP-041 narrowed for deterministic audit sink repository and API runtime semantics.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M28 implementation must create `docs/PLAN_M29.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 27 / PLAN_M28 complete and stages Prompt 28 / PLAN_M29.
+- `docs/PLAN_M29.md` created for the Provider Connection And Telemetry Persistence Adapter Slice.
 
 Residual risk:
 
-- Pending.
+- Live PostgreSQL migration/apply smoke remains deferred; Prisma audit sink behavior was validated with deterministic fake delegates and schema validation only.
+- Persisted audit chains are tamper-evident metadata, not WORM storage, external signing, legal notarization, or tamper-proof audit storage.
+- Multi-process concurrent audit append ordering is not hardened beyond deterministic contract coverage.
+- Provider connections/telemetry and OIDC transient callback state remain memory-backed in Prisma mode.

@@ -35,6 +35,7 @@ import {
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
   PrismaOutputRecordRepository,
+  PrismaAuditSink,
   PrismaIdentityOrganizationRbacRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
@@ -77,7 +78,7 @@ export interface ApiServices {
   persistence: ApiPersistenceRuntime;
   repository: InMemoryPureSocRepository;
   prismaClient?: PureSocPrismaClient;
-  auditSink: InMemoryAuditSink;
+  auditSink: RuntimeAuditSink;
   auditWriter: AuditWriter;
   localAuth: LocalAuthService;
   oidcAuth: OidcSocialLoginService;
@@ -116,15 +117,14 @@ export const createApiServices = (
   const config = options.config ?? loadConfig();
   const billingConfig = options.billingConfig ?? config.billing;
   const repository = new InMemoryPureSocRepository();
-  const auditSink = new InMemoryAuditSink();
-  const auditWriter = new AuditWriter({
-    sink: auditSink,
-    now: options.now
-  });
   const runtimeRepositories = createRuntimeRepositories({
     config,
     memoryRepository: repository,
     prismaClient: options.prismaClient
+  });
+  const auditWriter = new AuditWriter({
+    sink: runtimeRepositories.auditSink,
+    now: options.now
   });
   const rateLimiter = new FailedLoginRateLimiter({
     maxAttempts: 5,
@@ -235,7 +235,7 @@ export const createApiServices = (
     persistence: runtimeRepositories.persistence,
     repository,
     prismaClient: runtimeRepositories.prismaClient,
-    auditSink,
+    auditSink: runtimeRepositories.auditSink,
     auditWriter,
     localAuth,
     oidcAuth,
@@ -262,6 +262,7 @@ export const createApiServices = (
 interface RuntimeRepositorySet {
   persistence: ApiPersistenceRuntime;
   prismaClient?: PureSocPrismaClient;
+  auditSink: RuntimeAuditSink;
   complianceResultRepository: ComplianceResultRepository<RecommendationContract>;
   regulatorySourceRepository: RegulatorySourceRepository;
   actionsRepository: RemediationActionRepository;
@@ -271,6 +272,8 @@ interface RuntimeRepositorySet {
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
 }
+
+type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
 
 const createRuntimeRepositories = (input: {
   config: PureSocConfig;
@@ -296,6 +299,7 @@ const createRuntimeRepositories = (input: {
         ]
       },
       complianceResultRepository: new InMemoryComplianceResultRepository<RecommendationContract>(),
+      auditSink: new InMemoryAuditSink(),
       regulatorySourceRepository: new InMemoryRegulatorySourceRepository(),
       actionsRepository: new InMemoryRemediationActionRepository(),
       evidenceRepository: input.memoryRepository,
@@ -308,11 +312,13 @@ const createRuntimeRepositories = (input: {
 
   const prismaClient = input.prismaClient ?? createPrismaClient();
   const identityRepository = new PrismaIdentityOrganizationRbacRepository(prismaClient as never);
+  const auditSink = new PrismaAuditSink(prismaClient as never);
 
   return {
     persistence: {
       mode: "prisma",
       persistedContexts: [
+        "audit_logs",
         "identity_sessions_organizations_rbac",
         "compliance_results",
         "evidence_metadata_access_logs",
@@ -322,13 +328,10 @@ const createRuntimeRepositories = (input: {
         "notification_drafts",
         "stored_analysis_reports_dashboards"
       ],
-      memoryBackedContexts: [
-        "audit_logs",
-        "provider_connections_and_telemetry",
-        "oidc_transient_state"
-      ]
+      memoryBackedContexts: ["provider_connections_and_telemetry", "oidc_transient_state"]
     },
     prismaClient,
+    auditSink,
     complianceResultRepository: new PrismaComplianceResultRepository(prismaClient),
     regulatorySourceRepository: new PrismaRegulatorySourceRepository(prismaClient as never),
     actionsRepository: new PrismaActionRepository(prismaClient as never),

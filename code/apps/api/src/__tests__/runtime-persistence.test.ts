@@ -30,6 +30,7 @@ describe("API runtime persistence selection", () => {
 
     expect(services.persistence.mode).toBe("prisma");
     expect(services.persistence.persistedContexts).toEqual([
+      "audit_logs",
       "identity_sessions_organizations_rbac",
       "compliance_results",
       "evidence_metadata_access_logs",
@@ -40,12 +41,9 @@ describe("API runtime persistence selection", () => {
       "stored_analysis_reports_dashboards"
     ]);
     expect(services.persistence.memoryBackedContexts).toEqual(
-      expect.arrayContaining([
-        "audit_logs",
-        "provider_connections_and_telemetry",
-        "oidc_transient_state"
-      ])
+      expect.arrayContaining(["provider_connections_and_telemetry", "oidc_transient_state"])
     );
+    expect(services.persistence.memoryBackedContexts).not.toContain("audit_logs");
     expect(services.persistence.memoryBackedContexts).not.toContain("stored_analysis_reports_dashboards");
     expect(services.persistence.memoryBackedContexts).not.toContain("identity_sessions_organizations_rbac");
     expect(services.prismaClient).toBe(prismaClient);
@@ -82,6 +80,7 @@ const createPrismaClientFixture = () =>
     roleBinding: {},
     session: {},
     user: {},
+    auditLog: {},
     evidenceArtifact: {},
     evidenceLink: {},
     evidenceAccessLog: {},

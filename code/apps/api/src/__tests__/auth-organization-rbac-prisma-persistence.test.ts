@@ -70,7 +70,9 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
 
   it("persists auth, organization, and RBAC data through the Prisma adapter in Prisma mode", async () => {
     expect(services.persistence.persistedContexts).toContain("identity_sessions_organizations_rbac");
+    expect(services.persistence.persistedContexts).toContain("audit_logs");
     expect(services.persistence.memoryBackedContexts).not.toContain("identity_sessions_organizations_rbac");
+    expect(services.persistence.memoryBackedContexts).not.toContain("audit_logs");
     expect(services.rbacRepository).not.toBe(services.repository);
 
     const owner = await registerAndLogin("owner@example.test");
@@ -112,6 +114,17 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
     expect(crossOrgResponse.status).toBe(403);
     expect(prismaClient.organizationMember.rows).toHaveLength(1);
     expect(prismaClient.roleBinding.rows).toHaveLength(1);
+    expect(prismaClient.auditLog.rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining([
+        "local_account_created",
+        "login",
+        "session_created",
+        "organization_created",
+        "role_changed"
+      ])
+    );
+    expect(prismaClient.auditLog.rows.every((row) => row.entryHash && row.hashAlgorithm === "sha256")).toBe(true);
+    expect(JSON.stringify(prismaClient.auditLog.rows)).not.toContain(password);
     expect(services.repository.organizationMembers.size).toBe(0);
     expect(services.repository.roleBindings.size).toBe(0);
   });
@@ -128,6 +141,7 @@ class FakePrismaClient {
   readonly roleBinding = new FakeDelegate();
   readonly session = new FakeDelegate();
   readonly user = new FakeDelegate();
+  readonly auditLog = new FakeDelegate();
 
   readonly complianceResultSnapshot = {};
   readonly complianceControlResult = {};
@@ -248,6 +262,13 @@ const matchesWhere = (row: Record<string, unknown>, where: Record<string, unknow
   for (const [field, expected] of Object.entries(where)) {
     if (isRecord(expected) && "in" in expected && Array.isArray(expected.in)) {
       if (!expected.in.includes(row[field])) {
+        return false;
+      }
+      continue;
+    }
+
+    if (isRecord(expected) && "not" in expected) {
+      if (row[field] === expected.not) {
         return false;
       }
       continue;

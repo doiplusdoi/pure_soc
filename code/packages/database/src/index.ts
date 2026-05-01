@@ -49,6 +49,11 @@ export {
   type RoleBindingRecordContract,
   type RoleRecordContract
 } from "./repositories/identity-organization-rbac";
+export {
+  PrismaAuditSink,
+  type PrismaAuditClient,
+  type PrismaAuditLogRecord
+} from "./repositories/audit";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,
