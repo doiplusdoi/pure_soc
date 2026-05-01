@@ -109,7 +109,7 @@ describe("api compliance validation audit hardening", () => {
     });
     expect(auditRecords[0]?.afterJson).toMatchObject({
       assessmentId: "assessment_m2",
-      controlsEvaluated: 3,
+      controlsEvaluated: 10,
       recommendationsCount: body.gaps.length
     });
   });

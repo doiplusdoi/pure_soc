@@ -84,7 +84,7 @@ export const evaluateComplianceControls = (input: ComplianceEvaluationInput): Co
       (artifact) => artifact.controlId === control.id || artifact.controlId === control.code
     );
     const missingEvidence = control.evidenceRequired.filter(
-      (requirement) => !hasEvidenceForRequirement(controlEvidence, requirement)
+      (requirement) => !hasEvidenceForRequirement(controlEvidence, requirement, evaluatedAt)
     );
     const evidenceCompleteness = calculateEvidenceCompleteness(control.evidenceRequired, missingEvidence);
     const controlManualTasks = manualTasks.filter((task) => task.controlId === control.id);
@@ -103,7 +103,15 @@ export const evaluateComplianceControls = (input: ComplianceEvaluationInput): Co
       accepted: acceptedRisks.has(control.id),
       notApplicable: notApplicable.has(control.id)
     });
-    const confidence = resolveConfidence(status, matchedFindings, countryPackWarnings, providerSignalPending);
+    const confidence = resolveConfidence({
+      status,
+      matchedFindings,
+      countryPackWarnings,
+      providerSignalPending,
+      missingEvidence,
+      incompleteManualTasks,
+      implicitManualMissing
+    });
 
     return {
       id: [input.assessmentId, control.id, input.jurisdiction ?? control.jurisdiction].join(":"),
@@ -183,11 +191,33 @@ const providerSignalSummary = (finding: ProviderFindingForCompliance): ProviderS
 
 const hasEvidenceForRequirement = (
   evidenceArtifacts: readonly EvidenceArtifactState[],
-  requirement: EvidenceRequirement
+  requirement: EvidenceRequirement,
+  evaluatedAt: string
 ): boolean =>
   evidenceArtifacts.some(
-    (artifact) => artifact.requirementKey === requirement.requirementKey || artifact.title === requirement.title
+    (artifact) =>
+      !isStaleEvidence(artifact, evaluatedAt) &&
+      (artifact.requirementKey === requirement.requirementKey || artifact.title === requirement.title)
   );
+
+const isStaleEvidence = (artifact: EvidenceArtifactState, evaluatedAt: string): boolean => {
+  if (artifact.freshnessStatus === "stale") {
+    return true;
+  }
+
+  if (!artifact.validUntil) {
+    return false;
+  }
+
+  const validUntil = Date.parse(artifact.validUntil);
+  const evaluatedAtTime = Date.parse(evaluatedAt);
+
+  if (Number.isNaN(validUntil) || Number.isNaN(evaluatedAtTime)) {
+    return false;
+  }
+
+  return validUntil < evaluatedAtTime;
+};
 
 const calculateEvidenceCompleteness = (
   requirements: readonly EvidenceRequirement[],
@@ -254,25 +284,40 @@ const resolveStatus = (input: {
   return "not_started";
 };
 
-const resolveConfidence = (
-  status: ComplianceStatus,
-  matchedFindings: readonly ProviderFindingForCompliance[],
-  countryPackWarnings: readonly CountryPackWarning[],
-  providerSignalPending: boolean
-): Confidence => {
-  if (countryPackWarnings.length > 0 && matchedFindings.length === 0) {
+const resolveConfidence = (input: {
+  status: ComplianceStatus;
+  matchedFindings: readonly ProviderFindingForCompliance[];
+  countryPackWarnings: readonly CountryPackWarning[];
+  providerSignalPending: boolean;
+  missingEvidence: readonly EvidenceRequirement[];
+  incompleteManualTasks: readonly ManualChecklistItemState[];
+  implicitManualMissing: boolean;
+}): Confidence => {
+  if (input.countryPackWarnings.length > 0 && input.matchedFindings.length === 0) {
     return "low";
   }
 
-  if (providerSignalPending) {
+  if (input.providerSignalPending) {
     return "low";
   }
 
-  if (status === "failing" && matchedFindings.length > 0) {
+  if (input.status === "failing" && input.matchedFindings.length > 0) {
     return "high";
   }
 
-  if (status === "passing") {
+  if (input.status === "passing" && input.matchedFindings.length > 0) {
+    return "high";
+  }
+
+  if (input.status === "needs_evidence" && input.missingEvidence.length > 0) {
+    return "high";
+  }
+
+  if (input.implicitManualMissing) {
+    return "low";
+  }
+
+  if (input.status === "partial" && input.incompleteManualTasks.length > 0) {
     return "medium";
   }
 

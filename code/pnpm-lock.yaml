@@ -17,6 +17,9 @@ importers:
       '@puresoc/config':
         specifier: workspace:*
         version: link:packages/config
+      '@puresoc/dashboards':
+        specifier: workspace:*
+        version: link:packages/dashboards
       '@puresoc/database':
         specifier: workspace:*
         version: link:packages/database

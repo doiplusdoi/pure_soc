@@ -1,8 +1,8 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-04-30 after completing PLAN_M12 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M1.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M13 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M13.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
 
-Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, and M12 Microsoft read-only module expansion work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
+Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
 ## Repository Path Convention
 
@@ -42,6 +42,7 @@ The repository currently contains:
 - PLAN_M10 operational UI/design system: ADR-014, `@puresoc/ui` OKLCH tokens and semantic primitives, `apps/web` contract-backed operational console renderer, login focus surface, source/caveat indicators, approval affordances, and static `@ui-smoke` coverage.
 - PLAN_M11 OIDC/social-login callbacks: Microsoft Entra, Google, and GitHub user sign-in callback contracts with state, nonce, PKCE, issuer/audience/expiry/signature validation, provider-subject lookup, explicit signed-in account-link approval, session creation, audit events, redaction coverage, and separation from Microsoft 365 managed-provider consent.
 - PLAN_M12 Microsoft read-only module expansion: Microsoft Learn permissions were revalidated on 2026-04-30; `@puresoc/provider-microsoft365` now has fixture-backed Conditional Access, Entra directory audit log, Entra sign-in log, Defender XDR incident, and Defender XDR alert read modules, provider-neutral incident/alert resources and findings, module-level degradation for missing permissions/licenses, unsupported APIs, China-cloud Graph security limitations, throttling/revoked consent/connector errors, and updated permission documentation.
+- PLAN_M13 full Article 21 catalog/scoring: EU Article 21(2)(a)-(j) controls now have source-linked evidence requirements, manual checklist mappings, provider-neutral mappings for existing Microsoft/mock MFA, IAM, and Defender XDR findings, stricter catalog seed validation, stale-evidence handling, configurable readiness-plan targets, accepted-risk partial scoring, ADR-015 provisional score calibration, and `PureSOC internal readiness` dashboard score labeling.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -61,7 +62,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 9 / `docs/PLAN_M10.md` is completed.
 - Prompt 10 / `docs/PLAN_M11.md` is completed.
 - Prompt 11 / `docs/PLAN_M12.md` is completed.
-- Prompt 12 starts at `docs/PLAN_M13.md`.
+- Prompt 12 / `docs/PLAN_M13.md` is completed.
+- Prompt 13 starts at `docs/PLAN_M14.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -76,11 +78,10 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 12 / `PLAN_M13`: Full Control Catalog And Readiness Scoring Calibration.
-2. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-3. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
+2. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
-Prompts 12 and 13 can be reordered when dependencies are satisfied, but do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
+Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
 ## Required Prompt Template
 
@@ -328,80 +329,21 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand microsoft365 graph-sync permissions redaction provider`
 
-## Prompt 12 / PLAN_M13: Full Control Catalog And Readiness Scoring Calibration
+## Completed Prompt 12 / PLAN_M13: Full Control Catalog And Readiness Scoring Calibration
 
-```txt
-You are expanding the representative Phase H control catalog into a fuller internal-readiness model.
+Completed on 2026-05-01.
 
-Read:
-- docs/puresoc_vision.md sections 10, 14, 15, 16, 23, 25, 28, 32
-- docs/master-plan.md sections 7, 10, 12, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md sections REC-014, REC-015, REC-016
+Summary:
+- The executable EU control catalog now covers all ten Article 21(2)(a)-(j) baseline categories.
+- Each control has EU Directive source references, evidence requirements, and manual checklist mappings.
+- Existing provider-neutral Microsoft/mock findings map to MFA, IAM/access-asset, and Defender incident controls without raw payload coupling.
+- Catalog loading rejects duplicate IDs/codes, missing legal references, and dangling checklist templates.
+- Stale evidence does not satisfy evidence requirements, accepted risk avoids gap generation while receiving partial score credit, and readiness-plan targets are configurable.
+- ADR-015 records provisional PureSOC internal-readiness scoring and GAP-021 remains open for product/legal calibration.
 
-Goal:
-Expand EU NIS2 controls and provider/manual/evidence mappings while keeping scores conservative, source-linked, and clearly labeled as PureSOC internal readiness.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M13.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M14.md` from the next active prompt.
-
-Expected file ownership:
-- docs/PLAN_M13.md
-- docs/PLAN_M14.md
-- docs/codex-prompts.md
-- data/regulatory/eu/*control*.seed.json
-- packages/compliance/core/src/control-catalog.ts
-- packages/compliance/core/src/evaluator.ts if score/confidence semantics change
-- packages/compliance/core/src/readiness-plan.ts
-- packages/compliance/core/src/__tests__/*
-- packages/reports and packages/dashboards if score presentation contracts change
-- docs/adr/* if scoring/confidence semantics need a decision record
-- docs/implementation-gaps.md
-
-Implement:
-- Expand Article 21 control coverage beyond the current representative controls.
-- Keep every control source-linked to EU directive or reviewed regulatory source records.
-- Add provider-neutral mappings for Microsoft findings where available and manual checklist mappings for process controls.
-- Replace brittle test control-ID literals with helper lookups by intent or code.
-- Define provisional score weighting, stale-evidence handling, and accepted-risk behavior, or explicitly leave score calibration as a product/legal gap.
-- Refine or remove confidence if it remains decorative.
-
-Negative constraints:
-- Do not make legal certification claims.
-- Do not treat baseline-only country packs as technical failures.
-- Do not hardcode regulatory facts in UI components.
-- Do not map Microsoft raw payloads directly to controls.
-- Do not add national overlays without source review/activation.
-
-Tests:
-- Control catalog seed validation for required fields, unique IDs/codes, source references, and evidence requirements.
-- Representative tests for every Article 21 group.
-- Provider-neutral findings map to controls.
-- Manual controls create checklist items.
-- Score labels remain internal-readiness wording.
-- Accepted-risk and stale-evidence behavior is tested if implemented.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand control-catalog compliance scoring readiness-plan reports dashboards
-
-Gap updates:
-- Update GAP-021.
-- Add product/legal calibration gaps for unresolved score weights or legal-source review.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M13 updated
-- PLAN_M14 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with:
+- `pnpm lint`
+- `pnpm test -- --runInBand control-catalog compliance scoring readiness-plan reports dashboards`
 
 ## Prompt 13 / PLAN_M14: Security Threat Model And Release Hardening
 

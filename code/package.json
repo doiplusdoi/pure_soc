@@ -19,6 +19,7 @@
     "@puresoc/api": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",
     "@puresoc/config": "workspace:*",
+    "@puresoc/dashboards": "workspace:*",
     "@puresoc/database": "workspace:*",
     "@puresoc/evidence": "workspace:*",
     "@puresoc/provider-mock": "workspace:*",

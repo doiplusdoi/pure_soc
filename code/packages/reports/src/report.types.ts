@@ -72,7 +72,7 @@ export interface ReportEvidenceSummary {
 export interface ReportReadinessPlanSummary {
   id: string;
   title: string;
-  targetReadinessPercent: 100;
+  targetReadinessPercent: number;
   status: string;
   items: Array<{
     id: string;

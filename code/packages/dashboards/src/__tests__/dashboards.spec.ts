@@ -57,6 +57,7 @@ describe("dashboards aggregate from stored analysis", () => {
     });
 
     expect(snapshot.source).toBe("stored_analysis");
+    expect(snapshot.readinessScoreLabel).toBe("PureSOC internal readiness");
     expect(snapshot.sourceRecordCounts).toMatchObject({
       controlResults: 2,
       gaps: 1,

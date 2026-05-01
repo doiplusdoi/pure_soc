@@ -61,7 +61,7 @@ export interface StoredAnalysisReadinessPlan {
   organizationId: string;
   assessmentId: string;
   title: string;
-  targetReadinessPercent: 100;
+  targetReadinessPercent: number;
   status: string;
   items: Array<{
     id: string;

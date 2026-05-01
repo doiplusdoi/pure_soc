@@ -56,9 +56,28 @@ export const loadControlCatalogFromSeed = (seed: ControlCatalogSeed): ControlCat
   const duplicateIds = controls
     .map((control) => control.id)
     .filter((id, index, ids) => ids.indexOf(id) !== index);
+  const duplicateCodes = controls
+    .map((control) => control.code)
+    .filter((code, index, codes) => codes.indexOf(code) !== index);
 
   if (duplicateIds.length > 0) {
     throw new Error(`Duplicate control ids in control catalog seed: ${[...new Set(duplicateIds)].join(", ")}`);
+  }
+
+  if (duplicateCodes.length > 0) {
+    throw new Error(`Duplicate control codes in control catalog seed: ${[...new Set(duplicateCodes)].join(", ")}`);
+  }
+
+  const manualChecklistTemplates = seed.manualChecklistTemplates ?? [];
+  const templateIds = new Set(manualChecklistTemplates.map((template) => template.id));
+  const missingTemplateIds = controls.flatMap((control) =>
+    control.manualChecklistTemplateIds.filter((templateId) => !templateIds.has(templateId))
+  );
+
+  if (missingTemplateIds.length > 0) {
+    throw new Error(
+      `Control catalog references missing manual checklist templates: ${[...new Set(missingTemplateIds)].join(", ")}`
+    );
   }
 
   return {
@@ -68,7 +87,7 @@ export const loadControlCatalogFromSeed = (seed: ControlCatalogSeed): ControlCat
     jurisdiction: seed.jurisdiction ?? "EU",
     jurisdictionScope: seed.jurisdictionScope ?? "EU",
     controls,
-    manualChecklistTemplates: seed.manualChecklistTemplates ?? []
+    manualChecklistTemplates
   };
 };
 
@@ -86,6 +105,10 @@ const normalizeControl = (
   }
 
   const legalReferences = normalizeSourceReferences(control.legalReferences ?? control.legalReference ?? []);
+
+  if (legalReferences.length === 0) {
+    throw new Error(`Control catalog seed is missing legal source references for ${control.id}.`);
+  }
 
   return {
     id: control.id,

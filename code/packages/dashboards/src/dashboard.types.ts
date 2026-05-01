@@ -16,6 +16,7 @@ export interface DashboardSnapshotContract {
   assessmentId?: string;
   snapshotType: "readiness_overview" | "evidence_overview" | "provider_overview" | string;
   source: DashboardSnapshotSource;
+  readinessScoreLabel: "PureSOC internal readiness";
   generatedAt: string;
   readinessScores: {
     euApplicability: number;
@@ -42,6 +43,7 @@ export const createStoredAnalysisDashboardSnapshot = (
   organizationId,
   snapshotType: "readiness_overview",
   source: "stored_analysis",
+  readinessScoreLabel: "PureSOC internal readiness",
   generatedAt: new Date(0).toISOString(),
   readinessScores: {
     euApplicability: 0,

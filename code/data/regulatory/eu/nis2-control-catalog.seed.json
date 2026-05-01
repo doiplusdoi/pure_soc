@@ -1,7 +1,7 @@
 {
-  "schemaVersion": "0.1.0",
+  "schemaVersion": "0.2.0",
   "frameworkKey": "nis2",
-  "catalogVersion": "phase-h-0.1.0",
+  "catalogVersion": "m13-article21-internal-readiness-0.2.0",
   "jurisdiction": "EU",
   "jurisdictionScope": "EU",
   "manualChecklistTemplates": [
@@ -23,18 +23,6 @@
       ]
     },
     {
-      "id": "mfa-rollout-review",
-      "title": "Review privileged user MFA coverage",
-      "frequency": "monthly",
-      "items": [
-        {
-          "key": "admin-mfa-coverage",
-          "title": "Confirm privileged accounts are covered by MFA policy",
-          "description": "Attach provider export or manual attestation for privileged MFA coverage."
-        }
-      ]
-    },
-    {
       "id": "incident-handling-review",
       "title": "Review incident handling process",
       "frequency": "weekly",
@@ -48,6 +36,122 @@
           "key": "incident-contact-validation",
           "title": "Validate incident reporting contacts",
           "description": "Confirm reporting contacts and escalation route are still valid."
+        }
+      ]
+    },
+    {
+      "id": "business-continuity-review",
+      "title": "Review continuity, backup, and crisis evidence",
+      "frequency": "semiannual",
+      "items": [
+        {
+          "key": "backup-restore-review",
+          "title": "Confirm backup and restore evidence is current",
+          "description": "Attach restore test, backup status, or continuity review evidence."
+        },
+        {
+          "key": "crisis-management-review",
+          "title": "Confirm crisis management contacts and roles are current",
+          "description": "Record the latest continuity owner and escalation review."
+        }
+      ]
+    },
+    {
+      "id": "supplier-security-review",
+      "title": "Review supplier and service-provider security evidence",
+      "frequency": "quarterly",
+      "items": [
+        {
+          "key": "supplier-risk-register",
+          "title": "Review direct supplier security risks",
+          "description": "Attach supplier review notes, contract security clauses, or risk decisions."
+        }
+      ]
+    },
+    {
+      "id": "secure-development-vulnerability-review",
+      "title": "Review secure acquisition, development, and vulnerability handling",
+      "frequency": "quarterly",
+      "items": [
+        {
+          "key": "vulnerability-handling-review",
+          "title": "Confirm vulnerability handling and disclosure workflow is current",
+          "description": "Attach vulnerability triage, disclosure, or patch-management evidence."
+        },
+        {
+          "key": "secure-change-review",
+          "title": "Review secure acquisition or change-management evidence",
+          "description": "Record evidence for secure procurement, development, or maintenance controls."
+        }
+      ]
+    },
+    {
+      "id": "effectiveness-assessment-review",
+      "title": "Review control effectiveness assessment evidence",
+      "frequency": "quarterly",
+      "items": [
+        {
+          "key": "control-effectiveness-review",
+          "title": "Confirm effectiveness testing was performed",
+          "description": "Attach test results, control review notes, or management sign-off."
+        }
+      ]
+    },
+    {
+      "id": "cyber-hygiene-training-review",
+      "title": "Review cyber hygiene and training evidence",
+      "frequency": "quarterly",
+      "items": [
+        {
+          "key": "training-attestation",
+          "title": "Confirm cybersecurity training completion evidence",
+          "description": "Attach training completion records or awareness attestation."
+        },
+        {
+          "key": "hygiene-baseline-review",
+          "title": "Review basic cyber hygiene baseline",
+          "description": "Record password, patching, device, and safe-use practice review evidence."
+        }
+      ]
+    },
+    {
+      "id": "cryptography-policy-review",
+      "title": "Review cryptography and encryption policy evidence",
+      "frequency": "annual",
+      "items": [
+        {
+          "key": "cryptography-policy-current",
+          "title": "Confirm cryptography and encryption policy is current",
+          "description": "Attach policy, standard, or secure-communications attestation."
+        }
+      ]
+    },
+    {
+      "id": "access-asset-review",
+      "title": "Review access control and asset management evidence",
+      "frequency": "monthly",
+      "items": [
+        {
+          "key": "privileged-role-review",
+          "title": "Review privileged roles and access assignments",
+          "description": "Attach provider export, access review, or owner attestation."
+        },
+        {
+          "key": "asset-inventory-review",
+          "title": "Confirm asset inventory evidence is current",
+          "description": "Attach device, application, or service inventory evidence."
+        }
+      ]
+    },
+    {
+      "id": "mfa-rollout-review",
+      "title": "Review privileged user MFA coverage",
+      "frequency": "monthly",
+      "items": [
+        {
+          "key": "admin-mfa-coverage",
+          "title": "Confirm privileged accounts are covered by MFA policy",
+          "description": "Attach provider export or manual attestation for privileged MFA coverage."
         }
       ]
     }
@@ -81,10 +185,278 @@
       "manualChecklistTemplateIds": ["risk-policy-review"]
     },
     {
+      "id": "nis2.incident-handling",
+      "code": "NIS2-EU-INC-001",
+      "title": "Incident handling",
+      "description": "Maintain incident handling procedures, triage records, and source-linked evidence for significant security events.",
+      "controlGroup": "NIS2-EU-INC",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(b)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        },
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "23",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [
+        {
+          "providerKey": "microsoft365",
+          "moduleKey": "defender-xdr",
+          "signalKeys": [
+            "high_severity_incident",
+            "high_severity_alert",
+            "mock.defender.high_incident.incident_1"
+          ],
+          "recommendationKeys": ["triage_high_severity_incident"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": ["DEFENDER_XDR"],
+          "permissionRequirements": ["SecurityIncident.Read.All", "SecurityAlert.Read.All"]
+        },
+        {
+          "providerKey": "mock",
+          "moduleKey": "defender-xdr",
+          "signalKeys": ["mock.defender.high_incident.incident_1", "high_severity_incident"],
+          "recommendationKeys": ["triage_high_severity_incident"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": ["DEFENDER_XDR"],
+          "permissionRequirements": ["SecurityIncident.Read.All"]
+        }
+      ],
+      "evidenceRequired": [
+        {
+          "requirementKey": "incident-handling-evidence",
+          "title": "Incident handling procedure or triage record",
+          "description": "Incident response process, tabletop record, or retained incident triage evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["incident-handling-review"]
+    },
+    {
+      "id": "nis2.business-continuity",
+      "code": "NIS2-EU-BCP-001",
+      "title": "Business continuity, backup management, disaster recovery, and crisis management",
+      "description": "Maintain continuity, backup, restore, disaster recovery, and crisis-management evidence for internal readiness.",
+      "controlGroup": "NIS2-EU-BCP",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(c)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "business-continuity-evidence",
+          "title": "Continuity, backup, restore, or crisis-management evidence",
+          "description": "Current continuity plan, restore test, backup status, or crisis-management review evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["business-continuity-review"]
+    },
+    {
+      "id": "nis2.supply-chain",
+      "code": "NIS2-EU-SUPPLY-001",
+      "title": "Supply chain security",
+      "description": "Track security-related aspects of relationships with direct suppliers and service providers.",
+      "controlGroup": "NIS2-EU-SUPPLY",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(d)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "supplier-security-evidence",
+          "title": "Supplier security review evidence",
+          "description": "Supplier risk register, security clauses, due-diligence evidence, or review decision."
+        }
+      ],
+      "manualChecklistTemplateIds": ["supplier-security-review"]
+    },
+    {
+      "id": "nis2.secure-development-vulnerability",
+      "code": "NIS2-EU-SDLC-001",
+      "title": "Secure acquisition, development, maintenance, and vulnerability handling",
+      "description": "Maintain secure acquisition, development, maintenance, vulnerability handling, and disclosure evidence.",
+      "controlGroup": "NIS2-EU-SDLC",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(e)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "secure-development-vulnerability-evidence",
+          "title": "Secure change or vulnerability handling evidence",
+          "description": "Secure acquisition, development, maintenance, patch, vulnerability triage, or disclosure evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["secure-development-vulnerability-review"]
+    },
+    {
+      "id": "nis2.effectiveness-assessment",
+      "code": "NIS2-EU-ASSESS-001",
+      "title": "Effectiveness assessment of cybersecurity risk-management measures",
+      "description": "Assess the effectiveness of cybersecurity risk-management measures and retain the review evidence.",
+      "controlGroup": "NIS2-EU-ASSESS",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(f)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "control-effectiveness-evidence",
+          "title": "Control effectiveness assessment evidence",
+          "description": "Control test result, internal review, management sign-off, or audit-readiness evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["effectiveness-assessment-review"]
+    },
+    {
+      "id": "nis2.cyber-hygiene-training",
+      "code": "NIS2-EU-HYGIENE-001",
+      "title": "Basic cyber hygiene practices and cybersecurity training",
+      "description": "Maintain basic cyber hygiene practices and cybersecurity training evidence for the workforce.",
+      "controlGroup": "NIS2-EU-HYGIENE",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(g)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "cyber-hygiene-training-evidence",
+          "title": "Cyber hygiene or training evidence",
+          "description": "Training completion, awareness attestation, or basic hygiene review evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["cyber-hygiene-training-review"]
+    },
+    {
+      "id": "nis2.cryptography-encryption",
+      "code": "NIS2-EU-CRYPTO-001",
+      "title": "Cryptography and encryption policies and procedures",
+      "description": "Maintain cryptography and, where appropriate, encryption policies and procedures.",
+      "controlGroup": "NIS2-EU-CRYPTO",
+      "implementationType": "process",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(h)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [],
+      "evidenceRequired": [
+        {
+          "requirementKey": "cryptography-policy-evidence",
+          "title": "Cryptography or encryption policy evidence",
+          "description": "Approved cryptography, encryption, or secure-communications policy evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["cryptography-policy-review"]
+    },
+    {
+      "id": "nis2.access-asset-management",
+      "code": "NIS2-EU-IAM-001",
+      "title": "Human resources security, access control policies, and asset management",
+      "description": "Maintain HR security, access control, privileged role, guest access, and asset-management evidence.",
+      "controlGroup": "NIS2-EU-IAM",
+      "implementationType": "hybrid",
+      "applicability": "all",
+      "legalReference": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "article": "21",
+          "paragraph": "2(i)",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022"
+        }
+      ],
+      "providerMappings": [
+        {
+          "providerKey": "microsoft365",
+          "moduleKey": "identity-posture",
+          "signalKeys": ["mock.identity.too_many_global_admins", "mock.identity.stale_guest.guest_1"],
+          "recommendationKeys": ["review_privileged_role_assignments", "review_stale_guest_access"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": [],
+          "permissionRequirements": ["RoleManagement.Read.Directory", "User.Read.All"]
+        },
+        {
+          "providerKey": "mock",
+          "moduleKey": "identity-posture",
+          "signalKeys": ["mock.identity.too_many_global_admins", "mock.identity.stale_guest.guest_1"],
+          "recommendationKeys": ["review_privileged_role_assignments", "review_stale_guest_access"],
+          "canAutoEvaluate": true,
+          "canAutoRemediate": false,
+          "licenseRequirements": [],
+          "permissionRequirements": ["RoleManagement.Read.Directory", "User.Read.All"]
+        }
+      ],
+      "evidenceRequired": [
+        {
+          "requirementKey": "access-asset-evidence",
+          "title": "Access control and asset-management evidence",
+          "description": "Privileged role review, guest access review, HR security, or asset inventory evidence."
+        }
+      ],
+      "manualChecklistTemplateIds": ["access-asset-review"]
+    },
+    {
       "id": "nis2.access-control.mfa",
       "code": "NIS2-EU-MFA-001",
       "title": "Multi-factor authentication and secure communications where appropriate",
-      "description": "Privileged access should be covered by MFA or equivalent strong authentication controls.",
+      "description": "Privileged access should be covered by MFA or equivalent strong authentication controls, with secure communications reviewed where appropriate.",
       "controlGroup": "NIS2-EU-MFA",
       "implementationType": "technical",
       "applicability": "all",
@@ -127,60 +499,6 @@
         }
       ],
       "manualChecklistTemplateIds": ["mfa-rollout-review"]
-    },
-    {
-      "id": "nis2.incident-handling",
-      "code": "NIS2-EU-INC-001",
-      "title": "Incident handling",
-      "description": "Maintain incident handling procedures and evidence for open incident triage.",
-      "controlGroup": "NIS2-EU-INC",
-      "implementationType": "hybrid",
-      "applicability": "all",
-      "legalReference": [
-        {
-          "sourceRecordId": "eu-nis2-directive-2022-2555",
-          "article": "21",
-          "paragraph": "2(b)",
-          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
-          "sourceVersion": "OJ L 333, 27.12.2022"
-        },
-        {
-          "sourceRecordId": "eu-nis2-directive-2022-2555",
-          "article": "23",
-          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
-          "sourceVersion": "OJ L 333, 27.12.2022"
-        }
-      ],
-      "providerMappings": [
-        {
-          "providerKey": "microsoft365",
-          "moduleKey": "defender-xdr",
-          "signalKeys": ["mock.defender.high_incident.incident_1", "high_severity_incident"],
-          "recommendationKeys": ["triage_high_severity_incident"],
-          "canAutoEvaluate": true,
-          "canAutoRemediate": false,
-          "licenseRequirements": ["DEFENDER_XDR"],
-          "permissionRequirements": ["SecurityIncident.Read.All"]
-        },
-        {
-          "providerKey": "mock",
-          "moduleKey": "defender-xdr",
-          "signalKeys": ["mock.defender.high_incident.incident_1", "high_severity_incident"],
-          "recommendationKeys": ["triage_high_severity_incident"],
-          "canAutoEvaluate": true,
-          "canAutoRemediate": false,
-          "licenseRequirements": ["DEFENDER_XDR"],
-          "permissionRequirements": ["SecurityIncident.Read.All"]
-        }
-      ],
-      "evidenceRequired": [
-        {
-          "requirementKey": "incident-handling-evidence",
-          "title": "Incident handling procedure or triage record",
-          "description": "Incident response process, tabletop record, or retained incident triage evidence."
-        }
-      ],
-      "manualChecklistTemplateIds": ["incident-handling-review"]
     }
   ]
 }

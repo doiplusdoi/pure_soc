@@ -700,6 +700,8 @@ export const evidenceArtifactToComplianceState = (artifact: EvidenceArtifactMeta
   controlId: artifact.controlId,
   jurisdiction: artifact.jurisdiction,
   title: artifact.title,
+  freshnessStatus: artifact.validUntil && Date.parse(artifact.validUntil) < Date.now() ? ("stale" as const) : ("current" as const),
+  validUntil: artifact.validUntil,
   sourceReferences: artifact.linkedSourceRecordId
     ? [
         {

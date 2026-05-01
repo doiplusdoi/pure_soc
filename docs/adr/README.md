@@ -17,6 +17,8 @@ Use this folder for durable architecture decisions. Keep ADRs short and link to 
 - ADR-011: Regulatory Source Activation Lifecycle
 - ADR-012: Dashboard Aggregation And Report Data Contracts
 - ADR-013: Auth, OIDC Social Login, And Managed-Provider Consent Boundaries
+- ADR-014: Operational UI Design System
+- ADR-015: Internal Readiness Scoring Calibration
 
 ## Template
 

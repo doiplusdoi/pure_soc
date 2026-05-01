@@ -242,9 +242,9 @@ Status: Resolved 2026-04-30 for PLAN_M6 persistence, API, source-map traceabilit
 
 Severity: Medium
 Area: Compliance engine/scoring
-Current state: Phase H added a provider-neutral control catalog seed loader, initial source-linked EU controls, provider finding mappings, evidence completeness, gap generation, structured recommendations, readiness plan items, and checklist generation. The current readiness status is an internal operational model and intentionally does not claim legal certification.
-Impact: The engine can prove the control-result -> gap -> recommendation -> readiness-plan flow, but the catalog only covers the first representative controls and does not yet encode a product-approved weighting/scoring methodology across the full NIS2 baseline and country overlays.
-Next action: Expand the control catalog to the full EU baseline and reviewed country overlays, define score weighting and stale-evidence rules with product/legal, and keep score labels framed as internal readiness only.
+Current state: PLAN_M13 expanded the executable EU Article 21 catalog from three representative controls to all ten Article 21(2)(a)-(j) baseline categories, with source-linked evidence requirements, manual checklist mappings for each control, provider-neutral mappings for existing Microsoft/mock MFA, IAM, and Defender XDR findings, stricter seed validation, configurable readiness-plan targets, stale-evidence handling, accepted-risk scoring below a clean pass, and the dashboard label `PureSOC internal readiness`. ADR-015 records the provisional score model.
+Impact: The control-result -> gap -> recommendation -> readiness-plan -> dashboard/report flow now covers the full Article 21 baseline categories as an internal-readiness model, but score weights, evidence freshness windows, and customer-facing score copy remain provisional and are not product/legal-approved. National overlays are still excluded unless source-reviewed and activated.
+Next action: Product/legal must review the M13 score weights, accepted-risk credit, stale-evidence freshness policy, evidence expectations per control, and public-facing wording before production use; then expand reviewed country overlays and any Implementing Regulation 2024/2690 overlays through the regulatory activation workflow.
 Owner: Product/legal/Codex
 Target phase: Phase H/I
 Status: Open

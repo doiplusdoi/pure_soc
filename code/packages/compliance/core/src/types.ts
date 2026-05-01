@@ -105,6 +105,8 @@ export interface EvidenceArtifactState {
   requirementKey?: string;
   jurisdiction?: string;
   title?: string;
+  freshnessStatus?: "current" | "stale";
+  validUntil?: string;
   sourceReferences?: SourceReference[];
 }
 
@@ -197,7 +199,7 @@ export interface ReadinessPlan {
   organizationId: string;
   assessmentId: string;
   title: string;
-  targetReadinessPercent: 100;
+  targetReadinessPercent: number;
   status: "draft" | "active" | "completed" | "superseded";
   generatedAt: string;
   items: ReadinessPlanItem[];

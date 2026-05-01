@@ -11,6 +11,7 @@ export interface GenerateReadinessPlanInput {
   defaultOwnerUserId?: string;
   generatedAt?: string;
   title?: string;
+  targetReadinessPercent?: number;
 }
 
 export const generateReadinessPlan = (input: GenerateReadinessPlanInput): ReadinessPlan => {
@@ -22,8 +23,8 @@ export const generateReadinessPlan = (input: GenerateReadinessPlanInput): Readin
     id: planId,
     organizationId: input.organizationId,
     assessmentId: input.assessmentId,
-    title: input.title ?? "100% internal readiness plan",
-    targetReadinessPercent: 100,
+    title: input.title ?? "Internal readiness improvement plan",
+    targetReadinessPercent: clampReadinessTarget(input.targetReadinessPercent ?? 100),
     status: "draft",
     generatedAt,
     items: input.gaps.map((gap, index) =>
@@ -111,3 +112,6 @@ const dueDateForSeverity = (generatedAt: string, severity: ComplianceGap["severi
 };
 
 const uniqueStrings = (values: readonly string[]): string[] => [...new Set(values.filter(Boolean))];
+
+const clampReadinessTarget = (targetReadinessPercent: number): number =>
+  Math.max(0, Math.min(100, Math.round(targetReadinessPercent)));

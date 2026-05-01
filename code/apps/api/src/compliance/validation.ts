@@ -64,6 +64,7 @@ const countryPackCompletenessValues = new Set([
 
 const gapSeverities = new Set<GapSeverity>(["low", "medium", "high", "critical"]);
 const confidenceValues = new Set<Confidence>(["low", "medium", "high"]);
+const evidenceFreshnessValues = new Set<NonNullable<EvidenceArtifactState["freshnessStatus"]>>(["current", "stale"]);
 
 export const parseComplianceEvaluationBody = (
   body: Record<string, unknown>,
@@ -135,6 +136,8 @@ const parseEvidenceArtifact = (value: unknown, path: string): EvidenceArtifactSt
     requirementKey: optionalString(record, "requirementKey", `${path}.requirementKey`),
     jurisdiction: optionalString(record, "jurisdiction", `${path}.jurisdiction`),
     title: optionalString(record, "title", `${path}.title`),
+    freshnessStatus: optionalEnum(record, "freshnessStatus", `${path}.freshnessStatus`, evidenceFreshnessValues),
+    validUntil: optionalString(record, "validUntil", `${path}.validUntil`),
     sourceReferences: parseOptionalArray(record.sourceReferences, `${path}.sourceReferences`, parseSourceReference)
   };
 };
@@ -252,6 +255,25 @@ const parseOptionalStringArray = (value: unknown, path: string): string[] => {
 
 const requiredEnum = <T extends string>(record: Record<string, unknown>, path: string, allowed: Set<T>): T => {
   const value = getPathValue(record, path);
+
+  if (typeof value !== "string" || !allowed.has(value as T)) {
+    throw invalid(`${path} is not supported.`);
+  }
+
+  return value as T;
+};
+
+const optionalEnum = <T extends string>(
+  record: Record<string, unknown>,
+  field: string,
+  path: string,
+  allowed: Set<T>
+): T | undefined => {
+  const value = record[field];
+
+  if (value === undefined) {
+    return undefined;
+  }
 
   if (typeof value !== "string" || !allowed.has(value as T)) {
     throw invalid(`${path} is not supported.`);

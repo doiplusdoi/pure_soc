@@ -23,6 +23,14 @@ import {
 } from "@puresoc/recommendations";
 
 const fixedNow = () => new Date("2026-04-30T09:00:00.000Z");
+const mfaControlCode = "NIS2-EU-MFA-001";
+const riskPolicyControlCode = "NIS2-EU-RISK-001";
+
+const controlByCode = (catalog: ReturnType<typeof loadDefaultControlCatalog>, code: string) => {
+  const control = catalog.controls.find((candidate) => candidate.code === code);
+  expect(control, `Expected control ${code} to exist`).toBeDefined();
+  return control!;
+};
 
 const runMicrosoftMockScenario = async (
   scenarioKey: MockProviderScenarioKey
@@ -51,6 +59,7 @@ const runMicrosoftMockScenario = async (
 describe("compliance gaps recommendations readiness-plan checklist", () => {
   it("maps Microsoft mock findings to controls through provider-neutral findings", async () => {
     const catalog = loadDefaultControlCatalog();
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerRun = await runMicrosoftMockScenario("missing_mfa");
     const checklistItems = generateManualChecklistItems({
       organizationId: "org_phase_h",
@@ -68,9 +77,9 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       manualTasks: checklistItems,
       evaluatedAt: fixedNow().toISOString()
     });
-    const mfaResult = results.find((result) => result.controlId === "nis2.access-control.mfa");
+    const mfaResult = results.find((result) => result.controlId === mfaControl.id);
     const gaps = calculateComplianceGaps({ results });
-    const mfaGap = gaps.find((gap) => gap.controlId === "nis2.access-control.mfa");
+    const mfaGap = gaps.find((gap) => gap.controlId === mfaControl.id);
 
     expect(mfaResult?.status).toBe("failing");
     expect(mfaResult?.providerSignalIds).toContain(providerRun.findings[0]?.id);
@@ -82,6 +91,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("generates manual checklist items for manual controls", () => {
     const catalog = loadDefaultControlCatalog();
+    const riskPolicyControl = controlByCode(catalog, riskPolicyControlCode);
     const checklistItems = generateManualChecklistItems({
       organizationId: "org_phase_h",
       assessmentId: "assessment_h",
@@ -90,9 +100,9 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       ownerUserId: "owner_1"
     });
 
-    expect(checklistItems.some((item) => item.controlId === "nis2.risk-policy")).toBe(true);
-    expect(checklistItems.find((item) => item.controlId === "nis2.risk-policy")?.status).toBe("task_generated");
-    expect(checklistItems.find((item) => item.controlId === "nis2.risk-policy")?.sourceReferences.length).toBeGreaterThan(0);
+    expect(checklistItems.some((item) => item.controlId === riskPolicyControl.id)).toBe(true);
+    expect(checklistItems.find((item) => item.controlId === riskPolicyControl.id)?.status).toBe("task_generated");
+    expect(checklistItems.find((item) => item.controlId === riskPolicyControl.id)?.sourceReferences.length).toBeGreaterThan(0);
   });
 
   it("keeps country-pack missing data as a warning instead of a false technical failure", () => {
@@ -137,9 +147,9 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("does not mark provider-mapped controls passing when no mapped provider signal exists", () => {
     const catalog = loadDefaultControlCatalog();
-    const mfaControl = catalog.controls.find((control) => control.id === "nis2.access-control.mfa");
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerMappedControl = {
-      ...mfaControl!,
+      ...mfaControl,
       manualChecklistTemplateIds: []
     };
 
@@ -150,7 +160,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       evidenceArtifacts: [
         {
           id: "evidence_mfa",
-          controlId: "nis2.access-control.mfa",
+          controlId: mfaControl.id,
           requirementKey: "mfa-coverage-evidence",
           title: "Privileged MFA coverage evidence"
         }
@@ -164,16 +174,16 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("allows completed manual fallback to satisfy a provider-mapped control when evidence is present", () => {
     const catalog = loadDefaultControlCatalog();
-    const mfaControl = catalog.controls.find((control) => control.id === "nis2.access-control.mfa");
+    const mfaControl = controlByCode(catalog, mfaControlCode);
 
     const results = evaluateComplianceControls({
       organizationId: "org_phase_h",
       assessmentId: "assessment_h",
-      controls: [mfaControl!],
+      controls: [mfaControl],
       evidenceArtifacts: [
         {
           id: "evidence_mfa",
-          controlId: "nis2.access-control.mfa",
+          controlId: mfaControl.id,
           requirementKey: "mfa-coverage-evidence",
           title: "Privileged MFA coverage evidence"
         }
@@ -183,13 +193,13 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
           id: "manual_mfa",
           organizationId: "org_phase_h",
           assessmentId: "assessment_h",
-          controlId: "nis2.access-control.mfa",
+          controlId: mfaControl.id,
           templateId: "mfa-rollout-review",
           itemKey: "admin-mfa-coverage",
           title: "Confirm privileged accounts are covered by MFA policy",
           status: "approved",
           evidenceArtifactIds: ["evidence_mfa"],
-          sourceReferences: mfaControl!.sourceReferences
+          sourceReferences: mfaControl.sourceReferences
         }
       ],
       evaluatedAt: fixedNow().toISOString()
@@ -200,6 +210,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("lets evidence absence affect evidence completeness", async () => {
     const catalog = loadDefaultControlCatalog();
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerRun = await runMicrosoftMockScenario("missing_mfa");
     const results = evaluateComplianceControls({
       organizationId: "org_phase_h",
@@ -208,7 +219,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       providerFindings: providerRun.findings,
       evaluatedAt: fixedNow().toISOString()
     });
-    const mfaResult = results.find((result) => result.controlId === "nis2.access-control.mfa");
+    const mfaResult = results.find((result) => result.controlId === mfaControl.id);
 
     expect(mfaResult?.missingEvidence.map((requirement) => requirement.requirementKey)).toContain("mfa-coverage-evidence");
     expect(mfaResult?.evidenceCompleteness).toMatchObject({
@@ -221,6 +232,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("generates a readiness plan with owner, due date, status, dependencies, and source references", async () => {
     const catalog = loadDefaultControlCatalog();
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerRun = await runMicrosoftMockScenario("missing_mfa");
     const results = evaluateComplianceControls({
       organizationId: "org_phase_h",
@@ -243,8 +255,8 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       defaultOwnerUserId: "owner_1",
       generatedAt: fixedNow().toISOString()
     });
-    const mfaItem = readinessPlan.items.find((item) => item.controlId === "nis2.access-control.mfa");
-    const mfaGap = gaps.find((gap) => gap.controlId === "nis2.access-control.mfa");
+    const mfaItem = readinessPlan.items.find((item) => item.controlId === mfaControl.id);
+    const mfaGap = gaps.find((gap) => gap.controlId === mfaControl.id);
 
     expect(mfaItem).toMatchObject({
       ownerUserId: "owner_1",
@@ -260,6 +272,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("keeps recommendation records useful for reports, dashboards, and future action flows", async () => {
     const catalog = loadDefaultControlCatalog();
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerRun = await runMicrosoftMockScenario("missing_mfa");
     const results = evaluateComplianceControls({
       organizationId: "org_phase_h",
@@ -274,7 +287,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       gaps,
       providerRecommendations: providerRun.recommendations
     });
-    const recommendation = recommendations.find((entry) => entry.controlId === "nis2.access-control.mfa");
+    const recommendation = recommendations.find((entry) => entry.controlId === mfaControl.id);
 
     expect(recommendation).toBeDefined();
     expect(recommendation?.sourceReferences?.length).toBeGreaterThan(0);
@@ -295,11 +308,11 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("does not promote informational findings into actionable gap severity", () => {
     const catalog = loadDefaultControlCatalog();
-    const control = catalog.controls.find((candidate) => candidate.id === "nis2.access-control.mfa")!;
+    const control = controlByCode(catalog, mfaControlCode);
     const gaps = calculateComplianceGaps({
       results: [
         {
-          id: "assessment_info:nis2.access-control.mfa:EU",
+          id: ["assessment_info", control.id, "EU"].join(":"),
           organizationId: "org_phase_h",
           assessmentId: "assessment_info",
           controlId: control.id,
@@ -344,6 +357,7 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
 
   it("stores and reads compliance result sets through the in-memory repository contract", async () => {
     const catalog = loadDefaultControlCatalog();
+    const mfaControl = controlByCode(catalog, mfaControlCode);
     const providerRun = await runMicrosoftMockScenario("missing_mfa");
     const checklistItems = generateManualChecklistItems({
       organizationId: "org_phase_h",
@@ -397,9 +411,9 @@ describe("compliance gaps recommendations readiness-plan checklist", () => {
       assessmentId: "assessment_repo"
     });
 
-    expect(found?.gaps.find((gap) => gap.controlId === "nis2.access-control.mfa")?.findingIds.length).toBeGreaterThan(0);
-    expect(found?.recommendations.find((recommendation) => recommendation.controlId === "nis2.access-control.mfa")?.sourceFindingIds.length).toBeGreaterThan(0);
-    expect(found?.readinessPlan.items.find((item) => item.controlId === "nis2.access-control.mfa")?.findingIds.length).toBeGreaterThan(0);
+    expect(found?.gaps.find((gap) => gap.controlId === mfaControl.id)?.findingIds.length).toBeGreaterThan(0);
+    expect(found?.recommendations.find((recommendation) => recommendation.controlId === mfaControl.id)?.sourceFindingIds.length).toBeGreaterThan(0);
+    expect(found?.readinessPlan.items.find((item) => item.controlId === mfaControl.id)?.findingIds.length).toBeGreaterThan(0);
     expect(found?.checklistItems.length).toBeGreaterThan(0);
     expect(crossOrganization).toBeNull();
   });
