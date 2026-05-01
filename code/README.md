@@ -32,6 +32,18 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:mig
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
+Provider-token encryption supports a small local key-ring shape for Microsoft 365 credentials:
+
+```sh
+PURESOC_PROVIDER_TOKEN_KEY_ID=current
+PURESOC_PROVIDER_TOKEN_KEY=replace-with-secret-material
+PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS=previous-a=old-secret,previous-b=older-secret
+```
+
+New Microsoft 365 credential envelopes include the active key ID. Decryption can use the active key or configured previous keys so rotation can be staged deliberately. Production startup rejects the checked-in local-dev key, but live KMS/secret-manager custody and rotation smoke remain release hardening work.
+
+Audit records written through `@puresoc/audit` include `previousHash`, `entryHash`, `hashAlgorithm`, and a redacted canonical payload. The in-memory sink can verify per-organization and global chains for contract tests. This is tamper-evident metadata only; it is not WORM storage, external signing, or proof that a database administrator could not rewrite all rows.
+
 Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
 
 ## API Middleware

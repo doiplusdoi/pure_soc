@@ -24,8 +24,10 @@ Current repository state:
 
 - Git repository initialized on `main`.
 - Planning artifacts created for Codex-first implementation.
-- M1-M20 implementation slices are present under `code/`, including schema/contracts, auth/org/RBAC, EU/Romania regulatory foundations, provider connector contracts, Microsoft read-only modules, compliance/recommendation/report/evidence/billing/action foundations, runtime config validation, Docker entrypoints, the shared job runtime baseline, and API middleware/rate-limit protections.
+- M1-M21 implementation slices are present under `code/`, including schema/contracts, auth/org/RBAC, EU/Romania regulatory foundations, provider connector contracts, Microsoft read-only modules, compliance/recommendation/report/evidence/billing/action foundations, runtime config validation, Docker entrypoints, the shared job runtime baseline, API middleware/rate-limit protections, audit hash-chain metadata, and provider-token key-ring handling.
 - Runtime persistence is environment-selectable with `PURESOC_PERSISTENCE_MODE=memory|prisma`; Prisma mode currently persists only the bounded contexts that already have adapters.
 - Worker, scheduler, and connector-runner now start typed job-runtime loops backed by an in-memory harness and a BullMQ-ready adapter boundary. Live Redis/BullMQ operation and provider-write execution remain deferred.
 - The API server now has a focused `node:http` middleware layer for request context, trusted-origin checks on browser state-changing routes, and configurable in-memory fixed-window rate limits. Distributed rate limiting and deployed browser/CORS smoke remain deferred.
+- Audit records generated through `@puresoc/audit` now carry tamper-evident hash-chain metadata per organization/global scope. This is not WORM storage, external signing, or legal certification.
+- Microsoft 365 provider-token encryption now records key IDs in new envelopes and can decrypt configured previous keys; production startup still rejects the local-dev provider token key.
 - Romania workbook is available to the application at `code/data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx`.

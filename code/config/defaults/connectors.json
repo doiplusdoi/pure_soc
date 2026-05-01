@@ -1,6 +1,8 @@
 {
   "readOnlyByDefault": true,
+  "providerTokenEncryptionKeyId": "local-dev",
   "providerTokenEncryptionKey": "local-dev-provider-token-key-change-me",
+  "providerTokenEncryptionPreviousKeys": [],
   "microsoft365": {
     "enabled": true,
     "writeScopesAllowed": false

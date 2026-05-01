@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M20, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M20.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 20 / `docs/PLAN_M21.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M21, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M21.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 21 / `docs/PLAN_M22.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -50,6 +50,7 @@ The repository currently contains:
 - PLAN_M18 runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup validation for production-sensitive settings, shared Prisma client selection for implemented adapters, explicit memory-backed runtime context tracking, non-stub Docker entrypoints, minimal web/report-renderer servers, and static Docker runtime-shape tests. GAP-026 is partially addressed and GAP-036 remains open for remaining runtime persistence.
 - PLAN_M19 job runtime baseline: `@puresoc/jobs` now provides typed job registration, dispatch results, retry/failure metadata, idempotent in-memory queue behavior, graceful shutdown hooks, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops for remediation metadata validation, regulatory source monitoring, and read-only provider sync. GAP-037 is narrowed but remains open for live Redis/BullMQ durability; GAP-030 remains open because provider write execution is still disabled.
 - PLAN_M20 API middleware baseline: the `node:http` API server now has shared request context and route-family classification, trusted-Origin/Referer checks for state-changing browser routes with explicit webhook/OIDC/provider callback exemptions, configurable in-memory fixed-window rate limits keyed by unauthenticated IP or authenticated user/organization, and focused tests proving middleware ordering, Stripe raw-body preservation, and evidence/body-limit compatibility. GAP-035 is narrowed and GAP-038 tracks distributed rate limiting, proxy-aware IP trust, and strict CSRF-token rollout.
+- PLAN_M21 audit integrity/provider key handling: `@puresoc/audit` now emits per-organization/global hash-chain metadata with a redacted canonical payload and in-memory tamper verification helpers; Prisma audit integrity columns/migration exist for future persisted sinks; Microsoft 365 token encryption now writes key IDs, decrypts active/previous/legacy envelopes, and production startup rejects unsafe local-dev provider token keys. GAP-039 and GAP-040 track external audit signing/WORM/retention and live KMS/key-rotation smoke.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -77,7 +78,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 17 / `docs/PLAN_M18.md` is completed.
 - Prompt 18 / `docs/PLAN_M19.md` is completed.
 - Prompt 19 / `docs/PLAN_M20.md` is completed.
-- Prompt 20 / `docs/PLAN_M21.md` is staged as the next active implementation prompt.
+- Prompt 20 / `docs/PLAN_M21.md` is completed.
+- Prompt 21 / `docs/PLAN_M22.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -92,12 +94,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 20 / `docs/PLAN_M21.md`: Audit Log Integrity And Provider Key Handling.
-2. Expected next handoff after M21: Schema/Generated Data Drift Detection, unless M21 implementation results require a different next slice.
+1. Prompt 21 / `docs/PLAN_M22.md`: Schema And Generated Data Drift Detection.
+2. Expected next handoff after M22: i18n And Country-Pack Notification Model Decision, unless M22 implementation results require a different next slice.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 20 / PLAN_M21: Audit Log Integrity And Provider Key Handling
+## Active Prompt 21 / PLAN_M22: Schema And Generated Data Drift Detection
 
 Read:
 
@@ -107,70 +109,57 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/threat-model.md`
 - `docs/claude_rec2.md`
-- `docs/PLAN_M20.md`
-- `docs/adr/ADR-009-microsoft-graph-permission-bundles.md`
-- `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
-- `docs/adr/ADR-013-auth-oidc-social-login-and-managed-provider-consent-boundaries.md`
+- `docs/PLAN_M21.md`
+- `docs/adr/ADR-005-regulatory-seed-and-source-map-format.md`
 
 Goal:
 
-Add an audit-log integrity baseline and close the most dangerous provider-key runtime footgun without enabling provider writes.
+Add cheap, deterministic drift detection for two historic failure classes: Prisma-schema versus TypeScript contract drift, and generated regulatory seed/source-map drift from source importers.
 
 Context:
 
-- `docs/claude_rec2.md` REC-109 notes that audit logs have no tamper-evident structure.
-- REC-119 notes the Microsoft 365 provider token cipher historically had a public local-dev default key risk; M18 added startup validation for production, but key IDs/rotation remain undefined.
-- Existing `AuditWriter` redacts sensitive metadata and writes through pluggable sinks; keep that surface and add integrity metadata without broad persistence rewrites.
-- Provider write/remediation execution remains disabled under GAP-030. M21 must not enable it.
+- `docs/claude_rec2.md` REC-110 notes that schema/TypeScript contract drift has been a recurring bug class.
+- REC-113 notes that Romania importer outputs are deterministic but checked-in generated seed/source-map files are not diff-checked by lint.
+- M21 added Prisma audit integrity fields; M22 should make future contract/schema changes harder to forget.
+- Keep the check deterministic and local. Do not run live regulatory URL fetches or require Microsoft/Stripe/OIDC/provider credentials.
 
 Deliverables:
 
-- Add audit entry hash-chain metadata at the audit package boundary. At minimum model `previousHash`, `entryHash`, `hashAlgorithm`, and a stable canonical payload for deterministic tests.
-- Preserve audit redaction before hashing or explicitly document and test the canonical payload does not include passwords, tokens, OAuth codes, cookies, provider secrets, storage URIs, or raw authorization headers.
-- Update in-memory audit sink behavior so tests can verify per-organization chaining, null/global organization chaining, and tamper detection helpers.
-- Extend Prisma schema/migration metadata for audit integrity fields if feasible without broad adapter rewrites; otherwise document why schema wiring is deferred and update gaps.
-- Add provider token key handling hardening: typed config for provider token key IDs or a small key-ring shape, refusal of local-dev default keys in production, and deterministic encrypt/decrypt tests that include key IDs if the cipher format changes.
-- Do not rotate existing ciphertext silently; add a clear adapter boundary and tests for decrypting with the current active key and at least one previous key if key-ring support is implemented.
-- Update docs to explain what the hash chain does and does not prove. Do not claim WORM storage, HSM/KMS signing, or external notarization.
-- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M21.md`, and this prompt file based on actual implementation results.
-- Before final response, create `docs/PLAN_M22.md` from the next selected active prompt.
+- Add a schema/contract drift check that compares selected Prisma model fields to TypeScript contract expectations for the highest-risk persisted surfaces: audit logs, provider resources/findings/recommendations, compliance results/gaps/recommendations/readiness plans, evidence artifacts/access logs, billing events/subscriptions/entitlements, regulatory source versions/review tasks, remediation action runs, generated reports, and dashboard snapshots.
+- Prefer a static/scripted check that reads `code/packages/database/prisma/schema.prisma` and explicit expected field maps over broad runtime reflection that requires a live database.
+- Add a generated-data drift check for Romania workbook outputs so `ro-nis2.seed.generated.json` and `ro-nis2-source-map.generated.json` cannot diverge silently from `apps/regulatory-importer` logic and the checked-in workbook.
+- Wire the drift checks into `npm run lint`/`pnpm lint` only if they are fast and deterministic; otherwise add named scripts and document why lint wiring is deferred.
+- Add tests for the drift-check scripts themselves, including at least one negative fixture or intentional mismatch case.
+- Update docs/gaps/prompts and create `docs/PLAN_M23.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/.env.example`
-- `code/config/defaults/connectors.json` or adjacent config defaults as appropriate
-- `code/packages/config/src/index.ts`
-- `code/packages/config/src/__tests__/config.test.ts`
-- `code/packages/audit/src/index.ts`
-- `code/packages/audit/src/__tests__/*.spec.ts`
-- `code/packages/providers/microsoft365/src/crypto.ts`
-- `code/packages/providers/microsoft365/src/__tests__/*.spec.ts`
-- `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/prisma/migrations/**` if schema fields are added
-- Existing API/service tests if audit output assertions need updates
+- `code/package.json`
+- `code/scripts/check-layout.mjs` or new focused drift scripts under `code/scripts/`
+- `code/packages/database/src/**` or `code/tests/**` for schema/contract drift expectations
+- `code/apps/regulatory-importer/src/ro/**` and/or `code/scripts/**` for generated regulatory drift checks
+- `code/data/regulatory/countries/ro/ro-nis2.seed.generated.json`
+- `code/data/regulatory/countries/ro/ro-nis2-source-map.generated.json`
 - `README.md`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M21.md`
 - `docs/PLAN_M22.md`
+- `docs/PLAN_M23.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not weaken audit redaction or add sensitive data to canonical hashes.
-- Do not claim tamper-proof or legally certified audit logs; hash chains are tamper-evident metadata only.
-- Do not require external KMS/HSM or WORM storage in this milestone.
-- Do not break existing audit sink APIs unless all callers and tests are updated.
-- Do not invalidate existing local-dev provider token behavior outside production/startup validation unless tests and docs explain the migration.
+- Do not introduce a live database requirement for drift checks.
+- Do not fetch public regulatory URLs or rely on live network access.
+- Do not manually edit generated Romania seed/source-map outputs to make drift pass; fix importer logic or regenerate deterministically.
 - Do not add provider write/remediation execution.
-- Do not add Microsoft-specific logic outside Microsoft provider/config surfaces.
 - Do not add Romania-specific logic outside Romania country-pack/importer surfaces.
+- Do not add Microsoft-specific logic outside Microsoft provider/config surfaces.
 - Do not hardcode regulatory facts in UI conditionals.
 - Do not make legal certification claims.
-- Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests in unit tests.
+- Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests.
 
 Tests and acceptance commands:
 
@@ -178,23 +167,21 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- audit encryption provider microsoft365 config auth
+pnpm test -- database schema drift regulatory-import ro
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M21.md`.
-
-If live KMS or production secret-manager validation is not available, keep coverage deterministic and record runtime key-custody smoke as residual risk.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M22.md`.
 
 Expected gap movement:
 
-- Address or narrow audit-log integrity risk from REC-109 with package-level hash-chain metadata and tests.
-- Address or narrow provider-token default-key/key-rotation risk from REC-119 without live provider calls.
+- Address or narrow schema/TypeScript drift risk from REC-110.
+- Address or narrow Romania importer generated-output drift risk from REC-113.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-035, GAP-036, GAP-037, and GAP-038 unless M21 directly validates those runtime areas.
-- Create or update gaps for WORM storage, external signing/KMS, audit retention/export, or live key-rotation smoke intentionally deferred.
+- Preserve runtime/browser/live integration gaps unless M22 directly validates them.
+- Create or update gaps for any generated artifact, Prisma model, or contract surface intentionally excluded from the first drift map.
 
 Final response must include:
 
@@ -202,10 +189,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M21` updated
-- `PLAN_M22` created
+- `PLAN_M22` updated
+- `PLAN_M23` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 20 / PLAN_M21: Audit Log Integrity And Provider Key Handling
+
+Completed on 2026-05-01.
+
+Summary:
+- `@puresoc/audit` now emits per-organization/global hash-chain metadata (`previousHash`, `entryHash`, `hashAlgorithm`, and redacted canonical payload) before writing to sinks.
+- `InMemoryAuditSink` can verify independent chains and detect field tampering, canonical-payload mismatch, entry-hash mismatch, and broken previous-hash continuity.
+- Prisma `AuditLog` now has nullable audit integrity metadata fields and a migration for future persisted sinks.
+- Microsoft 365 token encryption now writes active key IDs into new envelopes, decrypts current/previous/legacy envelopes, parses previous keys from config/env, and rejects local-dev provider token keys in production startup/default env paths.
+- Docs now state that hash chains are tamper-evident metadata only, not WORM storage, HSM/KMS signing, external notarization, or legal certification.
+- GAP-039 and GAP-040 track external audit signing/WORM/retention work and live KMS/key-rotation smoke.
+
+Validated with host-node equivalents because `pnpm` is not installed on this host:
+- `npm run lint`
+- `npm run test -- audit encryption provider microsoft365 config auth`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
+- Additional acceptance results are recorded in `docs/PLAN_M21.md`.
 
 ## Completed Prompt 19 / PLAN_M20: API Middleware And Rate-Limit Baseline
 

@@ -62,7 +62,9 @@ export interface PureSocConfig {
   };
   connectors: {
     readOnlyByDefault: boolean;
+    providerTokenEncryptionKeyId: string;
     providerTokenEncryptionKey: string;
+    providerTokenEncryptionPreviousKeys: ProviderTokenEncryptionKeyConfig[];
     microsoft365: {
       enabled: boolean;
       writeScopesAllowed: boolean;
@@ -131,6 +133,11 @@ export interface ApiRateLimitRuleConfig {
   maxRequests: number;
 }
 
+export interface ProviderTokenEncryptionKeyConfig {
+  id: string;
+  key: string;
+}
+
 export interface LoadConfigOptions {
   defaultsDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -193,6 +200,34 @@ const readStringList = (value: string | undefined, fallback: string[]): string[]
     .split(/[,\s]+/)
     .map((item) => item.trim())
     .filter(Boolean);
+};
+
+const readProviderTokenPreviousKeys = (
+  value: string | undefined,
+  fallback: ProviderTokenEncryptionKeyConfig[]
+): ProviderTokenEncryptionKeyConfig[] => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+    .map((entry) => {
+      const separatorIndex = entry.indexOf("=");
+      if (separatorIndex < 0) {
+        return {
+          id: entry,
+          key: ""
+        };
+      }
+
+      return {
+        id: entry.slice(0, separatorIndex).trim(),
+        key: entry.slice(separatorIndex + 1).trim()
+      };
+    });
 };
 
 const readPersistenceMode = (
@@ -310,10 +345,17 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     },
     connectors: {
       ...config.connectors,
+      providerTokenEncryptionKeyId:
+        env.PURESOC_PROVIDER_TOKEN_KEY_ID ??
+        config.connectors.providerTokenEncryptionKeyId,
       providerTokenEncryptionKey:
         env.PURESOC_PROVIDER_TOKEN_KEY ??
         env.PROVIDER_TOKEN_KEY ??
-        config.connectors.providerTokenEncryptionKey
+        config.connectors.providerTokenEncryptionKey,
+      providerTokenEncryptionPreviousKeys: readProviderTokenPreviousKeys(
+        env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS,
+        config.connectors.providerTokenEncryptionPreviousKeys
+      )
     },
     compliance: {
       ...config.compliance,
@@ -523,6 +565,40 @@ export const collectStartupConfigIssues = (
     });
   }
 
+  if (!nonEmpty(config.connectors.providerTokenEncryptionKeyId)) {
+    issues.push({
+      code: "provider_token_key_id_required",
+      path: "connectors.providerTokenEncryptionKeyId",
+      message: "Provider token encryption requires PURESOC_PROVIDER_TOKEN_KEY_ID."
+    });
+  }
+
+  const providerTokenKeyIds = [
+    config.connectors.providerTokenEncryptionKeyId,
+    ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => key.id)
+  ];
+  const duplicateProviderTokenKeyId = providerTokenKeyIds.find(
+    (keyId, index) => nonEmpty(keyId) && providerTokenKeyIds.indexOf(keyId) !== index
+  );
+  if (duplicateProviderTokenKeyId) {
+    issues.push({
+      code: "provider_token_key_id_duplicate",
+      path: "connectors.providerTokenEncryptionPreviousKeys",
+      message: `Provider token encryption key ID must be unique: ${duplicateProviderTokenKeyId}.`
+    });
+  }
+
+  const invalidPreviousKey = config.connectors.providerTokenEncryptionPreviousKeys.find(
+    (key) => !nonEmpty(key.id) || !nonEmpty(key.key)
+  );
+  if (invalidPreviousKey) {
+    issues.push({
+      code: "provider_token_previous_key_invalid",
+      path: "connectors.providerTokenEncryptionPreviousKeys",
+      message: "Previous provider token keys must use id=key pairs."
+    });
+  }
+
   if (
     isProduction &&
     (!nonEmpty(config.connectors.providerTokenEncryptionKey) ||
@@ -532,6 +608,17 @@ export const collectStartupConfigIssues = (
       code: "provider_token_key_required",
       path: "connectors.providerTokenEncryptionKey",
       message: "Production startup requires a non-default PURESOC_PROVIDER_TOKEN_KEY."
+    });
+  }
+
+  if (
+    isProduction &&
+    config.connectors.providerTokenEncryptionPreviousKeys.some((key) => key.key === localDevProviderTokenKey)
+  ) {
+    issues.push({
+      code: "provider_token_previous_key_default",
+      path: "connectors.providerTokenEncryptionPreviousKeys",
+      message: "Production startup cannot include the local-dev provider token key in previous keys."
     });
   }
 

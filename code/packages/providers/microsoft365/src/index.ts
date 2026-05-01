@@ -21,7 +21,10 @@ import {
   type SyncInput,
   type TenantProfileInput
 } from "@puresoc/providers-core";
-import { createLocalMicrosoft365TokenCipher, type Microsoft365TokenCipher } from "./crypto";
+import {
+  createMicrosoft365TokenCipherFromEnv,
+  type Microsoft365TokenCipher
+} from "./crypto";
 import { MicrosoftGraphClient, type MicrosoftGraphHttpClient } from "./graph-client";
 import {
   microsoft365DeferredReadModules,
@@ -57,7 +60,15 @@ export {
   type Microsoft365WritePermissionBundleKey
 } from "./permissions";
 export { MicrosoftGraphClient, type MicrosoftGraphHttpClient, type MicrosoftGraphResponse } from "./graph-client";
-export { createLocalMicrosoft365TokenCipher, type Microsoft365TokenCipher } from "./crypto";
+export {
+  createLocalMicrosoft365TokenCipher,
+  createMicrosoft365TokenCipherFromEnv,
+  localDevMicrosoft365TokenKeyId,
+  localDevMicrosoft365TokenMasterKey,
+  parseMicrosoft365TokenPreviousKeys,
+  type Microsoft365TokenCipher,
+  type Microsoft365TokenCipherKey
+} from "./crypto";
 
 export interface Microsoft365TokenResponse {
   accessToken: string;
@@ -112,7 +123,6 @@ export interface CreateMicrosoft365ConnectorOptions {
 }
 
 const defaultAuthorityHost = "https://login.microsoftonline.com";
-const defaultTokenKey = "local-dev-provider-token-key-change-me";
 
 export const createFetchMicrosoft365TokenClient = (): Microsoft365TokenClient => async (input) => {
   const body = new URLSearchParams({
@@ -149,9 +159,7 @@ export const createMicrosoft365Connector = (
   const idFactory = options.idFactory ?? randomUUID;
   const authorityHost = options.authorityHost ?? defaultAuthorityHost;
   const tokenClient = options.tokenClient ?? createFetchMicrosoft365TokenClient();
-  const tokenCipher =
-    options.tokenCipher ??
-    createLocalMicrosoft365TokenCipher({ masterKey: process.env.PURESOC_PROVIDER_TOKEN_KEY ?? defaultTokenKey });
+  const tokenCipher = options.tokenCipher ?? createMicrosoft365TokenCipherFromEnv();
   const graphClient =
     options.graphClient ??
     new MicrosoftGraphClient({

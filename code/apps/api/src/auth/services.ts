@@ -147,7 +147,17 @@ export const createApiServices = (
     store: providerStore,
     auditWriter,
     tokenCipher: createLocalMicrosoft365TokenCipher({
-      masterKey: config.connectors.providerTokenEncryptionKey
+      activeKeyId: config.connectors.providerTokenEncryptionKeyId,
+      keys: [
+        {
+          keyId: config.connectors.providerTokenEncryptionKeyId,
+          masterKey: config.connectors.providerTokenEncryptionKey
+        },
+        ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
+          keyId: key.id,
+          masterKey: key.key
+        }))
+      ]
     }),
     now: options.now
   });

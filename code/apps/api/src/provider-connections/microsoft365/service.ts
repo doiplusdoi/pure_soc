@@ -13,7 +13,7 @@ import {
   type ProviderSyncModuleRecord
 } from "@puresoc/providers-core";
 import {
-  createLocalMicrosoft365TokenCipher,
+  createMicrosoft365TokenCipherFromEnv,
   createMicrosoft365Connector,
   microsoft365DefaultReadModules,
   microsoft365ProviderKey,
@@ -85,9 +85,7 @@ interface PendingConsentState {
 }
 
 const defaultTokenCipher = (): Microsoft365TokenCipher =>
-  createLocalMicrosoft365TokenCipher({
-    masterKey: process.env.PURESOC_PROVIDER_TOKEN_KEY ?? "local-dev-provider-token-key-change-me"
-  });
+  createMicrosoft365TokenCipherFromEnv();
 
 export class Microsoft365ProviderConnectionService {
   readonly store: ProviderResourceStore;

@@ -403,6 +403,28 @@ Owner: Codex/DevOps/Security
 Target phase: Phase K
 Status: Open; created 2026-05-01 by PLAN_M20.
 
+### GAP-039: Audit WORM Storage, External Signing, And Retention Export Deferred
+
+Severity: Medium
+Area: Audit integrity/runtime
+Current state: PLAN_M21 added package-level audit integrity metadata: `previousHash`, `entryHash`, `hashAlgorithm`, and a redacted canonical payload. `AuditWriter` chains entries by organization/global scope, `InMemoryAuditSink` exposes verification helpers, and Prisma audit metadata columns/migration now exist for future persisted sinks. Tests cover redaction-before-hashing, independent organization/global chains, and tamper detection.
+Impact: Audit entries are tamper-evident in the contract harness, but this is not append-only storage. A database administrator or full storage compromise could still rewrite all rows and recompute hashes, delete the final row in a chain, or bypass retention/export expectations without an external anchor.
+Next action: Before production auditability claims, design and implement persisted audit sink chaining with transaction/concurrency semantics, retention/export policy, optional WORM/object-storage export, external signing or notarized checkpoints, and operational verification/alerting.
+Owner: Codex/DevOps/Security
+Target phase: Phase K
+Status: Open; created 2026-05-01 by PLAN_M21.
+
+### GAP-040: Provider Token KMS Custody And Live Rotation Smoke Deferred
+
+Severity: Medium
+Area: Provider connector/security runtime
+Current state: PLAN_M21 added provider-token key IDs and previous-key decrypt support for the Microsoft 365 local token cipher, config defaults/env overrides for `PURESOC_PROVIDER_TOKEN_KEY_ID`, `PURESOC_PROVIDER_TOKEN_KEY`, and `PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS`, production startup validation for unsafe local-dev keys, and deterministic active/previous/legacy decrypt tests. Provider write execution remains disabled.
+Impact: The checked-in local-dev key is no longer acceptable for production startup, and staged rotation is modeled in code, but production key custody is still environment-variable based. There is no live KMS/secret-manager adapter, deployed key-rotation smoke, ciphertext backfill/re-encryption workflow, or operator runbook proving rollback from old keys.
+Next action: Before production customer-provider onboarding, select the SaaS/in-a-box key custody model, add KMS/secret-manager adapter boundaries or Docker secret guidance, run a live rotation smoke that encrypts with the active key and decrypts with previous keys, and document operator rotation/backout steps.
+Owner: Codex/DevOps/Security
+Target phase: Phase K
+Status: Open; created 2026-05-01 by PLAN_M21.
+
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 
 Severity: High

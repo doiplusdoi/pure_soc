@@ -455,11 +455,16 @@ model AuditLog {
   userAgent      String?  @map("user_agent")
   beforeJson     Json?    @map("before_json")
   afterJson      Json?    @map("after_json")
+  previousHash   String?  @map("previous_hash")
+  entryHash      String?  @map("entry_hash")
+  hashAlgorithm  String?  @map("hash_algorithm")
+  canonicalPayload Json?  @map("canonical_payload")
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@index([organizationId, createdAt], map: "audit_logs_org_created_idx")
   @@index([actorUserId, createdAt], map: "audit_logs_actor_created_idx")
   @@index([action, createdAt], map: "audit_logs_action_created_idx")
+  @@index([organizationId, entryHash], map: "audit_logs_org_entry_hash_idx")
   @@map("audit_logs")
 }
 

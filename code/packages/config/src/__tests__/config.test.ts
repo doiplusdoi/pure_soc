@@ -46,7 +46,9 @@ describe("loadConfig", () => {
     expect(config.auth.localEnabled).toBe(true);
     expect(config.auth.sessionCookieSecure).toBe(false);
     expect(config.connectors.readOnlyByDefault).toBe(true);
+    expect(config.connectors.providerTokenEncryptionKeyId).toBe("local-dev");
     expect(config.connectors.providerTokenEncryptionKey).toBe("local-dev-provider-token-key-change-me");
+    expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([]);
     expect(config.compliance.sourceMonitor).toEqual({
       enabled: false,
       requestTimeoutMs: 5000,
@@ -99,7 +101,9 @@ describe("loadConfig", () => {
         PURESOC_API_RATE_LIMIT_TENANT_READ_MAX_REQUESTS: "99",
         PURESOC_AUTH_LOCAL_ENABLED: "false",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_BUCKET: "evidence-test",
@@ -151,7 +155,18 @@ describe("loadConfig", () => {
     expect(config.api.rateLimits.routeFamilies.tenant_read?.maxRequests).toBe(99);
     expect(config.auth.localEnabled).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(true);
+    expect(config.connectors.providerTokenEncryptionKeyId).toBe("current-test");
     expect(config.connectors.providerTokenEncryptionKey).toBe("test-provider-token-key-with-enough-entropy");
+    expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([
+      {
+        id: "previous-a",
+        key: "old-provider-token-key"
+      },
+      {
+        id: "previous-b",
+        key: "older-provider-token-key"
+      }
+    ]);
     expect(config.billing.provider).toBe("stripe");
     expect(config.storage.objectStorage.provider).toBe("s3");
     expect(config.storage.objectStorage.bucket).toBe("evidence-test");
@@ -271,12 +286,35 @@ describe("loadConfig", () => {
     );
   });
 
+  it("rejects invalid provider token key-ring metadata", () => {
+    const duplicateKeyConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "current=previous-provider-token-key"
+      }
+    });
+    expect(collectStartupConfigIssues(duplicateKeyConfig).map((issue) => issue.code)).toContain(
+      "provider_token_key_id_duplicate"
+    );
+
+    const invalidPreviousKeyConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "missing-secret"
+      }
+    });
+    expect(collectStartupConfigIssues(invalidPreviousKeyConfig).map((issue) => issue.code)).toContain(
+      "provider_token_previous_key_invalid"
+    );
+  });
+
   it("accepts a production startup config when required secrets are configured", () => {
     const config = loadConfig({
       env: {
         PURESOC_APP_ENV: "production",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "prod-current",
         PURESOC_PROVIDER_TOKEN_KEY: "prod-provider-token-key-with-sufficient-entropy",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "prod-previous=previous-provider-token-key-with-sufficient-entropy",
         PURESOC_BILLING_PROVIDER: "stripe",
         STRIPE_SECRET_KEY: "sk_test_configured",
         STRIPE_WEBHOOK_SECRET: "whsec_configured",
