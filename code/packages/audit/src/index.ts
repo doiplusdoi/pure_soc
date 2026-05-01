@@ -71,7 +71,8 @@ const sensitiveKeyFragments = [
   "refresh",
   "cookie",
   "authorization",
-  "secret"
+  "secret",
+  "storageuri"
 ] as const;
 
 const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, "");

@@ -363,10 +363,12 @@ export class RegulatorySourceReviewService {
   async markReviewed(input: {
     taskId: string;
     actorUserId: string;
+    organizationId?: string;
     notes?: string;
     decisionJson?: JsonObject;
   }): Promise<RegulatoryReviewTaskRecord> {
     const task = await this.requireReviewTask(input.taskId);
+    this.requireTaskOrganization(task, input.organizationId);
     this.requireTaskStatus(task, "open");
 
     const decidedAt = this.nowIso();
@@ -390,10 +392,12 @@ export class RegulatorySourceReviewService {
   async reject(input: {
     taskId: string;
     actorUserId: string;
+    organizationId?: string;
     notes?: string;
     decisionJson?: JsonObject;
   }): Promise<RegulatoryReviewTaskRecord> {
     const task = await this.requireReviewTask(input.taskId);
+    this.requireTaskOrganization(task, input.organizationId);
     if (task.status !== "open" && task.status !== "reviewed") {
       throw new RegulatorySourceReviewError(
         "invalid_review_task_state",
@@ -429,6 +433,7 @@ export class RegulatorySourceReviewService {
   async activateReviewedSourceVersion(input: {
     taskId: string;
     actorUserId: string;
+    organizationId?: string;
     notes?: string;
     decisionJson?: JsonObject;
   }): Promise<{
@@ -437,6 +442,7 @@ export class RegulatorySourceReviewService {
     task: RegulatoryReviewTaskRecord;
   }> {
     const task = await this.requireReviewTask(input.taskId);
+    this.requireTaskOrganization(task, input.organizationId);
     this.requireTaskStatus(task, "reviewed");
 
     if (!task.sourceVersionId) {
@@ -495,7 +501,7 @@ export class RegulatorySourceReviewService {
     };
   }
 
-  async getSourceMapTraceability(sourceVersionId: string): Promise<SourceMapTraceability> {
+  async getSourceMapTraceability(sourceVersionId: string, organizationId?: string): Promise<SourceMapTraceability> {
     const sourceVersion = await this.repository.findSourceVersionById(sourceVersionId);
     if (!sourceVersion) {
       throw new RegulatorySourceReviewError("source_version_not_found", "Source version was not found.", 404);
@@ -507,9 +513,10 @@ export class RegulatorySourceReviewService {
     }
 
     const sourceMapEntries = await this.repository.listSourceMapEntries(sourceVersion.id);
-    const reviewTasks = (await this.repository.listReviewTasks()).filter(
+    const allReviewTasks = (await this.repository.listReviewTasks()).filter(
       (task) => task.sourceVersionId === sourceVersion.id
     );
+    const reviewTasks = this.scopeTraceabilityReviewTasks(allReviewTasks, organizationId);
     const reviewDecisions = (
       await Promise.all(reviewTasks.map((task) => this.repository.listReviewDecisionsForTask(task.id)))
     ).flat();
@@ -580,6 +587,43 @@ export class RegulatorySourceReviewService {
         `Regulatory review task must be ${expected} before this action.`
       );
     }
+  }
+
+  private requireTaskOrganization(task: RegulatoryReviewTaskRecord, organizationId?: string): void {
+    if (organizationId === undefined) {
+      return;
+    }
+
+    if (task.organizationId !== organizationId) {
+      throw new RegulatorySourceReviewError(
+        "review_task_not_found",
+        "Regulatory review task was not found for this organization.",
+        404
+      );
+    }
+  }
+
+  private scopeTraceabilityReviewTasks(
+    tasks: RegulatoryReviewTaskRecord[],
+    organizationId?: string
+  ): RegulatoryReviewTaskRecord[] {
+    if (organizationId === undefined) {
+      return tasks;
+    }
+
+    const scopedTasks = tasks.filter(
+      (task) => task.organizationId === null || task.organizationId === undefined || task.organizationId === organizationId
+    );
+    const hasTenantScopedTasks = tasks.some((task) => task.organizationId !== null && task.organizationId !== undefined);
+    if (hasTenantScopedTasks && !tasks.some((task) => task.organizationId === organizationId)) {
+      throw new RegulatorySourceReviewError(
+        "source_version_not_found",
+        "Source version was not found for this organization.",
+        404
+      );
+    }
+
+    return scopedTasks;
   }
 
   private nowIso(): string {

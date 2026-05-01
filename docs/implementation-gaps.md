@@ -297,8 +297,8 @@ Status: Open
 
 Severity: Medium
 Area: Evidence/reporting runtime
-Current state: PLAN_M8 added S3/MinIO-compatible object-storage and HTTP/mock/no-op scanner adapters, Prisma evidence metadata/access-log persistence, generated-report evidence artifacts, and deterministic report-renderer JSON/PDF artifacts. Validation uses fake fetches, mock scanners, in-memory API storage, deterministic renderer output, and Prisma schema/client generation, not live MinIO bucket provisioning, live scanner service calls, or browser-backed PDF rendering.
-Impact: The contract surface is testable and production-shaped, but deployed environments still need smoke coverage for bucket creation/permissions, scanner availability/fail-closed behavior, browser PDF fidelity, CSV export tables, and binary evidence-package assembly.
+Current state: PLAN_M8 added S3/MinIO-compatible object-storage and HTTP/mock/no-op scanner adapters, Prisma evidence metadata/access-log persistence, generated-report evidence artifacts, and deterministic report-renderer JSON/PDF artifacts. PLAN_M14 removed internal evidence `storageUri` values from evidence API upload/list/download responses and marks `storageUri` as sensitive for audit/response checks. Validation uses fake fetches, mock scanners, in-memory API storage, deterministic renderer output, and Prisma schema/client generation, not live MinIO bucket provisioning, live scanner service calls, or browser-backed PDF rendering.
+Impact: The contract surface is testable and production-shaped, and object storage pointers now stay server-side at the API boundary. Deployed environments still need smoke coverage for bucket creation/permissions, scanner availability/fail-closed behavior, browser PDF fidelity, CSV export tables, and binary evidence-package assembly.
 Next action: Add a runtime smoke that provisions the object-storage bucket, writes/reads an evidence artifact through MinIO/S3, calls the deployed scanner service, renders a browser-grade PDF through `puresoc-report-renderer`, and records report export metadata for CSV and binary evidence-package bundles.
 Owner: Codex/DevOps
 Target phase: Phase K
@@ -308,8 +308,8 @@ Status: Open
 
 Severity: High
 Area: Remediation safety/runtime
-Current state: PLAN_M9 added the recommendation-to-action safety foundation: action templates/runs, preflight, approval, pre/post snapshot metadata, verification, evidence links, action audit events, API routes, Prisma action repository metadata, and a future worker job contract. No live provider write executor is implemented, no action queue is backed by BullMQ, and provider connector action methods are optional contracts only.
-Impact: Future write actions have the required guardrail model, but deployed environments still cannot safely execute provider changes. Runtime risks around queue persistence, worker idempotency, provider write-enabled checks against live connection state, retry/failure semantics, live PostgreSQL action persistence, and provider-specific rollback/verification remain unresolved before any write-capable action can be enabled.
+Current state: PLAN_M9 added the recommendation-to-action safety foundation: action templates/runs, preflight, approval, pre/post snapshot metadata, verification, evidence links, action audit events, API routes, Prisma action repository metadata, and a future worker job contract. PLAN_M14 added an integrity check so action snapshots must reference the same provider connection as the action run. No live provider write executor is implemented, no action queue is backed by BullMQ, and provider connector action methods are optional contracts only.
+Impact: Future write actions have a stronger guardrail model, but deployed environments still cannot safely execute provider changes. Runtime risks around queue persistence, worker idempotency, provider write-enabled checks against live connection state, retry/failure semantics, live PostgreSQL action persistence, and provider-specific rollback/verification remain unresolved before any write-capable action can be enabled.
 Next action: Before enabling any provider write action, implement a persisted BullMQ `action-execution` worker path, wire `ProviderActionRun` persistence in runtime API services, add idempotent worker execution tests, add live database smoke coverage, and create provider-specific preflight/snapshot/apply/verify/evidence tests for each action template.
 Owner: Codex/DevOps/Product
 Target phase: Phase J/K
@@ -346,6 +346,28 @@ Impact: M365 collaboration and Purview posture areas remain manual/guided or cov
 Next action: Revalidate current Microsoft Learn endpoints and permissions for each posture area, choose a minimal reliable read-only signal set, add mocked Graph fixtures and module degradation tests, then map provider-neutral findings to NIS2 controls without adding write scopes.
 Owner: Codex/Product
 Target phase: Microsoft read-module expansion
+Status: Open
+
+### GAP-034: API Request Body And Evidence Upload Size Limits Missing
+
+Severity: Medium
+Area: API availability/security
+Current state: PLAN_M14 threat modeling identified that `parseJsonBody`, `parseRawBody`, and evidence upload decoding currently buffer complete request bodies in memory without a configured maximum size. Evidence uploads are scanned and can fail closed in production, but oversized JSON/base64 payloads can still consume API memory and CPU before domain validation completes.
+Impact: A remote or authenticated attacker could cause targeted denial of service by submitting large auth, webhook, evidence, report, or regulatory payloads. This is especially relevant for in-a-box deployments with small resource limits and for scanner-backed uploads.
+Next action: Add central request body limits, per-route evidence upload byte limits, clear `413 payload_too_large` errors, scanner timeout handling, and tests for oversized JSON, raw Stripe webhook body, and evidence content.
+Owner: Codex/DevOps
+Target phase: Phase K
+Status: Open
+
+### GAP-035: Production Cookie, CORS, And Browser Auth Smoke Deferred
+
+Severity: Medium
+Area: Auth/session operations
+Current state: PLAN_M14 wired configurable `Secure` session cookies through `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE`, while preserving the development default. The current API harness does not yet prove deployed TLS, CORS, SameSite behavior, reverse-proxy headers, or cookie clearing across real browser navigation.
+Impact: A misconfigured production deployment could issue session cookies without the expected browser protections or allow unintended cross-origin credentialed requests. Contract tests cover cookie attribute emission, not full browser/runtime behavior.
+Next action: Add a deployed/browser smoke that verifies `Secure`, `HttpOnly`, `SameSite`, logout clearing, expected origin/CORS policy, forwarded IP handling, and OIDC callback cookies in SaaS and in-a-box profiles.
+Owner: Codex/DevOps
+Target phase: Phase K
 Status: Open
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal

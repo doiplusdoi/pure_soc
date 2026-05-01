@@ -70,13 +70,37 @@ export const parseCookies = (cookieHeader: string | undefined): Record<string, s
 
 export const sessionCookieName = "puresoc_session";
 
-export const createSessionCookie = (sessionToken: string, expiresAt: string): string =>
-  `${sessionCookieName}=${encodeURIComponent(sessionToken)}; HttpOnly; SameSite=Lax; Path=/; Expires=${new Date(
-    expiresAt
-  ).toUTCString()}`;
+export interface SessionCookieOptions {
+  secure?: boolean;
+}
 
-export const clearSessionCookie = (): string =>
-  `${sessionCookieName}=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0`;
+export const createSessionCookie = (
+  sessionToken: string,
+  expiresAt: string,
+  options: SessionCookieOptions = {}
+): string =>
+  [
+    `${sessionCookieName}=${encodeURIComponent(sessionToken)}`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    `Expires=${new Date(expiresAt).toUTCString()}`,
+    options.secure ? "Secure" : null
+  ]
+    .filter((part): part is string => part !== null)
+    .join("; ");
+
+export const clearSessionCookie = (options: SessionCookieOptions = {}): string =>
+  [
+    `${sessionCookieName}=`,
+    "HttpOnly",
+    "SameSite=Lax",
+    "Path=/",
+    "Max-Age=0",
+    options.secure ? "Secure" : null
+  ]
+    .filter((part): part is string => part !== null)
+    .join("; ");
 
 export const toJsonResultError = (error: unknown): JsonResult => {
   if (error instanceof AuthError) {

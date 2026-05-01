@@ -8,6 +8,7 @@ describe("loadConfig", () => {
 
     expect(config.app.env).toBe("development");
     expect(config.auth.localEnabled).toBe(true);
+    expect(config.auth.sessionCookieSecure).toBe(false);
     expect(config.connectors.readOnlyByDefault).toBe(true);
     expect(config.reports.legalCaveatRequired).toBe(true);
     expect(config.storage.objectStorage.provider).toBe("memory");
@@ -19,6 +20,7 @@ describe("loadConfig", () => {
       env: {
         PURESOC_APP_ENV: "staging",
         PURESOC_AUTH_LOCAL_ENABLED: "false",
+        PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_BUCKET: "evidence-test",
@@ -29,6 +31,7 @@ describe("loadConfig", () => {
 
     expect(config.app.env).toBe("staging");
     expect(config.auth.localEnabled).toBe(false);
+    expect(config.auth.sessionCookieSecure).toBe(true);
     expect(config.billing.provider).toBe("stripe");
     expect(config.storage.objectStorage.provider).toBe("s3");
     expect(config.storage.objectStorage.bucket).toBe("evidence-test");

@@ -105,10 +105,11 @@ describe("api evidence reports dashboards exports", () => {
       owner.cookie
     );
     expect(uploadResponse.status).toBe(201);
-    const uploadBody = await readJson<{ artifact: { id: string; storageUri: string; links: Array<{ targetType: string }> } }>(
+    const uploadBody = await readJson<{ artifact: { id: string; links: Array<{ targetType: string }> } }>(
       uploadResponse
     );
-    expect(uploadBody.artifact.storageUri).toMatch(/^object:\/\/evidence\//);
+    expect(JSON.stringify(uploadBody)).not.toContain("storageUri");
+    expect(JSON.stringify(uploadBody)).not.toContain("object://");
     expect(uploadBody.artifact.links.map((link) => link.targetType)).toContain("regulatory_source");
 
     const rejectedDownload = await fetch(
@@ -130,9 +131,17 @@ describe("api evidence reports dashboards exports", () => {
       downloadResponse
     );
     expect(Buffer.from(downloadBody.bodyBase64, "base64").toString("utf8")).toBe("mfa coverage export");
+    expect(JSON.stringify(downloadBody.artifact)).not.toContain("storageUri");
+    expect(JSON.stringify(downloadBody.artifact)).not.toContain("object://");
     expect(downloadBody.auditEntry.action).toBe("download");
     expect(services.repository.evidenceAccessLogs).toHaveLength(1);
     expect(services.auditSink.findByAction("evidence_downloaded")).toHaveLength(1);
+
+    const listResponse = await fetch(`${baseUrl}/organizations/${organization.id}/evidence`, {
+      headers: { cookie: owner.cookie }
+    });
+    expect(listResponse.status).toBe(200);
+    expect(JSON.stringify(await readJson<unknown>(listResponse))).not.toContain("storageUri");
 
     const evaluationResponse = await postJson(
       `/organizations/${organization.id}/compliance/evaluate`,

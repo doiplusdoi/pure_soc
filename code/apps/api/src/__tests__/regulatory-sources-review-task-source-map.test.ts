@@ -38,9 +38,12 @@ describe("regulatory source review task API", () => {
       body: JSON.stringify(body)
     });
 
-  const registerLoginAndCreateOrganization = async () => {
+  const registerLoginAndCreateOrganization = async (
+    email = "regulatory-admin@example.test",
+    organizationName = "Regulatory Review Org"
+  ) => {
     const registerResponse = await postJson("/auth/register", {
-      email: "regulatory-admin@example.test",
+      email,
       password,
       displayName: "Regulatory Admin"
     });
@@ -57,7 +60,7 @@ describe("regulatory source review task API", () => {
     const organizationResponse = await postJson(
       "/organizations",
       {
-        name: "Regulatory Review Org",
+        name: organizationName,
         primaryCountryCode: "RO"
       },
       cookie
@@ -195,6 +198,52 @@ describe("regulatory source review task API", () => {
 
     expect(services.auditSink.findByAction("regulatory.review_task.reviewed")).toHaveLength(1);
     expect(services.auditSink.findByAction("regulatory.source_version.activated")).toHaveLength(1);
+  });
+
+  it("does not let a regulatory admin in one organization mutate or read another organization's review task", async () => {
+    const victimOrganizationId = "org_regulatory_victim";
+    const attacker = await registerLoginAndCreateOrganization();
+    await services.repository.addRoleBindingForTest({
+      organizationId: attacker.organizationId,
+      userId: attacker.userId,
+      roleKey: "regulatory_admin"
+    });
+
+    const imported = await services.regulatorySources.importSourceVersion({
+      organizationId: victimOrganizationId,
+      source: roWorkbookSource("source_ro_cross_org"),
+      sourceVersion: {
+        id: "source_version_ro_cross_org",
+        versionLabel: "V2.1 ENG_45915"
+      },
+      evaluation: {
+        validationPassed: true,
+        containsLegalLogicChange: true
+      }
+    });
+    const taskId = imported.reviewTask?.id ?? "";
+
+    const crossOrgReview = await postJson(
+      `/organizations/${attacker.organizationId}/regulatory-sources/review-tasks/${taskId}/review`,
+      {
+        notes: "Attempted cross-org review."
+      },
+      attacker.cookie
+    );
+
+    expect(crossOrgReview.status).toBe(404);
+    expect(services.auditSink.findByAction("regulatory.review_task.reviewed")).toHaveLength(0);
+
+    const traceabilityResponse = await fetch(
+      `${baseUrl}/organizations/${attacker.organizationId}/regulatory-sources/source-versions/source_version_ro_cross_org/source-map`,
+      {
+        headers: {
+          cookie: attacker.cookie
+        }
+      }
+    );
+
+    expect(traceabilityResponse.status).toBe(404);
   });
 });
 

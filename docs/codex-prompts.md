@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M13 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M13.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M14 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M14.md`, `docs/threat-model.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -43,6 +43,7 @@ The repository currently contains:
 - PLAN_M11 OIDC/social-login callbacks: Microsoft Entra, Google, and GitHub user sign-in callback contracts with state, nonce, PKCE, issuer/audience/expiry/signature validation, provider-subject lookup, explicit signed-in account-link approval, session creation, audit events, redaction coverage, and separation from Microsoft 365 managed-provider consent.
 - PLAN_M12 Microsoft read-only module expansion: Microsoft Learn permissions were revalidated on 2026-04-30; `@puresoc/provider-microsoft365` now has fixture-backed Conditional Access, Entra directory audit log, Entra sign-in log, Defender XDR incident, and Defender XDR alert read modules, provider-neutral incident/alert resources and findings, module-level degradation for missing permissions/licenses, unsupported APIs, China-cloud Graph security limitations, throttling/revoked consent/connector errors, and updated permission documentation.
 - PLAN_M13 full Article 21 catalog/scoring: EU Article 21(2)(a)-(j) controls now have source-linked evidence requirements, manual checklist mappings, provider-neutral mappings for existing Microsoft/mock MFA, IAM, and Defender XDR findings, stricter catalog seed validation, stale-evidence handling, configurable readiness-plan targets, accepted-risk partial scoring, ADR-015 provisional score calibration, and `PureSOC internal readiness` dashboard score labeling.
+- PLAN_M14 security threat model and release hardening: `docs/threat-model.md` now records assets, trust boundaries, abuse paths, priorities, focus paths, and M14 fixes. Session cookies honor secure-cookie config, evidence API responses no longer expose internal storage URIs, regulatory review task actions/source-map reads are organization-scoped, and remediation snapshots must match the action run provider connection.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -63,7 +64,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 10 / `docs/PLAN_M11.md` is completed.
 - Prompt 11 / `docs/PLAN_M12.md` is completed.
 - Prompt 12 / `docs/PLAN_M13.md` is completed.
-- Prompt 13 starts at `docs/PLAN_M14.md`.
+- Prompt 13 / `docs/PLAN_M14.md` is completed.
+- Prompt 14 starts at `docs/PLAN_M15.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -78,8 +80,7 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 13 / `PLAN_M14`: Security Threat Model And Release Hardening.
-2. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
@@ -345,82 +346,25 @@ Validated with:
 - `pnpm lint`
 - `pnpm test -- --runInBand control-catalog compliance scoring readiness-plan reports dashboards`
 
-## Prompt 13 / PLAN_M14: Security Threat Model And Release Hardening
+## Completed Prompt 13 / PLAN_M14: Security Threat Model And Release Hardening
 
-```txt
-This is a review-and-fix prompt for release readiness.
+Completed on 2026-05-01.
 
-Use skills:
-- security-threat-model
+Summary:
+- `docs/threat-model.md` now documents implemented product assets, trust boundaries, attacker model, abuse paths, threat priorities, and review focus paths.
+- Session cookies now honor `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE` while preserving the development default.
+- Evidence API upload/list/download responses no longer expose internal `storageUri` values, and `storageUri` is treated as sensitive in audit/response checks.
+- Regulatory review task review/reject/activate actions and source-map traceability reads are scoped to the route organization.
+- Remediation action snapshots must reference the same provider connection as the action run before they can satisfy safety gates.
+- GAP-029 and GAP-030 were updated; GAP-034 and GAP-035 now track request/upload limits and deployed cookie/CORS/browser auth smoke.
 
-Read:
-- docs/puresoc_vision.md sections 6, 8, 9, 17, 18, 22, 23, 28
-- docs/master-plan.md sections 7, 9, 11, 14, 15
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/claude_rec.md
-
-Goal:
-Threat model the implemented product surfaces, convert concrete risks into tests/fixes, and prepare the release-readiness checklist.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M14.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M15.md` from the next active prompt.
-
-Review:
-- local auth and sessions
-- OIDC callbacks if implemented
-- provider token storage
-- organization scoping
-- provider raw payload storage
-- evidence uploads/downloads
-- upload scanning hook
-- report export access
-- Stripe webhook validation if implemented
-- audit log coverage and integrity
-- remediation approval and execution model if implemented
-- regulatory source activation workflow
-
-Expected outputs/files:
-- docs/PLAN_M14.md
-- docs/PLAN_M15.md
-- docs/codex-prompts.md
-- docs/threat-model.md or equivalent concise threat model
-- targeted code/test fixes for high-confidence issues
-- docs/implementation-gaps.md updates
-- backup/restore/rotate-secret script notes only if product code depends on them
-
-Negative constraints:
-- Do not make legal compliance claims.
-- Do not focus on host/infrastructure hardening unless it affects product code or data contracts.
-- Do not enable provider write actions as part of review.
-- Do not suppress a finding just because it is deferred; track it.
-
-Tests:
-- Add or update tests for every fixed high/medium issue.
-- Cross-organization isolation checks for affected surfaces.
-- Secret redaction checks for tokens, passwords, OAuth codes, provider credentials, webhook secrets, and evidence URLs.
-- Audit event checks for sensitive actions.
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand auth audit encryption rbac evidence reports billing provider remediation regulatory
-
-Gap updates:
-- Update or add gaps for every unresolved high/medium threat.
-- Mark fixed security gaps resolved with date.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M14 updated
-- PLAN_M15 created
-- Codex prompts updated
-- Residual risk
-```
+Validated with host-node equivalents because `pnpm`, `npx`, and `node` were not available on the sandbox PATH:
+- `npm run lint`
+- `npm run test -- auth audit encryption rbac evidence reports billing provider remediation regulatory`
+- `node scripts/check-layout.mjs && ./node_modules/.bin/tsc -p tsconfig.base.json --noEmit`
+- `./node_modules/.bin/vitest run auth audit encryption rbac evidence reports billing provider remediation regulatory`
+- `./node_modules/.bin/vitest run packages/recommendations/src/__tests__/actions.spec.ts apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `git diff --check`
 
 ## Prompt 14 / PLAN_M15: Gap Register And Prompt QA
 

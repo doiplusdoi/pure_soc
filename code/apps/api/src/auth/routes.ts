@@ -58,7 +58,9 @@ export const loginRoute = async (
   return {
     statusCode: 200,
     headers: {
-      "set-cookie": createSessionCookie(sessionToken, login.session.expiresAt)
+      "set-cookie": createSessionCookie(sessionToken, login.session.expiresAt, {
+        secure: services.config.auth.sessionCookieSecure
+      })
     },
     body: safeBody
   };
@@ -83,7 +85,9 @@ export const logoutRoute = async (
   return {
     statusCode: 200,
     headers: {
-      "set-cookie": clearSessionCookie()
+      "set-cookie": clearSessionCookie({
+        secure: services.config.auth.sessionCookieSecure
+      })
     },
     body: await services.localAuth.logout(sessionToken ?? "", context)
   };
@@ -134,7 +138,9 @@ export const completeOidcCallbackRoute = async (
   return {
     statusCode: 200,
     headers: {
-      "set-cookie": createSessionCookie(sessionToken, callback.session.expiresAt)
+      "set-cookie": createSessionCookie(sessionToken, callback.session.expiresAt, {
+        secure: services.config.auth.sessionCookieSecure
+      })
     },
     body: safeBody
   };

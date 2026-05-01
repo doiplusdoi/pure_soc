@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { loadConfig } from "@puresoc/config";
 import { createApiServices } from "../auth/services";
 import { startApiServer } from "../server";
 
@@ -165,5 +166,33 @@ describe("auth organization rbac audit session integration", () => {
     expect(serializedAudit).not.toContain("verificationToken");
     expect(serializedAudit).not.toContain("resetToken");
     expect(serializedAudit).not.toContain("puresoc_session=");
+  });
+
+  it("sets Secure on session cookies when configured", async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+
+    services = createApiServices({
+      config: loadConfig({
+        env: {
+          PURESOC_AUTH_COOKIE_SECURE: "true"
+        }
+      }),
+      now: () => new Date("2026-04-28T12:00:00.000Z")
+    });
+    server = startApiServer(0, services);
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const login = await registerAndLogin("secure-cookie@example.test");
+
+    expect(login.cookie).toContain("HttpOnly");
+    expect(login.cookie).toContain("SameSite=Lax");
+    expect(login.cookie).toContain("Secure");
+
+    const logoutResponse = await postJson("/auth/logout", {}, login.cookie);
+
+    expect(logoutResponse.headers.get("set-cookie")).toContain("Secure");
   });
 });

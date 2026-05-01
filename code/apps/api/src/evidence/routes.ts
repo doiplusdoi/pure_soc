@@ -1,6 +1,7 @@
 import { AuthError } from "@puresoc/auth-core";
 import type { EvidenceSourceType } from "@puresoc/evidence";
 import type { ApiServices } from "../auth/services";
+import { evidenceArtifactApiView } from "./service";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
 
@@ -25,27 +26,31 @@ export const uploadEvidenceRoute = async (
     allowedRoles: ["owner", "org_admin"]
   });
 
+  const upload = await services.evidence.upload({
+    organizationId,
+    actorUserId,
+    title: requireString(body, "title"),
+    content: requireString(body, "content"),
+    contentEncoding: body.contentEncoding === "base64" ? "base64" : "utf8",
+    mimeType: requireString(body, "mimeType"),
+    sourceType: requireEvidenceSourceType(body.sourceType),
+    sourceProvider: optionalString(body, "sourceProvider"),
+    providerConnectionId: optionalString(body, "providerConnectionId"),
+    manualSourceLabel: optionalString(body, "manualSourceLabel"),
+    controlId: optionalString(body, "controlId"),
+    jurisdiction: optionalString(body, "jurisdiction"),
+    requirementKey: optionalString(body, "requirementKey"),
+    linkedAssessmentId: optionalString(body, "linkedAssessmentId"),
+    linkedSourceRecordId: optionalString(body, "linkedSourceRecordId"),
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
   return {
     statusCode: 201,
-    body: await services.evidence.upload({
-      organizationId,
-      actorUserId,
-      title: requireString(body, "title"),
-      content: requireString(body, "content"),
-      contentEncoding: body.contentEncoding === "base64" ? "base64" : "utf8",
-      mimeType: requireString(body, "mimeType"),
-      sourceType: requireEvidenceSourceType(body.sourceType),
-      sourceProvider: optionalString(body, "sourceProvider"),
-      providerConnectionId: optionalString(body, "providerConnectionId"),
-      manualSourceLabel: optionalString(body, "manualSourceLabel"),
-      controlId: optionalString(body, "controlId"),
-      jurisdiction: optionalString(body, "jurisdiction"),
-      requirementKey: optionalString(body, "requirementKey"),
-      linkedAssessmentId: optionalString(body, "linkedAssessmentId"),
-      linkedSourceRecordId: optionalString(body, "linkedSourceRecordId"),
-      ipAddress: context.ipAddress,
-      userAgent: context.userAgent
-    })
+    body: {
+      artifact: evidenceArtifactApiView(upload.artifact)
+    }
   };
 };
 
@@ -75,7 +80,7 @@ export const downloadEvidenceRoute = async (
   return {
     statusCode: 200,
     body: {
-      artifact: download.artifact,
+      artifact: evidenceArtifactApiView(download.artifact),
       bodyBase64: Buffer.from(download.body).toString("base64"),
       mimeType: download.mimeType,
       contentHashSha256: download.contentHashSha256,
@@ -100,7 +105,7 @@ export const listEvidenceRoute = async (
   return {
     statusCode: 200,
     body: {
-      artifacts: await services.evidence.list(organizationId)
+      artifacts: (await services.evidence.list(organizationId)).map(evidenceArtifactApiView)
     }
   };
 };

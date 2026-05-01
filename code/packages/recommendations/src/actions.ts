@@ -271,6 +271,7 @@ export type RemediationActionErrorCode =
   | "invalid_action_state"
   | "invalid_action_template"
   | "cross_organization_action"
+  | "snapshot_provider_connection_mismatch"
   | "provider_connection_write_disabled";
 
 export class RemediationActionError extends Error {
@@ -532,6 +533,14 @@ export class RemediationActionLifecycle {
     snapshot: ActionSnapshotMetadata;
   }): Promise<ActionRun> {
     const run = await this.requireRun(input.organizationId, input.actionRunId);
+    if (input.snapshot.providerConnectionId !== run.providerConnectionId) {
+      throw new RemediationActionError(
+        "snapshot_provider_connection_mismatch",
+        "Action snapshot provider connection must match the action run provider connection.",
+        400
+      );
+    }
+
     const evidenceArtifactIds = uniqueStrings([...run.evidenceArtifactIds, input.snapshot.evidenceArtifactId]);
     const patch =
       input.snapshot.sourceType === "action_pre_state"

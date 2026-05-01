@@ -43,6 +43,7 @@ export const markRegulatoryReviewTaskReviewedRoute = async (
   const reviewTask = await services.regulatorySources.markReviewed({
     taskId,
     actorUserId,
+    organizationId,
     notes: optionalString(body, "notes"),
     decisionJson: optionalJsonObject(body, "decision")
   });
@@ -81,6 +82,7 @@ export const rejectRegulatoryReviewTaskRoute = async (
   const reviewTask = await services.regulatorySources.reject({
     taskId,
     actorUserId,
+    organizationId,
     notes: optionalString(body, "notes"),
     decisionJson: optionalJsonObject(body, "decision")
   });
@@ -119,6 +121,7 @@ export const activateRegulatorySourceVersionRoute = async (
   const activation = await services.regulatorySources.activateReviewedSourceVersion({
     taskId,
     actorUserId,
+    organizationId,
     notes: optionalString(body, "notes"),
     decisionJson: optionalJsonObject(body, "decision")
   });
@@ -159,7 +162,7 @@ export const readRegulatorySourceMapTraceabilityRoute = async (
 
   return {
     statusCode: 200,
-    body: await services.regulatorySources.getSourceMapTraceability(sourceVersionId)
+    body: await services.regulatorySources.getSourceMapTraceability(sourceVersionId, organizationId)
   };
 };
 

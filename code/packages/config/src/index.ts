@@ -14,6 +14,7 @@ export interface PureSocConfig {
   auth: {
     localEnabled: boolean;
     authBrokerEnabled: boolean;
+    sessionCookieSecure: boolean;
     providers: string[];
     socialLogin: {
       stateTtlMs: number;
@@ -116,6 +117,10 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       ...config.auth,
       localEnabled: readBoolean(env.PURESOC_AUTH_LOCAL_ENABLED, config.auth.localEnabled),
       authBrokerEnabled: readBoolean(env.PURESOC_AUTH_BROKER_ENABLED, config.auth.authBrokerEnabled),
+      sessionCookieSecure: readBoolean(
+        env.PURESOC_AUTH_COOKIE_SECURE ?? env.AUTH_COOKIE_SECURE,
+        config.auth.sessionCookieSecure
+      ),
       socialLogin: {
         ...config.auth.socialLogin,
         providers: {

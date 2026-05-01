@@ -23,6 +23,14 @@ export interface EvidenceApiServiceOptions {
   now?: () => Date;
 }
 
+export type EvidenceArtifactApiView = Omit<EvidenceArtifactMetadata, "storageUri">;
+
+export const evidenceArtifactApiView = (artifact: EvidenceArtifactMetadata): EvidenceArtifactApiView => {
+  const { storageUri, ...safeArtifact } = artifact;
+  void storageUri;
+  return safeArtifact;
+};
+
 export interface EvidenceUploadApiInput {
   organizationId: string;
   actorUserId: string;

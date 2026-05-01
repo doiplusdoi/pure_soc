@@ -39,6 +39,7 @@ import {
 } from "@puresoc/evidence";
 
 export interface ApiServices {
+  config: PureSocConfig;
   repository: InMemoryPureSocRepository;
   auditSink: InMemoryAuditSink;
   auditWriter: AuditWriter;
@@ -163,6 +164,7 @@ export const createApiServices = (
   });
 
   return {
+    config,
     repository,
     auditSink,
     auditWriter,

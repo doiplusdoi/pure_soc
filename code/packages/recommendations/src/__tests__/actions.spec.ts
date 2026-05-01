@@ -208,6 +208,30 @@ describe("remediation action lifecycle", () => {
     expect(closed.status).toBe("closed");
   });
 
+  it("rejects snapshots from a different provider connection", async () => {
+    const lifecycle = createLifecycle();
+    const template = await lifecycle.createTemplate(safeTemplate());
+    const run = await lifecycle.createActionRun({
+      organizationId: "org_actions",
+      providerConnectionId: "provider_connection_1",
+      recommendation: recommendation(),
+      template
+    });
+
+    await expect(
+      lifecycle.attachSnapshot({
+        organizationId: "org_actions",
+        actionRunId: run.id,
+        snapshot: {
+          ...preSnapshot(),
+          providerConnectionId: "provider_connection_other"
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "snapshot_provider_connection_mismatch"
+    });
+  });
+
   it("rejects high-risk V1-forbidden executable defaults", async () => {
     await expect(
       createLifecycle().createTemplate({
