@@ -1,0 +1,20 @@
+{
+  "queueProvider": "memory",
+  "redisUrl": "redis://puresoc-redis:6379/0",
+  "defaultMaxAttempts": 3,
+  "retryBackoffMs": 1000,
+  "pollIntervalMs": 1000,
+  "shutdownGraceMs": 5000,
+  "worker": {
+    "enabled": true
+  },
+  "scheduler": {
+    "enabled": true,
+    "runOnStartup": false,
+    "intervalMs": 3600000
+  },
+  "connectorRunner": {
+    "enabled": true,
+    "allowProviderWrites": false
+  }
+}

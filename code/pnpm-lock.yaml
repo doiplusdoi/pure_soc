@@ -26,6 +26,9 @@ importers:
       '@puresoc/evidence':
         specifier: workspace:*
         version: link:packages/evidence
+      '@puresoc/jobs':
+        specifier: workspace:*
+        version: link:packages/jobs
       '@puresoc/provider-mock':
         specifier: workspace:*
         version: link:packages/providers/mock
@@ -125,6 +128,12 @@ importers:
 
   apps/connector-runner:
     dependencies:
+      '@puresoc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@puresoc/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@puresoc/provider-microsoft365':
         specifier: workspace:*
         version: link:../../packages/providers/microsoft365
@@ -149,6 +158,12 @@ importers:
 
   apps/scheduler:
     dependencies:
+      '@puresoc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@puresoc/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@puresoc/regulatory-sources':
         specifier: workspace:*
         version: link:../../packages/regulatory-sources
@@ -173,6 +188,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@puresoc/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@puresoc/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations
@@ -296,6 +317,8 @@ importers:
         version: 6.19.3(typescript@5.9.3)
 
   packages/evidence: {}
+
+  packages/jobs: {}
 
   packages/providers/core:
     dependencies:

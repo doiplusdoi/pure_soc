@@ -4,8 +4,10 @@
 
 Implement Prompt 18 from `docs/codex-prompts.md`: add a shared job runtime baseline so worker, scheduler, and connector-runner roles can execute typed jobs through a deterministic in-memory harness and a Redis/BullMQ-ready adapter boundary, without enabling provider write actions.
 
-Status: staged for implementation after M18.  
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-01.
+Completed: 2026-05-01.
 
 ## Source Inputs
 
@@ -118,32 +120,88 @@ If Docker build/run is available, also run a bounded worker or scheduler image s
 
 ## Completion Log
 
-Not started.
+Completed 2026-05-01.
 
 Implementation results:
 
-- Pending.
+- Scope confirmed against required docs, ADRs, M18 handoff, threat model, and GAP-037.
+- Added `@puresoc/jobs` with typed job definitions, dispatch results, retry/failure metadata, idempotency hooks, deterministic in-memory queue/runner behavior, graceful shutdown handling, and a BullMQ-ready adapter boundary without live Redis calls.
+- Added job runtime config defaults and environment overrides for queue provider, Redis URL, attempts, retry backoff, polling, shutdown grace, scheduler cadence, and connector-runner provider-write disablement.
+- Worker runtime now validates `actions.execute` remediation safety metadata and returns provider-write execution as disabled.
+- Scheduler runtime can enqueue `regulatory.monitorCountrySources` under explicit config without auto-activating legal logic.
+- Connector-runner runtime executes `provider.sync` through the neutral provider pipeline with `allowProviderWrites=false` and rejects non-read-only payloads.
+- Docker job service scripts now point at runtime loop entrypoints, and runtime-status files report implemented runtime entrypoints instead of contract-only deferrals.
 
 Changed files:
 
-- Pending.
+- `README.md`
+- `code/.env.example`
+- `code/README.md`
+- `code/apps/connector-runner/package.json`
+- `code/apps/connector-runner/src/index.ts`
+- `code/apps/connector-runner/src/main.ts`
+- `code/apps/connector-runner/src/provider-sync.ts`
+- `code/apps/connector-runner/src/runtime.ts`
+- `code/apps/connector-runner/src/runtime-status.ts`
+- `code/apps/connector-runner/src/__tests__/runtime.test.ts`
+- `code/apps/scheduler/package.json`
+- `code/apps/scheduler/src/index.ts`
+- `code/apps/scheduler/src/main.ts`
+- `code/apps/scheduler/src/runtime.ts`
+- `code/apps/scheduler/src/runtime-status.ts`
+- `code/apps/scheduler/src/__tests__/runtime.test.ts`
+- `code/apps/worker/package.json`
+- `code/apps/worker/src/index.ts`
+- `code/apps/worker/src/main.ts`
+- `code/apps/worker/src/runtime.ts`
+- `code/apps/worker/src/runtime-status.ts`
+- `code/apps/worker/src/__tests__/runtime.test.ts`
+- `code/config/defaults/jobs.json`
+- `code/package.json`
+- `code/packages/config/src/index.ts`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `code/packages/jobs/package.json`
+- `code/packages/jobs/src/index.ts`
+- `code/packages/jobs/src/__tests__/job-runtime.spec.ts`
+- `code/pnpm-lock.yaml`
+- `code/scripts/check-layout.mjs`
+- `code/tests/docker-runtime-shape.spec.ts`
+- `docs/PLAN.md`
+- `docs/PLAN_M19.md`
+- `docs/PLAN_M20.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` was not available on this host, so host-node equivalents were used.
+- `npm run lint` passed.
+- `npm run test -- config jobs worker scheduler connector runtime docker` passed: 13 test files, 41 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `docker compose -f infra/compose/docker-compose.yml build puresoc-worker` passed.
+- Bounded worker image smoke passed with `PURESOC_WORKER_ENABLED=false`; the container logged the implemented runtime entrypoint with `registeredJobs:["actions.execute"]` and `providerWriteExecution:"disabled"`.
+- `git diff --check` passed after removing markdown trailing whitespace.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M19. Worker, scheduler, and connector-runner now have implemented job-runtime loops for the current deterministic harness, without enabling provider writes.
 
 Gaps updated:
 
-- Pending.
+- GAP-013 updated to record worker/scheduler/connector-runner runtime entrypoints and defer live Redis/BullMQ durability.
+- GAP-030 updated to record that the worker runtime validates remediation safety metadata only; live provider write execution remains open.
+- GAP-037 narrowed for typed runtime loops, in-memory harness, idempotency/retry metadata, graceful shutdown tests, and BullMQ-ready boundary; live Redis/BullMQ durability remains open.
 
 Prompt handoff:
 
-- Pending. M19 implementation must create `docs/PLAN_M20.md` before final response.
+- `docs/codex-prompts.md` now marks Prompt 18 / PLAN_M19 completed and stages Prompt 19 / PLAN_M20.
+- `docs/PLAN_M20.md` created for API Middleware And Rate-Limit Baseline.
 
 Residual risk:
 
-- Pending.
+- Live Redis/BullMQ queue calls are not implemented; the BullMQ adapter is a typed boundary only.
+- Job state is in-memory in the implemented harness and is not durable across process restarts.
+- Scheduler runtime has a loop and explicit config, but no production recurring scheduler/Redis durability smoke.
+- Worker remediation jobs validate safety metadata only; GAP-030 still blocks live provider write execution.
+- Full multi-service Compose startup for all roles was not run; M19 ran Compose config plus a bounded worker image build/run smoke.

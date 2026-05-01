@@ -154,12 +154,12 @@ Status: Open
 
 Severity: High
 Area: Service topology
-Current state: Compose service catalog and Dockerfiles exist under `code/infra/`. Main Compose config includes web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer, postgres, redis, and object storage. Split Compose files exist for data, storage, webservices, jobs, connectors, reports, and config. PLAN_M18 replaced inline `node -e` Dockerfile stubs with workspace entrypoint scripts; API, web, and report-renderer start implemented HTTP entrypoints, and worker/scheduler/connector-runner execute explicit contract-status entrypoints until the job runtime exists.
-Impact: DevOps can consume a clear application service/image inventory, and Dockerfiles no longer pretend inline placeholder services are the product. Queue-backed worker/scheduler/connector process loops are still not implemented and are tracked separately by GAP-037.
-Next action: Use PLAN_M19/GAP-037 to add shared job runtime process loops for worker, scheduler, and connector-runner roles.
+Current state: Compose service catalog and Dockerfiles exist under `code/infra/`. Main Compose config includes web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer, postgres, redis, and object storage. Split Compose files exist for data, storage, webservices, jobs, connectors, reports, and config. PLAN_M18 replaced inline `node -e` Dockerfile stubs with workspace entrypoint scripts; PLAN_M19 moved worker, scheduler, and connector-runner scripts onto implemented job-runtime entrypoints.
+Impact: DevOps can consume a clear application service/image inventory, and Dockerfiles no longer pretend inline placeholder services are the product. Live Redis/BullMQ durable queue operation remains deferred under GAP-037.
+Next action: Keep Docker static/runtime smoke in the acceptance gate and add live multi-service Compose smoke when runtime dependencies are intentionally in scope.
 Owner: Codex
 Target phase: Phase A
-Status: Resolved 2026-04-28 for service catalog shape; updated 2026-05-01 by PLAN_M18 for non-stub Docker entrypoints. Job process runtime remains open under GAP-037.
+Status: Resolved 2026-04-28 for service catalog shape; updated 2026-05-01 by PLAN_M18 for non-stub Docker entrypoints and by PLAN_M19 for worker/scheduler/connector-runner job-runtime entrypoints. Durable Redis/BullMQ queue runtime remains open under GAP-037.
 
 ### GAP-014: Application Database Schema And Data Contracts Missing
 
@@ -308,7 +308,7 @@ Status: Open
 
 Severity: High
 Area: Remediation safety/runtime
-Current state: PLAN_M9 added the recommendation-to-action safety foundation: action templates/runs, preflight, approval, pre/post snapshot metadata, verification, evidence links, action audit events, API routes, Prisma action repository metadata, and a future worker job contract. PLAN_M14 added an integrity check so action snapshots must reference the same provider connection as the action run. No live provider write executor is implemented, no action queue is backed by BullMQ, and provider connector action methods are optional contracts only.
+Current state: PLAN_M9 added the recommendation-to-action safety foundation: action templates/runs, preflight, approval, pre/post snapshot metadata, verification, evidence links, action audit events, API routes, Prisma action repository metadata, and a future worker job contract. PLAN_M14 added an integrity check so action snapshots must reference the same provider connection as the action run. PLAN_M19 added a worker job-runtime loop that validates remediation job safety metadata and records retry/failure metadata through the shared job harness, but provider write execution remains disabled. No live provider write executor is implemented, no action queue is backed by BullMQ, and provider connector action methods are optional contracts only.
 Impact: Future write actions have a stronger guardrail model, but deployed environments still cannot safely execute provider changes. Runtime risks around queue persistence, worker idempotency, provider write-enabled checks against live connection state, retry/failure semantics, live PostgreSQL action persistence, and provider-specific rollback/verification remain unresolved before any write-capable action can be enabled.
 Next action: Before enabling any provider write action, implement a persisted BullMQ `action-execution` worker path, wire `ProviderActionRun` persistence in runtime API services, add idempotent worker execution tests, add live database smoke coverage, and create provider-specific preflight/snapshot/apply/verify/evidence tests for each action template.
 Owner: Codex/DevOps/Product
@@ -385,12 +385,12 @@ Status: Open; created 2026-05-01 by PLAN_M18.
 
 Severity: High
 Area: Job runtime
-Current state: PLAN_M18 replaces Docker placeholder loops with explicit worker, scheduler, and connector-runner contract-status entrypoints. `apps/scheduler` exposes a deterministic one-shot regulatory source monitor contract, `apps/worker` exposes remediation job safety contracts, and `apps/connector-runner` exposes read-only provider sync job contracts, but no shared queue runtime, BullMQ adapter, Redis-backed process loop, retry policy, or graceful shutdown loop exists.
-Impact: Docker images no longer hide stubs, but scheduled/regulatory jobs, billing reconciliation, connector sync dispatch, and future remediation execution still cannot run as durable background processes.
-Next action: Use PLAN_M19 to add a job runtime baseline with typed job registry, in-memory test adapter, Redis/BullMQ-ready adapter boundary, worker/scheduler process loops, idempotency hooks, and tests that keep provider writes disabled.
+Current state: PLAN_M19 added `@puresoc/jobs` with a typed job registry, dispatch results, failure/retry metadata, idempotency hooks, deterministic in-memory queue/runner, graceful shutdown behavior, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops. Scheduler can enqueue `regulatory.monitorCountrySources` under explicit config without auto-activating legal logic. Worker validates remediation safety metadata only. Connector-runner executes `provider.sync` read-only and rejects non-read-only payloads. Live Redis/BullMQ queue calls are intentionally not implemented.
+Impact: Docker job roles now execute implemented runtime loops for the current contract harness, but scheduled/regulatory jobs, billing reconciliation, connector sync dispatch, and future remediation execution are not durable across restarts until Redis/BullMQ-backed queue operation is wired and smoke-tested.
+Next action: Add a live Redis/BullMQ adapter implementation and bounded Compose smoke for enqueue/claim/complete/retry/shutdown across worker, scheduler, and connector-runner; keep provider write execution disabled until GAP-030 is satisfied.
 Owner: Codex/DevOps
 Target phase: Phase K runtime orchestration
-Status: Open; created 2026-05-01 by PLAN_M18.
+Status: Open but narrowed 2026-05-01 by PLAN_M19 for typed runtime loops, in-memory harness, idempotency/retry metadata, graceful shutdown tests, and BullMQ-ready boundary. Live Redis/BullMQ durability remains deferred.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

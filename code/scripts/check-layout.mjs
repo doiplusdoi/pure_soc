@@ -17,6 +17,7 @@ const requiredPaths = [
   "packages/auth/keycloak",
   "packages/database",
   "packages/audit",
+  "packages/jobs",
   "packages/providers/core",
   "packages/providers/microsoft365",
   "packages/providers/google-workspace",
@@ -54,6 +55,7 @@ for (const file of [
   "config/defaults/reports.json",
   "config/defaults/storage.json",
   "config/defaults/billing.json",
+  "config/defaults/jobs.json",
   "data/regulatory/countries/member-states.seed.json"
 ]) {
   JSON.parse(readFileSync(join(process.cwd(), file), "utf8"));

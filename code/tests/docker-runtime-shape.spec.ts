@@ -39,6 +39,17 @@ describe("Docker runtime command shape", () => {
       expect(compose).toContain(`dockerfile: infra/docker/${dockerfile}`);
     }
   });
+
+  it("points job service scripts at runtime loops instead of contract-status reporters", () => {
+    const manifest = JSON.parse(readWorkspaceFile("package.json")) as {
+      scripts: Record<string, string>;
+    };
+
+    expect(manifest.scripts["start:worker"]).toBe("jiti apps/worker/src/main.ts");
+    expect(manifest.scripts["start:scheduler"]).toBe("jiti apps/scheduler/src/main.ts");
+    expect(manifest.scripts["start:connector-runner"]).toBe("jiti apps/connector-runner/src/main.ts");
+    expect(Object.values(manifest.scripts).join("\n")).not.toContain("runtime-status.ts");
+  });
 });
 
 const readWorkspaceFile = (...pathSegments: string[]): string =>

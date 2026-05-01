@@ -7,6 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@puresoc/config": "workspace:*",
+    "@puresoc/jobs": "workspace:*",
     "@puresoc/recommendations": "workspace:*"
   }
 }

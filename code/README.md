@@ -32,7 +32,11 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:mig
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
-Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner currently run explicit contract-status entrypoints because queue-backed process loops are deferred to the job runtime milestone.
+Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
+
+The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and a BullMQ-ready adapter boundary. The worker validates remediation job safety metadata only and keeps provider write execution disabled. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
+
+`PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is modeled as an adapter boundary for future Redis-backed deployment work; live Redis/BullMQ calls are not claimed as production-ready by this milestone.
 
 ## Layout
 

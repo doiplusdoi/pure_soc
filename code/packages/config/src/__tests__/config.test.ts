@@ -29,6 +29,26 @@ describe("loadConfig", () => {
     expect(config.storage.objectStorage.provider).toBe("memory");
     expect(config.storage.uploadScanner.mode).toBe("noop");
     expect(config.storage.uploadScanner.timeoutMs).toBe(10_000);
+    expect(config.jobs).toEqual({
+      queueProvider: "memory",
+      redisUrl: "redis://puresoc-redis:6379/0",
+      defaultMaxAttempts: 3,
+      retryBackoffMs: 1000,
+      pollIntervalMs: 1000,
+      shutdownGraceMs: 5000,
+      worker: {
+        enabled: true
+      },
+      scheduler: {
+        enabled: true,
+        runOnStartup: false,
+        intervalMs: 3_600_000
+      },
+      connectorRunner: {
+        enabled: true,
+        allowProviderWrites: false
+      }
+    });
   });
 
   it("applies environment overrides without mutating legal caveat policy", () => {
@@ -48,6 +68,16 @@ describe("loadConfig", () => {
         PURESOC_UPLOAD_SCANNER_MODE: "mock",
         PURESOC_UPLOAD_SCANNER_MOCK_STATUS: "failed",
         PURESOC_UPLOAD_SCANNER_TIMEOUT_MS: "2500",
+        PURESOC_JOB_QUEUE_PROVIDER: "bullmq",
+        PURESOC_REDIS_URL: "redis://redis.example.test:6379/1",
+        PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "5",
+        PURESOC_JOB_RETRY_BACKOFF_MS: "2000",
+        PURESOC_JOB_POLL_INTERVAL_MS: "250",
+        PURESOC_JOB_SHUTDOWN_GRACE_MS: "3000",
+        PURESOC_WORKER_ENABLED: "false",
+        PURESOC_SCHEDULER_RUN_ON_STARTUP: "true",
+        PURESOC_SCHEDULER_INTERVAL_MS: "60000",
+        PURESOC_CONNECTOR_RUNNER_ENABLED: "false",
         REGULATORY_SOURCE_MONITOR_ENABLED: "true",
         REGULATORY_SOURCE_MONITOR_TIMEOUT_MS: "1500",
         REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS: "30",
@@ -69,6 +99,26 @@ describe("loadConfig", () => {
     expect(config.storage.uploadScanner.mode).toBe("mock");
     expect(config.storage.uploadScanner.mockStatus).toBe("failed");
     expect(config.storage.uploadScanner.timeoutMs).toBe(2500);
+    expect(config.jobs).toMatchObject({
+      queueProvider: "bullmq",
+      redisUrl: "redis://redis.example.test:6379/1",
+      defaultMaxAttempts: 5,
+      retryBackoffMs: 2000,
+      pollIntervalMs: 250,
+      shutdownGraceMs: 3000,
+      worker: {
+        enabled: false
+      },
+      scheduler: {
+        enabled: true,
+        runOnStartup: true,
+        intervalMs: 60_000
+      },
+      connectorRunner: {
+        enabled: false,
+        allowProviderWrites: false
+      }
+    });
     expect(config.compliance.sourceMonitor).toEqual({
       enabled: true,
       requestTimeoutMs: 1500,
@@ -85,6 +135,11 @@ describe("loadConfig", () => {
         PURESOC_STRIPE_WEBHOOK_MAX_RAW_BODY_BYTES: "not-a-number",
         PURESOC_EVIDENCE_MAX_UPLOAD_BYTES: "-1",
         PURESOC_UPLOAD_SCANNER_TIMEOUT_MS: "1.5",
+        PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "0",
+        PURESOC_JOB_RETRY_BACKOFF_MS: "soon",
+        PURESOC_JOB_POLL_INTERVAL_MS: "-1",
+        PURESOC_JOB_SHUTDOWN_GRACE_MS: "1.5",
+        PURESOC_SCHEDULER_INTERVAL_MS: "0",
         REGULATORY_SOURCE_MONITOR_TIMEOUT_MS: "0",
         REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS: "soon"
       }
@@ -94,6 +149,11 @@ describe("loadConfig", () => {
     expect(config.api.requestLimits.stripeWebhookRawBodyMaxBytes).toBe(1_048_576);
     expect(config.api.requestLimits.evidenceUploadMaxBytes).toBe(10_485_760);
     expect(config.storage.uploadScanner.timeoutMs).toBe(10_000);
+    expect(config.jobs.defaultMaxAttempts).toBe(3);
+    expect(config.jobs.retryBackoffMs).toBe(1000);
+    expect(config.jobs.pollIntervalMs).toBe(1000);
+    expect(config.jobs.shutdownGraceMs).toBe(5000);
+    expect(config.jobs.scheduler.intervalMs).toBe(3_600_000);
     expect(config.compliance.sourceMonitor.requestTimeoutMs).toBe(5000);
     expect(config.compliance.sourceMonitor.staleAfterDays).toBe(90);
   });
@@ -101,11 +161,13 @@ describe("loadConfig", () => {
   it("falls back to memory persistence mode for unknown overrides", () => {
     const config = loadConfig({
       env: {
-        PURESOC_PERSISTENCE_MODE: "filesystem"
+        PURESOC_PERSISTENCE_MODE: "filesystem",
+        PURESOC_JOB_QUEUE_PROVIDER: "filesystem"
       }
     });
 
     expect(config.app.persistenceMode).toBe("memory");
+    expect(config.jobs.queueProvider).toBe("memory");
   });
 
   it("validates production-sensitive startup settings", () => {
@@ -134,6 +196,20 @@ describe("loadConfig", () => {
       ])
     );
     expect(() => validateConfigForStartup(config)).toThrow("Invalid PureSOC startup configuration");
+  });
+
+  it("rejects job runtime settings that would imply provider writes or missing Redis wiring", () => {
+    const config = loadConfig({
+      env: {
+        PURESOC_JOB_QUEUE_PROVIDER: "bullmq",
+        PURESOC_REDIS_URL: "",
+        PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES: "true"
+      }
+    });
+
+    expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["job_redis_url_required", "provider_job_writes_disabled"])
+    );
   });
 
   it("accepts a production startup config when required secrets are configured", () => {

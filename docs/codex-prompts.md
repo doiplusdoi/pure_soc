@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M18, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M18.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 18 / `docs/PLAN_M19.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M19, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M19.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 19 / `docs/PLAN_M20.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -47,7 +47,8 @@ The repository currently contains:
 - PLAN_M15 prompt QA: the active prompt queue was checked against `docs/prompt-tests.md`, the latest M14 changed files/test output were reviewed, and GAP-034 was promoted into the next concrete implementation prompt.
 - PLAN_M16 API request/evidence upload limits: central JSON and Stripe raw-body parsing now enforces configurable byte limits through early `Content-Length` checks plus chunk-level enforcement, oversized payloads return stable `413 payload_too_large` errors, decoded evidence uploads are capped before scanner/storage/audit side effects, HTTP upload scanners time out, and GAP-034 is resolved for the current JSON/raw-body API shape.
 - PLAN_M17 regulatory source monitor runtime scheduling: configurable source-monitor enablement, timeout, stale threshold, and review-task routing are now in config; `@puresoc/regulatory-sources` has deterministic URL metadata monitoring with injectable clients, stale/unreachable/changed-metadata review task creation, duplicate open-task prevention, and no automatic legal activation; `apps/scheduler` exposes a one-shot `regulatory.monitorCountrySources` job contract. GAP-027 is resolved for the scheduler/runtime contract.
-- PLAN_M18 runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup validation for production-sensitive settings, shared Prisma client selection for implemented adapters, explicit memory-backed runtime context tracking, non-stub Docker entrypoints, minimal web/report-renderer servers, and static Docker runtime-shape tests. GAP-026 is partially addressed, GAP-036 and GAP-037 are open for remaining runtime persistence and job process loops.
+- PLAN_M18 runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup validation for production-sensitive settings, shared Prisma client selection for implemented adapters, explicit memory-backed runtime context tracking, non-stub Docker entrypoints, minimal web/report-renderer servers, and static Docker runtime-shape tests. GAP-026 is partially addressed and GAP-036 remains open for remaining runtime persistence.
+- PLAN_M19 job runtime baseline: `@puresoc/jobs` now provides typed job registration, dispatch results, retry/failure metadata, idempotent in-memory queue behavior, graceful shutdown hooks, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops for remediation metadata validation, regulatory source monitoring, and read-only provider sync. GAP-037 is narrowed but remains open for live Redis/BullMQ durability; GAP-030 remains open because provider write execution is still disabled.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -73,7 +74,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 15 / `docs/PLAN_M16.md` is completed.
 - Prompt 16 / `docs/PLAN_M17.md` is completed.
 - Prompt 17 / `docs/PLAN_M18.md` is completed.
-- Prompt 18 / `docs/PLAN_M19.md` is staged as the next active implementation prompt.
+- Prompt 18 / `docs/PLAN_M19.md` is completed.
+- Prompt 19 / `docs/PLAN_M20.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -88,12 +90,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 18 / `docs/PLAN_M19.md`: Job Runtime Baseline.
-2. Expected next handoff after M19: API Middleware And Rate-Limit Baseline, unless M19 implementation results require a different next slice.
+1. Prompt 19 / `docs/PLAN_M20.md`: API Middleware And Rate-Limit Baseline.
+2. Expected next handoff after M20: Audit Log Integrity And Provider Key Handling, unless M20 implementation results require a different next slice.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 18 / PLAN_M19: Job Runtime Baseline
+## Active Prompt 19 / PLAN_M20: API Middleware And Rate-Limit Baseline
 
 Read:
 
@@ -105,81 +107,68 @@ Read:
 - `docs/prompt-tests.md`
 - `docs/threat-model.md`
 - `docs/claude_rec2.md`
-- `docs/PLAN_M18.md`
-- `docs/adr/ADR-002-docker-image-and-compose-service-catalog.md`
+- `docs/PLAN_M19.md`
 - `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
-- `docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md`
-- `docs/adr/ADR-011-regulatory-source-activation-lifecycle.md`
+- `docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md`
+- `docs/adr/ADR-010-remediation-safety-model.md`
+- `docs/adr/ADR-013-auth-oidc-social-login-and-managed-provider-consent-boundaries.md`
 
 Goal:
 
-Add a shared job runtime baseline so worker, scheduler, and connector-runner roles can execute typed jobs through an in-memory test harness and a Redis/BullMQ-ready adapter boundary, without enabling provider write actions.
+Add a small API middleware baseline for the current `node:http` server: shared request context, bounded body parsing hooks, session/auth helper reuse, Origin/CSRF-style protection for browser state-changing routes, and configurable in-memory rate limiting. Keep the change focused and avoid a broad API framework migration.
 
 Context:
 
-- PLAN_M18 made Docker entrypoints honest, but worker, scheduler, and connector-runner still run explicit contract-status entrypoints.
-- `apps/scheduler` exposes `regulatory.monitorCountrySources` as a one-shot contract, but no recurring loop or queue runner calls it.
-- `apps/worker` exposes remediation action job safety contracts, but no worker process exists and provider writes must remain disabled.
-- `apps/connector-runner` exposes `provider.sync` job contracts, but no queue ingestion or durable retry loop exists.
-- GAP-037 tracks the missing job runtime process loops.
+- `apps/api/src/server.ts` is still a large manual dispatcher with repeated cookie/auth/body/RBAC decisions.
+- M16 added request body limits, but state-changing routes do not yet share Origin checks or rate limiting.
+- Login has its own rate limiter; OIDC callback, Stripe webhook, evidence upload, action lifecycle, regulatory review, billing portal, and tenant reads do not share a generic limiter.
+- GAP-035 tracks deployed cookie/CORS/browser auth smoke. M20 should add a contract-level API protection baseline without claiming deployed browser smoke is complete.
 
 Deliverables:
 
-- Add a small job package or app-local shared module with typed job definitions, dispatch results, failure metadata, retry metadata, and idempotency hooks.
-- Add an in-memory job queue/runner adapter for deterministic tests.
-- Add a Redis/BullMQ-ready adapter boundary, but do not require live Redis/BullMQ network calls in unit tests unless dependencies and local services are already available.
-- Wire scheduler runtime entrypoint to run registered scheduled jobs, including the existing regulatory source monitor job, under explicit config.
-- Wire worker runtime entrypoint to consume typed jobs and preserve remediation safety gates without provider write execution.
-- Wire connector-runner runtime entrypoint to consume read-only provider sync jobs without enabling provider writes.
-- Update Docker entrypoints from contract-status output to runtime process loops where implemented.
-- Add focused tests for job registration, dispatch, duplicate/idempotent handling, retry/failure metadata, graceful shutdown behavior, and no-provider-write enforcement.
-- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M19.md`, and this prompt file based on actual implementation results.
-- Before final response, create `docs/PLAN_M20.md` from the next selected active prompt.
+- Add a shared API request context/middleware helper layer that can be used by the existing `node:http` server without replacing every route at once.
+- Add typed config defaults and environment overrides for rate-limit windows/counts, trusted origins, and any route-family exemptions.
+- Add an in-memory token-bucket or fixed-window limiter with deterministic tests and clear keys for unauthenticated IP-level and authenticated user/org-level dimensions.
+- Add Origin/Referer allowlist enforcement for browser state-changing methods, with explicit exemptions for non-browser provider/webhook callbacks where appropriate.
+- Keep Stripe raw-body verification intact and ensure middleware does not consume raw bodies before webhook signature checks.
+- Apply the middleware baseline to high-risk existing routes: auth/OIDC callbacks, evidence upload/download/list as appropriate, billing portal/checkout/webhook, remediation action lifecycle, regulatory review actions, and provider connection/sync routes.
+- Add audit or structured error metadata only where existing audit surfaces already make sense; do not invent noisy audit events for every rejected request unless product security value is clear.
+- Add focused tests for middleware ordering, rate-limit exceeded responses, Origin rejection, allowed same-origin requests, Stripe webhook raw-body preservation, evidence upload size limit compatibility, and no auth/RBAC regression.
+- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M20.md`, and this prompt file based on actual implementation results.
+- Before final response, create `docs/PLAN_M21.md` from the next selected active prompt.
 
 Expected files:
 
 - `code/.env.example`
-- `code/config/defaults/jobs.json` or existing config defaults as appropriate
+- `code/config/defaults/api.json` or adjacent config defaults as appropriate
 - `code/packages/config/src/index.ts`
 - `code/packages/config/src/__tests__/config.test.ts`
-- `code/packages/jobs/src/index.ts` or `code/apps/*/src/jobs.ts` if a package is intentionally deferred
-- `code/packages/jobs/src/__tests__/*.spec.ts` or equivalent app-local tests
-- `code/apps/worker/src/index.ts`
-- `code/apps/worker/src/runtime.ts`
-- `code/apps/worker/src/__tests__/*.test.ts`
-- `code/apps/scheduler/src/index.ts`
-- `code/apps/scheduler/src/runtime.ts`
-- `code/apps/scheduler/src/regulatory-source-monitor.ts`
-- `code/apps/scheduler/src/__tests__/*.test.ts`
-- `code/apps/connector-runner/src/index.ts`
-- `code/apps/connector-runner/src/runtime.ts`
-- `code/apps/connector-runner/src/__tests__/*.test.ts`
-- `code/infra/docker/Dockerfile.worker`
-- `code/infra/docker/Dockerfile.scheduler`
-- `code/infra/docker/Dockerfile.connector-runner`
-- `code/infra/compose/docker-compose.yml`
-- `code/package.json`
-- `code/apps/*/package.json` as needed
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/http.ts`
+- `code/apps/api/src/middleware.ts` or `code/apps/api/src/http/middleware.ts`
+- `code/apps/api/src/rate-limit.ts`
+- `code/apps/api/src/__tests__/*.test.ts`
+- Existing route modules under `code/apps/api/src/**/routes.ts` as needed
 - `README.md`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M19.md`
 - `docs/PLAN_M20.md`
+- `docs/PLAN_M21.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
+- Do not introduce a broad API framework migration in this milestone.
+- Do not weaken Stripe raw-body signature verification.
+- Do not consume request bodies twice or bypass M16 body-size limits.
+- Do not weaken organization-scoped authorization, evidence response redaction, audit redaction, regulatory no-auto-activation guardrails, or remediation safety checks.
 - Do not add provider write/remediation execution.
-- Do not execute remediation provider writes; action jobs may validate safety metadata only.
-- Do not add Microsoft-specific logic to generic job runtime packages.
+- Do not add Microsoft-specific logic to generic API middleware.
 - Do not add Romania-specific logic outside Romania country-pack/importer surfaces.
 - Do not hardcode regulatory facts in UI conditionals.
 - Do not make legal certification claims.
-- Do not weaken organization-scoped authorization, evidence response redaction, audit redaction, or regulatory no-auto-activation guardrails.
-- Do not remove the in-memory harness used by deterministic tests.
-- Do not claim full production readiness from queue runtime tests alone.
-- Do not introduce a broad API framework migration in this milestone.
+- Do not claim deployed browser/CORS/CSRF production smoke is complete from unit tests alone.
 - Do not run live Stripe, Microsoft Graph, OIDC, MinIO/S3, public regulatory URL, or provider-write smoke tests in unit tests.
 
 Tests and acceptance commands:
@@ -188,7 +177,7 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- jobs worker scheduler connector runtime docker
+pnpm test -- api middleware rate-limit origin csrf auth billing evidence actions regulatory
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
@@ -196,15 +185,16 @@ git diff --check
 
 If `pnpm` is not available, use the host-node equivalents used in M14-M18 and record the substitution in `docs/PLAN_M19.md`.
 
-If Docker build/run is available, also run a bounded worker or scheduler image smoke that proves the container starts the runtime entrypoint and logs/serves an implemented job-runtime status. If Docker is unavailable, add static tests rejecting contract-status-only Docker commands and record live Docker smoke as residual risk.
+If Docker/API runtime smoke is available, also run a bounded API smoke that proves `/health` still works and at least one protected route returns the expected middleware-shaped error. If Docker is unavailable, add static/unit coverage and record live Docker/browser smoke as residual risk.
 
 Expected gap movement:
 
-- Resolve or narrow GAP-037 only if worker, scheduler, and connector-runner have real runtime loops or clearly scoped remaining process gaps.
+- Narrow API security/runtime gaps by adding contract-level middleware, Origin, and rate-limit protection.
+- Preserve GAP-035 as deployed cookie/CORS/browser-auth smoke unless M20 runs a real deployed browser smoke.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-035, and GAP-036 unless M19 directly validates those runtime areas.
-- Create or update gaps for any queue adapter, idempotency, retry, or graceful shutdown behavior intentionally deferred.
-- Add gap-to-`PLAN_M19` backlinks for consciously deferred runtime work.
+- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-036, and GAP-037 unless M20 directly validates those runtime areas.
+- Create or update gaps for distributed rate limiting, proxy-aware client IP handling, CSRF token rollout, or browser/deployment smoke intentionally deferred.
+- Add gap-to-`PLAN_M20` backlinks for consciously deferred runtime work.
 
 Final response must include:
 
@@ -212,10 +202,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M19` updated
-- `PLAN_M20` created
+- `PLAN_M20` updated
+- `PLAN_M21` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 18 / PLAN_M19: Job Runtime Baseline
+
+Completed on 2026-05-01.
+
+Summary:
+- Added `@puresoc/jobs` with typed job definitions, dispatch results, failure/retry metadata, idempotency hooks, deterministic in-memory queue/runner behavior, graceful shutdown handling, and a BullMQ-ready adapter boundary without live Redis calls.
+- Added job runtime config defaults and environment overrides for queue provider, Redis URL, attempts, retry backoff, poll interval, shutdown grace, scheduler cadence, and provider-write disablement.
+- Worker runtime now validates `actions.execute` remediation safety metadata and returns provider-write execution as disabled.
+- Scheduler runtime can enqueue and execute `regulatory.monitorCountrySources` under explicit config without auto-activating legal logic.
+- Connector-runner runtime executes `provider.sync` through the neutral provider pipeline with `allowProviderWrites=false` and rejects non-read-only payloads.
+- Docker job service scripts now point at runtime loop entrypoints, and runtime-status files report the implemented entrypoints instead of contract-only deferrals.
+- GAP-013 and GAP-030 were updated; GAP-037 is narrowed but remains open for live Redis/BullMQ durability.
+
+Validated with host-node equivalents because `pnpm` is not installed on this host:
+- `npm run lint`
+- `npm run test -- config jobs worker scheduler connector runtime docker`
+- Additional acceptance results are recorded in `docs/PLAN_M19.md`.
 
 ## Completed Prompt 17 / PLAN_M18: Runtime Truth Baseline
 

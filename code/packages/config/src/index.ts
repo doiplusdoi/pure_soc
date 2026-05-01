@@ -91,6 +91,26 @@ export interface PureSocConfig {
     };
   };
   billing: BillingRuntimeConfig;
+  jobs: {
+    queueProvider: "memory" | "bullmq";
+    redisUrl: string;
+    defaultMaxAttempts: number;
+    retryBackoffMs: number;
+    pollIntervalMs: number;
+    shutdownGraceMs: number;
+    worker: {
+      enabled: boolean;
+    };
+    scheduler: {
+      enabled: boolean;
+      runOnStartup: boolean;
+      intervalMs: number;
+    };
+    connectorRunner: {
+      enabled: boolean;
+      allowProviderWrites: boolean;
+    };
+  };
 }
 
 export interface LoadConfigOptions {
@@ -151,6 +171,11 @@ const readPersistenceMode = (
   fallback: PureSocConfig["app"]["persistenceMode"]
 ): PureSocConfig["app"]["persistenceMode"] => (value === "prisma" ? "prisma" : fallback);
 
+const readJobQueueProvider = (
+  value: string | undefined,
+  fallback: PureSocConfig["jobs"]["queueProvider"]
+): PureSocConfig["jobs"]["queueProvider"] => (value === "bullmq" ? "bullmq" : fallback);
+
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   const env = options.env ?? process.env;
   const defaultsDir = options.defaultsDir ?? env.PURESOC_CONFIG_DIR ?? resolve(process.cwd(), "config/defaults");
@@ -163,7 +188,8 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     compliance: readJson<PureSocConfig["compliance"]>(defaultsDir, "compliance"),
     reports: readJson<PureSocConfig["reports"]>(defaultsDir, "reports"),
     storage: readJson<PureSocConfig["storage"]>(defaultsDir, "storage"),
-    billing: readJson<PureSocConfig["billing"]>(defaultsDir, "billing")
+    billing: readJson<PureSocConfig["billing"]>(defaultsDir, "billing"),
+    jobs: readJson<PureSocConfig["jobs"]>(defaultsDir, "jobs")
   };
 
   return {
@@ -320,6 +346,36 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
             : config.billing.stripe.priceIdsByPlan.msp
         }
       }
+    },
+    jobs: {
+      ...config.jobs,
+      queueProvider: readJobQueueProvider(env.PURESOC_JOB_QUEUE_PROVIDER, config.jobs.queueProvider),
+      redisUrl: env.PURESOC_REDIS_URL ?? env.REDIS_URL ?? config.jobs.redisUrl,
+      defaultMaxAttempts: readPositiveInteger(
+        env.PURESOC_JOB_DEFAULT_MAX_ATTEMPTS,
+        config.jobs.defaultMaxAttempts
+      ),
+      retryBackoffMs: readPositiveInteger(env.PURESOC_JOB_RETRY_BACKOFF_MS, config.jobs.retryBackoffMs),
+      pollIntervalMs: readPositiveInteger(env.PURESOC_JOB_POLL_INTERVAL_MS, config.jobs.pollIntervalMs),
+      shutdownGraceMs: readPositiveInteger(env.PURESOC_JOB_SHUTDOWN_GRACE_MS, config.jobs.shutdownGraceMs),
+      worker: {
+        ...config.jobs.worker,
+        enabled: readBoolean(env.PURESOC_WORKER_ENABLED, config.jobs.worker.enabled)
+      },
+      scheduler: {
+        ...config.jobs.scheduler,
+        enabled: readBoolean(env.PURESOC_SCHEDULER_ENABLED, config.jobs.scheduler.enabled),
+        runOnStartup: readBoolean(env.PURESOC_SCHEDULER_RUN_ON_STARTUP, config.jobs.scheduler.runOnStartup),
+        intervalMs: readPositiveInteger(env.PURESOC_SCHEDULER_INTERVAL_MS, config.jobs.scheduler.intervalMs)
+      },
+      connectorRunner: {
+        ...config.jobs.connectorRunner,
+        enabled: readBoolean(env.PURESOC_CONNECTOR_RUNNER_ENABLED, config.jobs.connectorRunner.enabled),
+        allowProviderWrites: readBoolean(
+          env.PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES,
+          config.jobs.connectorRunner.allowProviderWrites
+        )
+      }
     }
   };
 };
@@ -409,6 +465,22 @@ export const collectStartupConfigIssues = (
       code: "provider_token_key_required",
       path: "connectors.providerTokenEncryptionKey",
       message: "Production startup requires a non-default PURESOC_PROVIDER_TOKEN_KEY."
+    });
+  }
+
+  if (config.jobs.queueProvider === "bullmq" && !nonEmpty(config.jobs.redisUrl)) {
+    issues.push({
+      code: "job_redis_url_required",
+      path: "jobs.redisUrl",
+      message: "BullMQ job queues require PURESOC_REDIS_URL."
+    });
+  }
+
+  if (config.jobs.connectorRunner.allowProviderWrites) {
+    issues.push({
+      code: "provider_job_writes_disabled",
+      path: "jobs.connectorRunner.allowProviderWrites",
+      message: "Provider write execution remains disabled until GAP-030 is implemented."
     });
   }
 

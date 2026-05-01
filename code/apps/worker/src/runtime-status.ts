@@ -1,10 +1,12 @@
 import { workerAppRole } from "./index";
+import { workerRuntimeJobNames } from "./runtime";
 
 console.log(
   JSON.stringify({
     service: workerAppRole,
-    status: "contract_only",
-    runtime: "job_worker_deferred_to_PLAN_M19",
-    message: "No queue-backed worker loop is implemented yet."
+    status: "runtime_loop_implemented",
+    entrypoint: "apps/worker/src/main.ts",
+    registeredJobs: [workerRuntimeJobNames.executeAction],
+    providerWriteExecution: "disabled"
   })
 );
