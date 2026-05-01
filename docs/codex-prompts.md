@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M14 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M14.md`, `docs/threat-model.md`, `docs/claude_rec.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M15 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M14.md`, `docs/PLAN_M15.md`, `docs/threat-model.md`, `docs/claude_rec.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -44,6 +44,7 @@ The repository currently contains:
 - PLAN_M12 Microsoft read-only module expansion: Microsoft Learn permissions were revalidated on 2026-04-30; `@puresoc/provider-microsoft365` now has fixture-backed Conditional Access, Entra directory audit log, Entra sign-in log, Defender XDR incident, and Defender XDR alert read modules, provider-neutral incident/alert resources and findings, module-level degradation for missing permissions/licenses, unsupported APIs, China-cloud Graph security limitations, throttling/revoked consent/connector errors, and updated permission documentation.
 - PLAN_M13 full Article 21 catalog/scoring: EU Article 21(2)(a)-(j) controls now have source-linked evidence requirements, manual checklist mappings, provider-neutral mappings for existing Microsoft/mock MFA, IAM, and Defender XDR findings, stricter catalog seed validation, stale-evidence handling, configurable readiness-plan targets, accepted-risk partial scoring, ADR-015 provisional score calibration, and `PureSOC internal readiness` dashboard score labeling.
 - PLAN_M14 security threat model and release hardening: `docs/threat-model.md` now records assets, trust boundaries, abuse paths, priorities, focus paths, and M14 fixes. Session cookies honor secure-cookie config, evidence API responses no longer expose internal storage URIs, regulatory review task actions/source-map reads are organization-scoped, and remediation snapshots must match the action run provider connection.
+- PLAN_M15 prompt QA: the active prompt queue was checked against `docs/prompt-tests.md`, the latest M14 changed files/test output were reviewed, and GAP-034 was promoted into the next concrete implementation prompt.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -65,7 +66,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 11 / `docs/PLAN_M12.md` is completed.
 - Prompt 12 / `docs/PLAN_M13.md` is completed.
 - Prompt 13 / `docs/PLAN_M14.md` is completed.
-- Prompt 14 starts at `docs/PLAN_M15.md`.
+- Prompt 14 / `docs/PLAN_M15.md` is completed.
+- Prompt 15 starts at `docs/PLAN_M16.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -80,7 +82,7 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 14 / `PLAN_M15`: Gap Register And Prompt QA.
+1. Prompt 15 / `PLAN_M16`: API Request Body And Evidence Upload Limits.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
@@ -366,10 +368,24 @@ Validated with host-node equivalents because `pnpm`, `npx`, and `node` were not 
 - `./node_modules/.bin/vitest run packages/recommendations/src/__tests__/actions.spec.ts apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
 - `git diff --check`
 
-## Prompt 14 / PLAN_M15: Gap Register And Prompt QA
+## Completed Prompt 14 / PLAN_M15: Gap Register And Prompt QA
+
+Completed on 2026-05-01.
+
+Summary:
+- Reviewed the required architecture docs, gap register, prompt test protocol, Claude recommendations, latest M14 changed files, and latest M14 validation output.
+- Confirmed the prompt suite no longer asks Codex to reimplement completed Phase A-I, M11-M14, or remediation write-runtime work.
+- Identified that the active prompt queue ended at the maintenance prompt while concrete engineering gaps remained open.
+- Promoted GAP-034 into Prompt 15 / `PLAN_M16` as the next testable hardening slice.
+- Updated the M15 milestone, GAP-034 next action, and created the M16 handoff stub.
+
+Validated with:
+- `git diff --check`
+
+## Prompt 15 / PLAN_M16: API Request Body And Evidence Upload Limits
 
 ```txt
-This is a maintenance prompt.
+This is a security and availability hardening prompt.
 
 Read:
 - docs/puresoc_vision.md
@@ -378,54 +394,79 @@ Read:
 - docs/codex-prompts.md
 - docs/LEARNINGS.md
 - docs/prompt-tests.md
-- docs/claude_rec.md
+- docs/threat-model.md
 - latest changed files
 - latest test output
 
 Goal:
-Keep the project executable by updating gaps and validating active prompts against the prompt test protocol.
+Close GAP-034 by adding central request body limits, per-route evidence upload byte limits, clear 413 errors, and scanner timeout handling without weakening existing auth, evidence, billing, audit, or redaction behavior.
 
 Milestone plan:
-- Current milestone file: `docs/PLAN_M15.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M16.md` from the next active prompt if a next prompt exists after QA.
+- Current milestone file: `docs/PLAN_M16.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M17.md` from the next active prompt if a next prompt exists after this implementation.
 
-Check:
-- active prompts do not ask Codex to reimplement completed Phase A-I contract work.
-- every implementation prompt has expected files/packages.
-- every implementation prompt has negative constraints.
-- every implementation prompt has tests.
-- every implementation prompt has acceptance commands.
-- every implementation prompt has gap update instruction.
-- every implementation prompt has expected final summary.
-- prompt order still matches implementation reality and open gaps.
+Implementation requirements:
+- Add typed config defaults and environment overrides for:
+  - maximum JSON request body bytes,
+  - maximum Stripe webhook raw body bytes,
+  - maximum decoded evidence upload bytes,
+  - HTTP upload-scanner timeout milliseconds.
+- Make `parseJsonBody` and `parseRawBody` enforce limits while streaming request chunks, not only after buffering.
+- Reject oversized requests with a stable JSON error code `payload_too_large` and HTTP status `413`.
+- Validate `Content-Length` early when present, but keep chunk-level enforcement for missing or misleading lengths.
+- Ensure the Stripe webhook route still verifies signatures against the exact accepted raw bytes.
+- Ensure evidence upload checks decoded content bytes before scan or storage, including base64 uploads.
+- Ensure oversized evidence uploads do not create evidence artifacts, scanner calls, storage writes, access logs, or audit events.
+- Add timeout handling to the HTTP upload scanner so unreachable or slow scanners fail closed under production scanner requirements.
+- Preserve existing evidence API response redaction: never return or log `storageUri`, object URLs, content body, base64 payloads, secrets, tokens, or webhook signatures.
 
 Update docs/implementation-gaps.md with:
 - blockers
 - assumptions
 - deferred decisions
 - missing tests
-- prompt quality issues
+- resolved GAP-034 status if the implementation and tests fully close it
 
 Keep resolved gaps for auditability, marked as resolved with date.
 
 Expected files:
-- docs/PLAN_M15.md
-- docs/PLAN_M16.md if a next active prompt exists after QA
+- docs/PLAN_M16.md
+- docs/PLAN_M17.md if a next active prompt exists after implementation
 - docs/codex-prompts.md
 - docs/implementation-gaps.md
+- code/.env.example
+- code/config/defaults/storage.json or a focused API defaults file if cleaner
+- code/packages/config/src/index.ts
+- code/packages/config/src/__tests__/config.test.ts
+- code/apps/api/src/http.ts
+- code/apps/api/src/server.ts
+- code/apps/api/src/evidence/routes.ts
+- code/apps/api/src/__tests__/*body-limit*.test.ts or focused existing API tests
+- code/packages/evidence/src/index.ts
+- code/packages/evidence/src/__tests__/evidence-vault.spec.ts
 
 Acceptance commands:
-- pnpm lint if code changed
-- pnpm test for any touched implementation area
-- no test command required for docs-only prompt cleanup; run `git diff --check` instead
+- pnpm lint
+- pnpm test -- --runInBand api http evidence storage scanner config billing webhook
+- git diff --check
+
+Negative constraints:
+- Do not add provider write/remediation execution.
+- Do not put Microsoft-specific logic in generic compliance or API body-parser code.
+- Do not put Romania-specific logic in generic evidence upload code.
+- Do not hardcode regulatory facts in UI conditionals.
+- Do not make legal certification claims.
+- Do not treat `Content-Length` as sufficient protection by itself.
+- Do not increase logging detail for rejected payloads or scanner failures in a way that could expose content or secrets.
+- Do not weaken Stripe webhook signature verification or scanner fail-closed behavior.
 
 Final response must include:
 - Changed files
 - Tests run
 - Acceptance status
 - Gaps updated
-- PLAN_M15 updated
-- PLAN_M16 created or explicitly not needed
+- PLAN_M16 updated
+- PLAN_M17 created or explicitly not needed
 - Codex prompts updated
 - Residual risk
 ```

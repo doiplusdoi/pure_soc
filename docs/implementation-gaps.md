@@ -352,9 +352,9 @@ Status: Open
 
 Severity: Medium
 Area: API availability/security
-Current state: PLAN_M14 threat modeling identified that `parseJsonBody`, `parseRawBody`, and evidence upload decoding currently buffer complete request bodies in memory without a configured maximum size. Evidence uploads are scanned and can fail closed in production, but oversized JSON/base64 payloads can still consume API memory and CPU before domain validation completes.
+Current state: PLAN_M14 threat modeling identified that `parseJsonBody`, `parseRawBody`, and evidence upload decoding currently buffer complete request bodies in memory without a configured maximum size. Evidence uploads are scanned and can fail closed in production, but oversized JSON/base64 payloads can still consume API memory and CPU before domain validation completes. PLAN_M15 prompt QA promoted this gap into Prompt 15 / `docs/PLAN_M16.md` as the next concrete implementation slice.
 Impact: A remote or authenticated attacker could cause targeted denial of service by submitting large auth, webhook, evidence, report, or regulatory payloads. This is especially relevant for in-a-box deployments with small resource limits and for scanner-backed uploads.
-Next action: Add central request body limits, per-route evidence upload byte limits, clear `413 payload_too_large` errors, scanner timeout handling, and tests for oversized JSON, raw Stripe webhook body, and evidence content.
+Next action: Run Prompt 15 / PLAN_M16 to add central request body limits, per-route evidence upload byte limits, clear `413 payload_too_large` errors, scanner timeout handling, and tests for oversized JSON, raw Stripe webhook body, and evidence content.
 Owner: Codex/DevOps
 Target phase: Phase K
 Status: Open
