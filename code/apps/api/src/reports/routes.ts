@@ -99,6 +99,7 @@ const parseRomaniaDraft = (
       : [],
     classificationRunId: typeof body.classificationRunId === "string" ? body.classificationRunId : undefined,
     onboardingProgressId: typeof body.onboardingProgressId === "string" ? body.onboardingProgressId : undefined,
-    notificationDraftId: typeof body.notificationDraftId === "string" ? body.notificationDraftId : undefined
+    notificationDraftId: typeof body.notificationDraftId === "string" ? body.notificationDraftId : undefined,
+    locale: typeof body.locale === "string" ? body.locale : undefined
   };
 };

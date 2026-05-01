@@ -4,8 +4,10 @@
 
 Implement Prompt 22 from `docs/codex-prompts.md`: make an explicit i18n/message strategy and country-pack notification-draft model decision before expanding customer-facing notification exports or additional country packs.
 
-Status: staged for implementation after M22.
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-01.
+Completed: 2026-05-01.
 
 ## Source Inputs
 
@@ -35,6 +37,14 @@ Expected implementation areas:
 - Minimal contract helpers or fixtures only if needed to make the decision testable.
 - Tests/static checks for any new helpers.
 - Gap and prompt updates based on the decision.
+
+Locked assumptions:
+
+- M23 is a decision and contract-clarification milestone, not a broad UI/runtime localization implementation.
+- English and Romanian locale codes are supported at the contract layer now, but Romanian product/legal copy must fall back to English until product/legal approves a Romanian legal-caveat translation.
+- Country-pack source text and notification labels remain source-mapped data. M23 may add message keys and locale metadata, but must not hardcode regulatory source text into UI conditionals.
+- Generic `NotificationDraft` should become the canonical future persistence target unless the ADR records a stronger reason for country-specific draft tables.
+- Existing Romania draft records must keep a compatibility path because the schema already has `RoNis2NotificationDraft.notificationDraftId`.
 
 Expected files:
 
@@ -96,32 +106,75 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Completed 2026-05-01.
 
 Implementation results:
 
-- Pending.
+- Added ADR-016 for the i18n/message strategy and country-pack notification draft model.
+- Added shared locale normalization and legal-caveat message resolution with `en`/`ro` locale support and English fallback.
+- Added country-pack notification envelope contracts and schema-key helpers in `@puresoc/country-packs-core`.
+- Updated Romania notification draft contracts with payload schema key/version, locale/legal-caveat fallback metadata, source-mapped label message keys, and a separate no-DNSC-submission notice.
+- Updated report builders and report contracts to carry legal-caveat message key, resolved locale, requested locale fallback state, and selected report locale.
+- Added selected schema drift coverage for `NotificationDraft` and `RoNis2NotificationDraft`.
+- Added tests for legal-caveat fallback, generic country-pack notification envelopes, and Romania source-mapped notification labels.
 
 Changed files:
 
-- Pending.
+- `README.md`
+- `code/README.md`
+- `code/apps/api/src/compliance/nis2/ro/routes.ts`
+- `code/apps/api/src/reports/routes.ts`
+- `code/apps/api/src/reports/service.ts`
+- `code/apps/web/src/app-data.ts`
+- `code/packages/compliance/nis2/country-packs/core/package.json`
+- `code/packages/compliance/nis2/country-packs/core/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-i18n-notification-model.spec.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-notification-draft.types.spec.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
+- `code/packages/database/src/contracts/outputs.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/reports/src/__tests__/reports-exports.spec.ts`
+- `code/packages/reports/src/builders.ts`
+- `code/packages/reports/src/report.types.ts`
+- `code/packages/shared/src/index.ts`
+- `code/pnpm-lock.yaml`
+- `code/scripts/check-schema-contract-drift.ts`
+- `code/tests/i18n-notification-model.spec.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M23.md`
+- `docs/PLAN_M24.md`
+- `docs/adr/ADR-016-i18n-and-country-pack-notification-drafts.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- reports compliance ro notification i18n` passed: 26 test files, 102 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M23. ADR-016 records the decision, code contracts expose legal-caveat fallback and source-mapped notification labels, notification draft table drift coverage is narrowed, and no live provider/write/remediation path was added.
 
 Gaps updated:
 
-- Pending.
+- GAP-041 narrowed for selected notification draft table drift coverage.
+- GAP-042 created for Romanian product-copy approval, runtime message catalog wiring, generic notification draft persistence, and Romania draft migration/backfill.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M23 implementation must create `docs/PLAN_M24.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 22 / PLAN_M23 complete and stages Prompt 23 / PLAN_M24.
+- `docs/PLAN_M24.md` created for Generic Notification Draft Envelope Persistence.
 
 Residual risk:
 
-- Pending.
+- Romanian legal-caveat and product copy are not approved or implemented; Romanian locale currently falls back to English for the legal caveat.
+- Generic `NotificationDraft` persistence, payload-envelope validation at write time, and Romania draft migration/backfill are deferred to M24/GAP-042.
+- Served frontend i18n wiring and browser/runtime localization checks remain deferred under existing frontend/runtime gaps.

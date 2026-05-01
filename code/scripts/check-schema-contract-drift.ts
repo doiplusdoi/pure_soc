@@ -507,6 +507,43 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("snapshotJson", "Json", "snapshot_json"),
       s("createdAt", "DateTime", "created_at")
     ]
+  },
+  {
+    contractName: "NotificationDraftContract",
+    modelName: "NotificationDraft",
+    tableName: "notification_drafts",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      f("jurisdiction", "String"),
+      s("notificationType", "String", "notification_type"),
+      f("status", "NotificationDraftStatus"),
+      s("payloadJson", "Json", "payload_json"),
+      s("sourceReferencesJson", "Json", "source_references_json"),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "RoNis2NotificationDraftContract",
+    modelName: "RoNis2NotificationDraft",
+    tableName: "ro_nis2_notification_drafts",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      s("onboardingProgressId", "String", "onboarding_progress_id", { isOptional: true }),
+      s("classificationRunId", "String", "classification_run_id", { isOptional: true }),
+      s("notificationDraftId", "String", "notification_draft_id", { isOptional: true }),
+      f("status", "NotificationDraftStatus"),
+      s("payloadJson", "Json", "payload_json"),
+      s("sourceReferencesJson", "Json", "source_references_json"),
+      s("legalCaveat", "String", "legal_caveat"),
+      s("createdBy", "String", "created_by", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
   }
 ];
 

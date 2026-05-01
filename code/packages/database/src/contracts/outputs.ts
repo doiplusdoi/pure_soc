@@ -192,6 +192,21 @@ export interface DashboardSnapshotContract {
   createdAt: string;
 }
 
+export interface NotificationDraftPayloadEnvelopeContract {
+  frameworkKey: "nis2";
+  jurisdiction: string;
+  legalCaveat: string;
+  legalCaveatLocale: string;
+  legalCaveatMessageKey: string;
+  locale: string;
+  notificationType: string;
+  payload: Record<string, unknown>;
+  payloadSchemaKey: string;
+  payloadSchemaVersion: string;
+  sourceMappedFields: Record<string, unknown>[];
+  sourceReferences: Record<string, unknown>[];
+}
+
 export interface NotificationDraftContract {
   id: string;
   organizationId: string;
@@ -199,8 +214,26 @@ export interface NotificationDraftContract {
   jurisdiction: string;
   notificationType: "country_registration" | "incident_reporting" | "readiness_update";
   status: "draft" | "ready_for_review" | "exported" | "superseded";
-  payload: Record<string, unknown>;
+  payload: NotificationDraftPayloadEnvelopeContract;
   sourceReferences: string[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RoNis2NotificationDraftContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  onboardingProgressId?: string;
+  classificationRunId?: string;
+  notificationDraftId?: string;
+  status: "draft" | "ready_for_review" | "exported" | "superseded";
+  payload: NotificationDraftPayloadEnvelopeContract | Record<string, unknown>;
+  sourceReferences: string[];
+  legalCaveat: string;
+  createdBy?: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface ProviderActionTemplateContract {

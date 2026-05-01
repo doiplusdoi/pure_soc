@@ -23,7 +23,7 @@ pnpm drift:schema
 pnpm drift:regulatory
 ```
 
-`drift:schema` parses `packages/database/prisma/schema.prisma` and checks selected high-risk persisted models against explicit field expectations for audit, provider telemetry, compliance outputs, evidence, billing, regulatory review, remediation actions, reports, and dashboards.
+`drift:schema` parses `packages/database/prisma/schema.prisma` and checks selected high-risk persisted models against explicit field expectations for audit, provider telemetry, compliance outputs, evidence, billing, regulatory review, remediation actions, reports, dashboards, and notification drafts.
 
 `drift:regulatory` regenerates Romania NIS2 seed and source-map artifacts in memory from `data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx` and compares them with the checked-in generated JSON. It does not fetch public regulatory URLs or activate legal logic.
 
@@ -80,6 +80,12 @@ Distributed rate limiting, proxy-aware client-IP trust policy, strict CSRF-token
 The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and a BullMQ-ready adapter boundary. The worker validates remediation job safety metadata only and keeps provider write execution disabled. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
 
 `PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is modeled as an adapter boundary for future Redis-backed deployment work; live Redis/BullMQ calls are not claimed as production-ready by this milestone.
+
+## Locale And Notification Draft Contracts
+
+M23 adds a small contract-level locale model in `@puresoc/shared`: `en` and `ro` are supported locale codes, locale tags normalize to their base language, and unsupported locales fall back to English. The legal caveat is keyed as `puresoc.legal_caveat.internal_readiness.v1`; Romanian legal-caveat copy intentionally falls back to English until product/legal approves localized wording.
+
+Country-pack notification drafts should converge on the generic `NotificationDraft.payloadJson` envelope model with a versioned schema key such as `ro.nis2.registration_notification.v1`. Romania-specific draft tables remain compatibility/workflow companions for onboarding and classification links, not the pattern for every future country pack.
 
 ## Layout
 

@@ -1,4 +1,4 @@
-import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
+import { resolveLegalCaveatMessage, resolvePureSocLocale } from "@puresoc/shared";
 
 import type {
   InternalReadinessReport,
@@ -111,6 +111,7 @@ export interface BuildInternalReadinessReportInput {
   assessmentId: string;
   jurisdiction: string;
   generatedAt?: string;
+  locale?: string | null;
   catalogVersion?: string;
   analysisRecordedAt?: string;
   controlResults: readonly StoredAnalysisControlResult[];
@@ -135,6 +136,7 @@ export interface StoredRomaniaNotificationDraftInput {
   onboardingProgressId?: string;
   notificationDraftId?: string;
   generatedAt?: string;
+  locale?: string | null;
 }
 
 export const buildInternalReadinessReport = (
@@ -153,6 +155,8 @@ export const buildInternalReadinessReport = (
   const recommendations = (input.recommendations ?? []).map(toRecommendationSummary);
   const readinessPlan = input.readinessPlan ? toReadinessPlanSummary(input.readinessPlan) : undefined;
   const evidence = (input.evidence ?? []).map(toEvidenceSummary);
+  const locale = resolvePureSocLocale(input.locale).locale;
+  const legalCaveat = resolveLegalCaveatMessage(input.locale);
   const sourceReferences = uniqueSourceReferences([
     ...controlResults.flatMap((result) => result.sourceReferences),
     ...gaps.flatMap((gap) => gap.sourceReferences),
@@ -178,7 +182,11 @@ export const buildInternalReadinessReport = (
     jurisdiction: input.jurisdiction,
     reportType: "internal_readiness",
     generatedAt: input.generatedAt ?? new Date().toISOString(),
-    legalCaveat: PURESOC_LEGAL_CAVEAT,
+    legalCaveat: legalCaveat.text,
+    legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
+    legalCaveatLocale: legalCaveat.resolvedLocale,
+    legalCaveatMessageKey: legalCaveat.messageKey,
+    locale,
     sourceReferences,
     controlResults,
     gaps,
@@ -196,6 +204,8 @@ export const buildInternalReadinessReport = (
 export const buildRomaniaNotificationDraftExport = (
   input: StoredRomaniaNotificationDraftInput
 ): RomaniaNotificationDraftExport => {
+  const locale = resolvePureSocLocale(input.locale).locale;
+  const legalCaveat = resolveLegalCaveatMessage(input.locale);
   const sourceMappedFields = input.sourceMappedFields.map((field) => ({
     fieldKey: field.fieldKey,
     value: field.value,
@@ -218,7 +228,11 @@ export const buildRomaniaNotificationDraftExport = (
     jurisdiction: "RO",
     reportType: "romania_notification_draft",
     generatedAt: input.generatedAt ?? new Date().toISOString(),
-    legalCaveat: PURESOC_LEGAL_CAVEAT,
+    legalCaveat: legalCaveat.text,
+    legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
+    legalCaveatLocale: legalCaveat.resolvedLocale,
+    legalCaveatMessageKey: legalCaveat.messageKey,
+    locale,
     status: input.status,
     payload: stableClone(input.payload),
     sourceMappedFields,

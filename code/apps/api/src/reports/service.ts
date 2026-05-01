@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import type { AuditWriter } from "@puresoc/audit";
-import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,
@@ -182,7 +181,7 @@ export class ReportApiService {
       reportType: input.reportType,
       jurisdiction: input.jurisdiction,
       status: "ready",
-      legalCaveat: PURESOC_LEGAL_CAVEAT,
+      legalCaveat: input.reportData.legalCaveat,
       sourceReferences: input.reportData.sourceReferences.map((reference) => reference.sourceRecordId),
       reportData: input.reportData,
       evidenceArtifactId,

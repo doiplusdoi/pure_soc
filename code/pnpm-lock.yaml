@@ -241,6 +241,9 @@ importers:
       '@puresoc/regulatory-sources':
         specifier: workspace:*
         version: link:../../../../regulatory-sources
+      '@puresoc/shared':
+        specifier: workspace:*
+        version: link:../../../../shared
     devDependencies:
       '@puresoc/database':
         specifier: workspace:*

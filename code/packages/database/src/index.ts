@@ -54,9 +54,11 @@ export type {
   EvidenceArtifactContract,
   EvidenceLinkContract,
   GeneratedReportContract,
+  NotificationDraftPayloadEnvelopeContract,
   NotificationDraftContract,
   ProviderActionRunContract,
   ProviderActionTemplateContract,
   ReadinessPlanContract,
-  ReadinessPlanItemContract
+  ReadinessPlanItemContract,
+  RoNis2NotificationDraftContract
 } from "./contracts/outputs";

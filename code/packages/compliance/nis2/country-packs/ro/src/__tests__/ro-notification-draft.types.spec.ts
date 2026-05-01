@@ -1,7 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import { classifyRoNis2Entity } from "../classification.service";
-import { buildRoNis2NotificationDraft, notificationDraftHasSourceMappedFields } from "../notification-draft.types";
+import {
+  buildRoNis2NotificationDraft,
+  notificationDraftHasSourceMappedFields,
+  RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY
+} from "../notification-draft.types";
 
 describe("ro notification draft data contract", () => {
   it("builds source-mapped notification draft fields without DNSC submission", () => {
@@ -45,13 +49,19 @@ describe("ro notification draft data contract", () => {
 
     expect(draft.jurisdiction).toBe("RO");
     expect(draft.notificationType).toBe("ro_nis2_registration_notification");
-    expect(draft.submission).toEqual({
+    expect(draft.submission).toMatchObject({
       submittedAt: null,
       submittedToDnsc: false
     });
+    expect(draft.payloadSchemaKey).toBe(RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY);
+    expect(draft.payloadSchemaVersion).toBe("1.0.0");
+    expect(draft.locale).toBe("en");
+    expect(draft.legalCaveatMessageKey).toBe("puresoc.legal_caveat.internal_readiness.v1");
     expect(draft.legalCaveat).toContain("not a legal opinion");
     expect(notificationDraftHasSourceMappedFields(draft)).toBe(true);
     expect(draft.fields.find((field) => field.key === "notification_c10")).toMatchObject({
+      labelMessageKey: "country_pack.ro.nis2.notification.notification_c10.label",
+      labelLocale: "en",
       sourceMapId: "ro-nis2-notification_draft_mapping-notification_c10",
       targetCell: "C10",
       value: "12345678"

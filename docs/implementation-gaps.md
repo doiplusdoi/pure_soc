@@ -429,12 +429,23 @@ Status: Open; created 2026-05-01 by PLAN_M21.
 
 Severity: Medium
 Area: Database/regulatory data quality
-Current state: PLAN_M22 added deterministic drift checks to `pnpm lint`. The schema check covers 19 high-risk persisted models and 308 fields across audit logs, provider raw/normalized resources, provider findings/recommendations, compliance results/gaps/readiness plans, evidence artifacts/access logs, billing subscriptions/entitlements/events, regulatory source versions/review tasks, remediation action runs, generated reports, and dashboard snapshots. The generated-data check covers `ro-nis2.seed.generated.json` and `ro-nis2-source-map.generated.json` against importer output.
-Impact: REC-110 and REC-113 are narrowed for the named high-risk surfaces, but lower-risk or less mature persisted models can still drift silently. Excluded surfaces include identity/org/RBAC/session persistence models, provider connection/capability/sync metadata, checklist/risk-acceptance tables, evidence links/report exports/dashboard widgets, notification draft tables, Romania onboarding/classification persistence tables, billing customers, regulatory source/source-map/decision tables, and the generated Romania import report artifact.
-Next action: Expand the drift maps as each excluded surface receives production adapters or customer-facing workflows; decide whether `ro-nis2-import-report.generated.json` should become a lint-gated artifact or remain a diagnostic output.
+Current state: PLAN_M22 added deterministic drift checks to `pnpm lint`. PLAN_M23 expanded the selected schema drift map to include generic `NotificationDraft` and `RoNis2NotificationDraft` table fields after ADR-016 chose generic notification-draft envelopes with Romania compatibility/workflow companions. The schema check now covers 21 high-risk persisted models and the generated-data check covers `ro-nis2.seed.generated.json` and `ro-nis2-source-map.generated.json` against importer output.
+Impact: REC-110, REC-112, and REC-113 are narrowed for the named high-risk surfaces, but lower-risk or less mature persisted models can still drift silently. Excluded surfaces include identity/org/RBAC/session persistence models, provider connection/capability/sync metadata, checklist/risk-acceptance tables, evidence links/report exports/dashboard widgets, Romania onboarding/classification persistence tables, billing customers, regulatory source/source-map/decision tables, full notification-draft envelope payload semantics, and the generated Romania import report artifact.
+Next action: Expand the drift maps as each excluded surface receives production adapters or customer-facing workflows; add payload-envelope semantic checks when the M24 generic notification draft persistence slice is implemented; decide whether `ro-nis2-import-report.generated.json` should become a lint-gated artifact or remain a diagnostic output.
 Owner: Codex
 Target phase: Phase K/data-quality hardening
-Status: Open; created 2026-05-01 by PLAN_M22.
+Status: Open; created 2026-05-01 by PLAN_M22 and narrowed 2026-05-01 by PLAN_M23 for notification draft table field drift.
+
+### GAP-042: Romanian Product Copy, Message Catalog Runtime, And Notification Draft Migration Deferred
+
+Severity: Medium
+Area: i18n/country-pack notifications
+Current state: PLAN_M23 added ADR-016, shared locale/legal-caveat fallback contracts, country-pack notification envelope helpers, Romania notification label message keys, report legal-caveat locale metadata, and selected notification draft table drift coverage. Supported contract locales are `en` and `ro`, but only the English legal caveat is active. Romania legal-caveat copy, a broader message catalog, served frontend i18n wiring, persisted generic notification draft writes, and migration/backfill from existing `RoNis2NotificationDraft` payloads remain deferred.
+Impact: Reports and drafts now expose fallback state instead of silently pretending Romanian product copy exists, and future country packs have a generic draft direction. Customer-facing Romanian UI/export copy will still be mixed-language until product/legal approves Romanian product text and the runtime consumes the message catalog. Persisted generic notification draft migration is not complete yet.
+Next action: Implement the M24 generic notification-draft envelope persistence slice, add product/legal-approved Romanian caveat/message entries when available, wire report/UI consumers to the catalog, and add migration/backfill tests for existing Romania drafts.
+Owner: Codex/Product/legal
+Target phase: Phase K/i18n and country-pack export hardening
+Status: Open; created 2026-05-01 by PLAN_M23.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

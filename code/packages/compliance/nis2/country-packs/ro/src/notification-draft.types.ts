@@ -1,4 +1,10 @@
 import {
+  countryPackNotificationPayloadSchemaKey,
+  resolveLegalCaveatMessage,
+  resolvePureSocLocale,
+  type PureSocLocale
+} from "@puresoc/country-packs-core";
+import {
   RO_NIS2_SOURCE_VERSION,
   type Nis2Classification,
   type RoNis2SourceMapLink,
@@ -11,6 +17,8 @@ export type RoNis2NotificationDraftStatus = "draft" | "ready_for_review" | "expo
 export interface RoNis2NotificationDraftField {
   key: string;
   label: string;
+  labelLocale: PureSocLocale;
+  labelMessageKey: string;
   sourceMapId: string;
   sourceReferences: readonly RoNis2SourceReference[];
   targetCell: string;
@@ -27,23 +35,42 @@ export interface RoNis2NotificationDraftJson {
   generatedAt: string;
   jurisdiction: "RO";
   legalCaveat: string;
+  legalCaveatFallbackUsed: boolean;
+  legalCaveatLocale: PureSocLocale;
+  legalCaveatMessageKey: string;
+  locale: PureSocLocale;
   notificationType: "ro_nis2_registration_notification";
+  payloadSchemaKey: string;
+  payloadSchemaVersion: string;
   sourceMapLinks: RoNis2SourceMapLink[];
   sourceVersion: string;
   status: RoNis2NotificationDraftStatus;
   submission: {
+    notice: string;
     submittedAt: null;
     submittedToDnsc: false;
   };
 }
 
-export const RO_NIS2_NOTIFICATION_LEGAL_CAVEAT =
-  "PureSOC prepares an internal Romania NIS2 notification-form draft from source-mapped workbook fields. It does not submit to DNSC and is not a legal opinion, certification, or guarantee of compliance.";
+export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY = countryPackNotificationPayloadSchemaKey({
+  countryCode: "RO",
+  frameworkKey: "nis2",
+  majorVersion: 1,
+  notificationKind: "registration_notification"
+});
+
+export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION = "1.0.0";
+
+export const RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE =
+  "PureSOC prepares an internal Romania NIS2 notification-form draft from source-mapped workbook fields. PureSOC does not submit this draft to DNSC.";
+
+export const RO_NIS2_NOTIFICATION_LEGAL_CAVEAT = resolveLegalCaveatMessage("en").text;
 
 interface NotificationMapping {
   answerPath?: string;
   key: string;
   label: string;
+  labelMessageKey: string;
   sourceMapId: string;
   sourceReferences: readonly RoNis2SourceReference[];
   targetCell: string;
@@ -61,6 +88,7 @@ const notificationMapping = (
   answerPath,
   key,
   label,
+  labelMessageKey: `country_pack.ro.nis2.notification.${key}.label`,
   sourceMapId,
   sourceReferences,
   targetCell
@@ -159,11 +187,16 @@ export const buildRoNis2NotificationDraft = (input: {
   answers: RoNis2OnboardingAnswers;
   classification: Nis2Classification;
   generatedAt?: string;
+  locale?: string | null;
   status?: RoNis2NotificationDraftStatus;
 }): RoNis2NotificationDraftJson => {
+  const locale = resolvePureSocLocale(input.locale).locale;
+  const legalCaveat = resolveLegalCaveatMessage(input.locale);
   const fields = NOTIFICATION_MAPPINGS.map((mapping) => ({
     key: mapping.key,
     label: mapping.label,
+    labelLocale: "en" as const,
+    labelMessageKey: mapping.labelMessageKey,
     sourceMapId: mapping.sourceMapId,
     sourceReferences: mapping.sourceReferences,
     targetCell: mapping.targetCell,
@@ -190,12 +223,19 @@ export const buildRoNis2NotificationDraft = (input: {
     frameworkKey: "nis2",
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     jurisdiction: "RO",
-    legalCaveat: RO_NIS2_NOTIFICATION_LEGAL_CAVEAT,
+    legalCaveat: legalCaveat.text,
+    legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
+    legalCaveatLocale: legalCaveat.resolvedLocale,
+    legalCaveatMessageKey: legalCaveat.messageKey,
+    locale,
     notificationType: "ro_nis2_registration_notification",
+    payloadSchemaKey: RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY,
+    payloadSchemaVersion: RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION,
     sourceMapLinks,
     sourceVersion: RO_NIS2_SOURCE_VERSION,
     status: input.status ?? "draft",
     submission: {
+      notice: RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE,
       submittedAt: null,
       submittedToDnsc: false
     }

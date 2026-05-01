@@ -12,6 +12,8 @@ Keep entries short, specific, and actionable.
 - Regulatory workbook/source mappings are application data under `code/data/regulatory`; do not hardcode workbook-derived rules in UI code.
 - Provider write/remediation actions stay disabled until audit logging, approval, preflight, snapshots, verification, and evidence metadata exist.
 - Cross-package TypeScript imports must use `@puresoc/*` package exports; `code/scripts/check-layout.mjs` rejects deep relative package imports, deep package subpaths, and missing workspace dependency declarations.
+- Legal-caveat copy is message-keyed and falls back to English for Romanian locale until product/legal approves Romanian wording.
+- Future country-pack notification drafts should use the generic `NotificationDraft.payloadJson` envelope with a versioned schema key; Romania-specific draft tables are compatibility/workflow companions, not the default pattern for new countries.
 
 ## How To Add Learnings
 

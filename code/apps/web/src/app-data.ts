@@ -1,7 +1,12 @@
 import { aggregateDashboardFromStoredAnalysis, type DashboardSnapshotContract } from "@puresoc/dashboards";
 import type { ActionRun } from "@puresoc/recommendations";
 import type { InternalReadinessReport, ReportEvidenceSummary, ReportSourceReference } from "@puresoc/reports";
-import { PURESOC_LEGAL_CAVEAT, type ActionableSeverity, type SourceReference } from "@puresoc/shared";
+import {
+  LEGAL_CAVEAT_MESSAGE_KEY,
+  PURESOC_LEGAL_CAVEAT,
+  type ActionableSeverity,
+  type SourceReference
+} from "@puresoc/shared";
 
 export type OperationalStatus = "ready" | "in_progress" | "attention" | "blocked" | "review_required";
 
@@ -232,6 +237,10 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
     reportType: "internal_readiness",
     generatedAt,
     legalCaveat: PURESOC_LEGAL_CAVEAT,
+    legalCaveatFallbackUsed: false,
+    legalCaveatLocale: "en",
+    legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+    locale: "en",
     sourceReferences: [euArticle21, roWorkbookSource],
     controlResults: [],
     gaps: [],

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
+import { LEGAL_CAVEAT_MESSAGE_KEY, PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,
@@ -70,6 +70,10 @@ describe("reports exports stable JSON contracts", () => {
 
     expect(report.legalCaveat).toBe(PURESOC_LEGAL_CAVEAT);
     expect(report.legalCaveat).toContain("not a legal opinion");
+    expect(report.legalCaveatMessageKey).toBe(LEGAL_CAVEAT_MESSAGE_KEY);
+    expect(report.legalCaveatLocale).toBe("en");
+    expect(report.legalCaveatFallbackUsed).toBe(false);
+    expect(report.locale).toBe("en");
     expect(report.provenance.source).toBe("stored_analysis");
     expect(report.sourceReferences).toHaveLength(1);
     expect(report.gaps[0]?.sourceReferences[0]?.sourceRecordId).toBe("eu-nis2-art-21");
@@ -81,6 +85,7 @@ describe("reports exports stable JSON contracts", () => {
       assessmentId: "assessment_ro",
       status: "draft",
       generatedAt: "2026-04-30T10:00:00.000Z",
+      locale: "ro-RO",
       payload: {
         entityName: "Example SRL",
         contactEmail: "security@example.test"
@@ -103,6 +108,9 @@ describe("reports exports stable JSON contracts", () => {
     });
 
     expect(exportData.legalCaveat).toContain("not a legal opinion");
+    expect(exportData.locale).toBe("ro");
+    expect(exportData.legalCaveatLocale).toBe("en");
+    expect(exportData.legalCaveatFallbackUsed).toBe(true);
     expect(exportData.sourceMappedFields[0]).toMatchObject({
       fieldKey: "entityName",
       value: "Example SRL"

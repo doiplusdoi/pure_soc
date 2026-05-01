@@ -44,7 +44,8 @@ export const roNis2NotificationDraftRoute = async (body: Record<string, unknown>
     draft: buildRoNis2NotificationDraft({
       answers: (body.answers ?? {}) as RoNis2OnboardingAnswers,
       classification: body.classification as Nis2Classification,
-      generatedAt: typeof body.generatedAt === "string" ? body.generatedAt : undefined
+      generatedAt: typeof body.generatedAt === "string" ? body.generatedAt : undefined,
+      locale: typeof body.locale === "string" ? body.locale : undefined
     })
   }
 });
