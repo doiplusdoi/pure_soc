@@ -5,7 +5,10 @@
   "type": "module",
   "packageManager": "pnpm@10.33.2",
   "scripts": {
-    "lint": "node scripts/check-layout.mjs && tsc -p tsconfig.base.json --noEmit",
+    "drift": "jiti scripts/check-schema-contract-drift.ts && jiti scripts/check-generated-regulatory-drift.ts",
+    "drift:regulatory": "jiti scripts/check-generated-regulatory-drift.ts",
+    "drift:schema": "jiti scripts/check-schema-contract-drift.ts",
+    "lint": "node scripts/check-layout.mjs && jiti scripts/check-schema-contract-drift.ts && jiti scripts/check-generated-regulatory-drift.ts && tsc -p tsconfig.base.json --noEmit",
     "typecheck": "tsc -p tsconfig.base.json --noEmit",
     "test": "vitest run",
     "test:e2e": "node scripts/run-ui-smoke.mjs",

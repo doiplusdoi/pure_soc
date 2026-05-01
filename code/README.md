@@ -14,6 +14,19 @@ docker compose -f infra/compose/docker-compose.yml config
 
 Repository-level docs remain in `../docs/`. App code, packages, tests, runtime config, Compose files, Dockerfiles, scripts, and regulatory seed data belong here.
 
+## Drift Checks
+
+`pnpm lint` includes two deterministic local drift checks before TypeScript:
+
+```sh
+pnpm drift:schema
+pnpm drift:regulatory
+```
+
+`drift:schema` parses `packages/database/prisma/schema.prisma` and checks selected high-risk persisted models against explicit field expectations for audit, provider telemetry, compliance outputs, evidence, billing, regulatory review, remediation actions, reports, and dashboards.
+
+`drift:regulatory` regenerates Romania NIS2 seed and source-map artifacts in memory from `data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx` and compares them with the checked-in generated JSON. It does not fetch public regulatory URLs or activate legal logic.
+
 ## Prisma
 
 Prisma commands run from this directory and expect `DATABASE_URL` in the environment or an ignored local `code/.env` file:

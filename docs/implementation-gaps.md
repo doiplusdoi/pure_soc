@@ -425,6 +425,17 @@ Owner: Codex/DevOps/Security
 Target phase: Phase K
 Status: Open; created 2026-05-01 by PLAN_M21.
 
+### GAP-041: Drift Detection Coverage Is Deliberately Selected, Not Exhaustive
+
+Severity: Medium
+Area: Database/regulatory data quality
+Current state: PLAN_M22 added deterministic drift checks to `pnpm lint`. The schema check covers 19 high-risk persisted models and 308 fields across audit logs, provider raw/normalized resources, provider findings/recommendations, compliance results/gaps/readiness plans, evidence artifacts/access logs, billing subscriptions/entitlements/events, regulatory source versions/review tasks, remediation action runs, generated reports, and dashboard snapshots. The generated-data check covers `ro-nis2.seed.generated.json` and `ro-nis2-source-map.generated.json` against importer output.
+Impact: REC-110 and REC-113 are narrowed for the named high-risk surfaces, but lower-risk or less mature persisted models can still drift silently. Excluded surfaces include identity/org/RBAC/session persistence models, provider connection/capability/sync metadata, checklist/risk-acceptance tables, evidence links/report exports/dashboard widgets, notification draft tables, Romania onboarding/classification persistence tables, billing customers, regulatory source/source-map/decision tables, and the generated Romania import report artifact.
+Next action: Expand the drift maps as each excluded surface receives production adapters or customer-facing workflows; decide whether `ro-nis2-import-report.generated.json` should become a lint-gated artifact or remain a diagnostic output.
+Owner: Codex
+Target phase: Phase K/data-quality hardening
+Status: Open; created 2026-05-01 by PLAN_M22.
+
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 
 Severity: High

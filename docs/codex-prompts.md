@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M21, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M21.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 21 / `docs/PLAN_M22.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M22, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M22.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec2.md`, and staging Prompt 22 / `docs/PLAN_M23.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -51,6 +51,7 @@ The repository currently contains:
 - PLAN_M19 job runtime baseline: `@puresoc/jobs` now provides typed job registration, dispatch results, retry/failure metadata, idempotent in-memory queue behavior, graceful shutdown hooks, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops for remediation metadata validation, regulatory source monitoring, and read-only provider sync. GAP-037 is narrowed but remains open for live Redis/BullMQ durability; GAP-030 remains open because provider write execution is still disabled.
 - PLAN_M20 API middleware baseline: the `node:http` API server now has shared request context and route-family classification, trusted-Origin/Referer checks for state-changing browser routes with explicit webhook/OIDC/provider callback exemptions, configurable in-memory fixed-window rate limits keyed by unauthenticated IP or authenticated user/organization, and focused tests proving middleware ordering, Stripe raw-body preservation, and evidence/body-limit compatibility. GAP-035 is narrowed and GAP-038 tracks distributed rate limiting, proxy-aware IP trust, and strict CSRF-token rollout.
 - PLAN_M21 audit integrity/provider key handling: `@puresoc/audit` now emits per-organization/global hash-chain metadata with a redacted canonical payload and in-memory tamper verification helpers; Prisma audit integrity columns/migration exist for future persisted sinks; Microsoft 365 token encryption now writes key IDs, decrypts active/previous/legacy envelopes, and production startup rejects unsafe local-dev provider token keys. GAP-039 and GAP-040 track external audit signing/WORM/retention and live KMS/key-rotation smoke.
+- PLAN_M22 schema/generated-data drift detection: `pnpm lint` now runs deterministic local checks that parse selected high-risk Prisma models against explicit contract field expectations, and regenerate Romania NIS2 seed/source-map artifacts in memory to diff against checked-in JSON. GAP-041 tracks intentionally excluded drift surfaces and the Romania import report artifact.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -79,7 +80,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 18 / `docs/PLAN_M19.md` is completed.
 - Prompt 19 / `docs/PLAN_M20.md` is completed.
 - Prompt 20 / `docs/PLAN_M21.md` is completed.
-- Prompt 21 / `docs/PLAN_M22.md` is staged as the next active implementation prompt.
+- Prompt 21 / `docs/PLAN_M22.md` is completed.
+- Prompt 22 / `docs/PLAN_M23.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -94,12 +96,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 21 / `docs/PLAN_M22.md`: Schema And Generated Data Drift Detection.
-2. Expected next handoff after M22: i18n And Country-Pack Notification Model Decision, unless M22 implementation results require a different next slice.
+1. Prompt 22 / `docs/PLAN_M23.md`: i18n And Country-Pack Notification Model Decision.
+2. Expected next handoff after M23: expand the decided notification/i18n model into a small implementation slice, unless M23 findings require a different release-hardening task first.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 21 / PLAN_M22: Schema And Generated Data Drift Detection
+## Active Prompt 22 / PLAN_M23: i18n And Country-Pack Notification Model Decision
 
 Read:
 
@@ -110,55 +112,57 @@ Read:
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
 - `docs/claude_rec2.md`
-- `docs/PLAN_M21.md`
+- `docs/PLAN_M22.md`
 - `docs/adr/ADR-005-regulatory-seed-and-source-map-format.md`
+- `code/packages/reports/src/**`
+- `code/packages/compliance/nis2/country-packs/ro/src/**`
+- `code/packages/database/prisma/schema.prisma`
 
 Goal:
 
-Add cheap, deterministic drift detection for two historic failure classes: Prisma-schema versus TypeScript contract drift, and generated regulatory seed/source-map drift from source importers.
+Make an explicit product/architecture decision for two related issues before the next country-pack or customer-facing notification export work: localized message handling for English/Romanian surfaces, and whether country-pack notification drafts should converge on the generic `NotificationDraft` model or keep country-specific tables.
 
 Context:
 
-- `docs/claude_rec2.md` REC-110 notes that schema/TypeScript contract drift has been a recurring bug class.
-- REC-113 notes that Romania importer outputs are deterministic but checked-in generated seed/source-map files are not diff-checked by lint.
-- M21 added Prisma audit integrity fields; M22 should make future contract/schema changes harder to forget.
-- Keep the check deterministic and local. Do not run live regulatory URL fetches or require Microsoft/Stripe/OIDC/provider credentials.
+- `docs/claude_rec2.md` REC-111 notes that i18n is not modeled despite the Romania-first product.
+- REC-112 notes that `NotificationDraft` and `RoNis2NotificationDraft` overlap and future country packs need a clear strategy.
+- M22 added drift checks, but GAP-041 leaves notification draft tables and some generated diagnostic artifacts outside the first drift map.
+- The product must preserve legal caveats and must not claim legal certification in any language.
 
 Deliverables:
 
-- Add a schema/contract drift check that compares selected Prisma model fields to TypeScript contract expectations for the highest-risk persisted surfaces: audit logs, provider resources/findings/recommendations, compliance results/gaps/recommendations/readiness plans, evidence artifacts/access logs, billing events/subscriptions/entitlements, regulatory source versions/review tasks, remediation action runs, generated reports, and dashboard snapshots.
-- Prefer a static/scripted check that reads `code/packages/database/prisma/schema.prisma` and explicit expected field maps over broad runtime reflection that requires a live database.
-- Add a generated-data drift check for Romania workbook outputs so `ro-nis2.seed.generated.json` and `ro-nis2-source-map.generated.json` cannot diverge silently from `apps/regulatory-importer` logic and the checked-in workbook.
-- Wire the drift checks into `npm run lint`/`pnpm lint` only if they are fast and deterministic; otherwise add named scripts and document why lint wiring is deferred.
-- Add tests for the drift-check scripts themselves, including at least one negative fixture or intentional mismatch case.
-- Update docs/gaps/prompts and create `docs/PLAN_M23.md` from the next selected active prompt before final response.
+- Add or update an ADR documenting the i18n/message strategy and the country-pack notification-draft persistence strategy.
+- Define the minimal locale model needed now: supported locales, fallback behavior, message-key ownership, how legal caveats are represented, and how country-pack guidance/notification labels remain source-mapped data instead of UI conditionals.
+- Decide whether future country packs use generic `NotificationDraft.payloadJson` plus a versioned schema key, country-specific tables, or a hybrid; document the migration/compatibility posture for existing Romania draft data.
+- Add small contract-level types or fixtures only if they clarify the decision without becoming a broad implementation.
+- Add tests or static checks for any new contract helpers, especially legal-caveat fallback and source-mapped message keys if implemented.
+- Update docs/gaps/prompts and create `docs/PLAN_M24.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/package.json`
-- `code/scripts/check-layout.mjs` or new focused drift scripts under `code/scripts/`
-- `code/packages/database/src/**` or `code/tests/**` for schema/contract drift expectations
-- `code/apps/regulatory-importer/src/ro/**` and/or `code/scripts/**` for generated regulatory drift checks
-- `code/data/regulatory/countries/ro/ro-nis2.seed.generated.json`
-- `code/data/regulatory/countries/ro/ro-nis2-source-map.generated.json`
+- `docs/adr/ADR-016-*.md` or another next-number ADR if ADR-016 already exists
+- `code/packages/reports/src/**`
+- `code/packages/compliance/nis2/country-packs/core/src/**`
+- `code/packages/compliance/nis2/country-packs/ro/src/**`
+- `code/packages/database/src/contracts/**`
+- `code/tests/**`
 - `README.md`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M22.md`
 - `docs/PLAN_M23.md`
+- `docs/PLAN_M24.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not introduce a live database requirement for drift checks.
-- Do not fetch public regulatory URLs or rely on live network access.
-- Do not manually edit generated Romania seed/source-map outputs to make drift pass; fix importer logic or regenerate deterministically.
 - Do not add provider write/remediation execution.
 - Do not add Romania-specific logic outside Romania country-pack/importer surfaces.
 - Do not add Microsoft-specific logic outside Microsoft provider/config surfaces.
 - Do not hardcode regulatory facts in UI conditionals.
 - Do not make legal certification claims.
+- Do not translate or paraphrase legal/regulatory source text as if it were authoritative unless a reviewed source provides that language.
+- Do not implement a broad served frontend/i18n runtime unless the decision slice proves it is necessary.
 - Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests.
 
 Tests and acceptance commands:
@@ -167,21 +171,22 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- database schema drift regulatory-import ro
+pnpm test -- reports compliance ro notification i18n
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M22.md`.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M23.md`.
 
 Expected gap movement:
 
-- Address or narrow schema/TypeScript drift risk from REC-110.
-- Address or narrow Romania importer generated-output drift risk from REC-113.
+- Address or narrow i18n/message-model risk from REC-111.
+- Address or narrow notification-draft model overlap from REC-112.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve runtime/browser/live integration gaps unless M22 directly validates them.
-- Create or update gaps for any generated artifact, Prisma model, or contract surface intentionally excluded from the first drift map.
+- Preserve runtime/browser/live integration gaps unless M23 directly validates them.
+- Update GAP-041 if notification draft surfaces are added to or intentionally remain outside drift coverage.
+- Create or update gaps for any locale, legal-review, translation, or migration work intentionally deferred.
 
 Final response must include:
 
@@ -189,10 +194,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M22` updated
-- `PLAN_M23` created
+- `PLAN_M23` updated
+- `PLAN_M24` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 21 / PLAN_M22: Schema And Generated Data Drift Detection
+
+Completed on 2026-05-01.
+
+Summary:
+- Added `scripts/check-schema-contract-drift.ts`, a static Prisma parser plus explicit high-risk field expectations for 19 models and 308 fields.
+- Added `scripts/check-generated-regulatory-drift.ts`, which regenerates Romania NIS2 seed/source-map artifacts in memory and compares them with checked-in generated JSON.
+- Wired both deterministic local checks into `pnpm lint` and added named `drift`, `drift:schema`, and `drift:regulatory` scripts.
+- Added `tests/drift-checks.spec.ts` with real-schema/generated-artifact pass cases and intentional mismatch fixtures.
+- GAP-041 records that the drift map is selected rather than exhaustive, including excluded notification draft surfaces and the generated Romania import report.
+
+Validated with host-node equivalents because `pnpm`/`npm` were not available inside the sandbox:
+- `npm run lint`
+- `npm run test -- database schema drift regulatory-import ro`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
 
 ## Completed Prompt 20 / PLAN_M21: Audit Log Integrity And Provider Key Handling
 
