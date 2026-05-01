@@ -8,6 +8,7 @@ import {
 import {
   InMemoryOidcAuthorizationStateStore,
   OidcSocialLoginService,
+  type OidcAuthorizationStateStore,
   type OidcIdentityRepository,
   type OauthProfileClient,
   type OidcProviderConfig,
@@ -35,6 +36,7 @@ import {
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
   PrismaOutputRecordRepository,
+  PrismaOidcAuthorizationStateStore,
   PrismaAuditSink,
   PrismaProviderResourceStore,
   PrismaIdentityOrganizationRbacRepository,
@@ -143,7 +145,7 @@ export const createApiServices = (
   const oidcAuth = new OidcSocialLoginService({
     repository: runtimeRepositories.identityRepository,
     auditWriter,
-    stateStore: new InMemoryOidcAuthorizationStateStore(),
+    stateStore: runtimeRepositories.oidcAuthorizationStateStore,
     providers: toOidcProviderConfigs(config),
     tokenClient: options.oidcTokenClient,
     tokenVerifier: options.oidcTokenVerifier,
@@ -274,6 +276,7 @@ interface RuntimeRepositorySet {
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
   providerResourceStore: InMemoryProviderResourceStore | PrismaProviderResourceStore;
+  oidcAuthorizationStateStore: OidcAuthorizationStateStore;
 }
 
 type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
@@ -299,7 +302,8 @@ const createRuntimeRepositories = (input: {
           "regulatory_sources",
           "remediation_actions",
           "notification_drafts",
-          "stored_analysis_reports_dashboards"
+          "stored_analysis_reports_dashboards",
+          "oidc_transient_state"
         ]
       },
       complianceResultRepository: new InMemoryComplianceResultRepository<RecommendationContract>(),
@@ -311,7 +315,8 @@ const createRuntimeRepositories = (input: {
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
       identityRepository: input.memoryRepository,
-      providerResourceStore: new InMemoryProviderResourceStore({ now: input.now })
+      providerResourceStore: new InMemoryProviderResourceStore({ now: input.now }),
+      oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore()
     };
   }
 
@@ -332,9 +337,10 @@ const createRuntimeRepositories = (input: {
         "remediation_actions",
         "notification_drafts",
         "provider_connections_and_telemetry",
-        "stored_analysis_reports_dashboards"
+        "stored_analysis_reports_dashboards",
+        "oidc_transient_state"
       ],
-      memoryBackedContexts: ["oidc_transient_state"]
+      memoryBackedContexts: []
     },
     prismaClient,
     auditSink,
@@ -346,7 +352,10 @@ const createRuntimeRepositories = (input: {
     notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
     identityRepository,
-    providerResourceStore: new PrismaProviderResourceStore(prismaClient as never, { now: input.now })
+    providerResourceStore: new PrismaProviderResourceStore(prismaClient as never, { now: input.now }),
+    oidcAuthorizationStateStore: new PrismaOidcAuthorizationStateStore(prismaClient as never, {
+      codeVerifierEncryptionKey: input.config.auth.socialLogin.transientStateEncryptionKey
+    })
   };
 };
 

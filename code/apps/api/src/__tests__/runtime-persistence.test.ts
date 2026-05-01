@@ -39,13 +39,15 @@ describe("API runtime persistence selection", () => {
       "remediation_actions",
       "notification_drafts",
       "provider_connections_and_telemetry",
-      "stored_analysis_reports_dashboards"
+      "stored_analysis_reports_dashboards",
+      "oidc_transient_state"
     ]);
-    expect(services.persistence.memoryBackedContexts).toEqual(["oidc_transient_state"]);
+    expect(services.persistence.memoryBackedContexts).toEqual([]);
     expect(services.persistence.memoryBackedContexts).not.toContain("audit_logs");
     expect(services.persistence.memoryBackedContexts).not.toContain("provider_connections_and_telemetry");
     expect(services.persistence.memoryBackedContexts).not.toContain("stored_analysis_reports_dashboards");
     expect(services.persistence.memoryBackedContexts).not.toContain("identity_sessions_organizations_rbac");
+    expect(services.persistence.memoryBackedContexts).not.toContain("oidc_transient_state");
     expect(services.prismaClient).toBe(prismaClient);
   });
 });
@@ -73,6 +75,7 @@ const createPrismaClientFixture = () =>
     emailVerificationToken: {},
     identityAccount: {},
     localCredential: {},
+    oidcAuthorizationState: {},
     organization: {},
     organizationMember: {},
     passwordResetToken: {},

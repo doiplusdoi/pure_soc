@@ -5,6 +5,7 @@ export const schemaGroups = {
     "local_credentials",
     "sessions",
     "mfa_factors",
+    "oidc_authorization_states",
     "organizations",
     "organization_members",
     "roles",

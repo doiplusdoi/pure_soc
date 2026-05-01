@@ -58,6 +58,12 @@ export {
   PrismaProviderResourceStore,
   type PrismaProviderResourceClient
 } from "./repositories/provider-resources";
+export {
+  PrismaOidcAuthorizationStateStore,
+  type PrismaOidcAuthorizationStateClient,
+  type PrismaOidcAuthorizationStateRecord,
+  type PrismaOidcAuthorizationStateStoreOptions
+} from "./repositories/oidc-authorization-state";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,

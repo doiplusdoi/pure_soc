@@ -26,8 +26,9 @@ describe("provider connections Prisma runtime persistence", () => {
     });
 
     expect(services.persistence.persistedContexts).toContain("provider_connections_and_telemetry");
+    expect(services.persistence.persistedContexts).toContain("oidc_transient_state");
     expect(services.persistence.memoryBackedContexts).not.toContain("provider_connections_and_telemetry");
-    expect(services.persistence.memoryBackedContexts).toEqual(["oidc_transient_state"]);
+    expect(services.persistence.memoryBackedContexts).toEqual([]);
 
     const created = await services.providerConnections.createMockConnection({
       organizationId: ORG_A,
@@ -119,6 +120,7 @@ class FakePrismaClient {
   readonly identityAccount = new FakeDelegate();
   readonly localCredential = new FakeDelegate();
   readonly notificationDraft = new FakeDelegate();
+  readonly oidcAuthorizationState = new FakeDelegate();
   readonly organization = new FakeDelegate();
   readonly organizationMember = new FakeDelegate();
   readonly passwordResetToken = new FakeDelegate();

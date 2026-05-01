@@ -41,7 +41,7 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:mig
 
 `PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.
 
-`PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary. OIDC transient authorization state remains memory-backed until a follow-up runtime slice adds its adapter.
+`PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, OIDC transient authorization state, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary.
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
@@ -54,6 +54,14 @@ PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS=previous-a=old-secret,previous-b=older-secr
 ```
 
 New Microsoft 365 credential envelopes include the active key ID. Decryption can use the active key or configured previous keys so rotation can be staged deliberately. Production startup rejects the checked-in local-dev key, but live KMS/secret-manager custody and rotation smoke remain release hardening work.
+
+OIDC/social-login callback state in Prisma mode stores state and nonce as hashes and stores the PKCE verifier in a local AES-GCM envelope. Configure the auth-owned envelope key with:
+
+```sh
+PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY=replace-with-secret-material
+```
+
+Production Prisma-mode startup rejects the checked-in local-dev OIDC transient-state key. Live Microsoft/Google/GitHub provider registration and callback smoke remain separate auth operations work.
 
 Audit records written through `@puresoc/audit` include `previousHash`, `entryHash`, `hashAlgorithm`, and a redacted canonical payload. The in-memory sink can verify per-organization and global chains for contract tests. This is tamper-evident metadata only; it is not WORM storage, external signing, or proof that a database administrator could not rewrite all rows.
 

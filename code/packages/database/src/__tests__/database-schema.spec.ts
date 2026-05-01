@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(77);
+    expect(requiredTables).toHaveLength(78);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -138,5 +138,15 @@ describe("database schema groups", () => {
     expect(modelBlocks.get("regulatory_review_tasks")).toContain("createdForStatus");
     expect(modelBlocks.get("regulatory_review_decisions")).toContain("RegulatoryReviewDecisionType");
     expect(modelBlocks.get("regulatory_source_maps")).toContain("sourceVersionId");
+  });
+
+  it("models OIDC transient authorization state without plaintext verifier storage", () => {
+    const model = modelBlocks.get("oidc_authorization_states");
+
+    expect(model).toContain("stateHash");
+    expect(model).toContain("nonceHash");
+    expect(model).toContain("codeVerifierEnvelope");
+    expect(model).not.toContain("codeVerifier String");
+    expect(model).not.toContain('@map("organization_id")');
   });
 });

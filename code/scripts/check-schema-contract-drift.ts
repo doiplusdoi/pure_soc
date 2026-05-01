@@ -90,6 +90,22 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "OidcAuthorizationStateRecord",
+    modelName: "OidcAuthorizationState",
+    tableName: "oidc_authorization_states",
+    fields: [
+      f("id", "String"),
+      s("providerKey", "AuthProviderKey", "provider_key"),
+      s("stateHash", "String", "state_hash"),
+      s("nonceHash", "String", "nonce_hash", { isOptional: true }),
+      s("codeVerifierEnvelope", "String", "code_verifier_envelope"),
+      s("redirectUri", "String", "redirect_uri"),
+      s("createdAt", "DateTime", "created_at"),
+      s("expiresAt", "DateTime", "expires_at"),
+      s("consumedAt", "DateTime", "consumed_at", { isOptional: true })
+    ]
+  },
+  {
     contractName: "ProviderConnectionRecord",
     modelName: "ProviderConnection",
     tableName: "provider_connections",

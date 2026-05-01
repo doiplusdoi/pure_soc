@@ -45,6 +45,9 @@ describe("loadConfig", () => {
     });
     expect(config.auth.localEnabled).toBe(true);
     expect(config.auth.sessionCookieSecure).toBe(false);
+    expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
+      "local-dev-oidc-transient-state-key-change-me"
+    );
     expect(config.connectors.readOnlyByDefault).toBe(true);
     expect(config.connectors.providerTokenEncryptionKeyId).toBe("local-dev");
     expect(config.connectors.providerTokenEncryptionKey).toBe("local-dev-provider-token-key-change-me");
@@ -101,6 +104,7 @@ describe("loadConfig", () => {
         PURESOC_API_RATE_LIMIT_TENANT_READ_MAX_REQUESTS: "99",
         PURESOC_AUTH_LOCAL_ENABLED: "false",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "test-oidc-transient-state-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
@@ -155,6 +159,9 @@ describe("loadConfig", () => {
     expect(config.api.rateLimits.routeFamilies.tenant_read?.maxRequests).toBe(99);
     expect(config.auth.localEnabled).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(true);
+    expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
+      "test-oidc-transient-state-key-with-enough-entropy"
+    );
     expect(config.connectors.providerTokenEncryptionKeyId).toBe("current-test");
     expect(config.connectors.providerTokenEncryptionKey).toBe("test-provider-token-key-with-enough-entropy");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([
@@ -248,6 +255,7 @@ describe("loadConfig", () => {
     const config = loadConfig({
       env: {
         PURESOC_APP_ENV: "production",
+        PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "false",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
@@ -261,6 +269,7 @@ describe("loadConfig", () => {
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         "production_secure_cookie_required",
+        "oidc_transient_state_key_required",
         "provider_token_key_required",
         "stripe_secret_key_required",
         "stripe_webhook_secret_required",
@@ -311,7 +320,9 @@ describe("loadConfig", () => {
     const config = loadConfig({
       env: {
         PURESOC_APP_ENV: "production",
+        PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "prod-oidc-transient-state-key-with-sufficient-entropy",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "prod-current",
         PURESOC_PROVIDER_TOKEN_KEY: "prod-provider-token-key-with-sufficient-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "prod-previous=previous-provider-token-key-with-sufficient-entropy",

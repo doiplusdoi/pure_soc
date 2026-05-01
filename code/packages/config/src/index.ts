@@ -39,6 +39,7 @@ export interface PureSocConfig {
     providers: string[];
     socialLogin: {
       stateTtlMs: number;
+      transientStateEncryptionKey: string;
       providers: Record<
         "microsoft_entra" | "google" | "github",
         {
@@ -164,6 +165,7 @@ export class StartupConfigValidationError extends Error {
 }
 
 export const localDevProviderTokenKey = "local-dev-provider-token-key-change-me" as const;
+export const localDevOidcTransientStateKey = "local-dev-oidc-transient-state-key-change-me" as const;
 
 const readJson = <T>(defaultsDir: string, name: string): T => {
   const filePath = resolve(defaultsDir, `${name}.json`);
@@ -332,6 +334,8 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       ),
       socialLogin: {
         ...config.auth.socialLogin,
+        transientStateEncryptionKey:
+          env.PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY ?? config.auth.socialLogin.transientStateEncryptionKey,
         providers: {
           microsoft_entra: withSocialLoginEnvOverrides(
             "PURESOC_AUTH_MICROSOFT_ENTRA",
@@ -619,6 +623,19 @@ export const collectStartupConfigIssues = (
       code: "provider_token_previous_key_default",
       path: "connectors.providerTokenEncryptionPreviousKeys",
       message: "Production startup cannot include the local-dev provider token key in previous keys."
+    });
+  }
+
+  if (
+    isProduction &&
+    config.app.persistenceMode === "prisma" &&
+    (!nonEmpty(config.auth.socialLogin.transientStateEncryptionKey) ||
+      config.auth.socialLogin.transientStateEncryptionKey === localDevOidcTransientStateKey)
+  ) {
+    issues.push({
+      code: "oidc_transient_state_key_required",
+      path: "auth.socialLogin.transientStateEncryptionKey",
+      message: "Production Prisma-mode OIDC callbacks require PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY."
     });
   }
 

@@ -134,6 +134,7 @@ class FakePrismaClient {
   readonly emailVerificationToken = new FakeDelegate();
   readonly identityAccount = new FakeDelegate();
   readonly localCredential = new FakeDelegate();
+  readonly oidcAuthorizationState = new FakeDelegate();
   readonly organization = new FakeDelegate();
   readonly organizationMember = new FakeDelegate();
   readonly passwordResetToken = new FakeDelegate();
