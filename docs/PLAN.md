@@ -23,13 +23,14 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-01, M1-M19 are implemented at contract/runtime-baseline level.
+As of 2026-05-01, M1-M20 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
 - M19 adds a shared job runtime baseline: typed job registry and dispatch results, in-memory idempotent queue/runner tests, BullMQ-ready adapter boundary, and worker/scheduler/connector-runner runtime loops for safety-checked remediation metadata, regulatory source monitoring, and read-only provider sync.
+- M20 adds a focused API middleware baseline for the existing `node:http` server: shared request context, route-family classification, trusted-Origin/Referer checks for browser state-changing routes, and configurable in-memory fixed-window rate limiting without consuming Stripe webhook raw bodies.
 - Runtime readiness is still partial. Identity/org/RBAC/session data, audit sink, provider telemetry, stored analysis/report records, dashboards, OIDC transient state, live Redis/BullMQ operation, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M20.md`, API Middleware And Rate-Limit Baseline.
+- Next planned milestone: `docs/PLAN_M21.md`, Audit Log Integrity And Provider Key Handling.
 
 ## Milestones
 
@@ -50,8 +51,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M19.md` record completed incremental milestones.
-- `docs/PLAN_M20.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M20.md` record completed incremental milestones.
+- `docs/PLAN_M21.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

@@ -3,5 +3,67 @@
     "jsonBodyMaxBytes": 15728640,
     "stripeWebhookRawBodyMaxBytes": 1048576,
     "evidenceUploadMaxBytes": 10485760
+  },
+  "security": {
+    "trustedOrigins": [
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001"
+    ],
+    "originProtection": {
+      "enabled": true,
+      "requireOriginOrReferer": false,
+      "exemptRouteFamilies": [
+        "webhook",
+        "oidc_callback",
+        "provider_callback"
+      ]
+    }
+  },
+  "rateLimits": {
+    "enabled": true,
+    "default": {
+      "windowMs": 60000,
+      "maxRequests": 120
+    },
+    "routeFamilies": {
+      "auth": {
+        "windowMs": 60000,
+        "maxRequests": 60
+      },
+      "oidc": {
+        "windowMs": 60000,
+        "maxRequests": 60
+      },
+      "webhook": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "evidence": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "billing": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "actions": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "regulatory": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "provider": {
+        "windowMs": 60000,
+        "maxRequests": 120
+      },
+      "tenant_read": {
+        "windowMs": 60000,
+        "maxRequests": 240
+      }
+    }
   }
 }

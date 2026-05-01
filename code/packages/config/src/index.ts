@@ -18,6 +18,19 @@ export interface PureSocConfig {
       stripeWebhookRawBodyMaxBytes: number;
       evidenceUploadMaxBytes: number;
     };
+    security: {
+      trustedOrigins: string[];
+      originProtection: {
+        enabled: boolean;
+        requireOriginOrReferer: boolean;
+        exemptRouteFamilies: string[];
+      };
+    };
+    rateLimits: {
+      enabled: boolean;
+      default: ApiRateLimitRuleConfig;
+      routeFamilies: Record<string, ApiRateLimitRuleConfig>;
+    };
   };
   auth: {
     localEnabled: boolean;
@@ -113,6 +126,11 @@ export interface PureSocConfig {
   };
 }
 
+export interface ApiRateLimitRuleConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
 export interface LoadConfigOptions {
   defaultsDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -164,6 +182,17 @@ const readOptionalString = (value: string | undefined, fallback: string | null):
 
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+};
+
+const readStringList = (value: string | undefined, fallback: string[]): string[] => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  return value
+    .split(/[,\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
 };
 
 const readPersistenceMode = (
@@ -218,6 +247,44 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
           env.PURESOC_EVIDENCE_MAX_UPLOAD_BYTES,
           config.api.requestLimits.evidenceUploadMaxBytes
         )
+      },
+      security: {
+        ...config.api.security,
+        trustedOrigins: normalizeOrigins([
+          ...readStringList(env.PURESOC_API_TRUSTED_ORIGINS, config.api.security.trustedOrigins),
+          env.PURESOC_PUBLIC_BASE_URL ?? config.app.publicBaseUrl,
+          env.PURESOC_API_BASE_URL ?? config.app.apiBaseUrl
+        ]),
+        originProtection: {
+          ...config.api.security.originProtection,
+          enabled: readBoolean(
+            env.PURESOC_API_ORIGIN_PROTECTION_ENABLED,
+            config.api.security.originProtection.enabled
+          ),
+          requireOriginOrReferer: readBoolean(
+            env.PURESOC_API_REQUIRE_ORIGIN_OR_REFERER,
+            config.api.security.originProtection.requireOriginOrReferer
+          ),
+          exemptRouteFamilies: readStringList(
+            env.PURESOC_API_ORIGIN_EXEMPT_ROUTE_FAMILIES,
+            config.api.security.originProtection.exemptRouteFamilies
+          )
+        }
+      },
+      rateLimits: {
+        ...config.api.rateLimits,
+        enabled: readBoolean(env.PURESOC_API_RATE_LIMIT_ENABLED, config.api.rateLimits.enabled),
+        default: {
+          windowMs: readPositiveInteger(
+            env.PURESOC_API_RATE_LIMIT_WINDOW_MS,
+            config.api.rateLimits.default.windowMs
+          ),
+          maxRequests: readPositiveInteger(
+            env.PURESOC_API_RATE_LIMIT_MAX_REQUESTS,
+            config.api.rateLimits.default.maxRequests
+          )
+        },
+        routeFamilies: withRateLimitEnvOverrides(config.api.rateLimits.routeFamilies, env)
       }
     },
     auth: {
@@ -527,6 +594,47 @@ const withSocialLoginEnvOverrides = <
 };
 
 const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
+const normalizeOrigins = (values: string[]): string[] => {
+  const origins = new Set<string>();
+
+  for (const value of values) {
+    const origin = toOrigin(value);
+    if (origin) {
+      origins.add(origin);
+    }
+  }
+
+  return [...origins].sort();
+};
+
+const toOrigin = (value: string): string | null => {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
+const withRateLimitEnvOverrides = (
+  routeFamilies: Record<string, ApiRateLimitRuleConfig>,
+  env: NodeJS.ProcessEnv
+): Record<string, ApiRateLimitRuleConfig> =>
+  Object.fromEntries(
+    Object.entries(routeFamilies).map(([family, rule]) => {
+      const envKeyPrefix = `PURESOC_API_RATE_LIMIT_${family.toUpperCase()}`
+        .replace(/[^A-Z0-9_]/g, "_")
+        .replace(/_+/g, "_");
+
+      return [
+        family,
+        {
+          windowMs: readPositiveInteger(env[`${envKeyPrefix}_WINDOW_MS`], rule.windowMs),
+          maxRequests: readPositiveInteger(env[`${envKeyPrefix}_MAX_REQUESTS`], rule.maxRequests)
+        }
+      ];
+    })
+  );
 
 const valueAtPath = (config: PureSocConfig, path: string): unknown =>
   path.split(".").reduce<unknown>((current, key) => {

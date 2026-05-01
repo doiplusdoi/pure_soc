@@ -24,7 +24,8 @@ Current repository state:
 
 - Git repository initialized on `main`.
 - Planning artifacts created for Codex-first implementation.
-- M1-M19 implementation slices are present under `code/`, including schema/contracts, auth/org/RBAC, EU/Romania regulatory foundations, provider connector contracts, Microsoft read-only modules, compliance/recommendation/report/evidence/billing/action foundations, runtime config validation, Docker entrypoints, and the shared job runtime baseline.
+- M1-M20 implementation slices are present under `code/`, including schema/contracts, auth/org/RBAC, EU/Romania regulatory foundations, provider connector contracts, Microsoft read-only modules, compliance/recommendation/report/evidence/billing/action foundations, runtime config validation, Docker entrypoints, the shared job runtime baseline, and API middleware/rate-limit protections.
 - Runtime persistence is environment-selectable with `PURESOC_PERSISTENCE_MODE=memory|prisma`; Prisma mode currently persists only the bounded contexts that already have adapters.
 - Worker, scheduler, and connector-runner now start typed job-runtime loops backed by an in-memory harness and a BullMQ-ready adapter boundary. Live Redis/BullMQ operation and provider-write execution remain deferred.
+- The API server now has a focused `node:http` middleware layer for request context, trusted-origin checks on browser state-changing routes, and configurable in-memory fixed-window rate limits. Distributed rate limiting and deployed browser/CORS smoke remain deferred.
 - Romania workbook is available to the application at `code/data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx`.

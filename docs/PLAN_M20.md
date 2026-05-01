@@ -4,8 +4,10 @@
 
 Implement Prompt 19 from `docs/codex-prompts.md`: add a focused API middleware baseline for the current `node:http` server, including shared request context helpers, Origin/Referer protection for browser state-changing requests, and configurable deterministic rate limiting.
 
-Status: staged for implementation after M19.
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-01.
+Completed: 2026-05-01.
 
 ## Source Inputs
 
@@ -40,6 +42,13 @@ Expected implementation areas:
 - Explicit route exemptions where browser Origin checks do not apply, especially Stripe webhook raw-body verification and provider/OIDC callback shapes.
 - Focused application to high-risk existing routes: auth/OIDC callbacks, evidence, billing, remediation actions, regulatory review actions, provider connection/sync routes, and other tenant state-changing APIs.
 - Tests for middleware ordering, rate-limit rejection, allowed/rejected origins, Stripe raw-body preservation, evidence upload limit compatibility, and auth/RBAC regression.
+
+Assumptions for implementation:
+
+- Keep the existing `node:http` dispatcher and add shared helpers around it; do not migrate to a new API framework in this milestone.
+- Treat Origin/Referer protection and rate limiting as contract-level controls. Deployed browser/CORS/cookie smoke remains tracked separately unless this run performs a real browser deployment smoke.
+- Preserve public provider/webhook callback behavior by applying explicit middleware policies per route family instead of a blanket body-consuming wrapper.
+- Use deterministic in-memory rate limiting for now; distributed/proxy-aware rate limiting remains a runtime hardening follow-up if not implemented here.
 
 Expected files:
 
@@ -111,32 +120,66 @@ If Docker/API runtime smoke is available, also run a bounded API smoke that prov
 
 ## Completion Log
 
-Not started.
+Completed 2026-05-01.
 
 Implementation results:
 
-- Pending.
+- Added `code/apps/api/src/middleware.ts` with shared request context, route-family classification, trusted-Origin/Referer validation for state-changing browser routes, and explicit exemptions for Stripe webhook, OIDC callback, and Microsoft/provider callback route families.
+- Added `code/apps/api/src/rate-limit.ts` with a deterministic in-memory fixed-window limiter.
+- Wired middleware into `apps/api/src/server.ts` before JSON/raw-body parsing for non-health routes, preserving Stripe raw-body verification.
+- Added typed API config defaults and environment overrides for trusted origins, origin protection toggles, route-family exemptions, and fixed-window rate-limit windows/counts.
+- Added focused middleware tests covering route classification, rate-limit responses, untrusted-Origin rejection before JSON parsing, trusted same-origin requests, Stripe raw-body preservation with webhook Origin exemption, and compatibility with existing auth/RBAC/evidence/body-limit behavior.
+- Updated docs and prompt handoff to mark M20 complete and stage M21.
 
 Changed files:
 
-- Pending.
+- `README.md`
+- `code/.env.example`
+- `code/README.md`
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/middleware.ts`
+- `code/apps/api/src/rate-limit.ts`
+- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
+- `code/config/defaults/api.json`
+- `code/packages/config/src/index.ts`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `docs/PLAN.md`
+- `docs/PLAN_M20.md`
+- `docs/PLAN_M21.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available, so host-node equivalents were used through `flatpak-spawn --host`.
+- `npm run lint` passed.
+- `npm run test -- api middleware rate-limit origin csrf auth billing evidence actions regulatory` passed: 31 test files, 104 tests.
+- `npm run test -- config` passed: 2 test files, 9 tests.
+- After provider-neutralizing the consent-callback route classifier, `npm run test -- middleware` passed: 1 test file, 6 tests, and `npm run lint` passed again.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- Bounded host API smoke passed: `/health` returned `status:"ok"`, and `POST /organizations/org_smoke/evidence/upload` with `Origin: https://evil.example.test` returned `403 origin_not_allowed` without requiring body parsing/auth first.
+- `git diff --check` passed.
+- New untracked files were checked for trailing whitespace with `rg -n "[ \t]$" ...`; no matches.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M20. The current code satisfies the route-family middleware, Origin, rate-limit, Stripe raw-body, evidence body-limit, and no-auth/RBAC-regression acceptance criteria.
 
 Gaps updated:
 
-- Pending.
+- GAP-035 narrowed for contract-level Origin/Referer protection while preserving deployed browser/CORS/cookie smoke as open.
+- GAP-038 created for distributed/shared rate limiting, proxy-aware client-IP trust policy, strict CSRF-token rollout, and deployed smoke follow-up.
 
 Prompt handoff:
 
-- Pending. M20 implementation must create `docs/PLAN_M21.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 19 / PLAN_M20 complete and stages Prompt 20 / PLAN_M21.
+- `docs/PLAN_M21.md` created for Audit Log Integrity And Provider Key Handling.
 
 Residual risk:
 
-- Pending.
+- Rate limiting is process-local and in-memory; multi-process/shared Redis-backed limits remain deferred in GAP-038.
+- IP extraction still relies on the existing request-context behavior and does not define a trusted reverse-proxy policy; deferred in GAP-038.
+- Origin/Referer checks are contract-level protections and do not replace a strict CSRF token for a future served browser runtime; deferred in GAP-038/GAP-035.
+- No live browser/CORS/cookie smoke was run; GAP-035 remains open.
+- Provider write/remediation execution remains disabled; GAP-030 remains open.

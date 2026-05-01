@@ -363,12 +363,12 @@ Status: Resolved 2026-05-01 for configurable parser limits, decoded evidence byt
 
 Severity: Medium
 Area: Auth/session operations
-Current state: PLAN_M14 wired configurable `Secure` session cookies through `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE`, while preserving the development default. The current API harness does not yet prove deployed TLS, CORS, SameSite behavior, reverse-proxy headers, or cookie clearing across real browser navigation.
-Impact: A misconfigured production deployment could issue session cookies without the expected browser protections or allow unintended cross-origin credentialed requests. Contract tests cover cookie attribute emission, not full browser/runtime behavior.
+Current state: PLAN_M14 wired configurable `Secure` session cookies through `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE`, while preserving the development default. PLAN_M20 added contract-level Origin/Referer allowlist checks for browser state-changing routes, with explicit webhook/OIDC/provider callback exemptions. The current API harness does not yet prove deployed TLS, CORS, SameSite behavior, reverse-proxy headers, or cookie clearing across real browser navigation.
+Impact: A misconfigured production deployment could issue session cookies without the expected browser protections or allow unintended cross-origin credentialed requests. Contract tests now cover cookie attribute emission and untrusted-Origin rejection, but not full browser/runtime behavior.
 Next action: Add a deployed/browser smoke that verifies `Secure`, `HttpOnly`, `SameSite`, logout clearing, expected origin/CORS policy, forwarded IP handling, and OIDC callback cookies in SaaS and in-a-box profiles.
 Owner: Codex/DevOps
 Target phase: Phase K
-Status: Open
+Status: Open; narrowed 2026-05-01 by PLAN_M20 for contract-level Origin/Referer protection.
 
 ### GAP-036: Prisma Runtime Mode Still Has Memory-Backed Contexts
 
@@ -391,6 +391,17 @@ Next action: Add a live Redis/BullMQ adapter implementation and bounded Compose 
 Owner: Codex/DevOps
 Target phase: Phase K runtime orchestration
 Status: Open but narrowed 2026-05-01 by PLAN_M19 for typed runtime loops, in-memory harness, idempotency/retry metadata, graceful shutdown tests, and BullMQ-ready boundary. Live Redis/BullMQ durability remains deferred.
+
+### GAP-038: Distributed Rate Limiting, Proxy-Aware IP Trust, And Strict CSRF Tokens Deferred
+
+Severity: Medium
+Area: API security/runtime
+Current state: PLAN_M20 added a shared API middleware layer for the existing `node:http` server, route-family classification, trusted-Origin/Referer checks for state-changing browser routes, explicit non-browser callback/webhook exemptions, and configurable in-memory fixed-window rate limits keyed by unauthenticated IP or authenticated user/organization. The limiter is deterministic and contract-tested, but it is process-local. The middleware continues to rely on the existing request-context IP extraction and does not introduce a CSRF token or reverse-proxy trust policy.
+Impact: A multi-process or multi-container deployment would not share rate-limit counters, reverse-proxy forwarding headers could be trusted incorrectly if ingress is misconfigured, and strict CSRF-token coverage is not yet available for the future served browser runtime.
+Next action: Before production internet exposure, add a Redis/BullMQ or dedicated shared rate-limit store, define a trusted-proxy/client-IP policy, decide whether browser routes require Origin/Referer headers strictly or a double-submit CSRF token, and cover the behavior in deployed browser/API smoke tests.
+Owner: Codex/DevOps/Security
+Target phase: Phase K
+Status: Open; created 2026-05-01 by PLAN_M20.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

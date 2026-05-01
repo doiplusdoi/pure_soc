@@ -34,6 +34,24 @@ Startup validation fails fast for production-sensitive combinations such as inse
 
 Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
 
+## API Middleware
+
+The API still uses the focused `node:http` server. M20 adds a shared middleware layer that runs before JSON body parsing for non-health routes. It creates a request context, classifies route families, applies trusted-Origin/Referer checks for browser state-changing requests, and enforces configurable in-memory fixed-window rate limits by unauthenticated IP or authenticated user/organization.
+
+Stripe webhooks and OIDC/Microsoft provider callbacks are explicit Origin-check exemptions so raw-body signature verification and external callback flows are not consumed or blocked by browser-only protections.
+
+Configure the contract-level middleware with:
+
+```sh
+PURESOC_API_TRUSTED_ORIGINS=http://localhost:3000,http://localhost:3001
+PURESOC_API_ORIGIN_PROTECTION_ENABLED=true
+PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=false
+PURESOC_API_RATE_LIMIT_ENABLED=true
+PURESOC_API_RATE_LIMIT_MAX_REQUESTS=120
+```
+
+Distributed rate limiting, proxy-aware client-IP trust policy, strict CSRF-token rollout, and deployed browser/CORS smoke remain tracked as release hardening work.
+
 The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and a BullMQ-ready adapter boundary. The worker validates remediation job safety metadata only and keeps provider write execution disabled. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
 
 `PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is modeled as an adapter boundary for future Redis-backed deployment work; live Redis/BullMQ calls are not claimed as production-ready by this milestone.

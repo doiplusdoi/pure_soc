@@ -15,6 +15,34 @@ describe("loadConfig", () => {
     expect(config.api.requestLimits.jsonBodyMaxBytes).toBe(15_728_640);
     expect(config.api.requestLimits.stripeWebhookRawBodyMaxBytes).toBe(1_048_576);
     expect(config.api.requestLimits.evidenceUploadMaxBytes).toBe(10_485_760);
+    expect(config.api.security.originProtection).toEqual({
+      enabled: true,
+      requireOriginOrReferer: false,
+      exemptRouteFamilies: ["webhook", "oidc_callback", "provider_callback"]
+    });
+    expect(config.api.security.trustedOrigins).toEqual([
+      "http://127.0.0.1:3000",
+      "http://127.0.0.1:3001",
+      "http://localhost:3000",
+      "http://localhost:3001"
+    ]);
+    expect(config.api.rateLimits).toMatchObject({
+      enabled: true,
+      default: {
+        windowMs: 60_000,
+        maxRequests: 120
+      },
+      routeFamilies: {
+        auth: {
+          windowMs: 60_000,
+          maxRequests: 60
+        },
+        tenant_read: {
+          windowMs: 60_000,
+          maxRequests: 240
+        }
+      }
+    });
     expect(config.auth.localEnabled).toBe(true);
     expect(config.auth.sessionCookieSecure).toBe(false);
     expect(config.connectors.readOnlyByDefault).toBe(true);
@@ -59,6 +87,16 @@ describe("loadConfig", () => {
         PURESOC_API_MAX_JSON_BODY_BYTES: "1024",
         PURESOC_STRIPE_WEBHOOK_MAX_RAW_BODY_BYTES: "2048",
         PURESOC_EVIDENCE_MAX_UPLOAD_BYTES: "512",
+        PURESOC_API_TRUSTED_ORIGINS: "https://console.example.test, https://admin.example.test/path",
+        PURESOC_API_ORIGIN_PROTECTION_ENABLED: "false",
+        PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+        PURESOC_API_ORIGIN_EXEMPT_ROUTE_FAMILIES: "webhook provider_callback",
+        PURESOC_API_RATE_LIMIT_ENABLED: "false",
+        PURESOC_API_RATE_LIMIT_WINDOW_MS: "30000",
+        PURESOC_API_RATE_LIMIT_MAX_REQUESTS: "33",
+        PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "7",
+        PURESOC_API_RATE_LIMIT_AUTH_WINDOW_MS: "15000",
+        PURESOC_API_RATE_LIMIT_TENANT_READ_MAX_REQUESTS: "99",
         PURESOC_AUTH_LOCAL_ENABLED: "false",
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
@@ -90,6 +128,27 @@ describe("loadConfig", () => {
     expect(config.api.requestLimits.jsonBodyMaxBytes).toBe(1024);
     expect(config.api.requestLimits.stripeWebhookRawBodyMaxBytes).toBe(2048);
     expect(config.api.requestLimits.evidenceUploadMaxBytes).toBe(512);
+    expect(config.api.security.trustedOrigins).toEqual([
+      "http://localhost:3000",
+      "http://localhost:3001",
+      "https://admin.example.test",
+      "https://console.example.test"
+    ]);
+    expect(config.api.security.originProtection).toEqual({
+      enabled: false,
+      requireOriginOrReferer: true,
+      exemptRouteFamilies: ["webhook", "provider_callback"]
+    });
+    expect(config.api.rateLimits.enabled).toBe(false);
+    expect(config.api.rateLimits.default).toEqual({
+      windowMs: 30_000,
+      maxRequests: 33
+    });
+    expect(config.api.rateLimits.routeFamilies.auth).toEqual({
+      windowMs: 15_000,
+      maxRequests: 7
+    });
+    expect(config.api.rateLimits.routeFamilies.tenant_read?.maxRequests).toBe(99);
     expect(config.auth.localEnabled).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(true);
     expect(config.connectors.providerTokenEncryptionKey).toBe("test-provider-token-key-with-enough-entropy");

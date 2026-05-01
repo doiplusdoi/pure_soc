@@ -19,7 +19,8 @@ import {
   roNis2OnboardingSchemaRoute
 } from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
-import { parseJsonBody, parseRawBody, readRequestContext, sendJson, toJsonResultError } from "./http";
+import { parseJsonBody, parseRawBody, sendJson, toJsonResultError } from "./http";
+import { createApiMiddleware } from "./middleware";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
 import {
   createMockProviderConnectionRoute,
@@ -66,6 +67,10 @@ import {
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   validateConfigForStartup(services.config, { serviceName: "api" });
+  const middleware = createApiMiddleware({
+    config: services.config.api,
+    sessionResolver: services.localAuth
+  });
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
@@ -77,7 +82,13 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
     }
 
     try {
-      const context = readRequestContext(request);
+      const middlewareDecision = await middleware.apply(request, url);
+      const context = middlewareDecision.context;
+      if (middlewareDecision.rejection) {
+        sendJson(response, middlewareDecision.rejection);
+        return;
+      }
+
       const requestLimits = services.config.api.requestLimits;
       if (request.method === "POST" && url.pathname === "/billing/stripe/webhook") {
         const rawBody = await parseRawBody(request, {

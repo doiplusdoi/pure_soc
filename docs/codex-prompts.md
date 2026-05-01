@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M19, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M19.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 19 / `docs/PLAN_M20.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M20, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M20.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 20 / `docs/PLAN_M21.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -49,6 +49,7 @@ The repository currently contains:
 - PLAN_M17 regulatory source monitor runtime scheduling: configurable source-monitor enablement, timeout, stale threshold, and review-task routing are now in config; `@puresoc/regulatory-sources` has deterministic URL metadata monitoring with injectable clients, stale/unreachable/changed-metadata review task creation, duplicate open-task prevention, and no automatic legal activation; `apps/scheduler` exposes a one-shot `regulatory.monitorCountrySources` job contract. GAP-027 is resolved for the scheduler/runtime contract.
 - PLAN_M18 runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup validation for production-sensitive settings, shared Prisma client selection for implemented adapters, explicit memory-backed runtime context tracking, non-stub Docker entrypoints, minimal web/report-renderer servers, and static Docker runtime-shape tests. GAP-026 is partially addressed and GAP-036 remains open for remaining runtime persistence.
 - PLAN_M19 job runtime baseline: `@puresoc/jobs` now provides typed job registration, dispatch results, retry/failure metadata, idempotent in-memory queue behavior, graceful shutdown hooks, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops for remediation metadata validation, regulatory source monitoring, and read-only provider sync. GAP-037 is narrowed but remains open for live Redis/BullMQ durability; GAP-030 remains open because provider write execution is still disabled.
+- PLAN_M20 API middleware baseline: the `node:http` API server now has shared request context and route-family classification, trusted-Origin/Referer checks for state-changing browser routes with explicit webhook/OIDC/provider callback exemptions, configurable in-memory fixed-window rate limits keyed by unauthenticated IP or authenticated user/organization, and focused tests proving middleware ordering, Stripe raw-body preservation, and evidence/body-limit compatibility. GAP-035 is narrowed and GAP-038 tracks distributed rate limiting, proxy-aware IP trust, and strict CSRF-token rollout.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -75,7 +76,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 16 / `docs/PLAN_M17.md` is completed.
 - Prompt 17 / `docs/PLAN_M18.md` is completed.
 - Prompt 18 / `docs/PLAN_M19.md` is completed.
-- Prompt 19 / `docs/PLAN_M20.md` is staged as the next active implementation prompt.
+- Prompt 19 / `docs/PLAN_M20.md` is completed.
+- Prompt 20 / `docs/PLAN_M21.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -90,12 +92,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 19 / `docs/PLAN_M20.md`: API Middleware And Rate-Limit Baseline.
-2. Expected next handoff after M20: Audit Log Integrity And Provider Key Handling, unless M20 implementation results require a different next slice.
+1. Prompt 20 / `docs/PLAN_M21.md`: Audit Log Integrity And Provider Key Handling.
+2. Expected next handoff after M21: Schema/Generated Data Drift Detection, unless M21 implementation results require a different next slice.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 19 / PLAN_M20: API Middleware And Rate-Limit Baseline
+## Active Prompt 20 / PLAN_M21: Audit Log Integrity And Provider Key Handling
 
 Read:
 
@@ -107,69 +109,68 @@ Read:
 - `docs/prompt-tests.md`
 - `docs/threat-model.md`
 - `docs/claude_rec2.md`
-- `docs/PLAN_M19.md`
+- `docs/PLAN_M20.md`
+- `docs/adr/ADR-009-microsoft-graph-permission-bundles.md`
 - `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
-- `docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md`
-- `docs/adr/ADR-010-remediation-safety-model.md`
 - `docs/adr/ADR-013-auth-oidc-social-login-and-managed-provider-consent-boundaries.md`
 
 Goal:
 
-Add a small API middleware baseline for the current `node:http` server: shared request context, bounded body parsing hooks, session/auth helper reuse, Origin/CSRF-style protection for browser state-changing routes, and configurable in-memory rate limiting. Keep the change focused and avoid a broad API framework migration.
+Add an audit-log integrity baseline and close the most dangerous provider-key runtime footgun without enabling provider writes.
 
 Context:
 
-- `apps/api/src/server.ts` is still a large manual dispatcher with repeated cookie/auth/body/RBAC decisions.
-- M16 added request body limits, but state-changing routes do not yet share Origin checks or rate limiting.
-- Login has its own rate limiter; OIDC callback, Stripe webhook, evidence upload, action lifecycle, regulatory review, billing portal, and tenant reads do not share a generic limiter.
-- GAP-035 tracks deployed cookie/CORS/browser auth smoke. M20 should add a contract-level API protection baseline without claiming deployed browser smoke is complete.
+- `docs/claude_rec2.md` REC-109 notes that audit logs have no tamper-evident structure.
+- REC-119 notes the Microsoft 365 provider token cipher historically had a public local-dev default key risk; M18 added startup validation for production, but key IDs/rotation remain undefined.
+- Existing `AuditWriter` redacts sensitive metadata and writes through pluggable sinks; keep that surface and add integrity metadata without broad persistence rewrites.
+- Provider write/remediation execution remains disabled under GAP-030. M21 must not enable it.
 
 Deliverables:
 
-- Add a shared API request context/middleware helper layer that can be used by the existing `node:http` server without replacing every route at once.
-- Add typed config defaults and environment overrides for rate-limit windows/counts, trusted origins, and any route-family exemptions.
-- Add an in-memory token-bucket or fixed-window limiter with deterministic tests and clear keys for unauthenticated IP-level and authenticated user/org-level dimensions.
-- Add Origin/Referer allowlist enforcement for browser state-changing methods, with explicit exemptions for non-browser provider/webhook callbacks where appropriate.
-- Keep Stripe raw-body verification intact and ensure middleware does not consume raw bodies before webhook signature checks.
-- Apply the middleware baseline to high-risk existing routes: auth/OIDC callbacks, evidence upload/download/list as appropriate, billing portal/checkout/webhook, remediation action lifecycle, regulatory review actions, and provider connection/sync routes.
-- Add audit or structured error metadata only where existing audit surfaces already make sense; do not invent noisy audit events for every rejected request unless product security value is clear.
-- Add focused tests for middleware ordering, rate-limit exceeded responses, Origin rejection, allowed same-origin requests, Stripe webhook raw-body preservation, evidence upload size limit compatibility, and no auth/RBAC regression.
-- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M20.md`, and this prompt file based on actual implementation results.
-- Before final response, create `docs/PLAN_M21.md` from the next selected active prompt.
+- Add audit entry hash-chain metadata at the audit package boundary. At minimum model `previousHash`, `entryHash`, `hashAlgorithm`, and a stable canonical payload for deterministic tests.
+- Preserve audit redaction before hashing or explicitly document and test the canonical payload does not include passwords, tokens, OAuth codes, cookies, provider secrets, storage URIs, or raw authorization headers.
+- Update in-memory audit sink behavior so tests can verify per-organization chaining, null/global organization chaining, and tamper detection helpers.
+- Extend Prisma schema/migration metadata for audit integrity fields if feasible without broad adapter rewrites; otherwise document why schema wiring is deferred and update gaps.
+- Add provider token key handling hardening: typed config for provider token key IDs or a small key-ring shape, refusal of local-dev default keys in production, and deterministic encrypt/decrypt tests that include key IDs if the cipher format changes.
+- Do not rotate existing ciphertext silently; add a clear adapter boundary and tests for decrypting with the current active key and at least one previous key if key-ring support is implemented.
+- Update docs to explain what the hash chain does and does not prove. Do not claim WORM storage, HSM/KMS signing, or external notarization.
+- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M21.md`, and this prompt file based on actual implementation results.
+- Before final response, create `docs/PLAN_M22.md` from the next selected active prompt.
 
 Expected files:
 
 - `code/.env.example`
-- `code/config/defaults/api.json` or adjacent config defaults as appropriate
+- `code/config/defaults/connectors.json` or adjacent config defaults as appropriate
 - `code/packages/config/src/index.ts`
 - `code/packages/config/src/__tests__/config.test.ts`
-- `code/apps/api/src/server.ts`
-- `code/apps/api/src/http.ts`
-- `code/apps/api/src/middleware.ts` or `code/apps/api/src/http/middleware.ts`
-- `code/apps/api/src/rate-limit.ts`
-- `code/apps/api/src/__tests__/*.test.ts`
-- Existing route modules under `code/apps/api/src/**/routes.ts` as needed
+- `code/packages/audit/src/index.ts`
+- `code/packages/audit/src/__tests__/*.spec.ts`
+- `code/packages/providers/microsoft365/src/crypto.ts`
+- `code/packages/providers/microsoft365/src/__tests__/*.spec.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/prisma/migrations/**` if schema fields are added
+- Existing API/service tests if audit output assertions need updates
 - `README.md`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M20.md`
 - `docs/PLAN_M21.md`
+- `docs/PLAN_M22.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not introduce a broad API framework migration in this milestone.
-- Do not weaken Stripe raw-body signature verification.
-- Do not consume request bodies twice or bypass M16 body-size limits.
-- Do not weaken organization-scoped authorization, evidence response redaction, audit redaction, regulatory no-auto-activation guardrails, or remediation safety checks.
+- Do not weaken audit redaction or add sensitive data to canonical hashes.
+- Do not claim tamper-proof or legally certified audit logs; hash chains are tamper-evident metadata only.
+- Do not require external KMS/HSM or WORM storage in this milestone.
+- Do not break existing audit sink APIs unless all callers and tests are updated.
+- Do not invalidate existing local-dev provider token behavior outside production/startup validation unless tests and docs explain the migration.
 - Do not add provider write/remediation execution.
-- Do not add Microsoft-specific logic to generic API middleware.
+- Do not add Microsoft-specific logic outside Microsoft provider/config surfaces.
 - Do not add Romania-specific logic outside Romania country-pack/importer surfaces.
 - Do not hardcode regulatory facts in UI conditionals.
 - Do not make legal certification claims.
-- Do not claim deployed browser/CORS/CSRF production smoke is complete from unit tests alone.
-- Do not run live Stripe, Microsoft Graph, OIDC, MinIO/S3, public regulatory URL, or provider-write smoke tests in unit tests.
+- Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests in unit tests.
 
 Tests and acceptance commands:
 
@@ -177,24 +178,23 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- api middleware rate-limit origin csrf auth billing evidence actions regulatory
+pnpm test -- audit encryption provider microsoft365 config auth
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in M14-M18 and record the substitution in `docs/PLAN_M19.md`.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M21.md`.
 
-If Docker/API runtime smoke is available, also run a bounded API smoke that proves `/health` still works and at least one protected route returns the expected middleware-shaped error. If Docker is unavailable, add static/unit coverage and record live Docker/browser smoke as residual risk.
+If live KMS or production secret-manager validation is not available, keep coverage deterministic and record runtime key-custody smoke as residual risk.
 
 Expected gap movement:
 
-- Narrow API security/runtime gaps by adding contract-level middleware, Origin, and rate-limit protection.
-- Preserve GAP-035 as deployed cookie/CORS/browser-auth smoke unless M20 runs a real deployed browser smoke.
+- Address or narrow audit-log integrity risk from REC-109 with package-level hash-chain metadata and tests.
+- Address or narrow provider-token default-key/key-rotation risk from REC-119 without live provider calls.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-036, and GAP-037 unless M20 directly validates those runtime areas.
-- Create or update gaps for distributed rate limiting, proxy-aware client IP handling, CSRF token rollout, or browser/deployment smoke intentionally deferred.
-- Add gap-to-`PLAN_M20` backlinks for consciously deferred runtime work.
+- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-035, GAP-036, GAP-037, and GAP-038 unless M21 directly validates those runtime areas.
+- Create or update gaps for WORM storage, external signing/KMS, audit retention/export, or live key-rotation smoke intentionally deferred.
 
 Final response must include:
 
@@ -202,10 +202,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M20` updated
-- `PLAN_M21` created
+- `PLAN_M21` updated
+- `PLAN_M22` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 19 / PLAN_M20: API Middleware And Rate-Limit Baseline
+
+Completed on 2026-05-01.
+
+Summary:
+- Added `code/apps/api/src/middleware.ts` for shared request context, route-family classification, trusted-Origin/Referer checks for state-changing browser routes, and explicit webhook/OIDC/provider callback exemptions.
+- Added `code/apps/api/src/rate-limit.ts` with a deterministic in-memory fixed-window limiter and route-family keys for unauthenticated IP or authenticated user/organization dimensions.
+- Added API config defaults and environment overrides for trusted origins, Origin policy, route-family exemptions, and rate-limit windows/counts.
+- Wired the middleware into `apps/api/src/server.ts` before JSON/raw-body parsing for non-health routes, while preserving Stripe raw-body verification.
+- Added focused tests for middleware ordering, rejected/allowed origins, route-family rate-limit responses, Stripe raw-body preservation under webhook Origin exemption, route classification, and existing auth/RBAC/body-limit compatibility.
+- GAP-035 is narrowed for contract-level Origin protection. GAP-038 tracks distributed/shared rate limiting, proxy-aware IP trust policy, and strict CSRF-token/browser smoke follow-up.
+
+Validated with host-node equivalents because `pnpm` is not installed on this host:
+- `npm run lint`
+- `npm run test -- api middleware rate-limit origin csrf auth billing evidence actions regulatory`
+- `npm run test -- config`
+- Additional acceptance results are recorded in `docs/PLAN_M20.md`.
 
 ## Completed Prompt 18 / PLAN_M19: Job Runtime Baseline
 
