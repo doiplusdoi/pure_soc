@@ -36,6 +36,7 @@ import {
   PrismaNotificationDraftRepository,
   PrismaOutputRecordRepository,
   PrismaAuditSink,
+  PrismaProviderResourceStore,
   PrismaIdentityOrganizationRbacRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
@@ -120,7 +121,8 @@ export const createApiServices = (
   const runtimeRepositories = createRuntimeRepositories({
     config,
     memoryRepository: repository,
-    prismaClient: options.prismaClient
+    prismaClient: options.prismaClient,
+    now: options.now
   });
   const auditWriter = new AuditWriter({
     sink: runtimeRepositories.auditSink,
@@ -154,7 +156,7 @@ export const createApiServices = (
     auditWriter,
     now: options.now
   });
-  const providerStore = new InMemoryProviderResourceStore({ now: options.now });
+  const providerStore = runtimeRepositories.providerResourceStore;
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -271,6 +273,7 @@ interface RuntimeRepositorySet {
   notificationDraftRepository: NotificationDraftRepository;
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
+  providerResourceStore: InMemoryProviderResourceStore | PrismaProviderResourceStore;
 }
 
 type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
@@ -279,6 +282,7 @@ const createRuntimeRepositories = (input: {
   config: PureSocConfig;
   memoryRepository: InMemoryPureSocRepository;
   prismaClient?: PureSocPrismaClient;
+  now?: () => Date;
 }): RuntimeRepositorySet => {
   if (input.config.app.persistenceMode !== "prisma") {
     return {
@@ -306,7 +310,8 @@ const createRuntimeRepositories = (input: {
       billingRepository: input.memoryRepository,
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
-      identityRepository: input.memoryRepository
+      identityRepository: input.memoryRepository,
+      providerResourceStore: new InMemoryProviderResourceStore({ now: input.now })
     };
   }
 
@@ -326,9 +331,10 @@ const createRuntimeRepositories = (input: {
         "regulatory_sources",
         "remediation_actions",
         "notification_drafts",
+        "provider_connections_and_telemetry",
         "stored_analysis_reports_dashboards"
       ],
-      memoryBackedContexts: ["provider_connections_and_telemetry", "oidc_transient_state"]
+      memoryBackedContexts: ["oidc_transient_state"]
     },
     prismaClient,
     auditSink,
@@ -339,7 +345,8 @@ const createRuntimeRepositories = (input: {
     billingRepository: new PrismaBillingRepository(prismaClient as never),
     notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
-    identityRepository
+    identityRepository,
+    providerResourceStore: new PrismaProviderResourceStore(prismaClient as never, { now: input.now })
   };
 };
 

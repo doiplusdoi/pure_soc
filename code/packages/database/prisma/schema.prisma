@@ -634,6 +634,7 @@ model ProviderCredential {
   id                   String                 @id @default(uuid()) @db.Uuid
   organizationId       String                 @map("organization_id") @db.Uuid
   providerConnectionId String                 @map("provider_connection_id") @db.Uuid
+  providerKey          String                 @map("provider_key")
   credentialType       ProviderCredentialType @map("credential_type")
   encryptedPayload     String                 @map("encrypted_payload")
   expiresAt            DateTime?              @map("expires_at")
@@ -641,6 +642,7 @@ model ProviderCredential {
   createdAt            DateTime               @default(now()) @map("created_at")
   updatedAt            DateTime               @updatedAt @map("updated_at")
 
+  @@unique([providerConnectionId, credentialType], map: "provider_credentials_connection_type_key")
   @@map("provider_credentials")
 }
 
@@ -760,6 +762,8 @@ model ProviderFinding {
   organizationId       String          @map("organization_id") @db.Uuid
   providerConnectionId String          @map("provider_connection_id") @db.Uuid
   normalizedResourceId String?         @map("normalized_resource_id") @db.Uuid
+  resourceExternalId   String?         @map("resource_external_id")
+  resourceType         String?         @map("resource_type")
   syncRunId            String?         @map("sync_run_id") @db.Uuid
   providerKey          String          @map("provider_key")
   moduleKey            String          @map("module_key")
@@ -783,6 +787,7 @@ model ProviderRecommendation {
   assessmentId         String?              @map("assessment_id") @db.Uuid
   providerConnectionId String?              @map("provider_connection_id") @db.Uuid
   sourceFindingId      String?              @map("source_finding_id") @db.Uuid
+  sourceFindingKey     String?              @map("source_finding_key")
   sourceFindingIds     String[]             @default([]) @map("source_finding_ids")
   manualTaskIds        String[]             @default([]) @map("manual_task_ids")
   providerKey          String               @map("provider_key")

@@ -156,6 +156,15 @@ class FakePrismaClient {
   readonly regulatoryReviewDecision = {};
   readonly providerActionTemplate = {};
   readonly providerActionRun = {};
+  readonly providerCapability = {};
+  readonly providerConnection = {};
+  readonly providerCredential = {};
+  readonly providerFinding = {};
+  readonly providerNormalizedResource = {};
+  readonly providerPermissionBundle = {};
+  readonly providerRawResource = {};
+  readonly providerSyncModule = {};
+  readonly providerSyncRun = {};
   readonly notificationDraft = {};
   readonly roNis2NotificationDraft = {};
   readonly generatedReport = {};

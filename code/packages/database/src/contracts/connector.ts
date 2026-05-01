@@ -87,6 +87,8 @@ export interface ProviderFindingRecord {
   organizationId: string;
   providerConnectionId: string;
   normalizedResourceId?: string;
+  resourceExternalId?: string;
+  resourceType?: string;
   syncRunId?: string;
   providerKey: string;
   moduleKey: string;
@@ -102,6 +104,7 @@ export interface ProviderRecommendationRecord {
   organizationId: string;
   providerConnectionId?: string;
   sourceFindingId?: string;
+  sourceFindingKey?: string;
   sourceFindingIds: string[];
   manualTaskIds: string[];
   providerKey: string;

@@ -16,13 +16,13 @@
     "@puresoc/billing-core": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",
     "@puresoc/evidence": "workspace:*",
+    "@puresoc/providers-core": "workspace:*",
     "@puresoc/regulatory-sources": "workspace:*",
     "@puresoc/recommendations": "workspace:*",
     "@puresoc/shared": "workspace:*"
   },
   "devDependencies": {
     "@puresoc/dashboards": "workspace:*",
-    "@puresoc/providers-core": "workspace:*",
     "@puresoc/reports": "workspace:*",
     "prisma": "6.19.3"
   }

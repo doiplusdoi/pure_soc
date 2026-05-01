@@ -90,6 +90,118 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "ProviderConnectionRecord",
+    modelName: "ProviderConnection",
+    tableName: "provider_connections",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerKey", "String", "provider_key"),
+      s("displayName", "String", "display_name"),
+      s("externalTenantId", "String", "external_tenant_id", { isOptional: true }),
+      s("externalTenantName", "String", "external_tenant_name", { isOptional: true }),
+      f("status", "ProviderConnectionStatus"),
+      s("readEnabled", "Boolean", "read_enabled"),
+      s("writeEnabled", "Boolean", "write_enabled"),
+      s("metadataJson", "Json", "metadata_json"),
+      s("lastSuccessfulSyncAt", "DateTime", "last_successful_sync_at", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "ProviderCredentialRecord",
+    modelName: "ProviderCredential",
+    tableName: "provider_credentials",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerConnectionId", "String", "provider_connection_id"),
+      s("providerKey", "String", "provider_key"),
+      s("credentialType", "ProviderCredentialType", "credential_type"),
+      s("encryptedPayload", "String", "encrypted_payload"),
+      s("expiresAt", "DateTime", "expires_at", { isOptional: true }),
+      s("rotationRequired", "Boolean", "rotation_required"),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "ProviderPermissionBundleRecord",
+    modelName: "ProviderPermissionBundle",
+    tableName: "provider_permission_bundles",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerConnectionId", "String", "provider_connection_id"),
+      s("providerKey", "String", "provider_key"),
+      s("bundleKey", "String", "bundle_key"),
+      s("permissionsRequired", "String", "permissions_required", { isList: true }),
+      s("permissionsGranted", "String", "permissions_granted", { isList: true }),
+      f("enabled", "Boolean"),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "ProviderCapabilityRecord",
+    modelName: "ProviderCapability",
+    tableName: "provider_capabilities",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerConnectionId", "String", "provider_connection_id"),
+      s("providerKey", "String", "provider_key"),
+      s("moduleKey", "String", "module_key"),
+      s("capabilityKey", "String", "capability_key"),
+      f("available", "Boolean"),
+      s("licenseRequired", "String", "license_required", { isList: true }),
+      s("licenseDetected", "String", "license_detected", { isList: true }),
+      s("permissionsRequired", "String", "permissions_required", { isList: true }),
+      s("permissionsGranted", "String", "permissions_granted", { isList: true }),
+      f("status", "ProviderModuleStatus"),
+      s("statusReason", "String", "status_reason", { isOptional: true }),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "ProviderSyncRunRecord",
+    modelName: "ProviderSyncRun",
+    tableName: "provider_sync_runs",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerConnectionId", "String", "provider_connection_id"),
+      s("providerKey", "String", "provider_key"),
+      f("status", "ProviderModuleStatus"),
+      s("startedAt", "DateTime", "started_at"),
+      s("completedAt", "DateTime", "completed_at", { isOptional: true }),
+      s("errorJson", "Json", "error_json", { isOptional: true }),
+      s("summaryJson", "Json", "summary_json")
+    ]
+  },
+  {
+    contractName: "ProviderSyncModuleRecord",
+    modelName: "ProviderSyncModule",
+    tableName: "provider_sync_modules",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerConnectionId", "String", "provider_connection_id"),
+      s("syncRunId", "String", "sync_run_id"),
+      s("providerKey", "String", "provider_key"),
+      s("moduleKey", "String", "module_key"),
+      f("status", "ProviderModuleStatus"),
+      s("missingPermissions", "String", "missing_permissions", { isList: true }),
+      s("missingLicenses", "String", "missing_licenses", { isList: true }),
+      s("statusReason", "String", "status_reason", { isOptional: true }),
+      s("pagesRead", "Int", "pages_read"),
+      s("retryCount", "Int", "retry_count"),
+      s("startedAt", "DateTime", "started_at"),
+      s("completedAt", "DateTime", "completed_at", { isOptional: true })
+    ]
+  },
+  {
     contractName: "ProviderRawResourceContract",
     modelName: "ProviderRawResource",
     tableName: "provider_raw_resources",
@@ -141,6 +253,8 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("organizationId", "String", "organization_id"),
       s("providerConnectionId", "String", "provider_connection_id"),
       s("normalizedResourceId", "String", "normalized_resource_id", { isOptional: true }),
+      s("resourceExternalId", "String", "resource_external_id", { isOptional: true }),
+      s("resourceType", "String", "resource_type", { isOptional: true }),
       s("syncRunId", "String", "sync_run_id", { isOptional: true }),
       s("providerKey", "String", "provider_key"),
       s("moduleKey", "String", "module_key"),
@@ -165,6 +279,7 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("assessmentId", "String", "assessment_id", { isOptional: true }),
       s("providerConnectionId", "String", "provider_connection_id", { isOptional: true }),
       s("sourceFindingId", "String", "source_finding_id", { isOptional: true }),
+      s("sourceFindingKey", "String", "source_finding_key", { isOptional: true }),
       s("sourceFindingIds", "String", "source_finding_ids", { isList: true }),
       s("manualTaskIds", "String", "manual_task_ids", { isList: true }),
       s("providerKey", "String", "provider_key"),

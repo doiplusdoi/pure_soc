@@ -138,8 +138,9 @@ export class ProviderConnectionsService {
     syncRunId: string
   ): Promise<{ modules: ProviderSyncModuleRecord[] }> {
     await this.store.getConnectionForOrganization(organizationId, providerConnectionId);
+    const connectionModules = await this.store.listSyncModulesForConnection(organizationId, providerConnectionId);
     return {
-      modules: await this.store.listSyncModules(syncRunId)
+      modules: connectionModules.filter((module) => module.syncRunId === syncRunId)
     };
   }
 

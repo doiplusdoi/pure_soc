@@ -54,6 +54,10 @@ export {
   type PrismaAuditClient,
   type PrismaAuditLogRecord
 } from "./repositories/audit";
+export {
+  PrismaProviderResourceStore,
+  type PrismaProviderResourceClient
+} from "./repositories/provider-resources";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,

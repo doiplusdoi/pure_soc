@@ -4,8 +4,10 @@
 
 Implement Prompt 28 from `docs/codex-prompts.md`: move provider connection metadata and read-only provider telemetry behind explicit memory and Prisma provider stores selected by `PURESOC_PERSISTENCE_MODE`.
 
-Status: staged for implementation after M28.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -51,6 +53,8 @@ Locked assumptions:
 - Provider credentials must already be encrypted/redacted before persistence; this milestone must not introduce plaintext provider secret storage.
 - OIDC transient callback state can remain memory-backed unless implementation finds a narrow, tested adapter path and updates the prompt/gap register explicitly.
 - Live PostgreSQL migration/apply smoke and live Microsoft Graph calls remain out of scope.
+- The existing provider store contract is the source of behavior for this slice; the Prisma adapter must round-trip the same provider-neutral records used by mock and Microsoft read-only flows.
+- The current Prisma credential model is missing `providerKey` even though the provider-core credential contract carries it. M29 will add a narrow schema/migration update so encrypted credential envelopes round-trip without inferring the provider from adjacent metadata.
 
 Expected files:
 
@@ -116,32 +120,67 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `PrismaProviderResourceStore` under `@puresoc/database`, implementing the existing `ProviderResourceStore` contract for provider connections, encrypted credential envelopes, permission bundles, capabilities, sync runs/modules, raw resources, normalized resources, findings, and recommendations.
+- Added a narrow provider telemetry schema/migration update so persisted credentials round-trip `providerKey`, findings round-trip resource identity fields, and recommendations round-trip `sourceFindingKey`.
+- `createApiServices()` now selects the runtime provider store. Memory mode keeps `InMemoryProviderResourceStore`; Prisma mode uses `PrismaProviderResourceStore` for mock provider APIs, Microsoft 365 connection APIs, and compliance evaluation inputs.
+- Runtime persistence reporting now marks `provider_connections_and_telemetry` as persisted in Prisma mode and leaves only `oidc_transient_state` memory-backed.
+- Provider module reads in `ProviderConnectionsService.listModules()` are now scoped through the connection-scoped module list before filtering by sync run.
+- Added selected provider schema drift coverage for provider connection, credential, permission bundle, capability, sync run, and sync module models.
+- Added deterministic fake-Prisma repository and API/runtime tests proving persisted provider connection creation, sync telemetry, idempotent resource upserts, findings/recommendations, module status reads, compliance inputs, encrypted credential envelope storage, and cross-organization rejection.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/auth-organization-rbac-prisma-persistence.test.ts`
+- `code/apps/api/src/__tests__/provider-connections-prisma-persistence.test.ts`
+- `code/apps/api/src/__tests__/runtime-persistence.test.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/provider-connections/service.ts`
+- `code/packages/database/package.json`
+- `code/packages/database/prisma/migrations/20260502010000_provider_telemetry_contract_fields/migration.sql`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/src/__tests__/prisma-provider-resources.repository.spec.ts`
+- `code/packages/database/src/contracts/connector.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/provider-resources.ts`
+- `code/scripts/check-schema-contract-drift.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M29.md`
+- `docs/PLAN_M30.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm`/`docker` were not available. Validation used host-node/host-Docker equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 27 models and 404 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- provider microsoft365 connector database prisma persistence api auth organization rbac audit compliance recommendations` passed: 47 test files, 167 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M29. Provider connection APIs and Microsoft 365 connection APIs now use the runtime-selected provider store; memory mode remains deterministic; Prisma mode selects the new provider store and reports provider telemetry as persisted; repository/API tests prove organization-scoped provider state reads and no cross-organization leakage; existing provider-neutral mock and Microsoft read-only behavior remains compatible.
 
 Gaps updated:
 
-- Pending.
+- GAP-036 narrowed for provider connection and telemetry runtime persistence selection in Prisma mode. OIDC transient authorization state remains memory-backed.
+- GAP-041 narrowed for selected provider schema drift coverage plus provider store repository/API runtime semantics.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M29 implementation must create `docs/PLAN_M30.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 28 / PLAN_M29 complete and stages Prompt 29 / PLAN_M30.
+- `docs/PLAN_M30.md` created for the OIDC Transient Authorization State Persistence Adapter Slice.
 
 Residual risk:
 
-- Pending.
+- Live PostgreSQL migration/apply smoke remains deferred; Prisma provider store behavior was validated with deterministic fake delegates and schema validation only.
+- OIDC transient authorization state remains memory-backed in Prisma mode until M30.
+- Provider token KMS custody, live Microsoft Graph smoke, live Redis/BullMQ durability, and provider write execution remain deferred in the gap register.
