@@ -47,6 +47,9 @@ importers:
       '@types/node':
         specifier: ^22.10.10
         version: 22.19.17
+      jiti:
+        specifier: ^2.6.1
+        version: 2.6.1
       prisma:
         specifier: 6.19.3
         version: 6.19.3(typescript@5.9.3)

@@ -15,11 +15,25 @@ import {
 import { OrganizationService } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
-import { InMemoryComplianceResultRepository } from "@puresoc/compliance-core";
+import { InMemoryComplianceResultRepository, type ComplianceResultRepository } from "@puresoc/compliance-core";
 import { loadConfig, type PureSocConfig } from "@puresoc/config";
-import { InMemoryRegulatorySourceRepository, RegulatorySourceReviewService } from "@puresoc/regulatory-sources";
-import type { RecommendationContract } from "@puresoc/recommendations";
+import {
+  InMemoryRegulatorySourceRepository,
+  RegulatorySourceReviewService,
+  type RegulatorySourceRepository
+} from "@puresoc/regulatory-sources";
+import type { RecommendationContract, RemediationActionRepository } from "@puresoc/recommendations";
 import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
+import {
+  PrismaActionRepository,
+  PrismaBillingRepository,
+  PrismaComplianceResultRepository,
+  PrismaEvidenceRepository,
+  PrismaRegulatorySourceRepository,
+  createPrismaClient,
+  type PureSocPrismaClient
+} from "@puresoc/database";
+import type { BillingRepository } from "@puresoc/billing-core";
 import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import { ComplianceEvaluationService } from "../compliance/service";
 import { RecommendationApiService } from "../recommendations/service";
@@ -34,13 +48,23 @@ import {
   MockUploadScanner,
   NoopUploadScanner,
   S3ObjectStorageAdapter,
+  type EvidenceRepository,
   type ObjectStorageAdapter,
   type UploadScanningHook
 } from "@puresoc/evidence";
+import { createLocalMicrosoft365TokenCipher } from "@puresoc/provider-microsoft365";
+
+export interface ApiPersistenceRuntime {
+  mode: PureSocConfig["app"]["persistenceMode"];
+  persistedContexts: string[];
+  memoryBackedContexts: string[];
+}
 
 export interface ApiServices {
   config: PureSocConfig;
+  persistence: ApiPersistenceRuntime;
   repository: InMemoryPureSocRepository;
+  prismaClient?: PureSocPrismaClient;
   auditSink: InMemoryAuditSink;
   auditWriter: AuditWriter;
   localAuth: LocalAuthService;
@@ -55,7 +79,7 @@ export interface ApiServices {
   reports: ReportApiService;
   dashboards: DashboardApiService;
   billing: BillingApiService;
-  actionsRepository: InMemoryRemediationActionRepository;
+  actionsRepository: RemediationActionRepository;
   actions: ActionApiService;
 }
 
@@ -66,6 +90,7 @@ export const createApiServices = (
     config?: PureSocConfig;
     evidenceStorage?: ObjectStorageAdapter;
     uploadScanner?: UploadScanningHook;
+    prismaClient?: PureSocPrismaClient;
     oidcTokenClient?: OidcTokenClient;
     oidcTokenVerifier?: OidcTokenVerifier;
     oauthProfileClient?: OauthProfileClient;
@@ -108,9 +133,11 @@ export const createApiServices = (
     now: options.now
   });
   const providerStore = new InMemoryProviderResourceStore({ now: options.now });
-  const complianceResultRepository = new InMemoryComplianceResultRepository<RecommendationContract>();
-  const regulatorySourceRepository = new InMemoryRegulatorySourceRepository();
-  const actionsRepository = new InMemoryRemediationActionRepository();
+  const runtimeRepositories = createRuntimeRepositories({
+    config,
+    memoryRepository: repository,
+    prismaClient: options.prismaClient
+  });
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -119,21 +146,27 @@ export const createApiServices = (
   const microsoft365ProviderConnections = new Microsoft365ProviderConnectionService({
     store: providerStore,
     auditWriter,
+    tokenCipher: createLocalMicrosoft365TokenCipher({
+      masterKey: config.connectors.providerTokenEncryptionKey
+    }),
     now: options.now
   });
   const compliance = new ComplianceEvaluationService({
     store: providerStore,
-    analysisRepository: repository,
-    resultRepository: complianceResultRepository,
+    analysisRepository: {
+      listArtifacts: (organizationId) => runtimeRepositories.evidenceRepository.listArtifacts(organizationId),
+      saveStoredAnalysis: (record) => repository.saveStoredAnalysis(record)
+    },
+    resultRepository: runtimeRepositories.complianceResultRepository,
     now: options.now
   });
   const recommendations = new RecommendationApiService();
   const regulatorySources = new RegulatorySourceReviewService({
-    repository: regulatorySourceRepository,
+    repository: runtimeRepositories.regulatorySourceRepository,
     now: options.now
   });
   const evidence = new EvidenceApiService({
-    repository,
+    repository: runtimeRepositories.evidenceRepository,
     auditWriter,
     storage: options.evidenceStorage ?? createEvidenceObjectStorage(config),
     scanner: options.uploadScanner ?? createUploadScanner(config, options.now),
@@ -153,20 +186,22 @@ export const createApiServices = (
     now: options.now
   });
   const billing = new BillingApiService({
-    repository,
+    repository: runtimeRepositories.billingRepository,
     auditWriter,
     config: billingConfig,
     now: options.now
   });
   const actions = new ActionApiService({
-    repository: actionsRepository,
+    repository: runtimeRepositories.actionsRepository,
     auditWriter,
     now: options.now
   });
 
   return {
     config,
+    persistence: runtimeRepositories.persistence,
     repository,
+    prismaClient: runtimeRepositories.prismaClient,
     auditSink,
     auditWriter,
     localAuth,
@@ -181,8 +216,77 @@ export const createApiServices = (
     reports,
     dashboards,
     billing,
-    actionsRepository,
+    actionsRepository: runtimeRepositories.actionsRepository,
     actions
+  };
+};
+
+interface RuntimeRepositorySet {
+  persistence: ApiPersistenceRuntime;
+  prismaClient?: PureSocPrismaClient;
+  complianceResultRepository: ComplianceResultRepository<RecommendationContract>;
+  regulatorySourceRepository: RegulatorySourceRepository;
+  actionsRepository: RemediationActionRepository;
+  evidenceRepository: EvidenceRepository;
+  billingRepository: BillingRepository;
+}
+
+const createRuntimeRepositories = (input: {
+  config: PureSocConfig;
+  memoryRepository: InMemoryPureSocRepository;
+  prismaClient?: PureSocPrismaClient;
+}): RuntimeRepositorySet => {
+  if (input.config.app.persistenceMode !== "prisma") {
+    return {
+      persistence: {
+        mode: "memory",
+        persistedContexts: [],
+        memoryBackedContexts: [
+          "identity_sessions_organizations_rbac",
+          "audit_logs",
+          "provider_connections_and_telemetry",
+          "compliance_results",
+          "evidence_metadata_access_logs",
+          "billing",
+          "regulatory_sources",
+          "remediation_actions",
+          "stored_analysis_reports_dashboards"
+        ]
+      },
+      complianceResultRepository: new InMemoryComplianceResultRepository<RecommendationContract>(),
+      regulatorySourceRepository: new InMemoryRegulatorySourceRepository(),
+      actionsRepository: new InMemoryRemediationActionRepository(),
+      evidenceRepository: input.memoryRepository,
+      billingRepository: input.memoryRepository
+    };
+  }
+
+  const prismaClient = input.prismaClient ?? createPrismaClient();
+
+  return {
+    persistence: {
+      mode: "prisma",
+      persistedContexts: [
+        "compliance_results",
+        "evidence_metadata_access_logs",
+        "billing",
+        "regulatory_sources",
+        "remediation_actions"
+      ],
+      memoryBackedContexts: [
+        "identity_sessions_organizations_rbac",
+        "audit_logs",
+        "provider_connections_and_telemetry",
+        "stored_analysis_reports_dashboards",
+        "oidc_transient_state"
+      ]
+    },
+    prismaClient,
+    complianceResultRepository: new PrismaComplianceResultRepository(prismaClient),
+    regulatorySourceRepository: new PrismaRegulatorySourceRepository(prismaClient as never),
+    actionsRepository: new PrismaActionRepository(prismaClient as never),
+    evidenceRepository: new PrismaEvidenceRepository(prismaClient as never),
+    billingRepository: new PrismaBillingRepository(prismaClient as never)
   };
 };
 

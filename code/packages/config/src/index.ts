@@ -7,6 +7,7 @@ import type { BillingRuntimeConfig } from "@puresoc/billing-core";
 export interface PureSocConfig {
   app: {
     env: string;
+    persistenceMode: "memory" | "prisma";
     publicBaseUrl: string;
     apiBaseUrl: string;
     legalCaveat: string;
@@ -48,6 +49,7 @@ export interface PureSocConfig {
   };
   connectors: {
     readOnlyByDefault: boolean;
+    providerTokenEncryptionKey: string;
     microsoft365: {
       enabled: boolean;
       writeScopesAllowed: boolean;
@@ -96,6 +98,28 @@ export interface LoadConfigOptions {
   env?: NodeJS.ProcessEnv;
 }
 
+export interface StartupConfigValidationIssue {
+  code: string;
+  path: string;
+  message: string;
+}
+
+export interface StartupConfigValidationOptions {
+  serviceName?: string;
+}
+
+export class StartupConfigValidationError extends Error {
+  readonly issues: StartupConfigValidationIssue[];
+
+  constructor(issues: StartupConfigValidationIssue[]) {
+    super(`Invalid PureSOC startup configuration: ${issues.map((issue) => issue.code).join(", ")}`);
+    this.name = "StartupConfigValidationError";
+    this.issues = issues;
+  }
+}
+
+export const localDevProviderTokenKey = "local-dev-provider-token-key-change-me" as const;
+
 const readJson = <T>(defaultsDir: string, name: string): T => {
   const filePath = resolve(defaultsDir, `${name}.json`);
   return JSON.parse(readFileSync(filePath, "utf8")) as T;
@@ -122,6 +146,11 @@ const readOptionalString = (value: string | undefined, fallback: string | null):
   return trimmed.length > 0 ? trimmed : null;
 };
 
+const readPersistenceMode = (
+  value: string | undefined,
+  fallback: PureSocConfig["app"]["persistenceMode"]
+): PureSocConfig["app"]["persistenceMode"] => (value === "prisma" ? "prisma" : fallback);
+
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   const env = options.env ?? process.env;
   const defaultsDir = options.defaultsDir ?? env.PURESOC_CONFIG_DIR ?? resolve(process.cwd(), "config/defaults");
@@ -142,6 +171,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     app: {
       ...config.app,
       env: env.PURESOC_APP_ENV ?? config.app.env,
+      persistenceMode: readPersistenceMode(env.PURESOC_PERSISTENCE_MODE, config.app.persistenceMode),
       publicBaseUrl: env.PURESOC_PUBLIC_BASE_URL ?? config.app.publicBaseUrl,
       apiBaseUrl: env.PURESOC_API_BASE_URL ?? config.app.apiBaseUrl,
       legalCaveat: PURESOC_LEGAL_CAVEAT
@@ -184,6 +214,13 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
           github: withSocialLoginEnvOverrides("PURESOC_AUTH_GITHUB", config.auth.socialLogin.providers.github, env)
         }
       }
+    },
+    connectors: {
+      ...config.connectors,
+      providerTokenEncryptionKey:
+        env.PURESOC_PROVIDER_TOKEN_KEY ??
+        env.PROVIDER_TOKEN_KEY ??
+        config.connectors.providerTokenEncryptionKey
     },
     compliance: {
       ...config.compliance,
@@ -287,6 +324,109 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   };
 };
 
+export const collectStartupConfigIssues = (
+  config: PureSocConfig,
+  _options: StartupConfigValidationOptions = {}
+): StartupConfigValidationIssue[] => {
+  const issues: StartupConfigValidationIssue[] = [];
+  const isProduction = config.app.env === "production";
+
+  if (isProduction && !config.auth.sessionCookieSecure) {
+    issues.push({
+      code: "production_secure_cookie_required",
+      path: "auth.sessionCookieSecure",
+      message: "Production startup requires PURESOC_AUTH_COOKIE_SECURE=true."
+    });
+  }
+
+  if (config.billing.provider === "stripe") {
+    if (!nonEmpty(config.billing.stripe.secretKey)) {
+      issues.push({
+        code: "stripe_secret_key_required",
+        path: "billing.stripe.secretKey",
+        message: "Stripe billing requires STRIPE_SECRET_KEY at startup."
+      });
+    }
+
+    if (!nonEmpty(config.billing.stripe.webhookSecret)) {
+      issues.push({
+        code: "stripe_webhook_secret_required",
+        path: "billing.stripe.webhookSecret",
+        message: "Stripe billing requires STRIPE_WEBHOOK_SECRET at startup."
+      });
+    }
+  }
+
+  if (config.storage.objectStorage.provider === "s3") {
+    for (const [path, code, message] of [
+      [
+        "storage.objectStorage.endpoint",
+        "s3_endpoint_required",
+        "S3 object storage requires PURESOC_OBJECT_STORAGE_ENDPOINT."
+      ],
+      ["storage.objectStorage.region", "s3_region_required", "S3 object storage requires PURESOC_OBJECT_STORAGE_REGION."],
+      ["storage.objectStorage.bucket", "s3_bucket_required", "S3 object storage requires PURESOC_OBJECT_STORAGE_BUCKET."],
+      [
+        "storage.objectStorage.accessKeyId",
+        "s3_access_key_required",
+        "S3 object storage requires PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID."
+      ],
+      [
+        "storage.objectStorage.secretAccessKey",
+        "s3_secret_key_required",
+        "S3 object storage requires PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY."
+      ]
+    ] as const) {
+      const value = valueAtPath(config, path);
+      if (!nonEmpty(value)) {
+        issues.push({ code, path, message });
+      }
+    }
+  }
+
+  if (config.storage.uploadScanner.mode === "http" && !nonEmpty(config.storage.uploadScanner.endpoint)) {
+    issues.push({
+      code: "upload_scanner_endpoint_required",
+      path: "storage.uploadScanner.endpoint",
+      message: "HTTP upload scanning requires PURESOC_UPLOAD_SCANNER_ENDPOINT."
+    });
+  }
+
+  if (isProduction && config.storage.uploadScanner.mode === "noop" && !config.storage.uploadScanner.allowNoopInProduction) {
+    issues.push({
+      code: "production_upload_scanner_required",
+      path: "storage.uploadScanner.mode",
+      message: "Production startup requires a non-noop upload scanner or an explicit override."
+    });
+  }
+
+  if (
+    isProduction &&
+    (!nonEmpty(config.connectors.providerTokenEncryptionKey) ||
+      config.connectors.providerTokenEncryptionKey === localDevProviderTokenKey)
+  ) {
+    issues.push({
+      code: "provider_token_key_required",
+      path: "connectors.providerTokenEncryptionKey",
+      message: "Production startup requires a non-default PURESOC_PROVIDER_TOKEN_KEY."
+    });
+  }
+
+  return issues;
+};
+
+export const validateConfigForStartup = (
+  config: PureSocConfig,
+  options: StartupConfigValidationOptions = {}
+): PureSocConfig => {
+  const issues = collectStartupConfigIssues(config, options);
+  if (issues.length > 0) {
+    throw new StartupConfigValidationError(issues);
+  }
+
+  return config;
+};
+
 const withSocialLoginEnvOverrides = <
   T extends PureSocConfig["auth"]["socialLogin"]["providers"]["microsoft_entra"]
 >(
@@ -313,3 +453,14 @@ const withSocialLoginEnvOverrides = <
     nonceRequired: readBoolean(env[`${prefix}_NONCE_REQUIRED`], provider.nonceRequired)
   };
 };
+
+const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
+const valueAtPath = (config: PureSocConfig, path: string): unknown =>
+  path.split(".").reduce<unknown>((current, key) => {
+    if (!current || typeof current !== "object") {
+      return undefined;
+    }
+
+    return (current as Record<string, unknown>)[key];
+  }, config);

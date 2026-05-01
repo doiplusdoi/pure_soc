@@ -154,12 +154,12 @@ Status: Open
 
 Severity: High
 Area: Service topology
-Current state: Compose service catalog and Dockerfiles exist under `code/infra/`. Main Compose config includes web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer, postgres, redis, and object storage. Split Compose files exist for data, storage, webservices, jobs, connectors, reports, and config.
-Impact: DevOps can consume a clear application service/image inventory. Runtime commands are still placeholders until each app is implemented.
-Next action: Replace placeholder service commands as real app builds are added.
+Current state: Compose service catalog and Dockerfiles exist under `code/infra/`. Main Compose config includes web, api, worker, scheduler, connector-runner, regulatory-importer, report-renderer, postgres, redis, and object storage. Split Compose files exist for data, storage, webservices, jobs, connectors, reports, and config. PLAN_M18 replaced inline `node -e` Dockerfile stubs with workspace entrypoint scripts; API, web, and report-renderer start implemented HTTP entrypoints, and worker/scheduler/connector-runner execute explicit contract-status entrypoints until the job runtime exists.
+Impact: DevOps can consume a clear application service/image inventory, and Dockerfiles no longer pretend inline placeholder services are the product. Queue-backed worker/scheduler/connector process loops are still not implemented and are tracked separately by GAP-037.
+Next action: Use PLAN_M19/GAP-037 to add shared job runtime process loops for worker, scheduler, and connector-runner roles.
 Owner: Codex
 Target phase: Phase A
-Status: Resolved 2026-04-28. `docker compose -f infra/compose/docker-compose.yml config` passes from `code/`.
+Status: Resolved 2026-04-28 for service catalog shape; updated 2026-05-01 by PLAN_M18 for non-stub Docker entrypoints. Job process runtime remains open under GAP-037.
 
 ### GAP-014: Application Database Schema And Data Contracts Missing
 
@@ -264,12 +264,12 @@ Status: Resolved 2026-04-30 for PLAN_M4 first Prisma-backed compliance-result pe
 
 Severity: Medium
 Area: Database/testing
-Current state: PLAN_M4 validates the Prisma schema, generates the Prisma client, generates the initial migration SQL, and tests the compliance-result repository through a deterministic fake Prisma delegate boundary. The acceptance environment did not require provisioning a live PostgreSQL database for `prisma migrate deploy` or real CRUD execution.
-Impact: Type, mapping, organization-scope, and migration-script regressions are covered, but database-specific runtime issues such as extension availability, permissions, SQL execution, and actual transaction behavior remain unproven until a live database smoke test is added.
+Current state: PLAN_M4 validates the Prisma schema, generates the Prisma client, generates the initial migration SQL, and tests the compliance-result repository through a deterministic fake Prisma delegate boundary. PLAN_M18 adds `PURESOC_PERSISTENCE_MODE=prisma`, shares one Prisma client boundary from `@puresoc/database`, and selects existing Prisma adapters for compliance results, evidence metadata/access logs, billing, regulatory sources, and remediation action metadata. The acceptance environment still did not run `prisma migrate deploy` or real CRUD against live PostgreSQL.
+Impact: Runtime Prisma selection no longer silently defaults every implemented adapter to memory, but database-specific runtime issues such as extension availability, permissions, SQL execution, actual transaction behavior, and deployed migration order remain unproven until a live database smoke test is added.
 Next action: Add a Docker-backed PostgreSQL migration/apply smoke test or CI service-container job once runtime database infrastructure is intentionally in scope.
 Owner: Codex/DevOps
 Target phase: Phase K
-Status: Open
+Status: Open; partially addressed 2026-05-01 by PLAN_M18 for runtime adapter selection.
 
 ### GAP-027: Regulatory Source Monitor Runtime Not Scheduled
 
@@ -369,6 +369,28 @@ Next action: Add a deployed/browser smoke that verifies `Secure`, `HttpOnly`, `S
 Owner: Codex/DevOps
 Target phase: Phase K
 Status: Open
+
+### GAP-036: Prisma Runtime Mode Still Has Memory-Backed Contexts
+
+Severity: High
+Area: Runtime persistence
+Current state: PLAN_M18 adds `PURESOC_PERSISTENCE_MODE=memory|prisma` and selects existing Prisma adapters for compliance results, evidence metadata/access logs, billing, regulatory sources, and remediation action metadata. Identity, local credentials, sessions, organizations, RBAC bindings, audit sink, provider connections/telemetry, stored analysis/report records, dashboard snapshots, and OIDC transient state remain memory-backed even in Prisma mode because no production adapters exist yet.
+Impact: Prisma mode is now honest and partially persistent, but a deployed API can still lose critical runtime state on restart and cannot yet claim full database-backed operation.
+Next action: Add Prisma-backed adapters and organization-scoped tests for identity/session/organization/RBAC, audit logs, provider telemetry, stored analysis/generated reports/dashboard snapshots, and OIDC transient state, or intentionally split those into separate follow-up milestones.
+Owner: Codex/DevOps
+Target phase: Phase K runtime persistence
+Status: Open; created 2026-05-01 by PLAN_M18.
+
+### GAP-037: Worker, Scheduler, And Connector Runner Process Loops Missing
+
+Severity: High
+Area: Job runtime
+Current state: PLAN_M18 replaces Docker placeholder loops with explicit worker, scheduler, and connector-runner contract-status entrypoints. `apps/scheduler` exposes a deterministic one-shot regulatory source monitor contract, `apps/worker` exposes remediation job safety contracts, and `apps/connector-runner` exposes read-only provider sync job contracts, but no shared queue runtime, BullMQ adapter, Redis-backed process loop, retry policy, or graceful shutdown loop exists.
+Impact: Docker images no longer hide stubs, but scheduled/regulatory jobs, billing reconciliation, connector sync dispatch, and future remediation execution still cannot run as durable background processes.
+Next action: Use PLAN_M19 to add a job runtime baseline with typed job registry, in-memory test adapter, Redis/BullMQ-ready adapter boundary, worker/scheduler process loops, idempotency hooks, and tests that keep provider writes disabled.
+Owner: Codex/DevOps
+Target phase: Phase K runtime orchestration
+Status: Open; created 2026-05-01 by PLAN_M18.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

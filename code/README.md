@@ -24,6 +24,16 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:gen
 DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:migrate:status
 ```
 
+## Runtime Modes
+
+`PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.
+
+`PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for compliance results, evidence metadata/access logs, billing, regulatory sources, and remediation action metadata through one shared Prisma client boundary. Identity, organization/RBAC/session data, audit sink, provider telemetry, stored analysis/report records, dashboard snapshots, and OIDC transient state remain memory-backed until follow-up runtime slices add their adapters.
+
+Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
+
+Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner currently run explicit contract-status entrypoints because queue-backed process loops are deferred to the job runtime milestone.
+
 ## Layout
 
 - `apps/`: service entrypoints and application roles.

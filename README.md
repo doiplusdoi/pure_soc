@@ -24,5 +24,7 @@ Current repository state:
 
 - Git repository initialized on `main`.
 - Planning artifacts created for Codex-first implementation.
-- Phase A workspace skeleton created under `code/`.
+- M1-M18 implementation slices are present under `code/`, including schema/contracts, auth/org/RBAC, EU/Romania regulatory foundations, provider connector contracts, Microsoft read-only modules, compliance/recommendation/report/evidence/billing/action foundations, runtime config validation, and Docker entrypoints.
+- Runtime persistence is environment-selectable with `PURESOC_PERSISTENCE_MODE=memory|prisma`; Prisma mode currently persists only the bounded contexts that already have adapters.
+- Dockerfiles now execute workspace entrypoints rather than inline placeholder commands, but worker-style process loops remain a runtime gap tracked for the next milestone.
 - Romania workbook is available to the application at `code/data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx`.

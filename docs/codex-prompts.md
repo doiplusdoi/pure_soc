@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M17 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M16.md`, `docs/PLAN_M17.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M18, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M18.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`, and staging Prompt 18 / `docs/PLAN_M19.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -47,8 +47,9 @@ The repository currently contains:
 - PLAN_M15 prompt QA: the active prompt queue was checked against `docs/prompt-tests.md`, the latest M14 changed files/test output were reviewed, and GAP-034 was promoted into the next concrete implementation prompt.
 - PLAN_M16 API request/evidence upload limits: central JSON and Stripe raw-body parsing now enforces configurable byte limits through early `Content-Length` checks plus chunk-level enforcement, oversized payloads return stable `413 payload_too_large` errors, decoded evidence uploads are capped before scanner/storage/audit side effects, HTTP upload scanners time out, and GAP-034 is resolved for the current JSON/raw-body API shape.
 - PLAN_M17 regulatory source monitor runtime scheduling: configurable source-monitor enablement, timeout, stale threshold, and review-task routing are now in config; `@puresoc/regulatory-sources` has deterministic URL metadata monitoring with injectable clients, stale/unreachable/changed-metadata review task creation, duplicate open-task prevention, and no automatic legal activation; `apps/scheduler` exposes a one-shot `regulatory.monitorCountrySources` job contract. GAP-027 is resolved for the scheduler/runtime contract.
+- PLAN_M18 runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup validation for production-sensitive settings, shared Prisma client selection for implemented adapters, explicit memory-backed runtime context tracking, non-stub Docker entrypoints, minimal web/report-renderer servers, and static Docker runtime-shape tests. GAP-026 is partially addressed, GAP-036 and GAP-037 are open for remaining runtime persistence and job process loops.
 
-Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
+Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
 ## Incremental Milestone Plan Rule
 
@@ -71,7 +72,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 14 / `docs/PLAN_M15.md` is completed.
 - Prompt 15 / `docs/PLAN_M16.md` is completed.
 - Prompt 16 / `docs/PLAN_M17.md` is completed.
-- No `docs/PLAN_M18.md` stub exists yet because no next active prompt has been selected after M17.
+- Prompt 17 / `docs/PLAN_M18.md` is completed.
+- Prompt 18 / `docs/PLAN_M19.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -86,9 +88,151 @@ During each prompt run:
 
 Recommended next sequence:
 
-No active prompt is currently staged. Select the next implementation slice from the open gaps in `docs/implementation-gaps.md` before creating `docs/PLAN_M18.md`.
+1. Prompt 18 / `docs/PLAN_M19.md`: Job Runtime Baseline.
+2. Expected next handoff after M19: API Middleware And Rate-Limit Baseline, unless M19 implementation results require a different next slice.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
+
+## Active Prompt 18 / PLAN_M19: Job Runtime Baseline
+
+Read:
+
+- `docs/puresoc_vision.md`
+- `docs/master-plan.md`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/LEARNINGS.md`
+- `docs/prompt-tests.md`
+- `docs/threat-model.md`
+- `docs/claude_rec2.md`
+- `docs/PLAN_M18.md`
+- `docs/adr/ADR-002-docker-image-and-compose-service-catalog.md`
+- `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
+- `docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md`
+- `docs/adr/ADR-011-regulatory-source-activation-lifecycle.md`
+
+Goal:
+
+Add a shared job runtime baseline so worker, scheduler, and connector-runner roles can execute typed jobs through an in-memory test harness and a Redis/BullMQ-ready adapter boundary, without enabling provider write actions.
+
+Context:
+
+- PLAN_M18 made Docker entrypoints honest, but worker, scheduler, and connector-runner still run explicit contract-status entrypoints.
+- `apps/scheduler` exposes `regulatory.monitorCountrySources` as a one-shot contract, but no recurring loop or queue runner calls it.
+- `apps/worker` exposes remediation action job safety contracts, but no worker process exists and provider writes must remain disabled.
+- `apps/connector-runner` exposes `provider.sync` job contracts, but no queue ingestion or durable retry loop exists.
+- GAP-037 tracks the missing job runtime process loops.
+
+Deliverables:
+
+- Add a small job package or app-local shared module with typed job definitions, dispatch results, failure metadata, retry metadata, and idempotency hooks.
+- Add an in-memory job queue/runner adapter for deterministic tests.
+- Add a Redis/BullMQ-ready adapter boundary, but do not require live Redis/BullMQ network calls in unit tests unless dependencies and local services are already available.
+- Wire scheduler runtime entrypoint to run registered scheduled jobs, including the existing regulatory source monitor job, under explicit config.
+- Wire worker runtime entrypoint to consume typed jobs and preserve remediation safety gates without provider write execution.
+- Wire connector-runner runtime entrypoint to consume read-only provider sync jobs without enabling provider writes.
+- Update Docker entrypoints from contract-status output to runtime process loops where implemented.
+- Add focused tests for job registration, dispatch, duplicate/idempotent handling, retry/failure metadata, graceful shutdown behavior, and no-provider-write enforcement.
+- Update `README.md`, `code/README.md`, `docs/PLAN.md`, `docs/implementation-gaps.md`, `docs/PLAN_M19.md`, and this prompt file based on actual implementation results.
+- Before final response, create `docs/PLAN_M20.md` from the next selected active prompt.
+
+Expected files:
+
+- `code/.env.example`
+- `code/config/defaults/jobs.json` or existing config defaults as appropriate
+- `code/packages/config/src/index.ts`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `code/packages/jobs/src/index.ts` or `code/apps/*/src/jobs.ts` if a package is intentionally deferred
+- `code/packages/jobs/src/__tests__/*.spec.ts` or equivalent app-local tests
+- `code/apps/worker/src/index.ts`
+- `code/apps/worker/src/runtime.ts`
+- `code/apps/worker/src/__tests__/*.test.ts`
+- `code/apps/scheduler/src/index.ts`
+- `code/apps/scheduler/src/runtime.ts`
+- `code/apps/scheduler/src/regulatory-source-monitor.ts`
+- `code/apps/scheduler/src/__tests__/*.test.ts`
+- `code/apps/connector-runner/src/index.ts`
+- `code/apps/connector-runner/src/runtime.ts`
+- `code/apps/connector-runner/src/__tests__/*.test.ts`
+- `code/infra/docker/Dockerfile.worker`
+- `code/infra/docker/Dockerfile.scheduler`
+- `code/infra/docker/Dockerfile.connector-runner`
+- `code/infra/compose/docker-compose.yml`
+- `code/package.json`
+- `code/apps/*/package.json` as needed
+- `README.md`
+- `code/README.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M19.md`
+- `docs/PLAN_M20.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
+
+Negative constraints:
+
+- Do not add provider write/remediation execution.
+- Do not execute remediation provider writes; action jobs may validate safety metadata only.
+- Do not add Microsoft-specific logic to generic job runtime packages.
+- Do not add Romania-specific logic outside Romania country-pack/importer surfaces.
+- Do not hardcode regulatory facts in UI conditionals.
+- Do not make legal certification claims.
+- Do not weaken organization-scoped authorization, evidence response redaction, audit redaction, or regulatory no-auto-activation guardrails.
+- Do not remove the in-memory harness used by deterministic tests.
+- Do not claim full production readiness from queue runtime tests alone.
+- Do not introduce a broad API framework migration in this milestone.
+- Do not run live Stripe, Microsoft Graph, OIDC, MinIO/S3, public regulatory URL, or provider-write smoke tests in unit tests.
+
+Tests and acceptance commands:
+
+Run from `code/`:
+
+```sh
+pnpm lint
+pnpm test -- jobs worker scheduler connector runtime docker
+pnpm prisma:validate
+docker compose -f infra/compose/docker-compose.yml config
+git diff --check
+```
+
+If `pnpm` is not available, use the host-node equivalents used in M14-M18 and record the substitution in `docs/PLAN_M19.md`.
+
+If Docker build/run is available, also run a bounded worker or scheduler image smoke that proves the container starts the runtime entrypoint and logs/serves an implemented job-runtime status. If Docker is unavailable, add static tests rejecting contract-status-only Docker commands and record live Docker smoke as residual risk.
+
+Expected gap movement:
+
+- Resolve or narrow GAP-037 only if worker, scheduler, and connector-runner have real runtime loops or clearly scoped remaining process gaps.
+- Preserve GAP-030: do not enable live provider write/remediation execution.
+- Preserve GAP-028, GAP-029, GAP-031, GAP-032, GAP-033, GAP-035, and GAP-036 unless M19 directly validates those runtime areas.
+- Create or update gaps for any queue adapter, idempotency, retry, or graceful shutdown behavior intentionally deferred.
+- Add gap-to-`PLAN_M19` backlinks for consciously deferred runtime work.
+
+Final response must include:
+
+- Changed files
+- Tests run
+- Acceptance status
+- Gaps updated
+- `PLAN_M19` updated
+- `PLAN_M20` created
+- Codex prompts updated
+- Residual risk
+
+## Completed Prompt 17 / PLAN_M18: Runtime Truth Baseline
+
+Completed on 2026-05-01.
+
+Summary:
+- Added `PURESOC_PERSISTENCE_MODE=memory|prisma` and config loading for provider-token encryption keys.
+- Added startup config validation for production-sensitive cookies, Stripe secrets, S3 settings, HTTP scanner endpoints, production noop scanning, and default provider-token keys.
+- Wired `createApiServices()` so Prisma mode shares one Prisma client and selects existing adapters for compliance results, evidence metadata/access logs, billing, regulatory sources, and remediation action metadata.
+- Exposed runtime persistence status naming memory-backed contexts that remain deferred.
+- Replaced inline Docker `node -e` stubs with workspace entrypoints; API, web, and report-renderer serve implemented code, while worker/scheduler/connector-runner now report contract-only status pending job runtime.
+- Updated root/runtime docs and opened GAP-036 and GAP-037 for remaining runtime persistence and job process work.
+
+Validated with:
+- Host-node equivalent of `pnpm test -- config persistence runtime docker api`.
+- Static Docker runtime-shape tests.
+- Full acceptance results are recorded in `docs/PLAN_M18.md`.
 
 ## Required Prompt Template
 

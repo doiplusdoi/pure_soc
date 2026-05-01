@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 
+import { validateConfigForStartup } from "@puresoc/config";
 import { getApiHealth } from "./health";
 import {
   beginOidcAuthorizationRoute,
@@ -64,6 +65,8 @@ import {
 } from "./actions/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
+  validateConfigForStartup(services.config, { serviceName: "api" });
+
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
 
