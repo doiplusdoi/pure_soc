@@ -57,6 +57,10 @@ export interface NotificationDraftRepository {
     notificationDraftId: string;
     organizationId: string;
   }): Promise<NotificationDraftContract | null>;
+  findRoNis2CompanionDraftByNotificationDraftForOrganization(input: {
+    notificationDraftId: string;
+    organizationId: string;
+  }): Promise<RoNis2NotificationDraftContract | null>;
   findRoNis2CompanionDraftForOrganization(input: {
     organizationId: string;
     roDraftId: string;
@@ -155,6 +159,89 @@ export class PrismaNotificationDraftRepository implements NotificationDraftRepos
     });
 
     return row ? fromRoNis2NotificationDraftRow(row) : null;
+  }
+
+  async findRoNis2CompanionDraftByNotificationDraftForOrganization(input: {
+    notificationDraftId: string;
+    organizationId: string;
+  }): Promise<RoNis2NotificationDraftContract | null> {
+    const row = await this.client.roNis2NotificationDraft.findFirst({
+      where: {
+        notificationDraftId: input.notificationDraftId,
+        organizationId: input.organizationId
+      }
+    });
+
+    return row ? fromRoNis2NotificationDraftRow(row) : null;
+  }
+}
+
+export class InMemoryNotificationDraftRepository implements NotificationDraftRepository {
+  private readonly notificationDrafts = new Map<string, NotificationDraftContract>();
+  private readonly roNis2CompanionDrafts = new Map<string, RoNis2NotificationDraftContract>();
+
+  async saveNotificationDraft(record: NotificationDraftContract): Promise<NotificationDraftContract> {
+    const payload = assertNotificationDraftEnvelopeContract(record.payload);
+    const saved = cloneNotificationDraft({
+      ...record,
+      payload
+    });
+    this.notificationDrafts.set(saved.id, saved);
+    return cloneNotificationDraft(saved);
+  }
+
+  async findNotificationDraftForOrganization(input: {
+    notificationDraftId: string;
+    organizationId: string;
+  }): Promise<NotificationDraftContract | null> {
+    const record = this.notificationDrafts.get(input.notificationDraftId);
+    return record && record.organizationId === input.organizationId ? cloneNotificationDraft(record) : null;
+  }
+
+  async listNotificationDraftsForOrganization(input: {
+    jurisdiction?: string;
+    organizationId: string;
+    status?: NotificationDraftContract["status"];
+  }): Promise<NotificationDraftContract[]> {
+    return [...this.notificationDrafts.values()]
+      .filter(
+        (record) =>
+          record.organizationId === input.organizationId &&
+          (input.jurisdiction === undefined || record.jurisdiction === input.jurisdiction) &&
+          (input.status === undefined || record.status === input.status)
+      )
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt))
+      .map(cloneNotificationDraft);
+  }
+
+  async saveRoNis2CompanionDraft(record: RoNis2NotificationDraftContract): Promise<RoNis2NotificationDraftContract> {
+    const payload = assertNotificationDraftEnvelopeContract(record.payload);
+    const saved = cloneRoNis2CompanionDraft({
+      ...record,
+      payload
+    });
+    this.roNis2CompanionDrafts.set(saved.id, saved);
+    return cloneRoNis2CompanionDraft(saved);
+  }
+
+  async findRoNis2CompanionDraftForOrganization(input: {
+    organizationId: string;
+    roDraftId: string;
+  }): Promise<RoNis2NotificationDraftContract | null> {
+    const record = this.roNis2CompanionDrafts.get(input.roDraftId);
+    return record && record.organizationId === input.organizationId ? cloneRoNis2CompanionDraft(record) : null;
+  }
+
+  async findRoNis2CompanionDraftByNotificationDraftForOrganization(input: {
+    notificationDraftId: string;
+    organizationId: string;
+  }): Promise<RoNis2NotificationDraftContract | null> {
+    const record =
+      [...this.roNis2CompanionDrafts.values()].find(
+        (candidate) =>
+          candidate.organizationId === input.organizationId && candidate.notificationDraftId === input.notificationDraftId
+      ) ?? null;
+    return record ? cloneRoNis2CompanionDraft(record) : null;
   }
 }
 
@@ -378,3 +465,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 const stripUndefined = <T extends Record<string, unknown>>(value: T): T =>
   Object.fromEntries(Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)) as T;
+
+const cloneNotificationDraft = (record: NotificationDraftContract): NotificationDraftContract =>
+  JSON.parse(JSON.stringify(record)) as NotificationDraftContract;
+
+const cloneRoNis2CompanionDraft = (record: RoNis2NotificationDraftContract): RoNis2NotificationDraftContract =>
+  JSON.parse(JSON.stringify(record)) as RoNis2NotificationDraftContract;

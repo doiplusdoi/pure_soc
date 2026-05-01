@@ -9,6 +9,11 @@ export {
   roNis2OnboardingSchemaRoute
 } from "./compliance/nis2/ro";
 export {
+  createNotificationDraftRoute,
+  getNotificationDraftRoute,
+  listNotificationDraftsRoute
+} from "./compliance/nis2/notification-drafts/routes";
+export {
   createMockProviderConnectionRoute,
   listProviderConnectionsRoute,
   runProviderSyncRoute

@@ -28,6 +28,7 @@ export {
   type PrismaActionClient
 } from "./repositories/actions";
 export {
+  InMemoryNotificationDraftRepository,
   PrismaNotificationDraftRepository,
   validateNotificationDraftPayloadEnvelopeContract,
   type NotificationDraftEnvelopeContractValidationResult,

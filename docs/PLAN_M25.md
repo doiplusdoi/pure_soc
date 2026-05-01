@@ -4,8 +4,10 @@
 
 Implement Prompt 24 from `docs/codex-prompts.md`: wire the M24 generic notification-draft persistence boundary into the API/runtime contract and add a deterministic Romania backfill posture.
 
-Status: staged for implementation after M24.
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-01.
+Completed: 2026-05-01.
 
 ## Source Inputs
 
@@ -112,32 +114,69 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-01.
 
 Implementation results:
 
-- Pending.
+- Added `InMemoryNotificationDraftRepository` with the same organization-scoped generic draft and Romania companion-link contract as `PrismaNotificationDraftRepository`.
+- Added runtime repository selection for notification drafts in memory and Prisma modes, and updated persistence-context reporting.
+- Added org-scoped generic NIS2 notification-draft create/read/list API routes under `/organizations/:orgId/compliance/nis2/notification-drafts`.
+- Added Romania companion-link creation for RO registration envelopes, keeping the schema-specific detection inside the Romania API compatibility surface.
+- Added `backfillRoNis2NotificationDraftPayload`, which returns `converted`, `already_generic`, or `manual_review_required` and only converts legacy payloads with valid legal-caveat metadata plus complete source-mapped fields.
+- Preserved report/export behavior and did not add provider write/remediation execution or live migration requirements.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/notification-drafts-runtime.test.ts`
+- `code/apps/api/src/__tests__/runtime-persistence.test.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/compliance/nis2/index.ts`
+- `code/apps/api/src/compliance/nis2/notification-drafts/routes.ts`
+- `code/apps/api/src/compliance/nis2/notification-drafts/service.ts`
+- `code/apps/api/src/compliance/nis2/ro/notification-draft-companion.ts`
+- `code/apps/api/src/index.ts`
+- `code/apps/api/src/server.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-notification-draft.types.spec.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
+- `code/packages/database/src/__tests__/prisma-notification-drafts.repository.spec.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/notification-drafts.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M25.md`
+- `docs/PLAN_M26.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- notification database ro api persistence i18n` passed: 36 test files, 141 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M25. Notification draft runtime persistence is organization-scoped in memory and Prisma-mode wiring, generic envelope writes still validate semantics before persistence, Romania companion links are explicit and tested, and legacy Romania backfill behavior is deterministic without live migration.
 
 Gaps updated:
 
-- Pending.
+- GAP-036 narrowed for notification draft runtime persistence selection in Prisma mode.
+- GAP-041 narrowed for runtime notification-draft API semantics.
+- GAP-042 narrowed for runtime notification-draft persistence routes and deterministic Romania backfill posture.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M25 implementation must create `docs/PLAN_M26.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 24 / PLAN_M25 complete and stages Prompt 25 / PLAN_M26.
+- `docs/PLAN_M26.md` created for Stored Output Runtime Persistence Adapter Slice.
 
 Residual risk:
 
-- Pending.
+- Product/legal-approved Romanian legal-caveat copy is still unavailable and remains an English fallback.
+- No live data migration/backfill has been run; the Romania helper only provides deterministic conversion posture.
+- Prisma mode remains partial for identity/session/org/RBAC, audit logs, provider telemetry, stored output records, and OIDC transient state.

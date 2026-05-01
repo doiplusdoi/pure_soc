@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { LEGAL_CAVEAT_MESSAGE_KEY, PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
+  InMemoryNotificationDraftRepository,
   PrismaNotificationDraftRepository,
   validateNotificationDraftPayloadEnvelopeContract,
   type NotificationDraftContract,
@@ -85,6 +86,12 @@ describe("PrismaNotificationDraftRepository", () => {
         roDraftId: companionDraft.id
       })
     ).resolves.toBeNull();
+    await expect(
+      repository.findRoNis2CompanionDraftByNotificationDraftForOrganization({
+        organizationId,
+        notificationDraftId: genericDraft.id
+      })
+    ).resolves.toEqual(companionDraft);
   });
 
   it("rejects malformed generic payload envelopes before writing", async () => {
@@ -113,6 +120,59 @@ describe("PrismaNotificationDraftRepository", () => {
       )
     ).rejects.toThrow("Invalid notification draft payload envelope");
     expect(client.notificationDraft.rows).toHaveLength(0);
+  });
+});
+
+describe("InMemoryNotificationDraftRepository", () => {
+  it("matches the organization-scoped generic and Romania companion repository contract", async () => {
+    const repository = new InMemoryNotificationDraftRepository();
+    const organizationId = randomUUID();
+    const genericDraft = notificationDraftFixture({ organizationId });
+    const companionDraft = roCompanionDraftFixture({
+      organizationId,
+      notificationDraftId: genericDraft.id,
+      payload: genericDraft.payload
+    });
+
+    await expect(repository.saveNotificationDraft(genericDraft)).resolves.toEqual(genericDraft);
+    await expect(repository.saveRoNis2CompanionDraft(companionDraft)).resolves.toEqual(companionDraft);
+
+    await expect(
+      repository.findNotificationDraftForOrganization({
+        organizationId,
+        notificationDraftId: genericDraft.id
+      })
+    ).resolves.toEqual(genericDraft);
+    await expect(repository.listNotificationDraftsForOrganization({ organizationId, jurisdiction: "RO" })).resolves.toEqual([
+      genericDraft
+    ]);
+    await expect(
+      repository.findRoNis2CompanionDraftByNotificationDraftForOrganization({
+        organizationId,
+        notificationDraftId: genericDraft.id
+      })
+    ).resolves.toEqual(companionDraft);
+    await expect(
+      repository.findNotificationDraftForOrganization({
+        organizationId: randomUUID(),
+        notificationDraftId: genericDraft.id
+      })
+    ).resolves.toBeNull();
+  });
+
+  it("rejects malformed envelopes before mutating the in-memory store", async () => {
+    const repository = new InMemoryNotificationDraftRepository();
+    const organizationId = randomUUID();
+    const invalid = notificationDraftFixture({
+      organizationId,
+      payload: {
+        ...payloadEnvelopeFixture(),
+        sourceMappedFields: []
+      } as NotificationDraftPayloadEnvelopeContract
+    });
+
+    await expect(repository.saveNotificationDraft(invalid)).rejects.toThrow("Invalid notification draft payload envelope");
+    await expect(repository.listNotificationDraftsForOrganization({ organizationId })).resolves.toEqual([]);
   });
 });
 

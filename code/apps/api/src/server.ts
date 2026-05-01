@@ -34,6 +34,11 @@ import {
   runMicrosoft365SyncRoute
 } from "./provider-connections/microsoft365/routes";
 import { generateRecommendationsRoute } from "./recommendations/routes";
+import {
+  createNotificationDraftRoute,
+  getNotificationDraftRoute,
+  listNotificationDraftsRoute
+} from "./compliance/nis2/notification-drafts/routes";
 import { downloadEvidenceRoute, listEvidenceRoute, uploadEvidenceRoute } from "./evidence/routes";
 import {
   activateRegulatorySourceVersionRoute,
@@ -179,6 +184,52 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             body,
             request.headers.cookie,
             context,
+            services
+          )
+        );
+        return;
+      }
+
+      const notificationDraftsCollectionRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/
+      );
+      if (notificationDraftsCollectionRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listNotificationDraftsRoute(
+            notificationDraftsCollectionRouteMatch[1] ?? "",
+            url.searchParams,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      if (notificationDraftsCollectionRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await createNotificationDraftRoute(
+            notificationDraftsCollectionRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            context,
+            services
+          )
+        );
+        return;
+      }
+
+      const notificationDraftRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts\/([^/]+)$/
+      );
+      if (notificationDraftRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await getNotificationDraftRoute(
+            notificationDraftRouteMatch[1] ?? "",
+            notificationDraftRouteMatch[2] ?? "",
+            request.headers.cookie,
             services
           )
         );

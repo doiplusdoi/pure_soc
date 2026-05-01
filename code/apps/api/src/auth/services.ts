@@ -25,12 +25,15 @@ import {
 import type { RecommendationContract, RemediationActionRepository } from "@puresoc/recommendations";
 import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import {
+  InMemoryNotificationDraftRepository,
   PrismaActionRepository,
   PrismaBillingRepository,
   PrismaComplianceResultRepository,
   PrismaEvidenceRepository,
+  PrismaNotificationDraftRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
+  type NotificationDraftRepository,
   type PureSocPrismaClient
 } from "@puresoc/database";
 import type { BillingRepository } from "@puresoc/billing-core";
@@ -43,6 +46,8 @@ import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
 import { BillingApiService } from "../billing/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
+import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
+import { createRoNis2NotificationDraftCompanionBuilder } from "../compliance/nis2/ro/notification-draft-companion";
 import {
   HttpUploadScanner,
   MockUploadScanner,
@@ -79,6 +84,8 @@ export interface ApiServices {
   reports: ReportApiService;
   dashboards: DashboardApiService;
   billing: BillingApiService;
+  notificationDraftRepository: NotificationDraftRepository;
+  notificationDrafts: NotificationDraftApiService;
   actionsRepository: RemediationActionRepository;
   actions: ActionApiService;
 }
@@ -201,6 +208,12 @@ export const createApiServices = (
     config: billingConfig,
     now: options.now
   });
+  const notificationDrafts = new NotificationDraftApiService({
+    repository: runtimeRepositories.notificationDraftRepository,
+    auditWriter,
+    companionBuilders: [createRoNis2NotificationDraftCompanionBuilder()],
+    now: options.now
+  });
   const actions = new ActionApiService({
     repository: runtimeRepositories.actionsRepository,
     auditWriter,
@@ -226,6 +239,8 @@ export const createApiServices = (
     reports,
     dashboards,
     billing,
+    notificationDraftRepository: runtimeRepositories.notificationDraftRepository,
+    notificationDrafts,
     actionsRepository: runtimeRepositories.actionsRepository,
     actions
   };
@@ -239,6 +254,7 @@ interface RuntimeRepositorySet {
   actionsRepository: RemediationActionRepository;
   evidenceRepository: EvidenceRepository;
   billingRepository: BillingRepository;
+  notificationDraftRepository: NotificationDraftRepository;
 }
 
 const createRuntimeRepositories = (input: {
@@ -260,6 +276,7 @@ const createRuntimeRepositories = (input: {
           "billing",
           "regulatory_sources",
           "remediation_actions",
+          "notification_drafts",
           "stored_analysis_reports_dashboards"
         ]
       },
@@ -267,7 +284,8 @@ const createRuntimeRepositories = (input: {
       regulatorySourceRepository: new InMemoryRegulatorySourceRepository(),
       actionsRepository: new InMemoryRemediationActionRepository(),
       evidenceRepository: input.memoryRepository,
-      billingRepository: input.memoryRepository
+      billingRepository: input.memoryRepository,
+      notificationDraftRepository: new InMemoryNotificationDraftRepository()
     };
   }
 
@@ -281,7 +299,8 @@ const createRuntimeRepositories = (input: {
         "evidence_metadata_access_logs",
         "billing",
         "regulatory_sources",
-        "remediation_actions"
+        "remediation_actions",
+        "notification_drafts"
       ],
       memoryBackedContexts: [
         "identity_sessions_organizations_rbac",
@@ -296,7 +315,8 @@ const createRuntimeRepositories = (input: {
     regulatorySourceRepository: new PrismaRegulatorySourceRepository(prismaClient as never),
     actionsRepository: new PrismaActionRepository(prismaClient as never),
     evidenceRepository: new PrismaEvidenceRepository(prismaClient as never),
-    billingRepository: new PrismaBillingRepository(prismaClient as never)
+    billingRepository: new PrismaBillingRepository(prismaClient as never),
+    notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never)
   };
 };
 

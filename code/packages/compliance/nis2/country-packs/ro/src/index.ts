@@ -23,6 +23,7 @@ export {
   type RoNis2SourceReference
 } from "./classification.service";
 export {
+  backfillRoNis2NotificationDraftPayload,
   buildRoNis2NotificationDraftEnvelope,
   buildRoNis2NotificationDraft,
   notificationDraftHasSourceMappedFields,
@@ -31,6 +32,7 @@ export {
   RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION,
   RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE,
   toRoNis2NotificationDraftEnvelope,
+  type RoNis2NotificationDraftBackfillResult,
   type RoNis2NotificationDraftEnvelope,
   type RoNis2NotificationDraftEnvelopePayload,
   type RoNis2NotificationDraftField,

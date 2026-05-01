@@ -34,7 +34,8 @@ describe("API runtime persistence selection", () => {
       "evidence_metadata_access_logs",
       "billing",
       "regulatory_sources",
-      "remediation_actions"
+      "remediation_actions",
+      "notification_drafts"
     ]);
     expect(services.persistence.memoryBackedContexts).toEqual(
       expect.arrayContaining([
@@ -65,6 +66,8 @@ const createPrismaClientFixture = () =>
     regulatoryReviewDecision: {},
     providerActionTemplate: {},
     providerActionRun: {},
+    notificationDraft: {},
+    roNis2NotificationDraft: {},
     evidenceArtifact: {},
     evidenceLink: {},
     evidenceAccessLog: {},

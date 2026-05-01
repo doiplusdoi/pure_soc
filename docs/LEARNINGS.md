@@ -15,6 +15,7 @@ Keep entries short, specific, and actionable.
 - Legal-caveat copy is message-keyed and falls back to English for Romanian locale until product/legal approves Romanian wording.
 - Future country-pack notification drafts should use the generic `NotificationDraft.payloadJson` envelope with a versioned schema key; Romania-specific draft tables are compatibility/workflow companions, not the default pattern for new countries.
 - Generic notification draft writes should validate the payload envelope semantics before persistence, including keyed legal caveat metadata and source-mapped fields.
+- Runtime notification draft writes should create the generic `NotificationDraft` first; Romania companion rows only add RO workflow links such as onboarding/classification IDs.
 
 ## How To Add Learnings
 
