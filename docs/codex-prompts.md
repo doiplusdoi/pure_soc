@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M26, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M26.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 26 / `docs/PLAN_M27.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M27, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M27.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 27 / `docs/PLAN_M28.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -56,6 +56,7 @@ The repository currently contains:
 - PLAN_M24 generic notification draft envelope persistence: `@puresoc/country-packs-core` now validates/parses generic notification envelopes, Romania notification generation emits a generic envelope beside the compatibility JSON, the API route returns the envelope, and `@puresoc/database` has a Prisma-boundary notification draft repository for generic rows plus Romania companion links with organization-scoped tests.
 - PLAN_M25 notification draft runtime persistence and backfill: `@puresoc/database` now has an in-memory notification draft repository matching the Prisma-boundary contract, API runtime persistence selection includes notification drafts in memory and Prisma modes, org-scoped NIS2 notification draft create/read/list routes persist generic envelopes and create Romania companion links for RO registration envelopes, and `@puresoc/country-pack-ro` exposes deterministic backfill status for legacy Romania payloads.
 - PLAN_M26 stored output runtime persistence: `@puresoc/database` now has memory and Prisma output repositories for stored analysis records, generated report metadata, and dashboard snapshots; API compliance/report/dashboard services use the output repository boundary; Prisma mode marks `stored_analysis_reports_dashboards` as persisted; and deterministic tests cover organization-scoped output reads plus checklist-preserving stored-analysis upserts.
+- PLAN_M27 identity/session/organization/RBAC runtime persistence: `@puresoc/database` now has a Prisma identity/session/organization/RBAC repository adapter; API local auth, OIDC identity lookup/linking, organization creation/member listing, and RBAC guards use the runtime-selected repository; Prisma mode marks `identity_sessions_organizations_rbac` as persisted; and deterministic tests cover provider-subject uniqueness, session revocation, org-scoped member listing, RBAC checks, and cross-organization rejection.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -89,7 +90,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 23 / `docs/PLAN_M24.md` is completed.
 - Prompt 24 / `docs/PLAN_M25.md` is completed.
 - Prompt 25 / `docs/PLAN_M26.md` is completed.
-- Prompt 26 / `docs/PLAN_M27.md` is staged as the next active implementation prompt.
+- Prompt 26 / `docs/PLAN_M27.md` is completed.
+- Prompt 27 / `docs/PLAN_M28.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -104,12 +106,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 26 / `docs/PLAN_M27.md`: Identity, Session, Organization, And RBAC Persistence Adapter Slice.
-2. Expected next handoff after M27: continue runtime persistence hardening under GAP-036, preferably audit sink persistence or provider telemetry persistence depending on risk appetite.
+1. Prompt 27 / `docs/PLAN_M28.md`: Audit Log Persistence Sink Slice.
+2. Expected next handoff after M28: continue runtime persistence hardening under GAP-036, preferably provider telemetry persistence or OIDC transient-state persistence depending on risk appetite.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 26 / PLAN_M27: Identity, Session, Organization, And RBAC Persistence Adapter Slice
+## Active Prompt 27 / PLAN_M28: Audit Log Persistence Sink Slice
 
 Read:
 
@@ -119,63 +121,52 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M26.md`
+- `docs/PLAN_M27.md`
 - `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
-- `docs/adr/ADR-013-auth-oidc-social-login-managed-provider-consent.md`
+- `docs/adr/ADR-004-application-database-schema-and-tenant-scoped-data-model.md`
+- `docs/threat-model.md`
+- `code/packages/audit/src/**`
 - `code/apps/api/src/auth/services.ts`
 - `code/apps/api/src/auth/memory-repository.ts`
-- `code/apps/api/src/auth/routes.ts`
-- `code/apps/api/src/organizations/**`
-- `code/apps/api/src/rbac/**`
 - `code/apps/api/src/server.ts`
 - `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/src/contracts/**`
 - `code/packages/database/src/repositories/**`
-- `code/packages/auth/local/src/**`
-- `code/packages/auth/oidc/src/**`
-- `code/packages/auth/core/src/**`
+- `code/packages/database/src/index.ts`
 - `code/apps/api/src/__tests__/**`
+- `code/packages/database/src/__tests__/**`
 
 Goal:
 
-Move identity, local credential, session, organization membership, and RBAC data behind explicit memory and Prisma repository adapters selected by `PURESOC_PERSISTENCE_MODE`, without requiring a live database migration/apply smoke.
+Move audit log writes behind explicit memory and Prisma audit sinks selected by `PURESOC_PERSISTENCE_MODE`, preserving the existing hash-chain/redaction semantics without claiming WORM storage or external signing.
 
 Context:
 
-- M18 made runtime persistence mode honest and still lists `identity_sessions_organizations_rbac` as memory-backed in Prisma mode.
-- Local auth, OIDC social-login identity lookup/linking, organization creation, membership listing, and RBAC checks already use repository interfaces, but the API runtime still satisfies those interfaces with `InMemoryPureSocRepository`.
-- Prisma schema already has identity, organization, membership, role, role-binding, session, local credential, verification, and reset-token models. M27 should add adapter boundaries and tests, not redesign auth semantics.
-- OIDC transient state remains a separate in-memory store unless this prompt explicitly introduces a narrow persisted state adapter; do not silently mix OIDC callback state with durable identity/account persistence.
+- M21 added hash-chain metadata and Prisma audit integrity columns, but API runtime still uses `InMemoryAuditSink` in Prisma mode.
+- M27 moved identity/session/org/RBAC to Prisma mode; audit entries for those workflows should now be able to persist through a Prisma-backed sink.
+- This milestone should make audit runtime persistence honest, not solve append-only storage, WORM export, external notarization, retention policy, or concurrent transaction hardening beyond deterministic contract coverage.
 
 Deliverables:
 
-- Add Prisma repository adapters for the existing local auth, OIDC identity, organization, and RBAC repository contracts, preserving organization-scoped reads and provider-subject uniqueness.
-- Keep memory mode deterministic; reuse or split the existing in-memory repository only where it reduces coupling without changing behavior.
-- Wire `createApiServices()` so Prisma mode selects the new identity/session/organization/RBAC adapters and runtime persistence reporting moves `identity_sessions_organizations_rbac` into persisted contexts when the adapters are available.
-- Preserve current local registration, login, logout/session lookup, email verification token, password reset token, organization creation, member listing, and role-check behavior.
-- Preserve OIDC/social-login semantics from M11: provider-subject lookup, explicit account-link approval, email collision safety, session creation, and audit events.
-- Add deterministic fake-Prisma repository tests and API/runtime tests for org-scoped auth/organization/RBAC behavior; do not require a live database.
-- Update docs/gaps/prompts and create `docs/PLAN_M28.md` from the next selected active prompt before final response.
+- Add a Prisma audit sink that implements the existing `AuditSink` contract, stores redacted canonical payloads and hash metadata in `AuditLog`, and can load the latest per-organization/global integrity anchor before appending.
+- Keep `InMemoryAuditSink` deterministic for memory mode and existing tests.
+- Wire `createApiServices()` so Prisma mode selects the Prisma audit sink and runtime persistence reporting moves `audit_logs` into persisted contexts when the adapter is available.
+- Preserve redaction-before-hashing, per-organization/global chain separation, action names, actor/organization/target metadata, and existing audit events.
+- Add deterministic fake-Prisma repository/sink tests and API/runtime tests proving persisted audit writes for auth/org/RBAC workflows without a live database.
+- Update docs/gaps/prompts and create `docs/PLAN_M29.md` from the next selected active prompt before final response.
 
 Expected files:
 
+- `code/packages/audit/src/index.ts`
+- `code/packages/audit/src/__tests__/**`
 - `code/apps/api/src/auth/services.ts`
 - `code/apps/api/src/auth/memory-repository.ts`
-- `code/apps/api/src/auth/routes.ts`
-- `code/apps/api/src/organizations/**`
-- `code/apps/api/src/rbac/**`
 - `code/apps/api/src/__tests__/**`
-- `code/packages/database/src/contracts/**`
 - `code/packages/database/src/repositories/**`
 - `code/packages/database/src/index.ts`
 - `code/packages/database/src/__tests__/**`
-- `code/packages/auth/local/src/**`
-- `code/packages/auth/oidc/src/**`
-- `code/packages/auth/core/src/**`
-- `code/tests/**`
 - `docs/PLAN.md`
-- `docs/PLAN_M27.md`
 - `docs/PLAN_M28.md`
+- `docs/PLAN_M29.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `code/README.md`
@@ -189,9 +180,9 @@ Negative constraints:
 - Do not make legal certification claims.
 - Do not migrate live data or require a live PostgreSQL instance.
 - Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests.
-- Do not relax password hashing, rate limiting, session revocation, account-linking, email-collision, organization-scope, or role-check semantics.
-- Do not persist plaintext passwords, reset tokens, verification tokens, session tokens, OAuth codes, provider secrets, or OIDC nonce/PKCE values.
-- Do not broaden role permissions or let frontend checks substitute for backend authorization.
+- Do not claim audit entries are WORM, externally signed, legally notarized, or tamper-proof.
+- Do not persist plaintext passwords, reset tokens, verification tokens, session tokens, OAuth codes, provider secrets, cookies, evidence storage URIs, or OIDC nonce/PKCE values in audit payloads.
+- Do not weaken redaction, hash-chain verification, organization scoping, or existing auth/RBAC behavior.
 
 Tests and acceptance commands:
 
@@ -199,21 +190,21 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- auth organization rbac session database prisma persistence api
+pnpm test -- audit database prisma persistence api auth organization rbac evidence billing regulatory actions
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M27.md`.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M28.md`.
 
 Expected gap movement:
 
-- Narrow GAP-036 for identity/session/organization/RBAC runtime persistence in Prisma mode.
-- Narrow GAP-041 if identity/org/RBAC persistence semantics receive deterministic API/repository coverage.
-- Preserve GAP-032 unless live OIDC provider smoke is explicitly added; fake token/profile clients remain the contract harness.
+- Narrow GAP-036 for audit-log runtime persistence in Prisma mode.
+- Narrow GAP-039 for persisted audit sink/hash-chain adapter coverage while keeping external signing/WORM/retention open.
+- Narrow GAP-041 if audit persistence semantics receive deterministic repository/API coverage.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve browser/live integration gaps unless M27 directly validates them.
+- Preserve live database/browser/provider integration gaps unless M28 directly validates them.
 
 Final response must include:
 
@@ -221,10 +212,26 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M27` updated
-- `PLAN_M28` created
+- `PLAN_M28` updated
+- `PLAN_M29` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 26 / PLAN_M27: Identity, Session, Organization, And RBAC Persistence Adapter Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added `PrismaIdentityOrganizationRbacRepository` for durable users, identity accounts, local credentials, sessions, reset/verification tokens, organizations, memberships, roles, and role bindings.
+- API runtime selection now injects the selected identity repository into local auth, OIDC social login, organization service, and RBAC guards; Prisma mode marks `identity_sessions_organizations_rbac` as persisted while OIDC transient state remains memory-backed.
+- RBAC route checks now use `services.rbacRepository` instead of the legacy memory harness field.
+- Added deterministic fake-Prisma repository tests for local auth records, hashed secrets, provider-subject uniqueness, session revocation, memberships, and role bindings.
+- Added API Prisma-mode coverage proving organization creation/member listing and cross-organization RBAC rejection use the Prisma adapter.
+- GAP-036 and GAP-041 were narrowed for identity/session/organization/RBAC runtime persistence semantics.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run test -- auth organization rbac session database prisma persistence api`
+- Remaining M27 acceptance command results are recorded in `docs/PLAN_M27.md`.
 
 ## Completed Prompt 25 / PLAN_M26: Stored Output Runtime Persistence Adapter Slice
 

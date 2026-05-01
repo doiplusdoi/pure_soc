@@ -173,7 +173,7 @@ const requireRegulatoryAdmin = async (
 ): Promise<string> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["regulatory_admin"]

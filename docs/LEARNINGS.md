@@ -17,6 +17,7 @@ Keep entries short, specific, and actionable.
 - Generic notification draft writes should validate the payload envelope semantics before persistence, including keyed legal caveat metadata and source-mapped fields.
 - Runtime notification draft writes should create the generic `NotificationDraft` first; Romania companion rows only add RO workflow links such as onboarding/classification IDs.
 - Stored analysis/report/dashboard runtime data uses the `OutputRecordRepository` boundary; the Prisma adapter stores analysis evidence alongside existing `compliance_result_snapshots.resultSetJson` and must preserve checklist items written by compliance-result persistence.
+- Identity/session/organization/RBAC runtime data now uses the selected identity repository boundary; backend authorization checks should use `services.rbacRepository`, not the legacy in-memory `services.repository` field.
 
 ## How To Add Learnings
 

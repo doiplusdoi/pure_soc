@@ -16,7 +16,7 @@ export const createDashboardSnapshotRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]

@@ -30,6 +30,7 @@ describe("API runtime persistence selection", () => {
 
     expect(services.persistence.mode).toBe("prisma");
     expect(services.persistence.persistedContexts).toEqual([
+      "identity_sessions_organizations_rbac",
       "compliance_results",
       "evidence_metadata_access_logs",
       "billing",
@@ -40,13 +41,13 @@ describe("API runtime persistence selection", () => {
     ]);
     expect(services.persistence.memoryBackedContexts).toEqual(
       expect.arrayContaining([
-        "identity_sessions_organizations_rbac",
         "audit_logs",
         "provider_connections_and_telemetry",
         "oidc_transient_state"
       ])
     );
     expect(services.persistence.memoryBackedContexts).not.toContain("stored_analysis_reports_dashboards");
+    expect(services.persistence.memoryBackedContexts).not.toContain("identity_sessions_organizations_rbac");
     expect(services.prismaClient).toBe(prismaClient);
   });
 });
@@ -71,6 +72,16 @@ const createPrismaClientFixture = () =>
     roNis2NotificationDraft: {},
     generatedReport: {},
     dashboardSnapshot: {},
+    emailVerificationToken: {},
+    identityAccount: {},
+    localCredential: {},
+    organization: {},
+    organizationMember: {},
+    passwordResetToken: {},
+    role: {},
+    roleBinding: {},
+    session: {},
+    user: {},
     evidenceArtifact: {},
     evidenceLink: {},
     evidenceAccessLog: {},

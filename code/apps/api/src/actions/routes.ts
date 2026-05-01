@@ -30,7 +30,7 @@ export const createActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
@@ -68,7 +68,7 @@ export const recordActionPreflightRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
@@ -97,7 +97,7 @@ export const requestActionApprovalRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
@@ -125,7 +125,7 @@ export const approveActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "remediation_approver"]
@@ -153,7 +153,7 @@ export const attachActionSnapshotRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
@@ -180,7 +180,7 @@ export const queueActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "security_operator"]
@@ -223,7 +223,7 @@ export const failActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "security_operator"]
@@ -253,7 +253,7 @@ export const verifyActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
@@ -282,7 +282,7 @@ export const closeActionRunRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]

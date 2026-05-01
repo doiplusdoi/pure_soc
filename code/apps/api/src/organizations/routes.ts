@@ -49,7 +49,7 @@ export const listOrganizationMembersRoute = async (
   const session = await services.localAuth.getSession(sessionToken ?? "");
 
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: session.user.id,
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]

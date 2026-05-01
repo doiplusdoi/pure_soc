@@ -30,7 +30,7 @@ export const beginMicrosoft365ConsentRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin"]
@@ -58,7 +58,7 @@ export const completeMicrosoft365ConsentRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin"]
@@ -90,7 +90,7 @@ export const runMicrosoft365SyncRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "security_operator"]
@@ -118,7 +118,7 @@ export const getMicrosoft365ConnectionHealthRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "security_operator", "auditor"]

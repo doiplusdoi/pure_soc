@@ -28,7 +28,7 @@ export const createMockProviderConnectionRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin"]
@@ -54,7 +54,7 @@ export const listProviderConnectionsRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
@@ -76,7 +76,7 @@ export const runProviderSyncRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin"]

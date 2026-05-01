@@ -20,7 +20,7 @@ export const uploadEvidenceRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin"]
@@ -63,7 +63,7 @@ export const downloadEvidenceRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
@@ -96,7 +96,7 @@ export const listEvidenceRoute = async (
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
-    repository: services.repository,
+    repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]

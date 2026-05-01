@@ -2,17 +2,19 @@ import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
 import {
   Argon2idPasswordHasher,
   FailedLoginRateLimiter,
-  LocalAuthService
+  LocalAuthService,
+  type LocalAuthRepository
 } from "@puresoc/auth-local";
 import {
   InMemoryOidcAuthorizationStateStore,
   OidcSocialLoginService,
+  type OidcIdentityRepository,
   type OauthProfileClient,
   type OidcProviderConfig,
   type OidcTokenClient,
   type OidcTokenVerifier
 } from "@puresoc/auth-oidc";
-import { OrganizationService } from "../organizations/service";
+import { OrganizationService, type OrganizationRepository } from "../organizations/service";
 import { ProviderConnectionsService } from "../provider-connections/service";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import { InMemoryComplianceResultRepository, type ComplianceResultRepository } from "@puresoc/compliance-core";
@@ -33,6 +35,7 @@ import {
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
   PrismaOutputRecordRepository,
+  PrismaIdentityOrganizationRbacRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
   type NotificationDraftRepository,
@@ -51,6 +54,7 @@ import { BillingApiService } from "../billing/service";
 import { InMemoryPureSocRepository } from "./memory-repository";
 import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
 import { createRoNis2NotificationDraftCompanionBuilder } from "../compliance/nis2/ro/notification-draft-companion";
+import type { RbacRepository } from "../rbac";
 import {
   HttpUploadScanner,
   MockUploadScanner,
@@ -89,6 +93,8 @@ export interface ApiServices {
   billing: BillingApiService;
   outputRepository: OutputRecordRepository;
   notificationDraftRepository: NotificationDraftRepository;
+  identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
+  rbacRepository: RbacRepository;
   notificationDrafts: NotificationDraftApiService;
   actionsRepository: RemediationActionRepository;
   actions: ActionApiService;
@@ -115,20 +121,25 @@ export const createApiServices = (
     sink: auditSink,
     now: options.now
   });
+  const runtimeRepositories = createRuntimeRepositories({
+    config,
+    memoryRepository: repository,
+    prismaClient: options.prismaClient
+  });
   const rateLimiter = new FailedLoginRateLimiter({
     maxAttempts: 5,
     windowMs: 60_000,
     now: options.now
   });
   const localAuth = new LocalAuthService({
-    repository,
+    repository: runtimeRepositories.identityRepository,
     auditWriter,
     passwordHasher: new Argon2idPasswordHasher(),
     rateLimiter,
     now: options.now
   });
   const oidcAuth = new OidcSocialLoginService({
-    repository,
+    repository: runtimeRepositories.identityRepository,
     auditWriter,
     stateStore: new InMemoryOidcAuthorizationStateStore(),
     providers: toOidcProviderConfigs(config),
@@ -139,16 +150,11 @@ export const createApiServices = (
     stateTtlMs: config.auth.socialLogin.stateTtlMs
   });
   const organizations = new OrganizationService({
-    repository,
+    repository: runtimeRepositories.identityRepository,
     auditWriter,
     now: options.now
   });
   const providerStore = new InMemoryProviderResourceStore({ now: options.now });
-  const runtimeRepositories = createRuntimeRepositories({
-    config,
-    memoryRepository: repository,
-    prismaClient: options.prismaClient
-  });
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -245,6 +251,8 @@ export const createApiServices = (
     billing,
     outputRepository: runtimeRepositories.outputRepository,
     notificationDraftRepository: runtimeRepositories.notificationDraftRepository,
+    identityRepository: runtimeRepositories.identityRepository,
+    rbacRepository: runtimeRepositories.identityRepository,
     notificationDrafts,
     actionsRepository: runtimeRepositories.actionsRepository,
     actions
@@ -261,6 +269,7 @@ interface RuntimeRepositorySet {
   billingRepository: BillingRepository;
   notificationDraftRepository: NotificationDraftRepository;
   outputRepository: OutputRecordRepository;
+  identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
 }
 
 const createRuntimeRepositories = (input: {
@@ -292,16 +301,19 @@ const createRuntimeRepositories = (input: {
       evidenceRepository: input.memoryRepository,
       billingRepository: input.memoryRepository,
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
-      outputRepository: new InMemoryOutputRecordRepository()
+      outputRepository: new InMemoryOutputRecordRepository(),
+      identityRepository: input.memoryRepository
     };
   }
 
   const prismaClient = input.prismaClient ?? createPrismaClient();
+  const identityRepository = new PrismaIdentityOrganizationRbacRepository(prismaClient as never);
 
   return {
     persistence: {
       mode: "prisma",
       persistedContexts: [
+        "identity_sessions_organizations_rbac",
         "compliance_results",
         "evidence_metadata_access_logs",
         "billing",
@@ -311,7 +323,6 @@ const createRuntimeRepositories = (input: {
         "stored_analysis_reports_dashboards"
       ],
       memoryBackedContexts: [
-        "identity_sessions_organizations_rbac",
         "audit_logs",
         "provider_connections_and_telemetry",
         "oidc_transient_state"
@@ -324,7 +335,8 @@ const createRuntimeRepositories = (input: {
     evidenceRepository: new PrismaEvidenceRepository(prismaClient as never),
     billingRepository: new PrismaBillingRepository(prismaClient as never),
     notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
-    outputRepository: new PrismaOutputRecordRepository(prismaClient as never)
+    outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
+    identityRepository
   };
 };
 

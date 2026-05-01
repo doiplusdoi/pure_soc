@@ -4,8 +4,10 @@
 
 Implement Prompt 26 from `docs/codex-prompts.md`: move identity, local credential, session, organization membership, and RBAC data behind explicit memory and Prisma repository adapters selected by `PURESOC_PERSISTENCE_MODE`.
 
-Status: staged for implementation after M26.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -119,32 +121,72 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `PrismaIdentityOrganizationRbacRepository` for users, identity accounts, local credentials, sessions, reset/verification tokens, organizations, memberships, roles, and role bindings.
+- API local auth, OIDC social login, organization service, and RBAC guards now use the runtime-selected identity/RBAC repository.
+- Prisma mode now marks `identity_sessions_organizations_rbac` as persisted; OIDC transient state remains memory-backed by design.
+- Route-level backend authorization checks now use `services.rbacRepository` instead of the legacy in-memory `services.repository` field.
+- Added deterministic fake-Prisma repository tests for hashed secret storage, provider-subject uniqueness, session revocation, membership listing, role bindings, and organization scoping.
+- Added API Prisma-mode coverage proving organization creation/member listing and cross-organization RBAC rejection use the Prisma adapter.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/auth-organization-rbac-prisma-persistence.test.ts`
+- `code/apps/api/src/__tests__/runtime-persistence.test.ts`
+- `code/apps/api/src/actions/routes.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/billing/routes.ts`
+- `code/apps/api/src/compliance/nis2/notification-drafts/routes.ts`
+- `code/apps/api/src/compliance/routes.ts`
+- `code/apps/api/src/dashboards/routes.ts`
+- `code/apps/api/src/evidence/routes.ts`
+- `code/apps/api/src/organizations/routes.ts`
+- `code/apps/api/src/provider-connections/microsoft365/routes.ts`
+- `code/apps/api/src/provider-connections/routes.ts`
+- `code/apps/api/src/recommendations/routes.ts`
+- `code/apps/api/src/regulatory-sources/routes.ts`
+- `code/apps/api/src/reports/routes.ts`
+- `code/packages/database/src/__tests__/prisma-identity-organization-rbac.repository.spec.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/identity-organization-rbac.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M27.md`
+- `docs/PLAN_M28.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- auth organization rbac session database prisma persistence api` passed: 30 test files, 89 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M27. Identity/session/organization/RBAC services use explicit runtime-selected repositories; memory mode remains deterministic; Prisma mode selects the new adapter and reports persisted identity/org/RBAC contexts honestly; repository/API tests cover organization-scoped reads and cross-organization rejection; existing local auth, OIDC linking, organization creation, and RBAC behavior remains compatible.
 
 Gaps updated:
 
-- Pending.
+- GAP-036 narrowed for identity/session/organization/RBAC runtime persistence selection in Prisma mode.
+- GAP-041 narrowed for deterministic identity/session/organization/RBAC repository and API runtime semantics.
+- GAP-032 remains open; no live OIDC provider smoke was added.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M27 implementation must create `docs/PLAN_M28.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 26 / PLAN_M27 complete and stages Prompt 27 / PLAN_M28.
+- `docs/PLAN_M28.md` created for Audit Log Persistence Sink Slice.
 
 Residual risk:
 
-- Pending.
+- Live PostgreSQL migration/apply smoke remains deferred; Prisma adapters were validated with deterministic fake delegates and schema validation only.
+- Audit logs, provider connections/telemetry, and OIDC transient state remain memory-backed in Prisma mode.
+- The database adapter structurally mirrors auth/org/RBAC contracts without importing auth packages directly, avoiding workspace dependency churn but requiring future contract changes to keep the adapter shape aligned.

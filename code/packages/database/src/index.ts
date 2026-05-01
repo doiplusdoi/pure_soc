@@ -41,6 +41,14 @@ export {
   type OutputRecordRepository,
   type PrismaOutputRecordClient
 } from "./repositories/output-records";
+export {
+  PrismaIdentityOrganizationRbacRepository,
+  type OrganizationMembershipRecordContract,
+  type OrganizationRecordContract,
+  type PrismaIdentityOrganizationRbacClient,
+  type RoleBindingRecordContract,
+  type RoleRecordContract
+} from "./repositories/identity-organization-rbac";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,
