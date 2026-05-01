@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 
 import type { AuditWriter } from "@puresoc/audit";
+import type { OutputRecordRepository } from "@puresoc/database";
 import {
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,
@@ -12,10 +13,7 @@ import {
 import type { EvidenceApiService } from "../evidence/service";
 import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-records";
 
-export interface ReportRepository {
-  findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord | null>;
-  saveGeneratedReport(record: GeneratedReportRecord): Promise<GeneratedReportRecord>;
-}
+export type ReportRepository = Pick<OutputRecordRepository, "findStoredAnalysis" | "saveGeneratedReport">;
 
 export interface ReportApiServiceOptions {
   repository: ReportRepository;

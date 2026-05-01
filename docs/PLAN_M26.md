@@ -4,8 +4,10 @@
 
 Implement Prompt 25 from `docs/codex-prompts.md`: move stored analysis, generated report records, and dashboard snapshots behind an explicit output repository boundary with memory and Prisma adapters selected by `PURESOC_PERSISTENCE_MODE`.
 
-Status: staged for implementation after M25.
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -119,32 +121,65 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `OutputRecordRepository` with in-memory and Prisma adapters for stored analysis records, generated report metadata, and dashboard snapshots.
+- Re-exported output record contracts through `@puresoc/database` and kept the API `output-records.ts` as a compatibility alias for existing report/dashboard services.
+- Removed stored-analysis/report/dashboard storage from `InMemoryPureSocRepository`; API compliance, report, and dashboard services now use the runtime-selected output repository.
+- Prisma mode now selects `PrismaOutputRecordRepository` and reports `stored_analysis_reports_dashboards` as persisted.
+- Stored analysis persistence uses the existing `compliance_result_snapshots.resultSetJson` JSON payload and preserves checklist items already written by the compliance-result repository.
+- Added deterministic repository tests for memory and Prisma adapters, including organization-scoped reads, generated report persistence, latest dashboard snapshot selection, and checklist-preserving stored-analysis upserts.
+- Preserved generated-report evidence artifact creation, legal caveats, source references, report export behavior, and dashboard aggregation semantics.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/runtime-persistence.test.ts`
+- `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/compliance/service.ts`
+- `code/apps/api/src/dashboards/service.ts`
+- `code/apps/api/src/output-records.ts`
+- `code/apps/api/src/reports/service.ts`
+- `code/packages/database/src/__tests__/prisma-output-records.repository.spec.ts`
+- `code/packages/database/src/contracts/outputs.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/output-records.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M26.md`
+- `docs/PLAN_M27.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- outputs reports dashboards database prisma persistence api` passed: 29 test files, 90 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M26. Stored analyses, generated report records, and dashboard snapshots are accessed through an output repository boundary; memory mode remains deterministic; Prisma mode selects the new adapter and reports persisted output contexts honestly; repository tests cover organization-scoped reads and no cross-organization output leakage; existing report/dashboard API behavior remains compatible.
 
 Gaps updated:
 
-- Pending.
+- GAP-036 narrowed for stored analysis/report/dashboard runtime persistence selection in Prisma mode.
+- GAP-041 narrowed for deterministic output repository runtime semantics.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M26 implementation must create `docs/PLAN_M27.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 25 / PLAN_M26 complete and stages Prompt 26 / PLAN_M27.
+- `docs/PLAN_M27.md` created for Identity, Session, Organization, And RBAC Persistence Adapter Slice.
 
 Residual risk:
 
-- Pending.
+- Live PostgreSQL migration/apply smoke remains deferred; Prisma adapters were validated with deterministic fake delegates and schema validation only.
+- Prisma mode remains partial for identity/session/org/RBAC, audit logs, provider telemetry, and OIDC transient state.
+- Stored analysis in Prisma mode shares `compliance_result_snapshots.resultSetJson`; future changes must preserve the compliance-result payload fields, especially `checklistItems`.

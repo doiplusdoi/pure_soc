@@ -35,6 +35,12 @@ export {
   type NotificationDraftRepository,
   type PrismaNotificationDraftClient
 } from "./repositories/notification-drafts";
+export {
+  InMemoryOutputRecordRepository,
+  PrismaOutputRecordRepository,
+  type OutputRecordRepository,
+  type PrismaOutputRecordClient
+} from "./repositories/output-records";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,
@@ -59,14 +65,18 @@ export type {
   ComplianceGapContract,
   EvidenceAccessLogContract,
   DashboardSnapshotContract,
+  DashboardSnapshotRecordContract,
   EvidenceArtifactContract,
   EvidenceLinkContract,
   GeneratedReportContract,
+  GeneratedReportDataContract,
+  GeneratedReportRecordContract,
   NotificationDraftPayloadEnvelopeContract,
   NotificationDraftContract,
   ProviderActionRunContract,
   ProviderActionTemplateContract,
   ReadinessPlanContract,
   ReadinessPlanItemContract,
-  RoNis2NotificationDraftContract
+  RoNis2NotificationDraftContract,
+  StoredAnalysisRecordContract
 } from "./contracts/outputs";

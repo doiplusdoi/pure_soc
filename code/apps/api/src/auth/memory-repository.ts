@@ -8,11 +8,6 @@ import type {
   EvidenceRepository
 } from "@puresoc/evidence";
 import type {
-  DashboardSnapshotRecord,
-  GeneratedReportRecord,
-  StoredAnalysisRecord
-} from "../output-records";
-import type {
   CreateLocalAccountInput,
   EmailVerificationTokenRecord,
   IdentityAccountRecord,
@@ -42,9 +37,6 @@ export class InMemoryPureSocRepository
   readonly roleBindings = new Map<string, RoleBindingRecord>();
   readonly evidenceArtifacts = new Map<string, EvidenceArtifactMetadata>();
   readonly evidenceAccessLogs: EvidenceAccessLogEntry[] = [];
-  readonly storedAnalyses = new Map<string, StoredAnalysisRecord>();
-  readonly generatedReports = new Map<string, GeneratedReportRecord>();
-  readonly dashboardSnapshots = new Map<string, DashboardSnapshotRecord>();
 
   constructor() {
     super();
@@ -328,45 +320,4 @@ export class InMemoryPureSocRepository
         (evidenceArtifactId === undefined || entry.evidenceArtifactId === evidenceArtifactId)
     );
   }
-
-  async saveStoredAnalysis(record: StoredAnalysisRecord): Promise<StoredAnalysisRecord> {
-    this.storedAnalyses.set(storedAnalysisKey(record.organizationId, record.assessmentId), record);
-    return record;
-  }
-
-  async findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord | null> {
-    return this.storedAnalyses.get(storedAnalysisKey(organizationId, assessmentId)) ?? null;
-  }
-
-  async saveGeneratedReport(record: GeneratedReportRecord): Promise<GeneratedReportRecord> {
-    this.generatedReports.set(record.id, record);
-    return record;
-  }
-
-  async findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecord | null> {
-    const report = this.generatedReports.get(reportId);
-    return report && report.organizationId === organizationId ? report : null;
-  }
-
-  async saveDashboardSnapshot(record: DashboardSnapshotRecord): Promise<DashboardSnapshotRecord> {
-    this.dashboardSnapshots.set(record.id, record);
-    return record;
-  }
-
-  async findLatestDashboardSnapshot(
-    organizationId: string,
-    assessmentId?: string
-  ): Promise<DashboardSnapshotRecord | null> {
-    const snapshots = [...this.dashboardSnapshots.values()]
-      .filter(
-        (snapshot) =>
-          snapshot.organizationId === organizationId &&
-          (assessmentId === undefined || snapshot.assessmentId === assessmentId)
-      )
-      .sort((left, right) => right.createdAt.localeCompare(left.createdAt));
-
-    return snapshots[0] ?? null;
-  }
 }
-
-const storedAnalysisKey = (organizationId: string, assessmentId: string): string => `${organizationId}:${assessmentId}`;

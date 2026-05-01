@@ -1,4 +1,16 @@
 import type { ActionableSeverity, FindingSeverity } from "@puresoc/shared";
+import type { DashboardSnapshotContract as PureSocDashboardSnapshotContract } from "@puresoc/dashboards";
+import type {
+  ComplianceControlResult,
+  ComplianceGap,
+  ReadinessPlan
+} from "@puresoc/compliance-core";
+import type { EvidenceArtifactMetadata } from "@puresoc/evidence";
+import type { RecommendationContract } from "@puresoc/recommendations";
+import type {
+  InternalReadinessReport,
+  RomaniaNotificationDraftExport
+} from "@puresoc/reports";
 
 export type ComplianceStatus =
   | "not_started"
@@ -189,6 +201,46 @@ export interface DashboardSnapshotContract {
   snapshotType: string;
   source: "stored_analysis";
   snapshot: Record<string, unknown>;
+  createdAt: string;
+}
+
+export interface StoredAnalysisRecordContract {
+  organizationId: string;
+  assessmentId: string;
+  jurisdiction: string;
+  catalogVersion?: string;
+  recordedAt: string;
+  results: ComplianceControlResult[];
+  gaps: ComplianceGap[];
+  recommendations: RecommendationContract[];
+  readinessPlan: ReadinessPlan;
+  evidenceArtifacts: EvidenceArtifactMetadata[];
+}
+
+export type GeneratedReportDataContract = InternalReadinessReport | RomaniaNotificationDraftExport;
+
+export interface GeneratedReportRecordContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  reportType: string;
+  jurisdiction?: string;
+  status: "draft" | "rendering" | "ready" | "failed" | "superseded";
+  legalCaveat: string;
+  sourceReferences: string[];
+  reportData: GeneratedReportDataContract;
+  evidenceArtifactId?: string;
+  createdBy?: string;
+  createdAt: string;
+}
+
+export interface DashboardSnapshotRecordContract {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  snapshotType: string;
+  source: "stored_analysis";
+  snapshot: PureSocDashboardSnapshotContract;
   createdAt: string;
 }
 

@@ -1,0 +1,368 @@
+import type { Prisma } from "@prisma/client";
+
+import type {
+  DashboardSnapshotRecordContract,
+  GeneratedReportRecordContract,
+  StoredAnalysisRecordContract
+} from "../contracts/outputs";
+
+type DelegateArgs = Record<string, unknown>;
+
+interface SnapshotDelegate<TRow> {
+  findUnique(args: DelegateArgs): Promise<TRow | null>;
+  upsert(args: DelegateArgs): Promise<TRow>;
+}
+
+interface OutputRecordDelegate<TRow> {
+  findFirst(args: DelegateArgs): Promise<TRow | null>;
+  upsert(args: DelegateArgs): Promise<TRow>;
+}
+
+type StoredAnalysisSnapshotRow = {
+  assessmentId: string;
+  catalogVersion?: string | null;
+  jurisdiction: string;
+  organizationId: string;
+  recordedAt: Date | string;
+  resultSetJson: unknown;
+};
+
+type GeneratedReportRow = Omit<
+  GeneratedReportRecordContract,
+  "assessmentId" | "createdAt" | "createdBy" | "evidenceArtifactId" | "reportData" | "sourceReferences"
+> & {
+  assessmentId?: string | null;
+  createdAt: Date | string;
+  createdBy?: string | null;
+  evidenceArtifactId?: string | null;
+  reportDataJson: unknown;
+  sourceReferencesJson?: unknown;
+};
+
+type DashboardSnapshotRow = Omit<
+  DashboardSnapshotRecordContract,
+  "assessmentId" | "createdAt" | "snapshot"
+> & {
+  assessmentId?: string | null;
+  createdAt: Date | string;
+  snapshotJson: unknown;
+};
+
+export interface OutputRecordRepository {
+  findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecordContract | null>;
+  findLatestDashboardSnapshot(
+    organizationId: string,
+    assessmentId?: string
+  ): Promise<DashboardSnapshotRecordContract | null>;
+  findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null>;
+  saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract>;
+  saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract>;
+  saveStoredAnalysis(record: StoredAnalysisRecordContract): Promise<StoredAnalysisRecordContract>;
+}
+
+export interface PrismaOutputRecordClient {
+  complianceResultSnapshot: SnapshotDelegate<StoredAnalysisSnapshotRow>;
+  dashboardSnapshot: OutputRecordDelegate<DashboardSnapshotRow>;
+  generatedReport: OutputRecordDelegate<GeneratedReportRow>;
+}
+
+export class InMemoryOutputRecordRepository implements OutputRecordRepository {
+  private readonly dashboardSnapshots = new Map<string, DashboardSnapshotRecordContract>();
+  private readonly generatedReports = new Map<string, GeneratedReportRecordContract>();
+  private readonly storedAnalyses = new Map<string, StoredAnalysisRecordContract>();
+
+  async saveStoredAnalysis(record: StoredAnalysisRecordContract): Promise<StoredAnalysisRecordContract> {
+    const saved = clone(record);
+    this.storedAnalyses.set(storedAnalysisKey(record.organizationId, record.assessmentId), saved);
+    return clone(saved);
+  }
+
+  async findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null> {
+    const record = this.storedAnalyses.get(storedAnalysisKey(organizationId, assessmentId));
+    return record ? clone(record) : null;
+  }
+
+  async saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract> {
+    const saved = clone(record);
+    this.generatedReports.set(saved.id, saved);
+    return clone(saved);
+  }
+
+  async findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecordContract | null> {
+    const record = this.generatedReports.get(reportId);
+    return record && record.organizationId === organizationId ? clone(record) : null;
+  }
+
+  async saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract> {
+    const saved = clone(record);
+    this.dashboardSnapshots.set(saved.id, saved);
+    return clone(saved);
+  }
+
+  async findLatestDashboardSnapshot(
+    organizationId: string,
+    assessmentId?: string
+  ): Promise<DashboardSnapshotRecordContract | null> {
+    const record =
+      [...this.dashboardSnapshots.values()]
+        .filter(
+          (snapshot) =>
+            snapshot.organizationId === organizationId &&
+            (assessmentId === undefined || snapshot.assessmentId === assessmentId)
+        )
+        .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
+
+    return record ? clone(record) : null;
+  }
+}
+
+export class PrismaOutputRecordRepository implements OutputRecordRepository {
+  constructor(private readonly client: PrismaOutputRecordClient) {}
+
+  async saveStoredAnalysis(record: StoredAnalysisRecordContract): Promise<StoredAnalysisRecordContract> {
+    const existing = await this.client.complianceResultSnapshot.findUnique({
+      where: {
+        organizationId_assessmentId: {
+          organizationId: record.organizationId,
+          assessmentId: record.assessmentId
+        }
+      }
+    });
+    const existingPayload = isRecord(existing?.resultSetJson) ? existing.resultSetJson : {};
+    const resultSetJson = toStoredAnalysisResultSetJson(record, existingPayload);
+    const row = await this.client.complianceResultSnapshot.upsert({
+      where: {
+        organizationId_assessmentId: {
+          organizationId: record.organizationId,
+          assessmentId: record.assessmentId
+        }
+      },
+      update: {
+        jurisdiction: record.jurisdiction,
+        catalogVersion: record.catalogVersion,
+        recordedAt: toDateTime(record.recordedAt),
+        resultSetJson: toJson(resultSetJson)
+      },
+      create: {
+        organizationId: record.organizationId,
+        assessmentId: record.assessmentId,
+        jurisdiction: record.jurisdiction,
+        catalogVersion: record.catalogVersion,
+        recordedAt: toDateTime(record.recordedAt),
+        resultSetJson: toJson(resultSetJson)
+      }
+    });
+
+    return fromStoredAnalysisSnapshotRow(row);
+  }
+
+  async findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null> {
+    const row = await this.client.complianceResultSnapshot.findUnique({
+      where: {
+        organizationId_assessmentId: {
+          organizationId,
+          assessmentId
+        }
+      }
+    });
+
+    return row ? fromStoredAnalysisSnapshotRow(row) : null;
+  }
+
+  async saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract> {
+    const row = await this.client.generatedReport.upsert({
+      where: {
+        id: record.id
+      },
+      update: toGeneratedReportData(record),
+      create: toGeneratedReportData(record)
+    });
+
+    return fromGeneratedReportRow(row);
+  }
+
+  async findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecordContract | null> {
+    const row = await this.client.generatedReport.findFirst({
+      where: {
+        id: reportId,
+        organizationId
+      }
+    });
+
+    return row ? fromGeneratedReportRow(row) : null;
+  }
+
+  async saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract> {
+    const row = await this.client.dashboardSnapshot.upsert({
+      where: {
+        id: record.id
+      },
+      update: toDashboardSnapshotData(record),
+      create: toDashboardSnapshotData(record)
+    });
+
+    return fromDashboardSnapshotRow(row);
+  }
+
+  async findLatestDashboardSnapshot(
+    organizationId: string,
+    assessmentId?: string
+  ): Promise<DashboardSnapshotRecordContract | null> {
+    const row = await this.client.dashboardSnapshot.findFirst({
+      where: stripUndefined({
+        organizationId,
+        assessmentId
+      }),
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+    return row ? fromDashboardSnapshotRow(row) : null;
+  }
+}
+
+const toStoredAnalysisResultSetJson = (
+  record: StoredAnalysisRecordContract,
+  existingPayload: Record<string, unknown>
+): Record<string, unknown> => ({
+  ...existingPayload,
+  organizationId: record.organizationId,
+  assessmentId: record.assessmentId,
+  jurisdiction: record.jurisdiction,
+  catalogVersion: record.catalogVersion,
+  recordedAt: record.recordedAt,
+  results: record.results,
+  gaps: record.gaps,
+  recommendations: record.recommendations,
+  readinessPlan: record.readinessPlan,
+  checklistItems: Array.isArray(existingPayload.checklistItems) ? existingPayload.checklistItems : [],
+  evidenceArtifacts: record.evidenceArtifacts
+});
+
+const toGeneratedReportData = (record: GeneratedReportRecordContract): Record<string, unknown> =>
+  stripUndefined({
+    id: record.id,
+    organizationId: record.organizationId,
+    assessmentId: uuidOrNull(record.assessmentId),
+    reportType: record.reportType,
+    jurisdiction: record.jurisdiction,
+    status: record.status,
+    legalCaveat: record.legalCaveat,
+    sourceReferencesJson: record.sourceReferences,
+    reportDataJson: toJson(record.reportData),
+    evidenceArtifactId: uuidOrNull(record.evidenceArtifactId),
+    createdBy: uuidOrNull(record.createdBy),
+    createdAt: toDateTime(record.createdAt)
+  });
+
+const toDashboardSnapshotData = (record: DashboardSnapshotRecordContract): Record<string, unknown> =>
+  stripUndefined({
+    id: record.id,
+    organizationId: record.organizationId,
+    assessmentId: uuidOrNull(record.assessmentId),
+    snapshotType: record.snapshotType,
+    source: record.source,
+    snapshotJson: toJson(record.snapshot),
+    createdAt: toDateTime(record.createdAt)
+  });
+
+const fromStoredAnalysisSnapshotRow = (row: StoredAnalysisSnapshotRow): StoredAnalysisRecordContract => {
+  const payload = isRecord(row.resultSetJson) ? row.resultSetJson : {};
+
+  return {
+    organizationId: row.organizationId,
+    assessmentId: row.assessmentId,
+    jurisdiction: stringOr(payload.jurisdiction, row.jurisdiction),
+    catalogVersion: stringOrUndefined(payload.catalogVersion) ?? row.catalogVersion ?? undefined,
+    recordedAt: toIso(row.recordedAt),
+    results: arrayOrEmpty(payload.results) as StoredAnalysisRecordContract["results"],
+    gaps: arrayOrEmpty(payload.gaps) as StoredAnalysisRecordContract["gaps"],
+    recommendations: arrayOrEmpty(payload.recommendations) as StoredAnalysisRecordContract["recommendations"],
+    readinessPlan: (isRecord(payload.readinessPlan)
+      ? payload.readinessPlan
+      : emptyReadinessPlan(row)) as StoredAnalysisRecordContract["readinessPlan"],
+    evidenceArtifacts: arrayOrEmpty(payload.evidenceArtifacts) as StoredAnalysisRecordContract["evidenceArtifacts"]
+  };
+};
+
+const fromGeneratedReportRow = (row: GeneratedReportRow): GeneratedReportRecordContract =>
+  stripUndefined({
+    id: row.id,
+    organizationId: row.organizationId,
+    assessmentId: row.assessmentId ?? undefined,
+    reportType: row.reportType,
+    jurisdiction: row.jurisdiction ?? undefined,
+    status: row.status,
+    legalCaveat: row.legalCaveat,
+    sourceReferences: stringArray(row.sourceReferencesJson),
+    reportData: row.reportDataJson,
+    evidenceArtifactId: row.evidenceArtifactId ?? undefined,
+    createdBy: row.createdBy ?? undefined,
+    createdAt: toIso(row.createdAt)
+  }) as GeneratedReportRecordContract;
+
+const fromDashboardSnapshotRow = (row: DashboardSnapshotRow): DashboardSnapshotRecordContract =>
+  stripUndefined({
+    id: row.id,
+    organizationId: row.organizationId,
+    assessmentId: row.assessmentId ?? undefined,
+    snapshotType: row.snapshotType,
+    source: row.source,
+    snapshot: row.snapshotJson,
+    createdAt: toIso(row.createdAt)
+  }) as DashboardSnapshotRecordContract;
+
+const emptyReadinessPlan = (row: StoredAnalysisSnapshotRow): StoredAnalysisRecordContract["readinessPlan"] => ({
+  id: `${row.assessmentId}:readiness-plan`,
+  organizationId: row.organizationId,
+  assessmentId: row.assessmentId,
+  title: "PureSOC internal readiness plan",
+  targetReadinessPercent: 100,
+  status: "draft",
+  generatedAt: toIso(row.recordedAt),
+  items: []
+});
+
+const storedAnalysisKey = (organizationId: string, assessmentId: string): string => `${organizationId}:${assessmentId}`;
+
+const toJson = (value: unknown): Prisma.InputJsonValue => JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+
+const clone = <T>(record: T): T => JSON.parse(JSON.stringify(record)) as T;
+
+const toDateTime = (value: string): Date => {
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error(`Invalid date-time value for output persistence: ${value}`);
+  }
+
+  return parsed;
+};
+
+const toIso = (value: Date | string): string => (value instanceof Date ? value.toISOString() : new Date(value).toISOString());
+
+const uuidOrNull = (value: string | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)
+    ? value
+    : null;
+};
+
+const stringArray = (value: unknown): string[] => (Array.isArray(value) ? value.filter(isString) : []);
+
+const arrayOrEmpty = (value: unknown): unknown[] => (Array.isArray(value) ? value : []);
+
+const stringOr = (value: unknown, fallback: string): string => (typeof value === "string" ? value : fallback);
+
+const stringOrUndefined = (value: unknown): string | undefined => (typeof value === "string" ? value : undefined);
+
+const isString = (value: unknown): value is string => typeof value === "string";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));
+
+const stripUndefined = <T extends Record<string, unknown>>(value: T): T =>
+  Object.fromEntries(Object.entries(value).filter(([, entryValue]) => entryValue !== undefined)) as T;

@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M25, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M25.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 25 / `docs/PLAN_M26.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M26, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M26.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 26 / `docs/PLAN_M27.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -55,6 +55,7 @@ The repository currently contains:
 - PLAN_M23 i18n/notification model decision: ADR-016 records supported `en`/`ro` locale contracts, English legal-caveat fallback until Romanian wording is product/legal-approved, source-mapped country-pack message ownership, and the decision that future country-pack notification drafts converge on generic `NotificationDraft.payloadJson` envelopes with versioned schema keys while Romania-specific draft rows remain compatibility/workflow companions.
 - PLAN_M24 generic notification draft envelope persistence: `@puresoc/country-packs-core` now validates/parses generic notification envelopes, Romania notification generation emits a generic envelope beside the compatibility JSON, the API route returns the envelope, and `@puresoc/database` has a Prisma-boundary notification draft repository for generic rows plus Romania companion links with organization-scoped tests.
 - PLAN_M25 notification draft runtime persistence and backfill: `@puresoc/database` now has an in-memory notification draft repository matching the Prisma-boundary contract, API runtime persistence selection includes notification drafts in memory and Prisma modes, org-scoped NIS2 notification draft create/read/list routes persist generic envelopes and create Romania companion links for RO registration envelopes, and `@puresoc/country-pack-ro` exposes deterministic backfill status for legacy Romania payloads.
+- PLAN_M26 stored output runtime persistence: `@puresoc/database` now has memory and Prisma output repositories for stored analysis records, generated report metadata, and dashboard snapshots; API compliance/report/dashboard services use the output repository boundary; Prisma mode marks `stored_analysis_reports_dashboards` as persisted; and deterministic tests cover organization-scoped output reads plus checklist-preserving stored-analysis upserts.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -87,7 +88,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 22 / `docs/PLAN_M23.md` is completed.
 - Prompt 23 / `docs/PLAN_M24.md` is completed.
 - Prompt 24 / `docs/PLAN_M25.md` is completed.
-- Prompt 25 / `docs/PLAN_M26.md` is staged as the next active implementation prompt.
+- Prompt 25 / `docs/PLAN_M26.md` is completed.
+- Prompt 26 / `docs/PLAN_M27.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -102,12 +104,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 25 / `docs/PLAN_M26.md`: Stored Output Runtime Persistence Adapter Slice.
-2. Expected next handoff after M26: continue runtime persistence hardening under GAP-036, preferably identity/session/organization/RBAC or audit sink persistence depending on risk appetite.
+1. Prompt 26 / `docs/PLAN_M27.md`: Identity, Session, Organization, And RBAC Persistence Adapter Slice.
+2. Expected next handoff after M27: continue runtime persistence hardening under GAP-036, preferably audit sink persistence or provider telemetry persistence depending on risk appetite.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 25 / PLAN_M26: Stored Output Runtime Persistence Adapter Slice
+## Active Prompt 26 / PLAN_M27: Identity, Session, Organization, And RBAC Persistence Adapter Slice
 
 Read:
 
@@ -117,62 +119,63 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M25.md`
-- `docs/adr/ADR-007-report-renderer-strategy.md`
-- `docs/adr/ADR-008-evidence-storage-metadata-and-export-model.md`
-- `docs/adr/ADR-012-dashboard-aggregation-and-report-data-contracts.md`
-- `code/apps/api/src/output-records.ts`
-- `code/apps/api/src/reports/**`
-- `code/apps/api/src/dashboards/**`
-- `code/apps/api/src/compliance/service.ts`
+- `docs/PLAN_M26.md`
+- `docs/adr/ADR-003-multitenancy-and-rls-posture.md`
+- `docs/adr/ADR-013-auth-oidc-social-login-managed-provider-consent.md`
 - `code/apps/api/src/auth/services.ts`
 - `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/auth/routes.ts`
+- `code/apps/api/src/organizations/**`
+- `code/apps/api/src/rbac/**`
 - `code/apps/api/src/server.ts`
 - `code/packages/database/prisma/schema.prisma`
 - `code/packages/database/src/contracts/**`
 - `code/packages/database/src/repositories/**`
-- `code/packages/reports/src/**`
-- `code/packages/dashboards/src/**`
+- `code/packages/auth/local/src/**`
+- `code/packages/auth/oidc/src/**`
+- `code/packages/auth/core/src/**`
 - `code/apps/api/src/__tests__/**`
 
 Goal:
 
-Move stored analysis, generated report records, and dashboard snapshots from the API-only in-memory repository into an explicit output repository boundary with memory and Prisma adapters selected by `PURESOC_PERSISTENCE_MODE`, without requiring a live database migration/apply smoke.
+Move identity, local credential, session, organization membership, and RBAC data behind explicit memory and Prisma repository adapters selected by `PURESOC_PERSISTENCE_MODE`, without requiring a live database migration/apply smoke.
 
 Context:
 
-- M18 made runtime persistence mode honest and still lists `stored_analysis_reports_dashboards` as memory-backed in Prisma mode.
-- Reports and dashboards already build from stored analysis records, generated report records, and dashboard snapshot records, but the API runtime still stores those records in `InMemoryPureSocRepository`.
-- Prisma schema already has output/report/dashboard models; M26 should add adapter boundaries and tests, not redesign report data contracts.
-- Evidence generated-report artifacts are already persisted through the evidence repository in Prisma mode; this prompt is about the report/dashboard metadata and stored-analysis record path.
+- M18 made runtime persistence mode honest and still lists `identity_sessions_organizations_rbac` as memory-backed in Prisma mode.
+- Local auth, OIDC social-login identity lookup/linking, organization creation, membership listing, and RBAC checks already use repository interfaces, but the API runtime still satisfies those interfaces with `InMemoryPureSocRepository`.
+- Prisma schema already has identity, organization, membership, role, role-binding, session, local credential, verification, and reset-token models. M27 should add adapter boundaries and tests, not redesign auth semantics.
+- OIDC transient state remains a separate in-memory store unless this prompt explicitly introduces a narrow persisted state adapter; do not silently mix OIDC callback state with durable identity/account persistence.
 
 Deliverables:
 
-- Add an output repository contract for stored analysis records, generated report records, and dashboard snapshots, preserving organization-scoped reads.
-- Add an in-memory adapter or migrate the existing in-memory methods behind that contract so tests keep the fast deterministic path.
-- Add a Prisma adapter boundary for the same output records using existing Prisma schema fields and JSON payload columns; use deterministic fake Prisma delegates in tests, not a live database.
-- Wire `createApiServices()` so Prisma mode selects the new adapter and runtime persistence reporting moves `stored_analysis_reports_dashboards` into persisted contexts when the adapter is available.
-- Update compliance, report, and dashboard services to depend on the output repository boundary rather than directly on `InMemoryPureSocRepository` for these records.
-- Keep existing report/export behavior compatible, including evidence artifact creation, legal caveats, and source references.
-- Update docs/gaps/prompts and create `docs/PLAN_M27.md` from the next selected active prompt before final response.
+- Add Prisma repository adapters for the existing local auth, OIDC identity, organization, and RBAC repository contracts, preserving organization-scoped reads and provider-subject uniqueness.
+- Keep memory mode deterministic; reuse or split the existing in-memory repository only where it reduces coupling without changing behavior.
+- Wire `createApiServices()` so Prisma mode selects the new identity/session/organization/RBAC adapters and runtime persistence reporting moves `identity_sessions_organizations_rbac` into persisted contexts when the adapters are available.
+- Preserve current local registration, login, logout/session lookup, email verification token, password reset token, organization creation, member listing, and role-check behavior.
+- Preserve OIDC/social-login semantics from M11: provider-subject lookup, explicit account-link approval, email collision safety, session creation, and audit events.
+- Add deterministic fake-Prisma repository tests and API/runtime tests for org-scoped auth/organization/RBAC behavior; do not require a live database.
+- Update docs/gaps/prompts and create `docs/PLAN_M28.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/apps/api/src/output-records.ts`
 - `code/apps/api/src/auth/services.ts`
 - `code/apps/api/src/auth/memory-repository.ts`
-- `code/apps/api/src/compliance/service.ts`
-- `code/apps/api/src/reports/**`
-- `code/apps/api/src/dashboards/**`
+- `code/apps/api/src/auth/routes.ts`
+- `code/apps/api/src/organizations/**`
+- `code/apps/api/src/rbac/**`
 - `code/apps/api/src/__tests__/**`
 - `code/packages/database/src/contracts/**`
 - `code/packages/database/src/repositories/**`
 - `code/packages/database/src/index.ts`
 - `code/packages/database/src/__tests__/**`
+- `code/packages/auth/local/src/**`
+- `code/packages/auth/oidc/src/**`
+- `code/packages/auth/core/src/**`
 - `code/tests/**`
 - `docs/PLAN.md`
-- `docs/PLAN_M26.md`
 - `docs/PLAN_M27.md`
+- `docs/PLAN_M28.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `code/README.md`
@@ -186,8 +189,9 @@ Negative constraints:
 - Do not make legal certification claims.
 - Do not migrate live data or require a live PostgreSQL instance.
 - Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests.
-- Do not rewrite report builders, dashboard aggregation semantics, or legal caveat wording unless a failing test proves the persistence boundary requires a narrow compatibility adjustment.
-- Do not expose internal evidence `storageUri` values in API responses.
+- Do not relax password hashing, rate limiting, session revocation, account-linking, email-collision, organization-scope, or role-check semantics.
+- Do not persist plaintext passwords, reset tokens, verification tokens, session tokens, OAuth codes, provider secrets, or OIDC nonce/PKCE values.
+- Do not broaden role permissions or let frontend checks substitute for backend authorization.
 
 Tests and acceptance commands:
 
@@ -195,20 +199,21 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- outputs reports dashboards database prisma persistence api
+pnpm test -- auth organization rbac session database prisma persistence api
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M26.md`.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M27.md`.
 
 Expected gap movement:
 
-- Narrow GAP-036 for stored analysis/report/dashboard runtime persistence in Prisma mode.
-- Narrow GAP-041 if output runtime persistence semantics receive deterministic API/repository coverage.
+- Narrow GAP-036 for identity/session/organization/RBAC runtime persistence in Prisma mode.
+- Narrow GAP-041 if identity/org/RBAC persistence semantics receive deterministic API/repository coverage.
+- Preserve GAP-032 unless live OIDC provider smoke is explicitly added; fake token/profile clients remain the contract harness.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve browser/live integration gaps unless M26 directly validates them.
+- Preserve browser/live integration gaps unless M27 directly validates them.
 
 Final response must include:
 
@@ -216,10 +221,29 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M26` updated
-- `PLAN_M27` created
+- `PLAN_M27` updated
+- `PLAN_M28` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 25 / PLAN_M26: Stored Output Runtime Persistence Adapter Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added `OutputRecordRepository` with in-memory and Prisma adapters for stored analysis records, generated report metadata, and dashboard snapshots.
+- API compliance, report, and dashboard services now depend on the output repository boundary instead of output methods on `InMemoryPureSocRepository`.
+- Prisma mode selects `PrismaOutputRecordRepository` and marks `stored_analysis_reports_dashboards` as persisted while memory mode remains deterministic.
+- Stored analysis persistence uses existing `compliance_result_snapshots.resultSetJson` and preserves checklist items written by the compliance-result adapter.
+- Repository/runtime tests cover organization-scoped reads, latest dashboard snapshot selection, generated report persistence, and checklist-preserving stored-analysis upserts.
+- GAP-036 and GAP-041 were narrowed for the stored output persistence path.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- outputs reports dashboards database prisma persistence api`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
 
 ## Completed Prompt 24 / PLAN_M25: Notification Draft Runtime Persistence And Backfill Contract
 

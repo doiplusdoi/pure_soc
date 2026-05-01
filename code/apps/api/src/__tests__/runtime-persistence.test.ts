@@ -35,17 +35,18 @@ describe("API runtime persistence selection", () => {
       "billing",
       "regulatory_sources",
       "remediation_actions",
-      "notification_drafts"
+      "notification_drafts",
+      "stored_analysis_reports_dashboards"
     ]);
     expect(services.persistence.memoryBackedContexts).toEqual(
       expect.arrayContaining([
         "identity_sessions_organizations_rbac",
         "audit_logs",
         "provider_connections_and_telemetry",
-        "stored_analysis_reports_dashboards",
         "oidc_transient_state"
       ])
     );
+    expect(services.persistence.memoryBackedContexts).not.toContain("stored_analysis_reports_dashboards");
     expect(services.prismaClient).toBe(prismaClient);
   });
 });
@@ -68,6 +69,8 @@ const createPrismaClientFixture = () =>
     providerActionRun: {},
     notificationDraft: {},
     roNis2NotificationDraft: {},
+    generatedReport: {},
+    dashboardSnapshot: {},
     evidenceArtifact: {},
     evidenceLink: {},
     evidenceAccessLog: {},

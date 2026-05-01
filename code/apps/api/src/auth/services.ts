@@ -26,14 +26,17 @@ import type { RecommendationContract, RemediationActionRepository } from "@pures
 import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import {
   InMemoryNotificationDraftRepository,
+  InMemoryOutputRecordRepository,
   PrismaActionRepository,
   PrismaBillingRepository,
   PrismaComplianceResultRepository,
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
+  PrismaOutputRecordRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
   type NotificationDraftRepository,
+  type OutputRecordRepository,
   type PureSocPrismaClient
 } from "@puresoc/database";
 import type { BillingRepository } from "@puresoc/billing-core";
@@ -84,6 +87,7 @@ export interface ApiServices {
   reports: ReportApiService;
   dashboards: DashboardApiService;
   billing: BillingApiService;
+  outputRepository: OutputRecordRepository;
   notificationDraftRepository: NotificationDraftRepository;
   notificationDrafts: NotificationDraftApiService;
   actionsRepository: RemediationActionRepository;
@@ -172,7 +176,7 @@ export const createApiServices = (
     store: providerStore,
     analysisRepository: {
       listArtifacts: (organizationId) => runtimeRepositories.evidenceRepository.listArtifacts(organizationId),
-      saveStoredAnalysis: (record) => repository.saveStoredAnalysis(record)
+      saveStoredAnalysis: (record) => runtimeRepositories.outputRepository.saveStoredAnalysis(record)
     },
     resultRepository: runtimeRepositories.complianceResultRepository,
     now: options.now
@@ -192,14 +196,14 @@ export const createApiServices = (
     now: options.now
   });
   const reports = new ReportApiService({
-    repository,
+    repository: runtimeRepositories.outputRepository,
     evidence,
     auditWriter,
     storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
     now: options.now
   });
   const dashboards = new DashboardApiService({
-    repository,
+    repository: runtimeRepositories.outputRepository,
     now: options.now
   });
   const billing = new BillingApiService({
@@ -239,6 +243,7 @@ export const createApiServices = (
     reports,
     dashboards,
     billing,
+    outputRepository: runtimeRepositories.outputRepository,
     notificationDraftRepository: runtimeRepositories.notificationDraftRepository,
     notificationDrafts,
     actionsRepository: runtimeRepositories.actionsRepository,
@@ -255,6 +260,7 @@ interface RuntimeRepositorySet {
   evidenceRepository: EvidenceRepository;
   billingRepository: BillingRepository;
   notificationDraftRepository: NotificationDraftRepository;
+  outputRepository: OutputRecordRepository;
 }
 
 const createRuntimeRepositories = (input: {
@@ -285,7 +291,8 @@ const createRuntimeRepositories = (input: {
       actionsRepository: new InMemoryRemediationActionRepository(),
       evidenceRepository: input.memoryRepository,
       billingRepository: input.memoryRepository,
-      notificationDraftRepository: new InMemoryNotificationDraftRepository()
+      notificationDraftRepository: new InMemoryNotificationDraftRepository(),
+      outputRepository: new InMemoryOutputRecordRepository()
     };
   }
 
@@ -300,13 +307,13 @@ const createRuntimeRepositories = (input: {
         "billing",
         "regulatory_sources",
         "remediation_actions",
-        "notification_drafts"
+        "notification_drafts",
+        "stored_analysis_reports_dashboards"
       ],
       memoryBackedContexts: [
         "identity_sessions_organizations_rbac",
         "audit_logs",
         "provider_connections_and_telemetry",
-        "stored_analysis_reports_dashboards",
         "oidc_transient_state"
       ]
     },
@@ -316,7 +323,8 @@ const createRuntimeRepositories = (input: {
     actionsRepository: new PrismaActionRepository(prismaClient as never),
     evidenceRepository: new PrismaEvidenceRepository(prismaClient as never),
     billingRepository: new PrismaBillingRepository(prismaClient as never),
-    notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never)
+    notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
+    outputRepository: new PrismaOutputRecordRepository(prismaClient as never)
   };
 };
 

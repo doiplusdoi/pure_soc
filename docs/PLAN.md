@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-01, M1-M25 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M26 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -34,8 +34,9 @@ As of 2026-05-01, M1-M25 are implemented at contract/runtime-baseline level.
 - M23 adds ADR-016 for locale/message strategy and country-pack notification draft persistence, shared legal-caveat fallback contracts, source-mapped Romania notification label keys, generic notification envelope helpers, and selected notification draft table drift coverage.
 - M24 adds generic notification draft envelope validation/parsing, Romania generic envelope generation beside the compatibility draft JSON, API response coverage for the generic envelope, and a Prisma-boundary notification draft repository for generic `NotificationDraft` rows plus Romania companion links.
 - M25 adds notification draft runtime persistence in memory and Prisma modes, org-scoped generic notification draft create/read/list routes, Romania companion-link creation for RO registration envelopes, and a deterministic Romania legacy payload backfill helper.
-- Runtime readiness is still partial. Identity/org/RBAC/session data, persistent audit sink/hash-chain concurrency, provider telemetry, stored analysis/report records, dashboards, OIDC transient state, live Redis/BullMQ operation, external audit signing/WORM export, live KMS/key-rotation smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M26.md`, Stored Output Runtime Persistence Adapter Slice.
+- M26 adds an output repository boundary with memory and Prisma adapters for stored analysis records, generated report metadata, and dashboard snapshots. Prisma mode now marks `stored_analysis_reports_dashboards` as persisted while preserving report/dashboard behavior and generated-report evidence links.
+- Runtime readiness is still partial. Identity/org/RBAC/session data, persistent audit sink/hash-chain concurrency, provider telemetry, OIDC transient state, live Redis/BullMQ operation, external audit signing/WORM export, live KMS/key-rotation smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M27.md`, likely the next runtime persistence hardening slice.
 
 ## Milestones
 
@@ -56,8 +57,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M25.md` record completed incremental milestones.
-- `docs/PLAN_M26.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M26.md` record completed incremental milestones.
+- `docs/PLAN_M27.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

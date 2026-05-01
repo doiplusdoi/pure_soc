@@ -41,7 +41,7 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:mig
 
 `PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.
 
-`PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for compliance results, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary. Identity, organization/RBAC/session data, audit sink, provider telemetry, stored analysis/report records, dashboard snapshots, and OIDC transient state remain memory-backed until follow-up runtime slices add their adapters.
+`PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary. Identity, organization/RBAC/session data, audit sink, provider telemetry, and OIDC transient state remain memory-backed until follow-up runtime slices add their adapters.
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 

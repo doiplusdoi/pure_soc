@@ -4,12 +4,10 @@ import {
   aggregateDashboardFromStoredAnalysis,
   type DashboardSnapshotContract
 } from "@puresoc/dashboards";
-import type { DashboardSnapshotRecord, StoredAnalysisRecord } from "../output-records";
+import type { OutputRecordRepository } from "@puresoc/database";
+import type { DashboardSnapshotRecord } from "../output-records";
 
-export interface DashboardRepository {
-  findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord | null>;
-  saveDashboardSnapshot(record: DashboardSnapshotRecord): Promise<DashboardSnapshotRecord>;
-}
+export type DashboardRepository = Pick<OutputRecordRepository, "findStoredAnalysis" | "saveDashboardSnapshot">;
 
 export interface DashboardApiServiceOptions {
   repository: DashboardRepository;

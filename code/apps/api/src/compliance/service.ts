@@ -14,12 +14,12 @@ import {
   evidenceArtifactToComplianceState,
   type EvidenceArtifactMetadata
 } from "@puresoc/evidence";
+import type { OutputRecordRepository } from "@puresoc/database";
 import type { ProviderResourceStore } from "@puresoc/providers-core";
 import {
   generateStructuredRecommendations,
   type RecommendationContract
 } from "@puresoc/recommendations";
-import type { StoredAnalysisRecord } from "../output-records";
 
 export interface ComplianceAssessmentEvaluationInput {
   organizationId: string;
@@ -40,9 +40,8 @@ export interface ComplianceAssessmentEvaluationInput {
 
 export interface ComplianceEvaluationServiceOptions {
   store: ProviderResourceStore;
-  analysisRepository?: {
+  analysisRepository?: Pick<OutputRecordRepository, "saveStoredAnalysis"> & {
     listArtifacts(organizationId: string): Promise<EvidenceArtifactMetadata[]>;
-    saveStoredAnalysis(record: StoredAnalysisRecord): Promise<StoredAnalysisRecord>;
   };
   resultRepository?: ComplianceResultRepository<RecommendationContract>;
   now?: () => Date;
