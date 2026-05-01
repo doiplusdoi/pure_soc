@@ -126,6 +126,10 @@ export interface RegulatorySourceRepository {
   upsertSource(record: RegulatorySourceRecord): Promise<RegulatorySourceRecord>;
   updateSource(sourceId: string, patch: Partial<RegulatorySourceRecord>): Promise<RegulatorySourceRecord>;
   findSourceById(sourceId: string): Promise<RegulatorySourceRecord | null>;
+  listSources(input?: {
+    hasUrl?: boolean;
+    status?: RegulatorySourceRecordStatus;
+  }): Promise<RegulatorySourceRecord[]>;
   saveSourceVersion(record: RegulatorySourceVersionRecord): Promise<RegulatorySourceVersionRecord>;
   updateSourceVersion(
     sourceVersionId: string,
@@ -189,6 +193,62 @@ export interface SourceMonitorReviewTaskInput {
   monitorStatus: RegulatorySourceOperationalStatus;
   reason: string;
   metadataJson?: JsonObject;
+}
+
+export interface RegulatorySourceMonitorConfig {
+  enabled: boolean;
+  requestTimeoutMs: number;
+  staleAfterDays: number;
+  reviewTaskOrganizationId?: string | null;
+}
+
+export interface RegulatorySourceMetadataCheckInput {
+  source: RegulatorySourceRecord;
+  timeoutMs: number;
+}
+
+export type RegulatorySourceMetadataCheckResult =
+  | {
+      outcome: "reachable";
+      statusCode: number;
+      etag?: string | null;
+      lastModified?: string | null;
+      contentHashSha256?: string | null;
+      contentLength?: number | null;
+    }
+  | {
+      outcome: "unreachable";
+      statusCode?: number | null;
+      errorCode: "http_status" | "timeout" | "request_failed" | "invalid_url" | "missing_url";
+    };
+
+export interface RegulatorySourceMetadataCheckClient {
+  check(input: RegulatorySourceMetadataCheckInput): Promise<RegulatorySourceMetadataCheckResult>;
+}
+
+export interface RegulatorySourceMonitorSourceResult {
+  sourceId: string;
+  sourceVersionId?: string | null;
+  url?: string | null;
+  action:
+    | "skipped_no_url"
+    | "reachable_checked"
+    | "review_task_created"
+    | "review_task_existing";
+  monitorStatus?: RegulatorySourceOperationalStatus;
+  reviewTaskId?: string;
+  metadataChanged: boolean;
+  stale: boolean;
+  reachable: boolean;
+}
+
+export interface RegulatorySourceMonitorRunResult {
+  jobName: "regulatory.monitorCountrySources";
+  enabled: boolean;
+  checkedAt: string;
+  checkedSourceCount: number;
+  reviewTaskCount: number;
+  results: RegulatorySourceMonitorSourceResult[];
 }
 
 export type RegulatorySourceReviewErrorCode =
@@ -540,6 +600,16 @@ export class RegulatorySourceReviewService {
       });
     }
 
+    const existingTask = (await this.repository.listReviewTasks({ status: "open" })).find(
+      (task) =>
+        task.sourceId === (input.sourceId ?? null) &&
+        task.createdForStatus === input.monitorStatus &&
+        (task.organizationId ?? null) === (input.organizationId ?? null)
+    );
+    if (existingTask) {
+      return existingTask;
+    }
+
     return this.repository.saveReviewTask({
       id: this.idFactory(),
       organizationId: input.organizationId ?? null,
@@ -631,6 +701,290 @@ export class RegulatorySourceReviewService {
   }
 }
 
+export interface RegulatorySourceMonitorServiceOptions {
+  repository: RegulatorySourceRepository;
+  reviewService?: RegulatorySourceReviewService;
+  metadataClient?: RegulatorySourceMetadataCheckClient;
+  config: RegulatorySourceMonitorConfig;
+  now?: () => Date;
+  idFactory?: () => string;
+}
+
+export class RegulatorySourceMonitorService {
+  private readonly repository: RegulatorySourceRepository;
+  private readonly reviewService: RegulatorySourceReviewService;
+  private readonly metadataClient: RegulatorySourceMetadataCheckClient;
+  private readonly config: RegulatorySourceMonitorConfig;
+  private readonly now: () => Date;
+
+  constructor(options: RegulatorySourceMonitorServiceOptions) {
+    this.repository = options.repository;
+    this.reviewService =
+      options.reviewService ??
+      new RegulatorySourceReviewService({
+        repository: options.repository,
+        now: options.now,
+        idFactory: options.idFactory
+      });
+    this.metadataClient = options.metadataClient ?? new FetchRegulatorySourceMetadataClient();
+    this.config = options.config;
+    this.now = options.now ?? (() => new Date());
+  }
+
+  async runOnce(configOverride: Partial<RegulatorySourceMonitorConfig> = {}): Promise<RegulatorySourceMonitorRunResult> {
+    const config = {
+      ...this.config,
+      ...configOverride
+    };
+    const checkedAt = this.now().toISOString();
+
+    if (!config.enabled) {
+      return {
+        jobName: "regulatory.monitorCountrySources",
+        enabled: false,
+        checkedAt,
+        checkedSourceCount: 0,
+        reviewTaskCount: 0,
+        results: []
+      };
+    }
+
+    const sources = await this.repository.listSources();
+    const results: RegulatorySourceMonitorSourceResult[] = [];
+
+    for (const source of sources) {
+      if (!source.url) {
+        results.push({
+          sourceId: source.id,
+          sourceVersionId: source.activeVersionId ?? null,
+          url: source.url ?? null,
+          action: "skipped_no_url",
+          metadataChanged: false,
+          stale: false,
+          reachable: false
+        });
+        continue;
+      }
+
+      results.push(await this.checkSource(source, config, checkedAt));
+    }
+
+    return {
+      jobName: "regulatory.monitorCountrySources",
+      enabled: true,
+      checkedAt,
+      checkedSourceCount: results.filter((result) => result.action !== "skipped_no_url").length,
+      reviewTaskCount: results.filter(
+        (result) => result.action === "review_task_created" || result.action === "review_task_existing"
+      ).length,
+      results
+    };
+  }
+
+  private async checkSource(
+    source: RegulatorySourceRecord,
+    config: RegulatorySourceMonitorConfig,
+    checkedAt: string
+  ): Promise<RegulatorySourceMonitorSourceResult> {
+    const activeVersion = await this.findComparableVersion(source);
+    const stale = isSourceStale(source.lastCheckedAt, checkedAt, config.staleAfterDays);
+    const metadata = await this.checkMetadata(source, config.requestTimeoutMs);
+
+    if (metadata.outcome === "unreachable") {
+      return this.createMonitorTaskResult({
+        source,
+        activeVersion,
+        monitorStatus: "unreachable",
+        reason: `Regulatory source monitor could not reach ${source.title}.`,
+        checkedAt,
+        reviewTaskOrganizationId: config.reviewTaskOrganizationId,
+        stale,
+        reachable: false,
+        metadataChanged: false,
+        metadata
+      });
+    }
+
+    const changedSignals = findChangedMetadataSignals(activeVersion, metadata);
+    if (changedSignals.length > 0) {
+      return this.createMonitorTaskResult({
+        source,
+        activeVersion,
+        monitorStatus: "needs_review",
+        reason: `Regulatory source monitor detected changed metadata for ${source.title}.`,
+        checkedAt,
+        reviewTaskOrganizationId: config.reviewTaskOrganizationId,
+        stale,
+        reachable: true,
+        metadataChanged: true,
+        metadata: {
+          ...metadata,
+          changedSignals
+        }
+      });
+    }
+
+    if (stale) {
+      return this.createMonitorTaskResult({
+        source,
+        activeVersion,
+        monitorStatus: "stale",
+        reason: `Regulatory source ${source.title} has not been reviewed within the configured freshness window.`,
+        checkedAt,
+        reviewTaskOrganizationId: config.reviewTaskOrganizationId,
+        stale,
+        reachable: true,
+        metadataChanged: false,
+        metadata
+      });
+    }
+
+    await this.repository.updateSource(source.id, {
+      status: source.activationStatus,
+      lastCheckedAt: checkedAt,
+      updatedAt: checkedAt
+    });
+
+    return {
+      sourceId: source.id,
+      sourceVersionId: activeVersion?.id ?? source.activeVersionId ?? null,
+      url: source.url ?? null,
+      action: "reachable_checked",
+      metadataChanged: false,
+      stale: false,
+      reachable: true
+    };
+  }
+
+  private async createMonitorTaskResult(input: {
+    source: RegulatorySourceRecord;
+    activeVersion: RegulatorySourceVersionRecord | null;
+    monitorStatus: RegulatorySourceOperationalStatus;
+    reason: string;
+    checkedAt: string;
+    reviewTaskOrganizationId?: string | null;
+    stale: boolean;
+    reachable: boolean;
+    metadataChanged: boolean;
+    metadata: Record<string, unknown>;
+  }): Promise<RegulatorySourceMonitorSourceResult> {
+    const beforeTaskIds = new Set(
+      (await this.repository.listReviewTasks({
+        status: "open"
+      })).map((task) => task.id)
+    );
+    const task = await this.reviewService.createSourceMonitorReviewTask({
+      organizationId: input.reviewTaskOrganizationId ?? undefined,
+      sourceId: input.source.id,
+      sourceVersionId: input.activeVersion?.id ?? input.source.activeVersionId ?? undefined,
+      monitorStatus: input.monitorStatus,
+      reason: input.reason,
+      metadataJson: {
+        checkedAt: input.checkedAt,
+        sourceTitle: input.source.title,
+        sourceUrl: input.source.url ?? null,
+        metadata: sanitizeMonitorMetadata(input.metadata)
+      }
+    });
+
+    return {
+      sourceId: input.source.id,
+      sourceVersionId: input.activeVersion?.id ?? input.source.activeVersionId ?? null,
+      url: input.source.url ?? null,
+      action: beforeTaskIds.has(task.id) ? "review_task_existing" : "review_task_created",
+      monitorStatus: input.monitorStatus,
+      reviewTaskId: task.id,
+      metadataChanged: input.metadataChanged,
+      stale: input.stale,
+      reachable: input.reachable
+    };
+  }
+
+  private async findComparableVersion(source: RegulatorySourceRecord): Promise<RegulatorySourceVersionRecord | null> {
+    if (source.activeVersionId) {
+      const activeVersion = await this.repository.findSourceVersionById(source.activeVersionId);
+      if (activeVersion) {
+        return activeVersion;
+      }
+    }
+
+    return this.repository.findActiveSourceVersion(source.id);
+  }
+
+  private async checkMetadata(
+    source: RegulatorySourceRecord,
+    timeoutMs: number
+  ): Promise<RegulatorySourceMetadataCheckResult> {
+    try {
+      return await this.metadataClient.check({
+        source,
+        timeoutMs
+      });
+    } catch {
+      return {
+        outcome: "unreachable",
+        errorCode: "request_failed"
+      };
+    }
+  }
+}
+
+export class FetchRegulatorySourceMetadataClient implements RegulatorySourceMetadataCheckClient {
+  async check(input: RegulatorySourceMetadataCheckInput): Promise<RegulatorySourceMetadataCheckResult> {
+    if (!input.source.url) {
+      return {
+        outcome: "unreachable",
+        errorCode: "missing_url"
+      };
+    }
+
+    let url: URL;
+    try {
+      url = new URL(input.source.url);
+    } catch {
+      return {
+        outcome: "unreachable",
+        errorCode: "invalid_url"
+      };
+    }
+
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), input.timeoutMs);
+
+    try {
+      const response = await fetch(url, {
+        method: "HEAD",
+        redirect: "follow",
+        signal: controller.signal
+      });
+
+      if (!response.ok) {
+        return {
+          outcome: "unreachable",
+          statusCode: response.status,
+          errorCode: "http_status"
+        };
+      }
+
+      return {
+        outcome: "reachable",
+        statusCode: response.status,
+        etag: response.headers.get("etag"),
+        lastModified: response.headers.get("last-modified"),
+        contentHashSha256: response.headers.get("x-puresoc-content-sha256"),
+        contentLength: parseNullableInteger(response.headers.get("content-length"))
+      };
+    } catch (error) {
+      return {
+        outcome: "unreachable",
+        errorCode: isAbortError(error) ? "timeout" : "request_failed"
+      };
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+}
+
 export class InMemoryRegulatorySourceRepository implements RegulatorySourceRepository {
   readonly sources = new Map<string, RegulatorySourceRecord>();
   readonly sourceVersions = new Map<string, RegulatorySourceVersionRecord>();
@@ -667,6 +1021,17 @@ export class InMemoryRegulatorySourceRepository implements RegulatorySourceRepos
   async findSourceById(sourceId: string): Promise<RegulatorySourceRecord | null> {
     const source = this.sources.get(sourceId);
     return source ? cloneRecord(source) : null;
+  }
+
+  async listSources(input: {
+    hasUrl?: boolean;
+    status?: RegulatorySourceRecordStatus;
+  } = {}): Promise<RegulatorySourceRecord[]> {
+    return [...this.sources.values()]
+      .filter((source) => input.hasUrl === undefined || Boolean(source.url) === input.hasUrl)
+      .filter((source) => input.status === undefined || source.status === input.status)
+      .sort((left, right) => left.id.localeCompare(right.id))
+      .map(cloneRecord);
   }
 
   async saveSourceVersion(record: RegulatorySourceVersionRecord): Promise<RegulatorySourceVersionRecord> {
@@ -787,6 +1152,110 @@ const assertSourceTrust = (source: Pick<RegulatorySourceRecord, "sourceType" | "
     );
   }
 };
+
+const isSourceStale = (lastCheckedAt: string | null | undefined, checkedAt: string, staleAfterDays: number): boolean => {
+  if (!lastCheckedAt) {
+    return true;
+  }
+
+  const lastChecked = Date.parse(lastCheckedAt);
+  const checked = Date.parse(checkedAt);
+  if (!Number.isFinite(lastChecked) || !Number.isFinite(checked)) {
+    return true;
+  }
+
+  const staleAfterMs = staleAfterDays * 24 * 60 * 60 * 1000;
+  return checked - lastChecked > staleAfterMs;
+};
+
+const findChangedMetadataSignals = (
+  sourceVersion: RegulatorySourceVersionRecord | null,
+  metadata: RegulatorySourceMetadataCheckResult
+): string[] => {
+  if (!sourceVersion || metadata.outcome !== "reachable") {
+    return [];
+  }
+
+  const known = getKnownSourceMetadata(sourceVersion);
+  const changedSignals: string[] = [];
+
+  if (metadata.etag && known.etag && metadata.etag !== known.etag) {
+    changedSignals.push("etag");
+  }
+
+  if (metadata.lastModified && known.lastModified && metadata.lastModified !== known.lastModified) {
+    changedSignals.push("last_modified");
+  }
+
+  if (metadata.contentHashSha256 && known.contentHashSha256 && metadata.contentHashSha256 !== known.contentHashSha256) {
+    changedSignals.push("content_hash_sha256");
+  }
+
+  return changedSignals;
+};
+
+const getKnownSourceMetadata = (
+  sourceVersion: RegulatorySourceVersionRecord
+): {
+  etag?: string;
+  lastModified?: string;
+  contentHashSha256?: string;
+} => {
+  const monitorMetadata = getJsonObject(sourceVersion.metadataJson.sourceMonitor);
+  const httpMetadata = getJsonObject(sourceVersion.metadataJson.httpMetadata);
+
+  return {
+    etag:
+      getString(sourceVersion.metadataJson.etag) ??
+      getString(sourceVersion.metadataJson.httpEtag) ??
+      getString(monitorMetadata?.etag) ??
+      getString(httpMetadata?.etag),
+    lastModified:
+      getString(sourceVersion.metadataJson.lastModified) ??
+      getString(sourceVersion.metadataJson.lastModifiedAt) ??
+      getString(monitorMetadata?.lastModified) ??
+      getString(httpMetadata?.lastModified),
+    contentHashSha256:
+      sourceVersion.contentHashSha256 ??
+      getString(sourceVersion.metadataJson.contentHashSha256) ??
+      getString(monitorMetadata?.contentHashSha256) ??
+      getString(httpMetadata?.contentHashSha256)
+  };
+};
+
+const sanitizeMonitorMetadata = (metadata: Record<string, unknown>): JsonObject => {
+  const allowedEntries = Object.entries(metadata).filter(([key]) =>
+    [
+      "outcome",
+      "statusCode",
+      "etag",
+      "lastModified",
+      "contentHashSha256",
+      "contentLength",
+      "errorCode",
+      "changedSignals"
+    ].includes(key)
+  );
+
+  return Object.fromEntries(allowedEntries.filter(([, value]) => value !== undefined)) as JsonObject;
+};
+
+const parseNullableInteger = (value: string | null): number | null => {
+  if (!value) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
+};
+
+const isAbortError = (error: unknown): boolean =>
+  error instanceof Error && (error.name === "AbortError" || error.message.includes("aborted"));
+
+const getJsonObject = (value: unknown): JsonObject | undefined =>
+  value !== null && typeof value === "object" && !Array.isArray(value) ? (value as JsonObject) : undefined;
+
+const getString = (value: unknown): string | undefined => (typeof value === "string" && value.length > 0 ? value : undefined);
 
 const cloneJson = (value: JsonObject): JsonObject => JSON.parse(JSON.stringify(value)) as JsonObject;
 

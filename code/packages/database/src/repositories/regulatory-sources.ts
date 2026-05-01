@@ -99,6 +99,24 @@ export class PrismaRegulatorySourceRepository implements RegulatorySourceReposit
     return row ? fromSourceRow(row) : null;
   }
 
+  async listSources(input: {
+    hasUrl?: boolean;
+    status?: RegulatorySourceRecordStatus;
+  } = {}): Promise<RegulatorySourceRecord[]> {
+    const rows = await this.client.regulatorySource.findMany({
+      where: {
+        ...(input.hasUrl === true ? { url: { not: null } } : {}),
+        ...(input.hasUrl === false ? { url: null } : {}),
+        ...(input.status ? { status: input.status } : {})
+      },
+      orderBy: {
+        id: "asc"
+      }
+    });
+
+    return rows.map(fromSourceRow);
+  }
+
   async saveSourceVersion(record: RegulatorySourceVersionRecord): Promise<RegulatorySourceVersionRecord> {
     const row = await this.client.regulatorySourceVersion.create({
       data: toSourceVersionData(record)

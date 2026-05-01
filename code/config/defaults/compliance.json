@@ -1,5 +1,11 @@
 {
   "defaultJurisdiction": "eu",
   "countryPackMode": "baseline_with_country_overlays",
-  "sourceActivationDefault": "review_required"
+  "sourceActivationDefault": "review_required",
+  "sourceMonitor": {
+    "enabled": false,
+    "requestTimeoutMs": 5000,
+    "staleAfterDays": 90,
+    "reviewTaskOrganizationId": null
+  }
 }

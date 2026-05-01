@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M16 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M15.md`, `docs/PLAN_M16.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M17 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M16.md`, `docs/PLAN_M17.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -46,6 +46,7 @@ The repository currently contains:
 - PLAN_M14 security threat model and release hardening: `docs/threat-model.md` now records assets, trust boundaries, abuse paths, priorities, focus paths, and M14 fixes. Session cookies honor secure-cookie config, evidence API responses no longer expose internal storage URIs, regulatory review task actions/source-map reads are organization-scoped, and remediation snapshots must match the action run provider connection.
 - PLAN_M15 prompt QA: the active prompt queue was checked against `docs/prompt-tests.md`, the latest M14 changed files/test output were reviewed, and GAP-034 was promoted into the next concrete implementation prompt.
 - PLAN_M16 API request/evidence upload limits: central JSON and Stripe raw-body parsing now enforces configurable byte limits through early `Content-Length` checks plus chunk-level enforcement, oversized payloads return stable `413 payload_too_large` errors, decoded evidence uploads are capped before scanner/storage/audit side effects, HTTP upload scanners time out, and GAP-034 is resolved for the current JSON/raw-body API shape.
+- PLAN_M17 regulatory source monitor runtime scheduling: configurable source-monitor enablement, timeout, stale threshold, and review-task routing are now in config; `@puresoc/regulatory-sources` has deterministic URL metadata monitoring with injectable clients, stale/unreachable/changed-metadata review task creation, duplicate open-task prevention, and no automatic legal activation; `apps/scheduler` exposes a one-shot `regulatory.monitorCountrySources` job contract. GAP-027 is resolved for the scheduler/runtime contract.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -69,7 +70,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 13 / `docs/PLAN_M14.md` is completed.
 - Prompt 14 / `docs/PLAN_M15.md` is completed.
 - Prompt 15 / `docs/PLAN_M16.md` is completed.
-- Prompt 16 starts at `docs/PLAN_M17.md`.
+- Prompt 16 / `docs/PLAN_M17.md` is completed.
+- No `docs/PLAN_M18.md` stub exists yet because no next active prompt has been selected after M17.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -84,7 +86,7 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 16 / `PLAN_M17`: Regulatory Source Monitor Runtime Scheduling.
+No active prompt is currently staged. Select the next implementation slice from the open gaps in `docs/implementation-gaps.md` before creating `docs/PLAN_M18.md`.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
@@ -401,91 +403,19 @@ Validated with host-node equivalents because `pnpm` is not installed on this hos
 - `npm run test -- api http evidence storage scanner config billing webhook`
 - `git diff --check`
 
-## Prompt 16 / PLAN_M17: Regulatory Source Monitor Runtime Scheduling
+## Completed Prompt 16 / PLAN_M17: Regulatory Source Monitor Runtime Scheduling
 
-```txt
-This is a regulatory operations hardening prompt.
+Completed on 2026-05-01.
 
-Read:
-- docs/puresoc_vision.md
-- docs/master-plan.md
-- docs/implementation-gaps.md
-- docs/codex-prompts.md
-- docs/LEARNINGS.md
-- docs/prompt-tests.md
-- docs/threat-model.md
-- docs/PLAN_M16.md
-- latest changed files
-- latest test output
+Summary:
+- Added typed compliance config defaults and environment overrides for regulatory source monitor enablement, request timeout, stale-after days, and optional review-task organization routing.
+- Added `RegulatorySourceMonitorService` with injectable metadata clients, URL-backed source checks, stale/unreachable/changed-metadata detection, sanitized metadata capture, and no automatic legal activation.
+- Added idempotent open review-task behavior so repeated monitor runs do not create duplicate source/status tasks.
+- Added a scheduler-facing one-shot `regulatory.monitorCountrySources` job contract under `apps/scheduler`.
+- Added config, regulatory-source monitor, and scheduler tests using fake clients/fixtures only; GAP-027 is resolved for this runtime contract.
+- No `PLAN_M18` was created because no next active prompt exists yet after this handoff.
 
-Goal:
-Close GAP-027 by wiring the regulatory source monitor into the scheduler/runtime contract with configurable enablement, URL metadata checks, review-task creation, and no automatic legal activation.
-
-Milestone plan:
-- Current milestone file: `docs/PLAN_M17.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M18.md` from the next active prompt if a next prompt exists after this implementation.
-
-Implementation requirements:
-- Add typed config defaults and environment overrides for `REGULATORY_SOURCE_MONITOR_ENABLED`, request timeout milliseconds, stale-after days, and review-task organization routing where appropriate.
-- Add a scheduler-facing job contract for `regulatory.monitorCountrySources` that can run once deterministically in tests.
-- Read configured regulatory source records from the existing regulatory source repository abstraction or a small runtime input adapter; do not hardcode Romania-only or EU-only source lists in scheduler code.
-- For URL-backed sources, perform metadata checks with an injectable fetch/head client:
-  - reachable sources should update/check metadata without creating activation work,
-  - unreachable sources should create an open `regulatory_admin` review task with `createdForStatus = "unreachable"`,
-  - sources older than the configured freshness threshold should create an open `regulatory_admin` review task with `createdForStatus = "stale"`,
-  - changed metadata/hash indicators should create `needs_review` tasks, not activation.
-- Keep source monitor behavior disabled when `REGULATORY_SOURCE_MONITOR_ENABLED=false`.
-- Ensure repeated monitor runs are idempotent enough not to create duplicate open tasks for the same source/status combination.
-- Add tests for disabled monitor, reachable source no-op/update, unreachable source review task, stale source review task, changed source `needs_review`, timeout handling, and duplicate-task prevention.
-- Do not fetch live public regulatory websites in tests; use injected fake clients/fixtures.
-
-Update docs/implementation-gaps.md with:
-- blockers
-- assumptions
-- deferred decisions
-- missing tests
-- resolved GAP-027 status if the implementation and tests fully close it
-
-Keep resolved gaps for auditability, marked as resolved with date.
-
-Expected files:
-- docs/PLAN_M17.md
-- docs/PLAN_M18.md if a next active prompt exists after implementation
-- docs/codex-prompts.md
-- docs/implementation-gaps.md
-- code/.env.example
-- code/config/defaults/compliance.json or a focused scheduler/regulatory defaults file if cleaner
-- code/packages/config/src/index.ts
-- code/packages/config/src/__tests__/config.test.ts
-- code/packages/regulatory-sources/src/index.ts
-- code/packages/regulatory-sources/src/__tests__/regulatory-source-activation.spec.ts or a focused monitor spec
-- code/apps/scheduler/src/index.ts or `code/apps/scheduler/src/regulatory-source-monitor.ts`
-- code/apps/scheduler/src/__tests__/*regulatory-source-monitor*.test.ts
-- code/apps/worker/src/index.ts only if the existing worker contract is the cleaner runtime hook
-
-Acceptance commands:
-- pnpm lint
-- pnpm test -- --runInBand regulatory source-monitor scheduler config
-- git diff --check
-
-Negative constraints:
-- Do not auto-activate new or changed legal logic from the source monitor.
-- Do not fetch live external regulatory URLs in tests.
-- Do not put Romania-specific source-monitor logic in generic scheduler or regulatory-source packages.
-- Do not put Microsoft-specific logic in generic compliance, scheduler, or regulatory-source packages.
-- Do not hardcode regulatory facts in UI conditionals.
-- Do not make legal certification claims.
-- Do not add provider write/remediation execution.
-- Do not require the monitor to run in in-a-box deployments when `REGULATORY_SOURCE_MONITOR_ENABLED=false`.
-- Do not log source response bodies or sensitive headers.
-
-Final response must include:
-- Changed files
-- Tests run
-- Acceptance status
-- Gaps updated
-- PLAN_M17 updated
-- PLAN_M18 created or explicitly not needed
-- Codex prompts updated
-- Residual risk
-```
+Validated with host-node equivalents because `pnpm` is not installed on this host and Vitest 3 rejects the prompt's `--runInBand` option:
+- `npm run lint`
+- `npm run test -- regulatory source-monitor scheduler config`
+- `git diff --check`

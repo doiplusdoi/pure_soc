@@ -57,6 +57,12 @@ export interface PureSocConfig {
     defaultJurisdiction: string;
     countryPackMode: string;
     sourceActivationDefault: string;
+    sourceMonitor: {
+      enabled: boolean;
+      requestTimeoutMs: number;
+      staleAfterDays: number;
+      reviewTaskOrganizationId: string | null;
+    };
   };
   reports: {
     legalCaveatRequired: boolean;
@@ -105,6 +111,15 @@ const readPositiveInteger = (value: string | undefined, fallback: number): numbe
 
   const parsed = Number(value);
   return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const readOptionalString = (value: string | undefined, fallback: string | null): string | null => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
 };
 
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
@@ -168,6 +183,29 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
           google: withSocialLoginEnvOverrides("PURESOC_AUTH_GOOGLE", config.auth.socialLogin.providers.google, env),
           github: withSocialLoginEnvOverrides("PURESOC_AUTH_GITHUB", config.auth.socialLogin.providers.github, env)
         }
+      }
+    },
+    compliance: {
+      ...config.compliance,
+      sourceMonitor: {
+        ...config.compliance.sourceMonitor,
+        enabled: readBoolean(
+          env.PURESOC_REGULATORY_SOURCE_MONITOR_ENABLED ?? env.REGULATORY_SOURCE_MONITOR_ENABLED,
+          config.compliance.sourceMonitor.enabled
+        ),
+        requestTimeoutMs: readPositiveInteger(
+          env.PURESOC_REGULATORY_SOURCE_MONITOR_TIMEOUT_MS ?? env.REGULATORY_SOURCE_MONITOR_TIMEOUT_MS,
+          config.compliance.sourceMonitor.requestTimeoutMs
+        ),
+        staleAfterDays: readPositiveInteger(
+          env.PURESOC_REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS ?? env.REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS,
+          config.compliance.sourceMonitor.staleAfterDays
+        ),
+        reviewTaskOrganizationId: readOptionalString(
+          env.PURESOC_REGULATORY_SOURCE_MONITOR_REVIEW_ORGANIZATION_ID ??
+            env.REGULATORY_SOURCE_MONITOR_REVIEW_ORGANIZATION_ID,
+          config.compliance.sourceMonitor.reviewTaskOrganizationId
+        )
       }
     },
     reports: {

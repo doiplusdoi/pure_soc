@@ -25,6 +25,7 @@
     "@puresoc/provider-mock": "workspace:*",
     "@puresoc/providers-core": "workspace:*",
     "@puresoc/recommendations": "workspace:*",
+    "@puresoc/regulatory-sources": "workspace:*",
     "@puresoc/reports": "workspace:*",
     "@puresoc/shared": "workspace:*",
     "@types/node": "^22.10.10",

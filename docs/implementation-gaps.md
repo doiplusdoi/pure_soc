@@ -275,12 +275,12 @@ Status: Open
 
 Severity: Medium
 Area: Regulatory operations
-Current state: PLAN_M6 added source-monitor review-task creation semantics in `code/packages/regulatory-sources`, including `needs_review`, `stale`, and `unreachable` task states without auto-activation. No periodic scheduler job currently polls configured source URLs or writes these tasks on a runtime cadence.
-Impact: Source monitor behavior is testable as a domain contract, but deployed environments will not detect stale/unreachable/changed source URLs until the scheduler or worker runtime is wired.
-Next action: Implement `regulatory.monitorCountrySources` in the scheduler/worker runtime with configurable `REGULATORY_SOURCE_MONITOR_ENABLED`, URL metadata checks, and review-task creation only.
+Current state: PLAN_M17 added typed config defaults and environment overrides for `REGULATORY_SOURCE_MONITOR_ENABLED`, request timeout, stale-after days, and optional review-task organization routing. `@puresoc/regulatory-sources` now includes a deterministic regulatory source monitor service with injectable HEAD/metadata clients, stale/unreachable/changed-metadata detection, idempotent open review-task creation, and no automatic activation. `apps/scheduler` exposes the one-shot `regulatory.monitorCountrySources` job contract, and tests cover disabled mode, reachable no-op/update, unreachable, stale, changed metadata, timeout handling, and duplicate-task prevention without live public URL fetches.
+Impact: The runtime scheduling contract now exists and can be called by a scheduler loop or deployment-specific trigger while preserving regulatory review guardrails. The monitor creates review work only; source-derived legal logic still requires the GAP-006 review process before activation.
+Next action: Wire the one-shot scheduler job into the deployment's actual recurring process/queue when runtime orchestration is selected, and keep production reviewer operating procedure/UI under GAP-006.
 Owner: Codex/Product/legal
 Target phase: Phase K
-Status: Open
+Status: Resolved 2026-05-01 for scheduler job contract, configurable source monitor behavior, idempotent review-task creation, and no-auto-activation tests.
 
 ### GAP-028: Live Stripe Runtime Reconciliation And Operations Deferred
 

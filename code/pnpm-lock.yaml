@@ -35,6 +35,9 @@ importers:
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:packages/recommendations
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:packages/regulatory-sources
       '@puresoc/reports':
         specifier: workspace:*
         version: link:packages/reports
@@ -141,7 +144,11 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
-  apps/scheduler: {}
+  apps/scheduler:
+    dependencies:
+      '@puresoc/regulatory-sources':
+        specifier: workspace:*
+        version: link:../../packages/regulatory-sources
 
   apps/web:
     dependencies:
