@@ -1,7 +1,9 @@
 import {
+  buildCountryPackNotificationDraftEnvelope,
   countryPackNotificationPayloadSchemaKey,
   resolveLegalCaveatMessage,
   resolvePureSocLocale,
+  type CountryPackNotificationDraftEnvelope,
   type PureSocLocale
 } from "@puresoc/country-packs-core";
 import {
@@ -51,6 +53,20 @@ export interface RoNis2NotificationDraftJson {
     submittedToDnsc: false;
   };
 }
+
+export interface RoNis2NotificationDraftEnvelopePayload extends Record<string, unknown> {
+  classification: RoNis2NotificationDraftJson["classification"];
+  fields: RoNis2NotificationDraftField[];
+  generatedAt: string;
+  legacyNotificationType: RoNis2NotificationDraftJson["notificationType"];
+  sourceMapLinks: RoNis2SourceMapLink[];
+  sourceVersion: string;
+  status: RoNis2NotificationDraftStatus;
+  submission: RoNis2NotificationDraftJson["submission"];
+}
+
+export type RoNis2NotificationDraftEnvelope =
+  CountryPackNotificationDraftEnvelope<RoNis2NotificationDraftEnvelopePayload>;
 
 export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY = countryPackNotificationPayloadSchemaKey({
   countryCode: "RO",
@@ -241,6 +257,48 @@ export const buildRoNis2NotificationDraft = (input: {
     }
   };
 };
+
+export const toRoNis2NotificationDraftEnvelope = (
+  draft: RoNis2NotificationDraftJson
+): RoNis2NotificationDraftEnvelope =>
+  buildCountryPackNotificationDraftEnvelope({
+    jurisdiction: "RO",
+    locale: draft.locale,
+    notificationType: "country_registration",
+    payload: {
+      classification: draft.classification,
+      fields: draft.fields,
+      generatedAt: draft.generatedAt,
+      legacyNotificationType: draft.notificationType,
+      sourceMapLinks: draft.sourceMapLinks,
+      sourceVersion: draft.sourceVersion,
+      status: draft.status,
+      submission: draft.submission
+    },
+    payloadSchemaKey: draft.payloadSchemaKey,
+    payloadSchemaVersion: draft.payloadSchemaVersion,
+    sourceMappedFields: draft.fields.map((field) => ({
+      fieldKey: field.key,
+      label: {
+        locale: field.labelLocale,
+        messageKey: field.labelMessageKey,
+        sourceMapId: field.sourceMapId,
+        text: field.label
+      },
+      sourceMapId: field.sourceMapId,
+      sourceReferences: field.sourceReferences,
+      value: field.value
+    })),
+    sourceReferences: draft.sourceMapLinks.flatMap((link) => link.sourceReferences)
+  });
+
+export const buildRoNis2NotificationDraftEnvelope = (input: {
+  answers: RoNis2OnboardingAnswers;
+  classification: Nis2Classification;
+  generatedAt?: string;
+  locale?: string | null;
+  status?: RoNis2NotificationDraftStatus;
+}): RoNis2NotificationDraftEnvelope => toRoNis2NotificationDraftEnvelope(buildRoNis2NotificationDraft(input));
 
 export const notificationDraftHasSourceMappedFields = (draft: RoNis2NotificationDraftJson): boolean =>
   draft.fields.length > 0 &&

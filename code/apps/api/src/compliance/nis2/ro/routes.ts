@@ -3,6 +3,7 @@ import {
   buildRoNis2OnboardingProgress,
   classifyRoNis2Entity,
   roNis2OnboardingSchema,
+  toRoNis2NotificationDraftEnvelope,
   type Nis2Classification,
   type RoNis2ClassificationInput,
   type RoNis2OnboardingAnswers
@@ -38,14 +39,19 @@ export const roNis2OnboardingProgressRoute = async (body: Record<string, unknown
   }
 });
 
-export const roNis2NotificationDraftRoute = async (body: Record<string, unknown>): Promise<JsonResult> => ({
-  statusCode: 200,
-  body: {
-    draft: buildRoNis2NotificationDraft({
+export const roNis2NotificationDraftRoute = async (body: Record<string, unknown>): Promise<JsonResult> => {
+  const draft = buildRoNis2NotificationDraft({
       answers: (body.answers ?? {}) as RoNis2OnboardingAnswers,
       classification: body.classification as Nis2Classification,
       generatedAt: typeof body.generatedAt === "string" ? body.generatedAt : undefined,
       locale: typeof body.locale === "string" ? body.locale : undefined
-    })
+  });
+
+  return {
+    statusCode: 200,
+    body: {
+      draft,
+      notificationDraftEnvelope: toRoNis2NotificationDraftEnvelope(draft)
+    }
   }
-});
+};

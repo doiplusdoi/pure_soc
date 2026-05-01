@@ -27,6 +27,13 @@ export {
   PrismaActionRepository,
   type PrismaActionClient
 } from "./repositories/actions";
+export {
+  PrismaNotificationDraftRepository,
+  validateNotificationDraftPayloadEnvelopeContract,
+  type NotificationDraftEnvelopeContractValidationResult,
+  type NotificationDraftRepository,
+  type PrismaNotificationDraftClient
+} from "./repositories/notification-drafts";
 export { EU_MEMBER_STATE_COUNT, euMemberStates, type EuMemberStateSeed } from "./seed/eu-member-states";
 export {
   providerResourceIdempotencyKey,

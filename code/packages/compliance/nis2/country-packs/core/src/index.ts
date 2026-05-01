@@ -5,6 +5,7 @@ import {
 } from "@puresoc/regulatory-sources";
 import {
   LEGAL_CAVEAT_MESSAGE_KEY,
+  isPureSocLocale,
   resolveLegalCaveatMessage,
   resolvePureSocLocale,
   type PureSocLocale
@@ -143,6 +144,12 @@ export type CountryPackNotificationType = "country_registration" | "incident_rep
 
 export type CountryPackNotificationDraftStatus = "draft" | "ready_for_review" | "exported" | "superseded";
 
+export const countryPackNotificationTypes: readonly CountryPackNotificationType[] = [
+  "country_registration",
+  "incident_reporting",
+  "readiness_update"
+];
+
 export interface CountryPackLocalizedMessage {
   locale: PureSocLocale;
   messageKey: string;
@@ -172,6 +179,41 @@ export interface CountryPackNotificationDraftEnvelope<TPayload extends Record<st
   payloadSchemaVersion: string;
   sourceMappedFields: readonly CountryPackNotificationSourceMappedField[];
   sourceReferences: readonly unknown[];
+}
+
+export type CountryPackNotificationEnvelopeValidationCode =
+  | "empty_array"
+  | "invalid_boolean"
+  | "invalid_legal_caveat"
+  | "invalid_locale"
+  | "invalid_notification_type"
+  | "invalid_schema_key"
+  | "invalid_schema_version"
+  | "missing_object"
+  | "missing_string";
+
+export interface CountryPackNotificationEnvelopeValidationIssue {
+  code: CountryPackNotificationEnvelopeValidationCode;
+  message: string;
+  path: string;
+}
+
+export interface CountryPackNotificationEnvelopeValidationResult {
+  envelope?: CountryPackNotificationDraftEnvelope<Record<string, unknown>>;
+  issues: CountryPackNotificationEnvelopeValidationIssue[];
+  valid: boolean;
+}
+
+export interface CountryPackNotificationEnvelopeValidationOptions {
+  allowEmptySourceMappedFields?: boolean;
+  allowEmptySourceReferences?: boolean;
+}
+
+export class CountryPackNotificationEnvelopeValidationError extends Error {
+  constructor(readonly issues: readonly CountryPackNotificationEnvelopeValidationIssue[]) {
+    super(`Invalid country-pack notification draft envelope: ${issues.map((issue) => issue.message).join("; ")}`);
+    this.name = "CountryPackNotificationEnvelopeValidationError";
+  }
 }
 
 export const countryPackNotificationPayloadSchemaKey = (input: {
@@ -216,6 +258,269 @@ export const buildCountryPackNotificationDraftEnvelope = <TPayload extends Recor
     sourceReferences: input.sourceReferences ?? []
   };
 };
+
+export const validateCountryPackNotificationDraftEnvelope = (
+  value: unknown,
+  options: CountryPackNotificationEnvelopeValidationOptions = {}
+): CountryPackNotificationEnvelopeValidationResult => {
+  const issues: CountryPackNotificationEnvelopeValidationIssue[] = [];
+
+  if (!isRecord(value)) {
+    return {
+      issues: [
+        {
+          code: "missing_object",
+          message: "Notification draft payload must be an object envelope.",
+          path: "$"
+        }
+      ],
+      valid: false
+    };
+  }
+
+  const frameworkKey = readRequiredString(value, "frameworkKey", issues);
+  if (frameworkKey && frameworkKey !== "nis2") {
+    issues.push({
+      code: "missing_string",
+      message: "frameworkKey must be nis2.",
+      path: "$.frameworkKey"
+    });
+  }
+
+  readRequiredString(value, "jurisdiction", issues);
+  const notificationType = readRequiredString(value, "notificationType", issues);
+  if (notificationType && !countryPackNotificationTypes.includes(notificationType as CountryPackNotificationType)) {
+    issues.push({
+      code: "invalid_notification_type",
+      message: `notificationType must be one of ${countryPackNotificationTypes.join(", ")}.`,
+      path: "$.notificationType"
+    });
+  }
+
+  const payloadSchemaKey = readRequiredString(value, "payloadSchemaKey", issues);
+  if (payloadSchemaKey && !/^[a-z]{2}\.nis2\.[a-z0-9]+(?:_[a-z0-9]+)*\.v[1-9][0-9]*$/.test(payloadSchemaKey)) {
+    issues.push({
+      code: "invalid_schema_key",
+      message: "payloadSchemaKey must follow {country}.nis2.{notification_kind}.v{major}.",
+      path: "$.payloadSchemaKey"
+    });
+  }
+
+  const payloadSchemaVersion = readRequiredString(value, "payloadSchemaVersion", issues);
+  if (payloadSchemaVersion && !/^[0-9]+\.[0-9]+\.[0-9]+$/.test(payloadSchemaVersion)) {
+    issues.push({
+      code: "invalid_schema_version",
+      message: "payloadSchemaVersion must be a semantic version string.",
+      path: "$.payloadSchemaVersion"
+    });
+  }
+
+  const locale = readLocale(value, "locale", issues);
+  const legalCaveatLocale = readLocale(value, "legalCaveatLocale", issues);
+  const legalCaveatMessageKey = readRequiredString(value, "legalCaveatMessageKey", issues);
+  const legalCaveat = readRequiredString(value, "legalCaveat", issues);
+
+  if (typeof value.legalCaveatFallbackUsed !== "boolean") {
+    issues.push({
+      code: "invalid_boolean",
+      message: "legalCaveatFallbackUsed must be a boolean.",
+      path: "$.legalCaveatFallbackUsed"
+    });
+  }
+
+  if (legalCaveatMessageKey && legalCaveatMessageKey !== LEGAL_CAVEAT_MESSAGE_KEY) {
+    issues.push({
+      code: "invalid_legal_caveat",
+      message: `legalCaveatMessageKey must be ${LEGAL_CAVEAT_MESSAGE_KEY}.`,
+      path: "$.legalCaveatMessageKey"
+    });
+  }
+
+  if (locale && legalCaveatLocale && legalCaveat) {
+    const expectedCaveat = resolveLegalCaveatMessage(locale);
+    if (legalCaveatLocale !== expectedCaveat.resolvedLocale) {
+      issues.push({
+        code: "invalid_legal_caveat",
+        message: "legalCaveatLocale must match the resolved legal caveat locale.",
+        path: "$.legalCaveatLocale"
+      });
+    }
+    if (value.legalCaveatFallbackUsed !== expectedCaveat.fallbackUsed) {
+      issues.push({
+        code: "invalid_legal_caveat",
+        message: "legalCaveatFallbackUsed must match the requested locale fallback state.",
+        path: "$.legalCaveatFallbackUsed"
+      });
+    }
+    if (legalCaveat !== expectedCaveat.text) {
+      issues.push({
+        code: "invalid_legal_caveat",
+        message: "legalCaveat must match the keyed PureSOC legal caveat text.",
+        path: "$.legalCaveat"
+      });
+    }
+  }
+
+  if (!isRecord(value.payload)) {
+    issues.push({
+      code: "missing_object",
+      message: "payload must be an object.",
+      path: "$.payload"
+    });
+  }
+
+  validateSourceMappedFields(value.sourceMappedFields, issues, options);
+  validateSourceReferences(value.sourceReferences, "$.sourceReferences", issues, !options.allowEmptySourceReferences);
+
+  return {
+    envelope:
+      issues.length === 0 ? (value as unknown as CountryPackNotificationDraftEnvelope<Record<string, unknown>>) : undefined,
+    issues,
+    valid: issues.length === 0
+  };
+};
+
+export const parseCountryPackNotificationDraftEnvelope = (
+  value: unknown,
+  options: CountryPackNotificationEnvelopeValidationOptions = {}
+): CountryPackNotificationDraftEnvelope<Record<string, unknown>> => {
+  const result = validateCountryPackNotificationDraftEnvelope(value, options);
+  if (!result.valid || !result.envelope) {
+    throw new CountryPackNotificationEnvelopeValidationError(result.issues);
+  }
+
+  return result.envelope;
+};
+
+const readRequiredString = (
+  value: Record<string, unknown>,
+  key: string,
+  issues: CountryPackNotificationEnvelopeValidationIssue[],
+  path = `$.${key}`
+): string | undefined => {
+  const entry = value[key];
+  if (typeof entry !== "string" || entry.trim().length === 0) {
+    issues.push({
+      code: "missing_string",
+      message: `${key} must be a non-empty string.`,
+      path
+    });
+    return undefined;
+  }
+
+  return entry;
+};
+
+const readLocale = (
+  value: Record<string, unknown>,
+  key: string,
+  issues: CountryPackNotificationEnvelopeValidationIssue[],
+  path = `$.${key}`
+): PureSocLocale | undefined => {
+  const entry = readRequiredString(value, key, issues, path);
+  if (!entry) {
+    return undefined;
+  }
+
+  if (!isPureSocLocale(entry)) {
+    issues.push({
+      code: "invalid_locale",
+      message: `${key} must be a supported PureSOC locale.`,
+      path
+    });
+    return undefined;
+  }
+
+  return entry;
+};
+
+const validateSourceMappedFields = (
+  value: unknown,
+  issues: CountryPackNotificationEnvelopeValidationIssue[],
+  options: CountryPackNotificationEnvelopeValidationOptions
+) => {
+  if (!Array.isArray(value)) {
+    issues.push({
+      code: "missing_object",
+      message: "sourceMappedFields must be an array.",
+      path: "$.sourceMappedFields"
+    });
+    return;
+  }
+
+  if (!options.allowEmptySourceMappedFields && value.length === 0) {
+    issues.push({
+      code: "empty_array",
+      message: "sourceMappedFields must include at least one source-mapped field.",
+      path: "$.sourceMappedFields"
+    });
+  }
+
+  value.forEach((field, index) => {
+    if (!isRecord(field)) {
+      issues.push({
+        code: "missing_object",
+        message: "sourceMappedFields entries must be objects.",
+        path: `$.sourceMappedFields[${index}]`
+      });
+      return;
+    }
+
+    readRequiredString(field, "fieldKey", issues, `$.sourceMappedFields[${index}].fieldKey`);
+    readRequiredString(field, "sourceMapId", issues, `$.sourceMappedFields[${index}].sourceMapId`);
+    validateSourceReferences(field.sourceReferences, `$.sourceMappedFields[${index}].sourceReferences`, issues, true);
+
+    if (!isRecord(field.label)) {
+      issues.push({
+        code: "missing_object",
+        message: "sourceMappedFields label must be an object.",
+        path: `$.sourceMappedFields[${index}].label`
+      });
+      return;
+    }
+
+    readLocale(field.label, "locale", issues, `$.sourceMappedFields[${index}].label.locale`);
+    readRequiredString(field.label, "messageKey", issues, `$.sourceMappedFields[${index}].label.messageKey`);
+    readRequiredString(field.label, "text", issues, `$.sourceMappedFields[${index}].label.text`);
+  });
+};
+
+const validateSourceReferences = (
+  value: unknown,
+  path: string,
+  issues: CountryPackNotificationEnvelopeValidationIssue[],
+  requireNonEmpty: boolean
+) => {
+  if (!Array.isArray(value)) {
+    issues.push({
+      code: "missing_object",
+      message: `${path} must be an array.`,
+      path
+    });
+    return;
+  }
+
+  if (requireNonEmpty && value.length === 0) {
+    issues.push({
+      code: "empty_array",
+      message: `${path} must include at least one source reference.`,
+      path
+    });
+  }
+
+  value.forEach((reference, index) => {
+    if (!isRecord(reference)) {
+      issues.push({
+        code: "missing_object",
+        message: `${path}[${index}] must be an object.`,
+        path: `${path}[${index}]`
+      });
+    }
+  });
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));
 
 export interface Nis2CountryPack {
   countryCode: EuCountryCode;

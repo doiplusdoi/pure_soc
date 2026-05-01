@@ -4,8 +4,10 @@
 
 Implement Prompt 23 from `docs/codex-prompts.md`: turn the ADR-016 notification-draft model decision into the first small persistence-oriented slice for generic `NotificationDraft.payloadJson` envelopes and Romania compatibility/workflow links.
 
-Status: staged for implementation after M23.
+Status: completed.
 Created: 2026-05-01.
+Started: 2026-05-01.
+Completed: 2026-05-01.
 
 ## Source Inputs
 
@@ -43,6 +45,13 @@ Expected implementation areas:
 - Optional deterministic payload-envelope drift/static check if it stays local and fast.
 - Gap and prompt updates based on implementation results.
 
+Locked assumptions:
+
+- M24 validates and persists the generic envelope shape, but does not migrate real production rows because no live database/runtime migration smoke is in scope.
+- Romania-specific workflow fields stay in the Romania compatibility companion surface; future country packs should target the generic `NotificationDraft` contract first.
+- The active Romanian legal caveat remains the English fallback from `@puresoc/shared`; M24 must not invent Romanian legal copy.
+- API compatibility can expose generic envelope data alongside existing Romania draft JSON, but M24 should avoid broad route or frontend rewrites.
+
 Expected files:
 
 - `code/packages/compliance/nis2/country-packs/core/src/**`
@@ -56,6 +65,7 @@ Expected files:
 - `docs/PLAN.md`
 - `docs/PLAN_M24.md`
 - `docs/PLAN_M25.md`
+- `docs/LEARNINGS.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
@@ -101,32 +111,64 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Completed 2026-05-01.
 
 Implementation results:
 
-- Pending.
+- Added a deterministic generic country-pack notification draft envelope validator/parser in `@puresoc/country-packs-core`.
+- Added Romania generic notification envelope generation for `ro.nis2.registration_notification.v1` while preserving the existing Romania compatibility draft JSON.
+- Updated the Romania notification API route to return `notificationDraftEnvelope` beside the existing `draft`.
+- Added `PrismaNotificationDraftRepository` for organization-scoped generic `NotificationDraft` records and Romania companion draft links.
+- Added write-time generic envelope validation for notification draft repository saves.
+- Added focused tests for valid/invalid envelope semantics, Romania envelope generation, API envelope response coverage, Prisma-boundary persistence, organization scoping, companion links, and malformed-payload rejection.
 
 Changed files:
 
-- Pending.
+- `code/apps/api/src/__tests__/ro-nis2-api-routes.test.ts`
+- `code/apps/api/src/compliance/nis2/ro/routes.ts`
+- `code/packages/compliance/nis2/country-packs/core/src/__tests__/country-pack-nis2.spec.ts`
+- `code/packages/compliance/nis2/country-packs/core/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-notification-draft.types.spec.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
+- `code/packages/database/src/__tests__/prisma-notification-drafts.repository.spec.ts`
+- `code/packages/database/src/contracts/outputs.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/notification-drafts.ts`
+- `docs/PLAN.md`
+- `docs/PLAN_M24.md`
+- `docs/PLAN_M25.md`
+- `docs/LEARNINGS.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed. It reported schema drift coverage for 21 models and 331 fields, and Romania generated regulatory drift for 2 artifacts.
+- `npm run test -- reports compliance ro notification i18n database prisma` passed: 30 test files, 122 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M24. Generic notification draft envelopes now have deterministic semantic validation, Romania can emit a generic envelope suitable for `NotificationDraft.payloadJson`, and the Prisma-boundary persistence contract is organization-scoped with Romania companion-link coverage. No provider write/remediation path or live external service was added.
 
 Gaps updated:
 
-- Pending.
+- GAP-041 narrowed for payload-envelope semantic validation coverage.
+- GAP-042 narrowed for generic envelope validation/generation and Prisma-boundary notification draft persistence.
+- GAP-030 remains open; no provider write/remediation execution was added.
 
 Prompt handoff:
 
-- Pending. M24 implementation must create `docs/PLAN_M25.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 23 / PLAN_M24 complete and stages Prompt 24 / PLAN_M25.
+- `docs/PLAN_M25.md` created for Notification Draft Runtime Persistence And Backfill Contract.
 
 Residual risk:
 
-- Pending.
+- Runtime API persistence routes for notification drafts are not wired yet; M25 is staged for that.
+- Existing Romania companion draft payload backfill/migration is not implemented yet.
+- Romanian legal-caveat/product copy remains unapproved and falls back to English.
+- Live PostgreSQL migration/apply smoke remains deferred under existing runtime/database gaps.

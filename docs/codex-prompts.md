@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M23, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M23.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, `docs/claude_rec2.md`, and staging Prompt 23 / `docs/PLAN_M24.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M24, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M24.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 24 / `docs/PLAN_M25.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -53,6 +53,7 @@ The repository currently contains:
 - PLAN_M21 audit integrity/provider key handling: `@puresoc/audit` now emits per-organization/global hash-chain metadata with a redacted canonical payload and in-memory tamper verification helpers; Prisma audit integrity columns/migration exist for future persisted sinks; Microsoft 365 token encryption now writes key IDs, decrypts active/previous/legacy envelopes, and production startup rejects unsafe local-dev provider token keys. GAP-039 and GAP-040 track external audit signing/WORM/retention and live KMS/key-rotation smoke.
 - PLAN_M22 schema/generated-data drift detection: `pnpm lint` now runs deterministic local checks that parse selected high-risk Prisma models against explicit contract field expectations, and regenerate Romania NIS2 seed/source-map artifacts in memory to diff against checked-in JSON. GAP-041 tracks intentionally excluded drift surfaces and the Romania import report artifact.
 - PLAN_M23 i18n/notification model decision: ADR-016 records supported `en`/`ro` locale contracts, English legal-caveat fallback until Romanian wording is product/legal-approved, source-mapped country-pack message ownership, and the decision that future country-pack notification drafts converge on generic `NotificationDraft.payloadJson` envelopes with versioned schema keys while Romania-specific draft rows remain compatibility/workflow companions.
+- PLAN_M24 generic notification draft envelope persistence: `@puresoc/country-packs-core` now validates/parses generic notification envelopes, Romania notification generation emits a generic envelope beside the compatibility JSON, the API route returns the envelope, and `@puresoc/database` has a Prisma-boundary notification draft repository for generic rows plus Romania companion links with organization-scoped tests.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -83,7 +84,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 20 / `docs/PLAN_M21.md` is completed.
 - Prompt 21 / `docs/PLAN_M22.md` is completed.
 - Prompt 22 / `docs/PLAN_M23.md` is completed.
-- Prompt 23 / `docs/PLAN_M24.md` is staged as the next active implementation prompt.
+- Prompt 23 / `docs/PLAN_M24.md` is completed.
+- Prompt 24 / `docs/PLAN_M25.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -98,12 +100,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 23 / `docs/PLAN_M24.md`: Generic Notification Draft Envelope Persistence.
-2. Expected next handoff after M24: wire approved message/catalog consumers or continue the highest-risk runtime hardening gap if persistence findings point there.
+1. Prompt 24 / `docs/PLAN_M25.md`: Notification Draft Runtime Persistence And Backfill Contract.
+2. Expected next handoff after M25: wire approved message/catalog consumers if product/legal copy exists, or continue runtime persistence hardening under GAP-036.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 23 / PLAN_M24: Generic Notification Draft Envelope Persistence
+## Active Prompt 24 / PLAN_M25: Notification Draft Runtime Persistence And Backfill Contract
 
 Read:
 
@@ -113,51 +115,56 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M23.md`
+- `docs/PLAN_M24.md`
 - `docs/adr/ADR-016-i18n-and-country-pack-notification-drafts.md`
 - `docs/adr/ADR-005-regulatory-seed-and-source-map-format.md`
 - `code/packages/shared/src/**`
 - `code/packages/compliance/nis2/country-packs/core/src/**`
 - `code/packages/compliance/nis2/country-packs/ro/src/**`
-- `code/packages/reports/src/**`
-- `code/apps/api/src/reports/**`
 - `code/apps/api/src/compliance/nis2/ro/**`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/server.ts`
 - `code/packages/database/prisma/schema.prisma`
 - `code/packages/database/src/contracts/**`
-- `code/scripts/check-schema-contract-drift.ts`
+- `code/packages/database/src/repositories/notification-drafts.ts`
+- `code/packages/database/src/__tests__/prisma-notification-drafts.repository.spec.ts`
 
 Goal:
 
-Implement the first small persistence-oriented slice of the ADR-016 decision: generic `NotificationDraft.payloadJson` envelopes become the canonical country-pack notification draft shape, while Romania draft rows remain compatibility/workflow companions.
+Wire the M24 generic notification-draft persistence boundary into the API/runtime contract and add a deterministic backfill helper for Romania compatibility rows, without requiring a live database migration or product/legal-approved Romanian copy.
 
 Context:
 
-- M23 added locale/legal-caveat fallback contracts and a generic notification envelope helper, but did not persist generic notification drafts or migrate existing Romania payloads.
-- GAP-042 tracks Romanian product-copy approval, runtime message catalog wiring, generic notification persistence, and Romania draft migration/backfill.
-- GAP-041 now checks notification draft table fields, but not semantic payload-envelope validity.
+- M24 added generic envelope validation/parsing, Romania envelope generation, API envelope response coverage, and a Prisma-boundary repository for generic `NotificationDraft` plus Romania companion links.
+- The API still does not create/read notification draft records through the runtime repository set.
+- Existing Romania companion payloads may be legacy JSON; new writes should prefer generic envelopes and keep `RoNis2NotificationDraft.notificationDraftId` as a workflow link.
+- Product/legal-approved Romanian legal-caveat text is still unavailable and must remain an English fallback.
 
 Deliverables:
 
-- Add a typed notification draft repository/service contract for generic `NotificationDraft` records, with organization scoping.
-- Add a deterministic payload-envelope validator or parser that checks `payloadSchemaKey`, `payloadSchemaVersion`, locale/caveat metadata, source-mapped fields, and legal caveat presence.
-- Wire Romania notification draft generation to produce a generic envelope suitable for `NotificationDraft.payloadJson` and preserve the Romania companion-link posture.
-- Add or update Prisma adapter/fake repository tests only within the notification draft persistence boundary; avoid broad API rewrites.
-- Add drift or static coverage for payload-envelope semantics if it can stay local and deterministic.
-- Update docs/gaps/prompts and create `docs/PLAN_M25.md` from the next selected active prompt before final response.
+- Add an in-memory notification draft repository or adapter so API tests can exercise the same organization-scoped contract as the Prisma boundary.
+- Add runtime repository selection for notification drafts in `PURESOC_PERSISTENCE_MODE=memory|prisma` and update persisted/memory-backed context reporting honestly.
+- Add narrow API/service routes for creating and reading generic notification drafts by organization, including Romania companion-link creation when the source payload is a Romania registration envelope.
+- Add a deterministic backfill/migration helper that can convert a readable legacy `RoNis2NotificationDraft` payload into a generic envelope when enough source-mapped fields and caveat metadata exist; leave non-convertible rows as explicit `manual_review_required`.
+- Keep report export behavior compatible; do not rewrite report generation or served frontend i18n.
+- Update docs/gaps/prompts and create `docs/PLAN_M26.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/packages/compliance/nis2/country-packs/core/src/**`
 - `code/packages/compliance/nis2/country-packs/ro/src/**`
-- `code/packages/database/src/contracts/**`
-- `code/packages/database/src/repositories/**`
-- `code/apps/api/src/reports/**`
+- `code/packages/database/src/repositories/notification-drafts.ts`
+- `code/packages/database/src/index.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/auth/memory-repository.ts`
 - `code/apps/api/src/compliance/nis2/ro/**`
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/__tests__/**`
 - `code/tests/**`
-- `code/scripts/check-schema-contract-drift.ts` or a focused notification-envelope check if added
 - `docs/PLAN.md`
-- `docs/PLAN_M24.md`
 - `docs/PLAN_M25.md`
+- `docs/PLAN_M26.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
@@ -170,6 +177,7 @@ Negative constraints:
 - Do not make legal certification claims.
 - Do not add a broad served frontend/i18n runtime.
 - Do not approve or invent Romanian legal-caveat wording.
+- Do not migrate live data or require a live PostgreSQL instance.
 - Do not run live Microsoft Graph, Stripe, OIDC, MinIO/S3, public regulatory URL, KMS, or provider-write smoke tests.
 
 Tests and acceptance commands:
@@ -178,20 +186,20 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- reports compliance ro notification i18n database prisma
+pnpm test -- notification database ro api persistence i18n
 pnpm prisma:validate
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M24.md`.
+If `pnpm` is not available, use the host-node equivalents used in recent milestones and record the substitution in `docs/PLAN_M25.md`.
 
 Expected gap movement:
 
-- Narrow GAP-042 for generic notification draft persistence and Romania compatibility.
-- Narrow GAP-041 if payload-envelope semantic checks are added.
+- Narrow GAP-042 for runtime notification-draft persistence and Romania backfill posture.
+- Narrow GAP-036 if notification-draft runtime persistence is wired into Prisma mode.
 - Preserve GAP-030: do not enable live provider write/remediation execution.
-- Preserve runtime/browser/live integration gaps unless M24 directly validates them.
+- Preserve browser/live integration gaps unless M25 directly validates them.
 
 Final response must include:
 
@@ -199,10 +207,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M24` updated
-- `PLAN_M25` created
+- `PLAN_M25` updated
+- `PLAN_M26` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 23 / PLAN_M24: Generic Notification Draft Envelope Persistence
+
+Completed on 2026-05-01.
+
+Summary:
+- `@puresoc/country-packs-core` now validates and parses generic country-pack notification draft envelopes, including schema key/version, supported locale metadata, keyed legal caveat text/fallback state, source references, and source-mapped fields.
+- Romania notification draft generation now emits a generic `ro.nis2.registration_notification.v1` envelope suitable for `NotificationDraft.payloadJson`, while preserving the existing Romania compatibility draft JSON.
+- The Romania notification API response now includes `notificationDraftEnvelope` alongside the existing `draft`.
+- `@puresoc/database` now has a `PrismaNotificationDraftRepository` with organization-scoped generic draft reads/lists/writes and Romania companion draft links.
+- Tests cover valid and invalid envelope semantics, Romania envelope generation, API envelope responses, repository organization scoping, companion-link persistence, and write-time rejection of malformed payloads.
+- GAP-041 is narrowed for payload-envelope semantic checks; GAP-042 is narrowed for generic envelope validation/generation and Prisma-boundary persistence.
+
+Validated with host-node equivalents because `pnpm`/sandbox-local `npm` were unavailable:
+- `npm run lint`
+- `npm run test -- reports compliance ro notification i18n database prisma`
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Full M24 acceptance command results are recorded in `docs/PLAN_M24.md`.
 
 ## Completed Prompt 22 / PLAN_M23: i18n And Country-Pack Notification Model Decision
 

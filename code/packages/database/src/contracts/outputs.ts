@@ -196,6 +196,7 @@ export interface NotificationDraftPayloadEnvelopeContract {
   frameworkKey: "nis2";
   jurisdiction: string;
   legalCaveat: string;
+  legalCaveatFallbackUsed: boolean;
   legalCaveatLocale: string;
   legalCaveatMessageKey: string;
   locale: string;

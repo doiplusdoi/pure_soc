@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { classifyRoNis2Entity } from "../classification.service";
 import {
+  buildRoNis2NotificationDraftEnvelope,
   buildRoNis2NotificationDraft,
   notificationDraftHasSourceMappedFields,
   RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY
 } from "../notification-draft.types";
+import { parseCountryPackNotificationDraftEnvelope } from "@puresoc/country-packs-core";
 
 describe("ro notification draft data contract", () => {
   it("builds source-mapped notification draft fields without DNSC submission", () => {
@@ -67,5 +69,45 @@ describe("ro notification draft data contract", () => {
       value: "12345678"
     });
     expect(draft.sourceMapLinks.every((link) => link.workbookRange?.startsWith("Notification form!"))).toBe(true);
+  });
+
+  it("builds a generic payload envelope for canonical NotificationDraft persistence", () => {
+    const classification = classifyRoNis2Entity({
+      relationship: {
+        establishedInRomania: true
+      },
+      selectedServiceTypeCodes: ["101101"],
+      sizeCategory: "medium"
+    });
+    const envelope = buildRoNis2NotificationDraftEnvelope({
+      answers: {
+        entity: {
+          cui: "12345678",
+          legalName: "Example SA"
+        }
+      },
+      classification,
+      generatedAt: "2026-04-28T00:00:00.000Z",
+      locale: "ro-RO",
+      status: "ready_for_review"
+    });
+
+    expect(parseCountryPackNotificationDraftEnvelope(envelope)).toMatchObject({
+      jurisdiction: "RO",
+      legalCaveatLocale: "en",
+      locale: "ro",
+      notificationType: "country_registration",
+      payloadSchemaKey: RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY
+    });
+    expect(envelope.payload).toMatchObject({
+      legacyNotificationType: "ro_nis2_registration_notification",
+      status: "ready_for_review"
+    });
+    expect(envelope.sourceMappedFields.find((field) => field.fieldKey === "notification_c9")).toMatchObject({
+      label: {
+        messageKey: "country_pack.ro.nis2.notification.notification_c9.label"
+      },
+      value: "Example SA"
+    });
   });
 });

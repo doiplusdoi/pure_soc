@@ -23,12 +23,16 @@ export {
   type RoNis2SourceReference
 } from "./classification.service";
 export {
+  buildRoNis2NotificationDraftEnvelope,
   buildRoNis2NotificationDraft,
   notificationDraftHasSourceMappedFields,
   RO_NIS2_NOTIFICATION_LEGAL_CAVEAT,
   RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY,
   RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION,
   RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE,
+  toRoNis2NotificationDraftEnvelope,
+  type RoNis2NotificationDraftEnvelope,
+  type RoNis2NotificationDraftEnvelopePayload,
   type RoNis2NotificationDraftField,
   type RoNis2NotificationDraftJson,
   type RoNis2NotificationDraftStatus

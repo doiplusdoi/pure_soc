@@ -14,6 +14,7 @@ Keep entries short, specific, and actionable.
 - Cross-package TypeScript imports must use `@puresoc/*` package exports; `code/scripts/check-layout.mjs` rejects deep relative package imports, deep package subpaths, and missing workspace dependency declarations.
 - Legal-caveat copy is message-keyed and falls back to English for Romanian locale until product/legal approves Romanian wording.
 - Future country-pack notification drafts should use the generic `NotificationDraft.payloadJson` envelope with a versioned schema key; Romania-specific draft tables are compatibility/workflow companions, not the default pattern for new countries.
+- Generic notification draft writes should validate the payload envelope semantics before persistence, including keyed legal caveat metadata and source-mapped fields.
 
 ## How To Add Learnings
 
