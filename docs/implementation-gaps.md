@@ -352,12 +352,12 @@ Status: Open
 
 Severity: Medium
 Area: API availability/security
-Current state: PLAN_M14 threat modeling identified that `parseJsonBody`, `parseRawBody`, and evidence upload decoding currently buffer complete request bodies in memory without a configured maximum size. Evidence uploads are scanned and can fail closed in production, but oversized JSON/base64 payloads can still consume API memory and CPU before domain validation completes. PLAN_M15 prompt QA promoted this gap into Prompt 15 / `docs/PLAN_M16.md` as the next concrete implementation slice.
-Impact: A remote or authenticated attacker could cause targeted denial of service by submitting large auth, webhook, evidence, report, or regulatory payloads. This is especially relevant for in-a-box deployments with small resource limits and for scanner-backed uploads.
-Next action: Run Prompt 15 / PLAN_M16 to add central request body limits, per-route evidence upload byte limits, clear `413 payload_too_large` errors, scanner timeout handling, and tests for oversized JSON, raw Stripe webhook body, and evidence content.
+Current state: PLAN_M16 added typed defaults and environment overrides for JSON request body, Stripe raw webhook body, decoded evidence upload, and HTTP scanner timeout limits. `parseJsonBody` and `parseRawBody` now reject oversized requests through early `Content-Length` checks and chunk-level streaming enforcement with stable `413 payload_too_large` errors. Evidence uploads now reject decoded content above the configured limit before scanner, storage, artifact, access-log, or audit side effects, including base64 uploads. HTTP scanner calls now abort on timeout and return a failed scan result so production fail-closed behavior is preserved.
+Impact: The current JSON/raw-body API harness now has bounded request buffering and evidence scanner calls no longer hang indefinitely. Future large-file upload ergonomics still need a streaming/multipart design before increasing limits substantially.
+Next action: Keep runtime object-storage/scanner/PDF smoke under GAP-029 and revisit streaming or multipart evidence upload support when product upload-size requirements exceed the current JSON-body API shape.
 Owner: Codex/DevOps
 Target phase: Phase K
-Status: Open
+Status: Resolved 2026-05-01 for configurable parser limits, decoded evidence byte limit, stable 413 errors, and scanner timeout contract tests.
 
 ### GAP-035: Production Cookie, CORS, And Browser Auth Smoke Deferred
 

@@ -18,29 +18,82 @@ export interface JsonResult {
   headers?: Record<string, string | string[]>;
 }
 
-export const parseJsonBody = async (request: IncomingMessage): Promise<Record<string, unknown>> => {
-  const chunks: Buffer[] = [];
+export interface BodyParserLimitOptions {
+  maxBytes?: number;
+}
 
-  for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+export class PayloadTooLargeError extends Error {
+  readonly code = "payload_too_large";
+  readonly statusCode = 413;
+
+  constructor() {
+    super("Request body exceeds the configured size limit.");
   }
+}
 
-  if (chunks.length === 0) {
+const defaultBodyMaxBytes = 1_048_576;
+
+export const parseJsonBody = async (
+  request: IncomingMessage,
+  options: BodyParserLimitOptions = {}
+): Promise<Record<string, unknown>> => {
+  const rawBody = await readLimitedBody(request, options.maxBytes ?? defaultBodyMaxBytes);
+
+  if (rawBody.byteLength === 0) {
     return {};
   }
 
-  const rawBody = Buffer.concat(chunks).toString("utf8");
-  return JSON.parse(rawBody) as Record<string, unknown>;
+  return JSON.parse(rawBody.toString("utf8")) as Record<string, unknown>;
 };
 
-export const parseRawBody = async (request: IncomingMessage): Promise<Buffer> => {
+export const parseRawBody = async (
+  request: IncomingMessage,
+  options: BodyParserLimitOptions = {}
+): Promise<Buffer> => readLimitedBody(request, options.maxBytes ?? defaultBodyMaxBytes);
+
+const readLimitedBody = async (request: IncomingMessage, maxBytes: number): Promise<Buffer> => {
+  assertValidBodyLimit(maxBytes);
+  assertContentLengthWithinLimit(request, maxBytes);
+
   const chunks: Buffer[] = [];
+  let totalBytes = 0;
 
   for await (const chunk of request) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    totalBytes += buffer.byteLength;
+
+    if (totalBytes > maxBytes) {
+      throw new PayloadTooLargeError();
+    }
+
+    chunks.push(buffer);
   }
 
-  return Buffer.concat(chunks);
+  return Buffer.concat(chunks, totalBytes);
+};
+
+const assertValidBodyLimit = (maxBytes: number): void => {
+  if (!Number.isSafeInteger(maxBytes) || maxBytes <= 0) {
+    throw new Error("Body parser maxBytes must be a positive safe integer.");
+  }
+};
+
+const assertContentLengthWithinLimit = (request: IncomingMessage, maxBytes: number): void => {
+  const declaredLength = parseContentLength(request.headers["content-length"]);
+
+  if (declaredLength !== null && declaredLength > maxBytes) {
+    throw new PayloadTooLargeError();
+  }
+};
+
+const parseContentLength = (contentLength: string | string[] | undefined): number | null => {
+  const value = Array.isArray(contentLength) ? contentLength[0] : contentLength;
+  if (value === undefined) {
+    return null;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 };
 
 export const readRequestContext = (request: IncomingMessage): RequestContext => ({
@@ -152,6 +205,18 @@ export const toJsonResultError = (error: unknown): JsonResult => {
   }
 
   if (error instanceof RemediationActionError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof PayloadTooLargeError) {
     return {
       statusCode: error.statusCode,
       body: {

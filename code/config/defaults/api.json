@@ -1,0 +1,7 @@
+{
+  "requestLimits": {
+    "jsonBodyMaxBytes": 15728640,
+    "stripeWebhookRawBodyMaxBytes": 1048576,
+    "evidenceUploadMaxBytes": 10485760
+  }
+}

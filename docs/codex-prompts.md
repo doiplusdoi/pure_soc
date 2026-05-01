@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M15 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M14.md`, `docs/PLAN_M15.md`, `docs/threat-model.md`, `docs/claude_rec.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-01 after completing PLAN_M16 and reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M15.md`, `docs/PLAN_M16.md`, `docs/threat-model.md`, `docs/prompt-tests.md`, and `docs/implementation-gaps.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -45,6 +45,7 @@ The repository currently contains:
 - PLAN_M13 full Article 21 catalog/scoring: EU Article 21(2)(a)-(j) controls now have source-linked evidence requirements, manual checklist mappings, provider-neutral mappings for existing Microsoft/mock MFA, IAM, and Defender XDR findings, stricter catalog seed validation, stale-evidence handling, configurable readiness-plan targets, accepted-risk partial scoring, ADR-015 provisional score calibration, and `PureSOC internal readiness` dashboard score labeling.
 - PLAN_M14 security threat model and release hardening: `docs/threat-model.md` now records assets, trust boundaries, abuse paths, priorities, focus paths, and M14 fixes. Session cookies honor secure-cookie config, evidence API responses no longer expose internal storage URIs, regulatory review task actions/source-map reads are organization-scoped, and remediation snapshots must match the action run provider connection.
 - PLAN_M15 prompt QA: the active prompt queue was checked against `docs/prompt-tests.md`, the latest M14 changed files/test output were reviewed, and GAP-034 was promoted into the next concrete implementation prompt.
+- PLAN_M16 API request/evidence upload limits: central JSON and Stripe raw-body parsing now enforces configurable byte limits through early `Content-Length` checks plus chunk-level enforcement, oversized payloads return stable `413 payload_too_large` errors, decoded evidence uploads are capped before scanner/storage/audit side effects, HTTP upload scanners time out, and GAP-034 is resolved for the current JSON/raw-body API shape.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md` and `docs/claude_rec.md`.
 
@@ -67,7 +68,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 12 / `docs/PLAN_M13.md` is completed.
 - Prompt 13 / `docs/PLAN_M14.md` is completed.
 - Prompt 14 / `docs/PLAN_M15.md` is completed.
-- Prompt 15 starts at `docs/PLAN_M16.md`.
+- Prompt 15 / `docs/PLAN_M16.md` is completed.
+- Prompt 16 starts at `docs/PLAN_M17.md`.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -82,7 +84,7 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 15 / `PLAN_M16`: API Request Body And Evidence Upload Limits.
+1. Prompt 16 / `PLAN_M17`: Regulatory Source Monitor Runtime Scheduling.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
@@ -382,10 +384,27 @@ Summary:
 Validated with:
 - `git diff --check`
 
-## Prompt 15 / PLAN_M16: API Request Body And Evidence Upload Limits
+## Completed Prompt 15 / PLAN_M16: API Request Body And Evidence Upload Limits
+
+Completed on 2026-05-01.
+
+Summary:
+- Added typed config defaults and environment overrides for JSON request body, Stripe raw webhook body, decoded evidence upload, and HTTP scanner timeout limits.
+- `parseJsonBody` and `parseRawBody` now enforce limits through early `Content-Length` checks and chunk-level streaming checks.
+- Oversized parser and evidence upload failures return stable `413 payload_too_large` JSON errors.
+- Evidence uploads reject oversized decoded content before scanner, storage, artifact, access-log, or audit side effects, including base64 upload content.
+- HTTP upload scanner calls now abort on timeout and return failed scan results so production fail-closed upload behavior remains intact.
+- GAP-034 is resolved for the current JSON/raw-body API shape; future large-file streaming/multipart work remains deferred under GAP-029/runtime upload planning.
+
+Validated with host-node equivalents because `pnpm` is not installed on this host and Vitest 3 rejects the prompt's `--runInBand` option:
+- `npm run lint`
+- `npm run test -- api http evidence storage scanner config billing webhook`
+- `git diff --check`
+
+## Prompt 16 / PLAN_M17: Regulatory Source Monitor Runtime Scheduling
 
 ```txt
-This is a security and availability hardening prompt.
+This is a regulatory operations hardening prompt.
 
 Read:
 - docs/puresoc_vision.md
@@ -395,78 +414,78 @@ Read:
 - docs/LEARNINGS.md
 - docs/prompt-tests.md
 - docs/threat-model.md
+- docs/PLAN_M16.md
 - latest changed files
 - latest test output
 
 Goal:
-Close GAP-034 by adding central request body limits, per-route evidence upload byte limits, clear 413 errors, and scanner timeout handling without weakening existing auth, evidence, billing, audit, or redaction behavior.
+Close GAP-027 by wiring the regulatory source monitor into the scheduler/runtime contract with configurable enablement, URL metadata checks, review-task creation, and no automatic legal activation.
 
 Milestone plan:
-- Current milestone file: `docs/PLAN_M16.md`.
-- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M17.md` from the next active prompt if a next prompt exists after this implementation.
+- Current milestone file: `docs/PLAN_M17.md`.
+- Completion handoff: update `docs/codex-prompts.md`, then create `docs/PLAN_M18.md` from the next active prompt if a next prompt exists after this implementation.
 
 Implementation requirements:
-- Add typed config defaults and environment overrides for:
-  - maximum JSON request body bytes,
-  - maximum Stripe webhook raw body bytes,
-  - maximum decoded evidence upload bytes,
-  - HTTP upload-scanner timeout milliseconds.
-- Make `parseJsonBody` and `parseRawBody` enforce limits while streaming request chunks, not only after buffering.
-- Reject oversized requests with a stable JSON error code `payload_too_large` and HTTP status `413`.
-- Validate `Content-Length` early when present, but keep chunk-level enforcement for missing or misleading lengths.
-- Ensure the Stripe webhook route still verifies signatures against the exact accepted raw bytes.
-- Ensure evidence upload checks decoded content bytes before scan or storage, including base64 uploads.
-- Ensure oversized evidence uploads do not create evidence artifacts, scanner calls, storage writes, access logs, or audit events.
-- Add timeout handling to the HTTP upload scanner so unreachable or slow scanners fail closed under production scanner requirements.
-- Preserve existing evidence API response redaction: never return or log `storageUri`, object URLs, content body, base64 payloads, secrets, tokens, or webhook signatures.
+- Add typed config defaults and environment overrides for `REGULATORY_SOURCE_MONITOR_ENABLED`, request timeout milliseconds, stale-after days, and review-task organization routing where appropriate.
+- Add a scheduler-facing job contract for `regulatory.monitorCountrySources` that can run once deterministically in tests.
+- Read configured regulatory source records from the existing regulatory source repository abstraction or a small runtime input adapter; do not hardcode Romania-only or EU-only source lists in scheduler code.
+- For URL-backed sources, perform metadata checks with an injectable fetch/head client:
+  - reachable sources should update/check metadata without creating activation work,
+  - unreachable sources should create an open `regulatory_admin` review task with `createdForStatus = "unreachable"`,
+  - sources older than the configured freshness threshold should create an open `regulatory_admin` review task with `createdForStatus = "stale"`,
+  - changed metadata/hash indicators should create `needs_review` tasks, not activation.
+- Keep source monitor behavior disabled when `REGULATORY_SOURCE_MONITOR_ENABLED=false`.
+- Ensure repeated monitor runs are idempotent enough not to create duplicate open tasks for the same source/status combination.
+- Add tests for disabled monitor, reachable source no-op/update, unreachable source review task, stale source review task, changed source `needs_review`, timeout handling, and duplicate-task prevention.
+- Do not fetch live public regulatory websites in tests; use injected fake clients/fixtures.
 
 Update docs/implementation-gaps.md with:
 - blockers
 - assumptions
 - deferred decisions
 - missing tests
-- resolved GAP-034 status if the implementation and tests fully close it
+- resolved GAP-027 status if the implementation and tests fully close it
 
 Keep resolved gaps for auditability, marked as resolved with date.
 
 Expected files:
-- docs/PLAN_M16.md
-- docs/PLAN_M17.md if a next active prompt exists after implementation
+- docs/PLAN_M17.md
+- docs/PLAN_M18.md if a next active prompt exists after implementation
 - docs/codex-prompts.md
 - docs/implementation-gaps.md
 - code/.env.example
-- code/config/defaults/storage.json or a focused API defaults file if cleaner
+- code/config/defaults/compliance.json or a focused scheduler/regulatory defaults file if cleaner
 - code/packages/config/src/index.ts
 - code/packages/config/src/__tests__/config.test.ts
-- code/apps/api/src/http.ts
-- code/apps/api/src/server.ts
-- code/apps/api/src/evidence/routes.ts
-- code/apps/api/src/__tests__/*body-limit*.test.ts or focused existing API tests
-- code/packages/evidence/src/index.ts
-- code/packages/evidence/src/__tests__/evidence-vault.spec.ts
+- code/packages/regulatory-sources/src/index.ts
+- code/packages/regulatory-sources/src/__tests__/regulatory-source-activation.spec.ts or a focused monitor spec
+- code/apps/scheduler/src/index.ts or `code/apps/scheduler/src/regulatory-source-monitor.ts`
+- code/apps/scheduler/src/__tests__/*regulatory-source-monitor*.test.ts
+- code/apps/worker/src/index.ts only if the existing worker contract is the cleaner runtime hook
 
 Acceptance commands:
 - pnpm lint
-- pnpm test -- --runInBand api http evidence storage scanner config billing webhook
+- pnpm test -- --runInBand regulatory source-monitor scheduler config
 - git diff --check
 
 Negative constraints:
-- Do not add provider write/remediation execution.
-- Do not put Microsoft-specific logic in generic compliance or API body-parser code.
-- Do not put Romania-specific logic in generic evidence upload code.
+- Do not auto-activate new or changed legal logic from the source monitor.
+- Do not fetch live external regulatory URLs in tests.
+- Do not put Romania-specific source-monitor logic in generic scheduler or regulatory-source packages.
+- Do not put Microsoft-specific logic in generic compliance, scheduler, or regulatory-source packages.
 - Do not hardcode regulatory facts in UI conditionals.
 - Do not make legal certification claims.
-- Do not treat `Content-Length` as sufficient protection by itself.
-- Do not increase logging detail for rejected payloads or scanner failures in a way that could expose content or secrets.
-- Do not weaken Stripe webhook signature verification or scanner fail-closed behavior.
+- Do not add provider write/remediation execution.
+- Do not require the monitor to run in in-a-box deployments when `REGULATORY_SOURCE_MONITOR_ENABLED=false`.
+- Do not log source response bodies or sensitive headers.
 
 Final response must include:
 - Changed files
 - Tests run
 - Acceptance status
 - Gaps updated
-- PLAN_M16 updated
-- PLAN_M17 created or explicitly not needed
+- PLAN_M17 updated
+- PLAN_M18 created or explicitly not needed
 - Codex prompts updated
 - Residual risk
 ```

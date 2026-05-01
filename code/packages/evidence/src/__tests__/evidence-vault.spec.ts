@@ -3,11 +3,20 @@ import { describe, expect, it } from "vitest";
 import {
   EvidenceVault,
   EvidenceAccessError,
+  HttpUploadScanner,
   InMemoryEvidenceRepository,
   InMemoryObjectStorageAdapter,
   MockUploadScanner,
   NoopUploadScanner,
-  S3ObjectStorageAdapter
+  S3ObjectStorageAdapter,
+  type ObjectStorageAdapter,
+  type ObjectStorageGetInput,
+  type ObjectStoragePutInput,
+  type ObjectStoragePutResult,
+  type ObjectStorageReadResult,
+  type UploadScanInput,
+  type UploadScanResult,
+  type UploadScanningHook
 } from "../index";
 
 describe("evidence vault metadata and access audit", () => {
@@ -107,6 +116,75 @@ describe("evidence vault metadata and access audit", () => {
       })
     ).rejects.toMatchObject({
       code: "upload_rejected_by_scanner"
+    });
+  });
+
+  it("rejects oversized evidence before scanner or storage side effects", async () => {
+    const scanner = new CountingUploadScanner();
+    const storage = new CountingObjectStorage();
+    const repository = new InMemoryEvidenceRepository();
+    const vault = new EvidenceVault({
+      repository,
+      storage,
+      scanner,
+      maxUploadBytes: 4,
+      now: () => new Date("2026-04-30T10:00:00.000Z")
+    });
+
+    await expect(
+      vault.uploadEvidence({
+        organizationId: "org_limit",
+        actorUserId: "user_limit",
+        title: "Too large",
+        body: Buffer.from("12345", "utf8"),
+        mimeType: "text/plain",
+        sourceType: "manual_upload"
+      })
+    ).rejects.toMatchObject({
+      code: "payload_too_large",
+      statusCode: 413
+    });
+
+    expect(scanner.scanCalls).toBe(0);
+    expect(storage.putCalls).toBe(0);
+    expect(await repository.listArtifacts("org_limit")).toHaveLength(0);
+    expect(await repository.listAccessLogs("org_limit")).toHaveLength(0);
+  });
+
+  it("fails HTTP upload scanning on timeout so production uploads can fail closed", async () => {
+    const scanner = new HttpUploadScanner({
+      endpoint: "https://scanner.example.test/scan",
+      timeoutMs: 1,
+      now: () => new Date("2026-04-30T10:00:00.000Z"),
+      fetchImpl: async (_url, init) =>
+        new Promise<Response>((_resolve, reject) => {
+          const rejectAbort = () => {
+            const error = new Error("aborted");
+            error.name = "AbortError";
+            reject(error);
+          };
+          const signal = init?.signal;
+
+          if (signal?.aborted) {
+            rejectAbort();
+            return;
+          }
+
+          signal?.addEventListener("abort", rejectAbort, { once: true });
+        })
+    });
+
+    const result = await scanner.scan({
+      organizationId: "org_timeout",
+      objectKey: "artifact/policy.pdf",
+      body: Buffer.from("policy", "utf8"),
+      mimeType: "application/pdf"
+    });
+
+    expect(result).toMatchObject({
+      status: "failed",
+      scannerName: "http-upload-scanner",
+      findings: ["scanner_timeout"]
     });
   });
 
@@ -221,3 +299,33 @@ describe("evidence vault metadata and access audit", () => {
     });
   });
 });
+
+class CountingUploadScanner implements UploadScanningHook {
+  scanCalls = 0;
+
+  async scan(_input: UploadScanInput): Promise<UploadScanResult> {
+    this.scanCalls += 1;
+    return {
+      status: "clean",
+      scannerName: "counting-upload-scanner",
+      scannedAt: "2026-04-30T10:00:00.000Z",
+      findings: []
+    };
+  }
+}
+
+class CountingObjectStorage implements ObjectStorageAdapter {
+  putCalls = 0;
+
+  async putObject(_input: ObjectStoragePutInput): Promise<ObjectStoragePutResult> {
+    this.putCalls += 1;
+    return {
+      storageUri: "object://evidence/org_limit/artifact",
+      sizeBytes: 0
+    };
+  }
+
+  async readObject(_input: ObjectStorageGetInput): Promise<ObjectStorageReadResult> {
+    throw new Error("CountingObjectStorage readObject is not implemented for this test.");
+  }
+}

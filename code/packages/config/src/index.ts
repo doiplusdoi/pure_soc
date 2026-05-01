@@ -11,6 +11,13 @@ export interface PureSocConfig {
     apiBaseUrl: string;
     legalCaveat: string;
   };
+  api: {
+    requestLimits: {
+      jsonBodyMaxBytes: number;
+      stripeWebhookRawBodyMaxBytes: number;
+      evidenceUploadMaxBytes: number;
+    };
+  };
   auth: {
     localEnabled: boolean;
     authBrokerEnabled: boolean;
@@ -72,6 +79,7 @@ export interface PureSocConfig {
       endpoint: string;
       mockStatus: "pending" | "clean" | "infected" | "failed" | "skipped";
       allowNoopInProduction: boolean;
+      timeoutMs: number;
     };
   };
   billing: BillingRuntimeConfig;
@@ -90,12 +98,22 @@ const readJson = <T>(defaultsDir: string, name: string): T => {
 const readBoolean = (value: string | undefined, fallback: boolean) =>
   value === undefined ? fallback : value === "true";
 
+const readPositiveInteger = (value: string | undefined, fallback: number): number => {
+  if (value === undefined) {
+    return fallback;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) && parsed > 0 ? parsed : fallback;
+};
+
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   const env = options.env ?? process.env;
   const defaultsDir = options.defaultsDir ?? env.PURESOC_CONFIG_DIR ?? resolve(process.cwd(), "config/defaults");
 
   const config: PureSocConfig = {
     app: readJson<PureSocConfig["app"]>(defaultsDir, "app"),
+    api: readJson<PureSocConfig["api"]>(defaultsDir, "api"),
     auth: readJson<PureSocConfig["auth"]>(defaultsDir, "auth"),
     connectors: readJson<PureSocConfig["connectors"]>(defaultsDir, "connectors"),
     compliance: readJson<PureSocConfig["compliance"]>(defaultsDir, "compliance"),
@@ -112,6 +130,24 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       publicBaseUrl: env.PURESOC_PUBLIC_BASE_URL ?? config.app.publicBaseUrl,
       apiBaseUrl: env.PURESOC_API_BASE_URL ?? config.app.apiBaseUrl,
       legalCaveat: PURESOC_LEGAL_CAVEAT
+    },
+    api: {
+      ...config.api,
+      requestLimits: {
+        ...config.api.requestLimits,
+        jsonBodyMaxBytes: readPositiveInteger(
+          env.PURESOC_API_MAX_JSON_BODY_BYTES,
+          config.api.requestLimits.jsonBodyMaxBytes
+        ),
+        stripeWebhookRawBodyMaxBytes: readPositiveInteger(
+          env.PURESOC_STRIPE_WEBHOOK_MAX_RAW_BODY_BYTES,
+          config.api.requestLimits.stripeWebhookRawBodyMaxBytes
+        ),
+        evidenceUploadMaxBytes: readPositiveInteger(
+          env.PURESOC_EVIDENCE_MAX_UPLOAD_BYTES,
+          config.api.requestLimits.evidenceUploadMaxBytes
+        )
+      }
     },
     auth: {
       ...config.auth,
@@ -182,6 +218,10 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
         allowNoopInProduction: readBoolean(
           env.PURESOC_UPLOAD_SCANNER_ALLOW_NOOP_IN_PRODUCTION,
           config.storage.uploadScanner.allowNoopInProduction
+        ),
+        timeoutMs: readPositiveInteger(
+          env.PURESOC_UPLOAD_SCANNER_TIMEOUT_MS,
+          config.storage.uploadScanner.timeoutMs
         )
       }
     },

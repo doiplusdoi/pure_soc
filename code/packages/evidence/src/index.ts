@@ -144,6 +144,7 @@ export interface UploadScanningHook {
 export interface HttpUploadScannerOptions {
   endpoint: string;
   scannerName?: string;
+  timeoutMs?: number;
   fetchImpl?: typeof fetch;
   now?: () => Date;
 }
@@ -274,6 +275,7 @@ export class MockUploadScanner implements UploadScanningHook {
 export class HttpUploadScanner implements UploadScanningHook {
   private readonly endpoint: string;
   private readonly scannerName: string;
+  private readonly timeoutMs: number;
   private readonly fetchImpl: typeof fetch;
   private readonly now: () => Date;
 
@@ -284,17 +286,25 @@ export class HttpUploadScanner implements UploadScanningHook {
 
     this.endpoint = options.endpoint;
     this.scannerName = options.scannerName ?? "http-upload-scanner";
+    this.timeoutMs = options.timeoutMs ?? 10_000;
+    if (!Number.isSafeInteger(this.timeoutMs) || this.timeoutMs <= 0) {
+      throw new EvidenceAccessError("invalid_scanner_config", "Scanner timeout must be a positive integer.", 500);
+    }
     this.fetchImpl = options.fetchImpl ?? fetch;
     this.now = options.now ?? (() => new Date());
   }
 
   async scan(input: UploadScanInput): Promise<UploadScanResult> {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this.timeoutMs);
+
     try {
       const response = await this.fetchImpl(this.endpoint, {
         method: "POST",
         headers: {
           "content-type": "application/json"
         },
+        signal: controller.signal,
         body: JSON.stringify({
           organizationId: input.organizationId,
           objectKey: input.objectKey,
@@ -321,13 +331,15 @@ export class HttpUploadScanner implements UploadScanningHook {
         scannedAt: payload.scannedAt ?? this.now().toISOString(),
         findings: Array.isArray(payload.findings) ? payload.findings.filter(isString) : []
       };
-    } catch {
+    } catch (error) {
       return {
         status: "failed",
         scannerName: this.scannerName,
         scannedAt: this.now().toISOString(),
-        findings: ["scanner_unreachable"]
+        findings: [isAbortError(error) ? "scanner_timeout" : "scanner_unreachable"]
       };
+    } finally {
+      clearTimeout(timeout);
     }
   }
 }
@@ -564,6 +576,7 @@ export class EvidenceVault {
   private readonly scanner: UploadScanningHook;
   private readonly now: () => Date;
   private readonly rejectUnscannedUploads: boolean;
+  private readonly maxUploadBytes?: number;
 
   constructor(options: {
     repository: EvidenceRepository;
@@ -571,16 +584,31 @@ export class EvidenceVault {
     scanner: UploadScanningHook;
     now?: () => Date;
     rejectUnscannedUploads?: boolean;
+    maxUploadBytes?: number;
   }) {
     this.repository = options.repository;
     this.storage = options.storage;
     this.scanner = options.scanner;
     this.now = options.now ?? (() => new Date());
     this.rejectUnscannedUploads = options.rejectUnscannedUploads ?? false;
+    this.maxUploadBytes = options.maxUploadBytes;
+    if (
+      this.maxUploadBytes !== undefined &&
+      (!Number.isSafeInteger(this.maxUploadBytes) || this.maxUploadBytes <= 0)
+    ) {
+      throw new EvidenceAccessError("invalid_evidence_config", "Evidence upload limit must be a positive integer.", 500);
+    }
   }
 
   async uploadEvidence(input: EvidenceUploadInput): Promise<EvidenceArtifactMetadata> {
     const body = normalizeBody(input.body);
+    if (this.maxUploadBytes !== undefined && body.byteLength > this.maxUploadBytes) {
+      throw new EvidenceAccessError(
+        "payload_too_large",
+        "Evidence upload exceeds the configured size limit.",
+        413
+      );
+    }
     const now = this.now().toISOString();
     const evidenceId = randomUUID();
     const objectKey = `${evidenceId}/${sanitizeObjectName(input.title)}`;
@@ -718,6 +746,12 @@ const isEvidenceScanStatus = (value: unknown): value is EvidenceScanStatus =>
   value === "pending" || value === "clean" || value === "infected" || value === "failed" || value === "skipped";
 
 const isString = (value: unknown): value is string => typeof value === "string";
+
+const isAbortError = (error: unknown): boolean =>
+  typeof error === "object" &&
+  error !== null &&
+  "name" in error &&
+  (error as { name?: unknown }).name === "AbortError";
 
 const joinUrlPath = (...parts: string[]): string => {
   const joined = parts

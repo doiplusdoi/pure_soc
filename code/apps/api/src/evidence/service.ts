@@ -20,6 +20,7 @@ export interface EvidenceApiServiceOptions {
   storage?: ObjectStorageAdapter;
   scanner?: UploadScanningHook;
   rejectUnscannedUploads?: boolean;
+  maxUploadBytes?: number;
   now?: () => Date;
 }
 
@@ -63,7 +64,8 @@ export class EvidenceApiService {
       storage: options.storage ?? new InMemoryObjectStorageAdapter(),
       scanner: options.scanner ?? new NoopUploadScanner({ now: options.now }),
       now: options.now,
-      rejectUnscannedUploads: options.rejectUnscannedUploads
+      rejectUnscannedUploads: options.rejectUnscannedUploads,
+      maxUploadBytes: options.maxUploadBytes
     });
   }
 

@@ -138,6 +138,7 @@ export const createApiServices = (
     storage: options.evidenceStorage ?? createEvidenceObjectStorage(config),
     scanner: options.uploadScanner ?? createUploadScanner(config, options.now),
     rejectUnscannedUploads: config.app.env === "production",
+    maxUploadBytes: config.api.requestLimits.evidenceUploadMaxBytes,
     now: options.now
   });
   const reports = new ReportApiService({
@@ -230,6 +231,7 @@ const createUploadScanner = (config: PureSocConfig, now: (() => Date) | undefine
   if (config.storage.uploadScanner.mode === "http") {
     return new HttpUploadScanner({
       endpoint: config.storage.uploadScanner.endpoint,
+      timeoutMs: config.storage.uploadScanner.timeoutMs,
       now
     });
   }

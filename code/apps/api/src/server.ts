@@ -75,8 +75,11 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
     try {
       const context = readRequestContext(request);
+      const requestLimits = services.config.api.requestLimits;
       if (request.method === "POST" && url.pathname === "/billing/stripe/webhook") {
-        const rawBody = await parseRawBody(request);
+        const rawBody = await parseRawBody(request, {
+          maxBytes: requestLimits.stripeWebhookRawBodyMaxBytes
+        });
         sendJson(
           response,
           await stripeBillingWebhookRoute(rawBody, request.headers["stripe-signature"], context, services)
@@ -84,7 +87,12 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         return;
       }
 
-      const body = request.method === "POST" ? await parseJsonBody(request) : {};
+      const body =
+        request.method === "POST"
+          ? await parseJsonBody(request, {
+              maxBytes: requestLimits.jsonBodyMaxBytes
+            })
+          : {};
 
       if (request.method === "POST" && url.pathname === "/auth/register") {
         sendJson(response, await registerRoute(body, context, services));

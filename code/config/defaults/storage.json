@@ -12,6 +12,7 @@
     "mode": "noop",
     "endpoint": "",
     "mockStatus": "clean",
-    "allowNoopInProduction": false
+    "allowNoopInProduction": false,
+    "timeoutMs": 10000
   }
 }
