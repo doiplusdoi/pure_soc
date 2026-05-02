@@ -20,6 +20,7 @@
     "@puresoc/dashboards": "workspace:*",
     "@puresoc/database": "workspace:*",
     "@puresoc/evidence": "workspace:*",
+    "@puresoc/jobs": "workspace:*",
     "@puresoc/provider-microsoft365": "workspace:*",
     "@puresoc/provider-mock": "workspace:*",
     "@puresoc/providers-core": "workspace:*",

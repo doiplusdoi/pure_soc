@@ -370,7 +370,7 @@ const authDeploymentCheck = (
       rateLimitEnabled: config.api.rateLimits.enabled,
       rateLimitStore: {
         provider: config.api.rateLimits.store.provider,
-        scope: config.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external_deferred",
+        scope: config.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external",
         requireSharedStore: config.api.rateLimits.store.requireSharedStore
       },
       rateLimitFamiliesConfigured: Object.keys(config.api.rateLimits.routeFamilies).sort(),

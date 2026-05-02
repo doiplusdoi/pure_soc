@@ -583,6 +583,7 @@ export interface RedisCommandRetryOptions {
 
 export interface RedisQueueCommandClient {
   ping(): Promise<string>;
+  eval(script: string, keys: readonly string[], args: readonly (string | number)[]): Promise<RedisReply>;
   getString(key: string): Promise<string | null>;
   set(key: string, value: string): Promise<void>;
   setIfNotExists(key: string, value: string, options?: { ttlMs?: number }): Promise<boolean>;
@@ -1024,6 +1025,10 @@ export class RedisCommandClient implements RedisQueueCommandClient {
     return assertRedisString(await this.command(["PING"]));
   }
 
+  async eval(script: string, keys: readonly string[], args: readonly (string | number)[] = []): Promise<RedisReply> {
+    return this.command(["EVAL", script, keys.length, ...keys, ...args]);
+  }
+
   async getString(key: string): Promise<string | null> {
     const result = await this.command(["GET", key]);
     return result === null ? null : assertRedisString(result);
@@ -1318,7 +1323,7 @@ const parseRedisUrl = (redisUrl: string): ParsedRedisUrl => {
   }
 
   if (parsed.protocol !== "redis:") {
-    throw new JobRuntimeError("redis_url_unsupported_protocol", "Only redis:// URLs are supported by the job queue smoke adapter.", {
+    throw new JobRuntimeError("redis_url_unsupported_protocol", "Only redis:// URLs are supported by the Redis adapter.", {
       retryable: false,
       details: {
         protocol: parsed.protocol

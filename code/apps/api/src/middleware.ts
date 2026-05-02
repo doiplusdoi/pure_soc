@@ -3,7 +3,7 @@ import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 
 import type { PureSocConfig } from "@puresoc/config";
 import { parseCookies, readRequestContext, sessionCookieName, type JsonResult, type RequestContext } from "./http";
-import { InMemoryFixedWindowRateLimiter, type RateLimiter, type RateLimitRule } from "./rate-limit";
+import { createApiRateLimiter, type RateLimiter, type RateLimitRule } from "./rate-limit";
 
 export type ApiRouteFamily =
   | "auth"
@@ -67,7 +67,12 @@ interface RoutePolicy {
 const stateChangingMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
-  const rateLimiter = options.rateLimiter ?? new InMemoryFixedWindowRateLimiter({ now: options.now });
+  const rateLimiter =
+    options.rateLimiter ??
+    createApiRateLimiter({
+      config: options.config.rateLimits,
+      now: options.now
+    });
 
   return {
     async apply(request: IncomingMessage, url: URL): Promise<ApiMiddlewareDecision> {
@@ -102,11 +107,27 @@ export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
 
       if (options.config.rateLimits.enabled) {
         const rule = rateLimitRuleFor(options.config, policy.rateLimitFamily);
-        const decision = await rateLimiter.check({
+        const decision = await safeRateLimitCheck(rateLimiter, {
           key: rateLimitKey,
           windowMs: rule.windowMs,
           maxRequests: rule.maxRequests
         });
+
+        if (!decision) {
+          return {
+            context,
+            rejection: {
+              statusCode: 503,
+              body: {
+                error: {
+                  code: "rate_limit_store_unavailable",
+                  message: "Rate limiting is temporarily unavailable for this route family.",
+                  routeFamily: policy.routeFamily
+                }
+              }
+            }
+          };
+        }
 
         if (!decision.allowed) {
           return {
@@ -317,3 +338,14 @@ const originError = (code: "origin_required" | "origin_not_allowed", routeFamily
 
 const rateLimitRuleFor = (config: PureSocConfig["api"], family: string): RateLimitRule =>
   config.rateLimits.routeFamilies[family] ?? config.rateLimits.default;
+
+const safeRateLimitCheck = async (
+  rateLimiter: RateLimiter,
+  input: RateLimitRule & { key: string }
+) => {
+  try {
+    return await rateLimiter.check(input);
+  } catch {
+    return null;
+  }
+};

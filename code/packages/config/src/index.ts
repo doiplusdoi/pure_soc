@@ -161,6 +161,9 @@ export interface ApiRateLimitStoreConfig {
   provider: "memory" | "redis";
   redisUrl: string;
   requireSharedStore: boolean;
+  redisKeyPrefix: string;
+  redisCommandMaxAttempts: number;
+  redisCommandRetryBackoffMs: number;
 }
 
 export interface ApiTrustedProxyConfig {
@@ -376,13 +379,24 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
             config.api.rateLimits.store.provider
           ),
           redisUrl:
-            env.PURESOC_API_RATE_LIMIT_REDIS_URL ??
-            env.PURESOC_REDIS_URL ??
-            env.REDIS_URL ??
+            readOptionalString(env.PURESOC_API_RATE_LIMIT_REDIS_URL, null) ??
+            readOptionalString(env.PURESOC_REDIS_URL, null) ??
+            readOptionalString(env.REDIS_URL, null) ??
             config.api.rateLimits.store.redisUrl,
           requireSharedStore: readBoolean(
             env.PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE,
             config.api.rateLimits.store.requireSharedStore
+          ),
+          redisKeyPrefix:
+            env.PURESOC_API_RATE_LIMIT_REDIS_KEY_PREFIX ??
+            config.api.rateLimits.store.redisKeyPrefix,
+          redisCommandMaxAttempts: readPositiveInteger(
+            env.PURESOC_API_RATE_LIMIT_REDIS_COMMAND_MAX_ATTEMPTS,
+            config.api.rateLimits.store.redisCommandMaxAttempts
+          ),
+          redisCommandRetryBackoffMs: readPositiveInteger(
+            env.PURESOC_API_RATE_LIMIT_REDIS_COMMAND_RETRY_BACKOFF_MS,
+            config.api.rateLimits.store.redisCommandRetryBackoffMs
           )
         },
         default: {
@@ -675,12 +689,15 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (config.api.rateLimits.store.provider === "redis") {
+  if (
+    config.api.rateLimits.store.provider === "redis" &&
+    nonEmpty(config.api.rateLimits.store.redisUrl) &&
+    !isRedisUrl(config.api.rateLimits.store.redisUrl)
+  ) {
     issues.push({
-      code: "api_rate_limit_redis_store_deferred",
-      path: "api.rateLimits.store.provider",
-      message:
-        "The API rate-limit store boundary exists, but the Redis/shared store adapter remains deferred; use memory until the adapter is implemented."
+      code: "api_rate_limit_redis_url_invalid",
+      path: "api.rateLimits.store.redisUrl",
+      message: "Redis-backed API rate limiting requires a redis:// URL."
     });
   }
 
@@ -966,6 +983,14 @@ const toOrigin = (value: string): string | null => {
     return new URL(value).origin;
   } catch {
     return null;
+  }
+};
+
+const isRedisUrl = (value: string): boolean => {
+  try {
+    return new URL(value).protocol === "redis:";
+  } catch {
+    return false;
   }
 };
 

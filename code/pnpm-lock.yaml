@@ -107,6 +107,9 @@ importers:
       '@puresoc/evidence':
         specifier: workspace:*
         version: link:../../packages/evidence
+      '@puresoc/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
       '@puresoc/provider-microsoft365':
         specifier: workspace:*
         version: link:../../packages/providers/microsoft365

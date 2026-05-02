@@ -36,7 +36,10 @@ describe("loadConfig", () => {
       store: {
         provider: "memory",
         redisUrl: "",
-        requireSharedStore: false
+        requireSharedStore: false,
+        redisKeyPrefix: "puresoc:api-rate-limit",
+        redisCommandMaxAttempts: 3,
+        redisCommandRetryBackoffMs: 100
       },
       default: {
         windowMs: 60_000,
@@ -134,6 +137,9 @@ describe("loadConfig", () => {
         PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis",
         PURESOC_API_RATE_LIMIT_REDIS_URL: "redis://rate-limit.example.test:6379/2",
         PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE: "true",
+        PURESOC_API_RATE_LIMIT_REDIS_KEY_PREFIX: "puresoc:test-rate-limit",
+        PURESOC_API_RATE_LIMIT_REDIS_COMMAND_MAX_ATTEMPTS: "5",
+        PURESOC_API_RATE_LIMIT_REDIS_COMMAND_RETRY_BACKOFF_MS: "25",
         PURESOC_API_RATE_LIMIT_WINDOW_MS: "30000",
         PURESOC_API_RATE_LIMIT_MAX_REQUESTS: "33",
         PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "7",
@@ -206,7 +212,10 @@ describe("loadConfig", () => {
     expect(config.api.rateLimits.store).toEqual({
       provider: "redis",
       redisUrl: "redis://rate-limit.example.test:6379/2",
-      requireSharedStore: true
+      requireSharedStore: true,
+      redisKeyPrefix: "puresoc:test-rate-limit",
+      redisCommandMaxAttempts: 5,
+      redisCommandRetryBackoffMs: 25
     });
     expect(config.api.rateLimits.default).toEqual({
       windowMs: 30_000,
@@ -290,6 +299,21 @@ describe("loadConfig", () => {
     expect(config.app.legalCaveat).toContain("not a legal opinion");
   });
 
+  it("falls back from an empty API-specific Redis rate-limit URL to the shared Redis URL", () => {
+    const config = loadConfig({
+      env: {
+        PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis",
+        PURESOC_API_RATE_LIMIT_REDIS_URL: "",
+        PURESOC_REDIS_URL: "redis://puresoc-redis:6379/0"
+      }
+    });
+
+    expect(config.api.rateLimits.store.redisUrl).toBe("redis://puresoc-redis:6379/0");
+    expect(collectStartupConfigIssues(config).map((issue) => issue.code)).not.toContain(
+      "api_rate_limit_redis_url_required"
+    );
+  });
+
   it("falls back when numeric limit overrides are invalid", () => {
     const config = loadConfig({
       env: {
@@ -304,6 +328,8 @@ describe("loadConfig", () => {
         PURESOC_JOB_SHUTDOWN_GRACE_MS: "1.5",
         PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS: "never",
         PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS: "0",
+        PURESOC_API_RATE_LIMIT_REDIS_COMMAND_MAX_ATTEMPTS: "nope",
+        PURESOC_API_RATE_LIMIT_REDIS_COMMAND_RETRY_BACKOFF_MS: "0",
         PURESOC_JOB_REDIS_CLAIM_LEASE_MS: "-1",
         PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS: "later",
         PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS: "soon",
@@ -322,6 +348,8 @@ describe("loadConfig", () => {
     expect(config.api.requestLimits.stripeWebhookRawBodyMaxBytes).toBe(1_048_576);
     expect(config.api.requestLimits.evidenceUploadMaxBytes).toBe(10_485_760);
     expect(config.api.security.proxy.trustedProxyHops).toBe(1);
+    expect(config.api.rateLimits.store.redisCommandMaxAttempts).toBe(3);
+    expect(config.api.rateLimits.store.redisCommandRetryBackoffMs).toBe(100);
     expect(config.storage.uploadScanner.timeoutMs).toBe(10_000);
     expect(config.jobs.defaultMaxAttempts).toBe(3);
     expect(config.jobs.retryBackoffMs).toBe(1000);
@@ -423,7 +451,27 @@ describe("loadConfig", () => {
       }
     });
     expect(collectStartupConfigIssues(redisStoreConfig).map((issue) => issue.code)).toEqual(
-      expect.arrayContaining(["api_rate_limit_redis_url_required", "api_rate_limit_redis_store_deferred"])
+      expect.arrayContaining(["api_rate_limit_redis_url_required"])
+    );
+
+    const redisStoreReadyConfig = loadConfig({
+      env: {
+        PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis",
+        PURESOC_API_RATE_LIMIT_REDIS_URL: "redis://rate-limit.example.test:6379/2"
+      }
+    });
+    expect(collectStartupConfigIssues(redisStoreReadyConfig).map((issue) => issue.code)).not.toContain(
+      "api_rate_limit_redis_url_required"
+    );
+
+    const invalidRedisUrlConfig = loadConfig({
+      env: {
+        PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis",
+        PURESOC_API_RATE_LIMIT_REDIS_URL: "https://redis.example.test"
+      }
+    });
+    expect(collectStartupConfigIssues(invalidRedisUrlConfig).map((issue) => issue.code)).toContain(
+      "api_rate_limit_redis_url_invalid"
     );
 
     const sharedRequiredConfig = loadConfig({

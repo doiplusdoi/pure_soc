@@ -81,7 +81,17 @@ API rate limiting uses an injectable fixed-window store boundary. The default pr
 PURESOC_API_RATE_LIMIT_STORE_PROVIDER=memory
 ```
 
-`redis` is reserved for the future shared-store adapter and currently fails startup validation with an explicit deferred-adapter issue. Deployments that require a shared API rate-limit store can set `PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE=true` so process-local memory is rejected instead of silently accepted.
+Redis can be selected as a shared fixed-window store for local/test/ci/disposable deployments:
+
+```sh
+PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis
+PURESOC_API_RATE_LIMIT_REDIS_URL=redis://puresoc-redis:6379/0
+PURESOC_API_RATE_LIMIT_REDIS_KEY_PREFIX=puresoc:api-rate-limit
+PURESOC_API_RATE_LIMIT_REDIS_COMMAND_MAX_ATTEMPTS=3
+PURESOC_API_RATE_LIMIT_REDIS_COMMAND_RETRY_BACKOFF_MS=100
+```
+
+Rate-limit keys are hashed before they are written to Redis so raw IP addresses, user IDs, and organization IDs are not embedded in Redis key names. Deployments that require a shared API rate-limit store can set `PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE=true` so process-local memory is rejected instead of silently accepted. Do not point the API rate-limit store at production, staging, customer, or long-lived shared Redis targets during contract tests.
 
 The near-term CSRF stance is strict Origin/Referer validation for production browser state-changing routes:
 

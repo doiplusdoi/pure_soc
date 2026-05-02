@@ -1,14 +1,18 @@
 import { createHmac } from "node:crypto";
+import { Readable } from "node:stream";
+import type { IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
 import type { BillingRuntimeConfig } from "@puresoc/billing-core";
 import { loadConfig } from "@puresoc/config";
+import { RedisCommandClient, type RedisReply } from "@puresoc/jobs";
 import { createApiServices } from "../auth/services";
-import { resolveRoutePolicy } from "../middleware";
+import { createApiMiddleware, resolveRoutePolicy } from "../middleware";
 import {
   FixedWindowRateLimiter,
   InMemoryFixedWindowRateLimiter,
+  RedisFixedWindowRateLimitStore,
   type RateLimitStore
 } from "../rate-limit";
 import { startApiServer } from "../server";
@@ -111,6 +115,166 @@ describe("api middleware rate limits and origin protection", () => {
       remaining: 9
     });
     expect(limiter.storeKind).toBe("test-shared-store");
+  });
+
+  it("applies Redis fixed-window decisions through a hashed shared-store key", async () => {
+    let now = new Date("2026-05-01T10:00:00.000Z");
+    const calls: Array<{ script: string; keys: readonly string[]; args: readonly (string | number)[] }> = [];
+    const store = new RedisFixedWindowRateLimitStore({
+      redisUrl: "redis://unused.example.test:6379/0",
+      keyPrefix: "puresoc:test-rate-limit",
+      now: () => now,
+      commandClient: {
+        async eval(script, keys, args) {
+          calls.push({ script, keys, args });
+          if (calls.length === 1) {
+            return [1, 60_000, 1];
+          }
+          if (calls.length === 2) {
+            return [2, 59_000, 1];
+          }
+          return [2, 58_000, 0];
+        },
+        async scanKeys() {
+          return [];
+        },
+        async del() {
+          return 0;
+        },
+        async close() {}
+      }
+    });
+
+    await expect(
+      store.consume({ key: "auth:ip:198.51.100.42", windowMs: 60_000, maxRequests: 2 })
+    ).resolves.toMatchObject({
+      allowed: true,
+      remaining: 1,
+      resetAt: "2026-05-01T10:01:00.000Z"
+    });
+
+    now = new Date("2026-05-01T10:00:01.000Z");
+    await expect(
+      store.consume({ key: "auth:ip:198.51.100.42", windowMs: 60_000, maxRequests: 2 })
+    ).resolves.toMatchObject({
+      allowed: true,
+      remaining: 0,
+      resetAt: "2026-05-01T10:01:00.000Z"
+    });
+
+    now = new Date("2026-05-01T10:00:02.000Z");
+    await expect(
+      store.consume({ key: "auth:ip:198.51.100.42", windowMs: 60_000, maxRequests: 2 })
+    ).resolves.toMatchObject({
+      allowed: false,
+      remaining: 0,
+      resetAt: "2026-05-01T10:01:00.000Z",
+      retryAfterSeconds: 58
+    });
+
+    expect(calls).toHaveLength(3);
+    expect(calls[0]?.args).toEqual([60_000, 2]);
+    expect(calls[0]?.keys[0]).toMatch(/^puresoc:test-rate-limit:[a-f0-9]{32}$/);
+    expect(calls[0]?.keys[0]).not.toContain("198.51.100.42");
+    expect(calls[0]?.script).toContain("PTTL");
+  });
+
+  it("uses Redis EVAL with connection setup, bounded retry, and secret-free store errors", async () => {
+    const capturedCommands: Array<Array<ReadonlyArray<string | number>>> = [];
+    const sleeps: number[] = [];
+    let attempts = 0;
+    const client = new RedisCommandClient("redis://api-user:super-secret@redis.example.test:6380/4", {
+      maxAttempts: 2,
+      backoffMs: 25,
+      sleep: async (milliseconds) => {
+        sleeps.push(milliseconds);
+      },
+      executor: async (_connection, commands) => {
+        attempts += 1;
+        capturedCommands.push(commands);
+        if (attempts === 1) {
+          throw new Error("temporary redis outage");
+        }
+        return [1, 60_000, 1] satisfies RedisReply;
+      }
+    });
+    const store = new RedisFixedWindowRateLimitStore({
+      redisUrl: "redis://unused.example.test:6379/0",
+      commandClient: client,
+      now: () => new Date("2026-05-01T10:00:00.000Z")
+    });
+
+    await expect(store.consume({ key: "auth:ip:test", windowMs: 60_000, maxRequests: 10 })).resolves.toMatchObject({
+      allowed: true,
+      remaining: 9
+    });
+    expect(attempts).toBe(2);
+    expect(sleeps).toEqual([25]);
+    expect(capturedCommands[1]?.map((command) => command[0])).toEqual(["AUTH", "SELECT", "EVAL"]);
+    expect(capturedCommands[1]?.[2]?.[2]).toBe(1);
+
+    const failingStore = new RedisFixedWindowRateLimitStore({
+      redisUrl: "redis://unused.example.test:6379/0",
+      commandClient: new RedisCommandClient("redis://:super-secret@redis.example.test:6380/4", {
+        maxAttempts: 1,
+        executor: async () => {
+          throw new Error("redis://:super-secret@redis.example.test:6380/4 is down");
+        }
+      }),
+      now: () => new Date("2026-05-01T10:00:00.000Z")
+    });
+
+    await expect(
+      failingStore.consume({ key: "auth:ip:test", windowMs: 60_000, maxRequests: 10 })
+    ).rejects.toMatchObject({
+      code: "rate_limit_store_unavailable",
+      message: "Redis API rate-limit store is unavailable."
+    });
+
+    await expect(
+      failingStore.consume({ key: "auth:ip:test", windowMs: 60_000, maxRequests: 10 })
+    ).rejects.not.toThrow("super-secret");
+  });
+
+  it("returns secret-free middleware errors when a shared rate-limit store is unavailable", async () => {
+    const middleware = createApiMiddleware({
+      config: loadConfig({ env: {} }).api,
+      sessionResolver: {
+        async getSession() {
+          throw new Error("no session");
+        }
+      },
+      rateLimiter: {
+        storeKind: "redis",
+        async check() {
+          throw new Error("redis://:super-secret@redis.example.test:6379/0 failed");
+        }
+      }
+    });
+
+    const decision = await middleware.apply(
+      makeRequest({
+        method: "POST",
+        headers: {
+          origin: "http://localhost:3000"
+        }
+      }),
+      new URL("http://localhost/auth/login")
+    );
+
+    expect(decision.rejection).toMatchObject({
+      statusCode: 503,
+      body: {
+        error: {
+          code: "rate_limit_store_unavailable",
+          routeFamily: "auth"
+        }
+      }
+    });
+    const serialized = JSON.stringify(decision.rejection);
+    expect(serialized).not.toContain("super-secret");
+    expect(serialized).not.toContain("redis.example.test");
+    expect(serialized).not.toContain("redis://");
   });
 
   it("classifies high-risk route families for shared middleware policy", () => {
@@ -483,3 +647,16 @@ const sign = (payload: string): string => {
   const signature = createHmac("sha256", "whsec_test").update(`${timestamp}.${payload}`).digest("hex");
   return `t=${timestamp},v1=${signature}`;
 };
+
+const makeRequest = (options: {
+  method: string;
+  headers?: Record<string, string>;
+  remoteAddress?: string;
+}): IncomingMessage =>
+  Object.assign(Readable.from([]), {
+    method: options.method,
+    headers: options.headers ?? {},
+    socket: {
+      remoteAddress: options.remoteAddress ?? "127.0.0.1"
+    }
+  }) as IncomingMessage;

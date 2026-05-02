@@ -8,6 +8,7 @@ import {
   JobRuntimeError,
   RedisCommandClient,
   createBullMqReadyJobQueueAdapter,
+  type RedisReply,
   type RedisQueueCommandClient
 } from "../index";
 
@@ -410,6 +411,11 @@ class FakeRedisCommandClient implements RedisQueueCommandClient {
   async ping(): Promise<string> {
     await this.tick();
     return "PONG";
+  }
+
+  async eval(): Promise<RedisReply> {
+    await this.tick();
+    throw new Error("Fake Redis job client does not implement EVAL.");
   }
 
   async getString(key: string): Promise<string | null> {

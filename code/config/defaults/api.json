@@ -31,7 +31,10 @@
     "store": {
       "provider": "memory",
       "redisUrl": "",
-      "requireSharedStore": false
+      "requireSharedStore": false,
+      "redisKeyPrefix": "puresoc:api-rate-limit",
+      "redisCommandMaxAttempts": 3,
+      "redisCommandRetryBackoffMs": 100
     },
     "default": {
       "windowMs": 60000,

@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M51 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M52 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -59,9 +59,10 @@ As of 2026-05-03, M1-M51 are implemented at contract/runtime-baseline level.
 - M48 adds provider-token custody deployment readiness and runbook hardening. `pnpm provider-token:smoke` now reports local, in-a-box, and SaaS custody readiness; `pnpm external-smoke:readiness` includes a `provider_token_custody_deployment` check; previous-key window/backfill/retirement confirmations are reported as blockers; SaaS external KMS/HSM/secret-manager custody remains explicitly deferred; and rotation runbook metadata separates smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key retirement expectations, and deferred live custody. No live custody backend, Microsoft Graph call, provider write, or ciphertext backfill was executed.
 - M49 adds a metadata-only external live-smoke target selector. `pnpm external-smoke:readiness` now includes a `targetSelection` block, and `pnpm external-smoke:select-target` prints the selector alone. The selector ranks Microsoft 365 read-only tenant, Stripe test-mode, OIDC callback, auth deployment, evidence runtime, and provider-token custody paths with stable reason codes, selects exactly one path only when readiness is `ready_for_disposable_smoke`, and keeps default/no-approved-target posture dry-run only. No external service, deployment, KMS/HSM/secret-manager, browser/PDF service, public regulatory URL, or provider write executor was called.
 - M50 runs the M49 readiness/selector flow as a blocker-review milestone. The selector stayed in dry-run mode with unknown target kind, no disposable confirmation, `readyCandidateCount: 0`, `selectedPathId: null`, and no selected command. No live smoke command was run, and GAP-044 remains open with explicit blockers until an approved local/test/ci/disposable target is configured and selected.
-- M51 hardens API middleware security. Rate limiting now has an injectable store boundary while preserving deterministic memory defaults, Redis/shared-store selection is explicit and rejected until implemented, forwarded client IP headers are ignored unless a trusted-proxy IP policy is configured, production startup requires strict Origin/Referer checks for browser state-changing routes, and webhook/OIDC/provider callback exemptions remain tested.
+- M51 hardens API middleware security. Rate limiting gained an injectable store boundary while preserving deterministic memory defaults, Redis/shared-store selection was made explicit, forwarded client IP headers are ignored unless a trusted-proxy IP policy is configured, production startup requires strict Origin/Referer checks for browser state-changing routes, and webhook/OIDC/provider callback exemptions remain tested.
+- M52 implements the API Redis fixed-window rate-limit store path behind `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis`. Memory remains the default, Redis keys are hashed before storage, the Redis command path uses an EVAL script with configurable retry/backoff, store failures return secret-free 503 responses, and startup validation rejects missing/invalid Redis URLs without silently falling back to memory. No live Redis target or external service was called.
 - Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M52.md`, focused on the Redis/shared API rate-limit store adapter path while external live-smoke targets remain blocked.
+- Next planned milestone: `docs/PLAN_M53.md`, focused on the external live-smoke target approval/selector handoff while all unapproved live targets remain blocked.
 
 ## Milestones
 
@@ -82,8 +83,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M51.md` record completed incremental milestones.
-- `docs/PLAN_M52.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M52.md` record completed incremental milestones.
+- `docs/PLAN_M53.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

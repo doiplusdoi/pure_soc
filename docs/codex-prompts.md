@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M51, reviewing `docs/PLAN.md`, `docs/PLAN_M51.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 51 / `docs/PLAN_M52.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M52, reviewing `docs/PLAN.md`, `docs/PLAN_M52.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 52 / `docs/PLAN_M53.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -81,6 +81,7 @@ The repository currently contains:
 - PLAN_M49 external live-smoke target selection/readiness audit: `pnpm external-smoke:readiness` now embeds a `targetSelection` block, and `pnpm external-smoke:select-target` prints that selector alone. The selector ranks Microsoft 365 read-only tenant, Stripe test-mode, Microsoft/Google/GitHub OIDC callback, object-storage/scanner plus evidence/report runtime, deployed auth, and provider-token custody smoke paths; emits stable ready/blocked/unsafe/not-configured reason codes; and selects exactly one path only when readiness is `ready_for_disposable_smoke`. Default validation selected no live path and made no external calls.
 - PLAN_M50 approved single external live-smoke follow-up/blocker review: the M49 selector was run first through host-node/npm equivalents. Readiness stayed dry-run with unknown target kind, no disposable confirmation, `ready_for_disposable_smoke: 0`, and no live network calls. The selector returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`, so no live smoke command was run and GAP-044 remains open with explicit blockers.
 - PLAN_M51 API rate-limit store, trusted proxy, and CSRF decision slice: API rate limiting now has an injectable fixed-window store boundary while preserving process-local memory defaults; Redis/shared-store configuration is explicit and rejected until the adapter exists; request context ignores `X-Forwarded-For` and `Forwarded` unless an explicit trusted-proxy IP policy is configured; production startup requires strict Origin/Referer validation for browser state-changing routes; and deterministic tests cover trusted/untrusted forwarded headers, secret-free rate-limit errors, strict Origin/Referer behavior, and callback/webhook exemptions.
+- PLAN_M52 API Redis rate-limit store adapter: `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` now selects an implemented Redis fixed-window store when a Redis URL is configured; Redis keys hash route-family/user/IP/org material before storage; the Redis command path uses an EVAL script through the shared Redis command client with configurable retry/backoff; middleware returns secret-free 503 responses for store failures; and startup validation rejects missing/invalid Redis URLs without silently falling back to memory.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -139,7 +140,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 48 / `docs/PLAN_M49.md` is completed.
 - Prompt 49 / `docs/PLAN_M50.md` is completed.
 - Prompt 50 / `docs/PLAN_M51.md` is completed.
-- Prompt 51 / `docs/PLAN_M52.md` is staged as the next active implementation prompt.
+- Prompt 51 / `docs/PLAN_M52.md` is completed.
+- Prompt 52 / `docs/PLAN_M53.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -154,12 +156,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 51 / `docs/PLAN_M52.md`: API Redis Rate-Limit Store Adapter Contract Slice.
+1. Prompt 52 / `docs/PLAN_M53.md`: External Live-Smoke Target Approval Follow-Up Or Blocker Review.
 2. Keep GAP-044 open until an operator configures exactly one approved local/test/ci/disposable live-smoke target and the selector chooses it.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M52 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors. Any Redis runtime coverage must be local/test/ci/disposable only and guarded the same way as existing smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M53 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, Redis targets, or provider write executors unless the existing readiness selector chooses exactly one approved local/test/ci/disposable path and that prompt explicitly authorizes running only that selected command.
 
-## Active Prompt 51 / PLAN_M52: API Redis Rate-Limit Store Adapter Contract Slice
+## Active Prompt 52 / PLAN_M53: External Live-Smoke Target Approval Follow-Up Or Blocker Review
 
 Read:
 
@@ -169,43 +171,38 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M51.md`
+- `docs/PLAN_M52.md`
 - `docs/threat-model.md`
-- `code/apps/api/src/server.ts`
-- `code/apps/api/src/http.ts`
-- `code/apps/api/src/middleware/**`
-- `code/apps/api/src/rate-limit.ts`
+- `code/packages/config/src/external-smoke-readiness.ts`
+- `code/scripts/external-smoke-readiness.ts`
+- `code/scripts/external-smoke-target-selection.ts`
 - `code/packages/config/src/**`
-- `code/packages/jobs/src/**`
-- `code/scripts/*redis*`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Narrow GAP-038 further by implementing the shared-store side of the new API rate-limit store boundary without changing route-family semantics or trusting forwarded headers by default.
+Keep GAP-044 honest by running the metadata-only readiness/selector flow first and either documenting why no live smoke target is approved, or, if the selector chooses exactly one approved local/test/ci/disposable target, running only the corresponding existing smoke command under that path's guardrails.
 
 Deliverables:
 
-- Implement a Redis-backed API fixed-window rate-limit store adapter behind `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis`, or explicitly split the prompt if repository discovery shows the adapter needs a separate package first.
-- Preserve deterministic process-local memory rate limiting as the default development/test mode.
-- Keep route-family keys, authenticated user/org keys, webhook raw-body behavior, Origin exemptions, and trusted-proxy semantics unchanged.
-- Add deterministic tests for Redis-store command shape, key TTL/window behavior, retry/failure behavior, secret-free errors, and fallback refusal when Redis configuration is absent.
-- If adding a smoke command, keep it local/test/ci/disposable only, dry-run or fake-client by default, and do not contact production/staging/customer Redis targets.
-- Update GAP-038 and docs; create `docs/PLAN_M53.md` from the next selected active prompt before final response.
+- Run `external-smoke:readiness` and `external-smoke:select-target` before any live smoke command.
+- If no path is selected, record the blocker posture and make no live network/runtime calls.
+- If exactly one path is selected and the operator has configured that path's existing guardrails, run only the selected command and keep every other live path blocked.
+- Preserve secret-free output: no endpoint values, credentials, tokens, cookies, authorization headers, Redis URLs containing credentials, object keys, provider payloads, or customer/user emails.
+- Update GAP-044 and docs with the selected/no-selected target result.
+- Create `docs/PLAN_M54.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/apps/api/src/**`
-- `code/packages/config/src/**`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M52.md`
 - `docs/PLAN_M53.md`
+- `docs/PLAN_M54.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -213,12 +210,10 @@ Expected files:
 Negative constraints:
 
 - Do not call Microsoft Graph, OIDC/OAuth providers, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors.
-- Do not introduce a broad trusted-proxy default that trusts arbitrary `X-Forwarded-For` or `Forwarded` headers.
-- Do not rate-limit Stripe webhook raw-body parsing in a way that consumes or mutates the raw body before signature verification.
-- Do not remove OIDC/provider/webhook callback Origin exemptions without replacement tests proving those flows still work.
-- Do not store or print session cookies, authorization headers, OAuth codes, provider tokens, client secrets, key material, Redis URLs containing credentials, live endpoint URLs, user emails, or object-storage keys.
-- Do not silently fall back from configured Redis/shared rate limiting to process-local memory in production-like modes.
-- Do not enable provider write execution or Microsoft Graph write/remediation scopes.
+- Do not run any selected live-candidate command unless `external-smoke:select-target` reports exactly one selected path and the path-specific disposable/test guardrails are configured.
+- Do not run more than one live smoke path in this prompt.
+- Do not store or print session cookies, authorization headers, OAuth codes, provider tokens, client secrets, key material, Redis URLs containing credentials, live endpoint URLs, user emails, object-storage keys, provider payloads, or rendered report bodies.
+- Do not enable provider write execution, Microsoft Graph write/remediation scopes, or customer-impacting external calls.
 
 Tests and acceptance commands:
 
@@ -226,20 +221,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- api middleware rate limit redis config
 pnpm external-smoke:readiness
+pnpm external-smoke:select-target
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M52.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M53.md`.
 
 Expected gap movement:
 
-- Narrow GAP-038 for the shared API rate-limit store adapter if implemented.
-- Keep GAP-035 open for deployed browser/TLS/proxy smoke until an approved deployed target is exercised.
-- Keep GAP-043 open unless production multi-process queue/Redis operations beyond API rate limiting are intentionally changed and validated.
-- Keep GAP-044 open unless an approved external live-smoke target is selected and exercised.
+- Keep GAP-044 open if no path is selected or if no live smoke command is run.
+- Narrow GAP-044 only if exactly one approved local/test/ci/disposable path is selected and exercised through its existing guarded command.
+- Preserve GAP-035, GAP-043, and other runtime gaps unless their specific guarded smoke path is selected and run.
 
 Final response must include:
 
@@ -247,10 +241,31 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M52` updated
-- `PLAN_M53` created
+- `PLAN_M53` updated
+- `PLAN_M54` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 51 / PLAN_M52: API Redis Rate-Limit Store Adapter Contract Slice
+
+Completed on 2026-05-03.
+
+Summary:
+- Added a Redis fixed-window API rate-limit store behind `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` while preserving process-local memory as the default.
+- Reused the shared Redis command client with EVAL support, configurable retry/backoff, and startup validation for missing or invalid Redis URLs.
+- Hashes route-family/user/IP/organization rate-limit keys before writing Redis keys.
+- Preserved route-family semantics, trusted-proxy behavior, webhook raw-body handling, and OIDC/provider/webhook Origin exemptions.
+- Added deterministic command-shape, TTL/window, retry/failure, and secret-free API error tests without calling a live Redis target.
+
+Validated with host-node/npm equivalents because sandbox-local `pnpm`/`npm` were unavailable:
+- `npm run lint`
+- `npm run test -- api middleware rate limit redis config`
+- `npm run test -- jobs rate limit redis config`
+- `npm run test -- config rate limit redis`
+- `npm run external-smoke:readiness`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Full acceptance results are recorded in `docs/PLAN_M52.md`.
 
 ## Completed Prompt 50 / PLAN_M51: API Rate-Limit Store, Trusted Proxy, And CSRF Decision Slice
 

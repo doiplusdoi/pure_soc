@@ -36,7 +36,7 @@ export interface AuthDeploymentSmokeConfig {
   trustedProxyIpAddressCount: number;
   trustedProxyHops: number;
   rateLimitStoreProvider: string;
-  rateLimitStoreScope: "process_local" | "shared_external_deferred";
+  rateLimitStoreScope: "process_local" | "shared_external";
 }
 
 export interface AuthDeploymentSmokeReadinessPreflight {
@@ -112,7 +112,7 @@ export interface AuthDeploymentSmokeReport {
     trustedProxyIpAddressCount: number;
     trustedProxyHops: number;
     rateLimitStoreProvider: string;
-    rateLimitStoreScope: "process_local" | "shared_external_deferred";
+    rateLimitStoreScope: "process_local" | "shared_external";
     cookieSecureDrivenByConfig: true;
     auditPayloadsRedacted: true;
     rbacOrganizationScopingPreserved: true;
@@ -162,7 +162,7 @@ export const authDeploymentSmokeConfigFromEnv = (
     trustedProxyHops: appConfig.api.security.proxy.trustedProxyHops,
     rateLimitStoreProvider: appConfig.api.rateLimits.store.provider,
     rateLimitStoreScope:
-      appConfig.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external_deferred"
+      appConfig.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external"
   };
 };
 
