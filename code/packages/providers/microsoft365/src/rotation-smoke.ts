@@ -1,21 +1,29 @@
 import {
+  createFakeMicrosoft365SecretManagerTokenKeyProvider,
   createLocalMicrosoft365TokenCipher,
   createLocalMicrosoft365TokenKeyProvider,
   describeMicrosoft365TokenKeyProvider,
   type Microsoft365TokenKeyCustodySummary
 } from "./crypto";
+import {
+  createMicrosoft365ProviderTokenRotationRunbook,
+  type Microsoft365ProviderTokenRotationRunbook
+} from "./rotation-runbook";
 
 export const microsoft365ProviderTokenRotationSmokeSchemaVersion =
-  "puresoc.microsoft365.provider-token.rotation-smoke.v1" as const;
+  "puresoc.microsoft365.provider-token.rotation-smoke.v2" as const;
 
 export interface Microsoft365ProviderTokenRotationSmokeResult {
   schemaVersion: typeof microsoft365ProviderTokenRotationSmokeSchemaVersion;
   providerKey: "microsoft365";
   custody: Microsoft365TokenKeyCustodySummary;
+  fakeSecretManagerCustody: Microsoft365TokenKeyCustodySummary;
+  rotationRunbook: Microsoft365ProviderTokenRotationRunbook;
   checks: string[];
   guarantees: {
     liveMicrosoftGraphCalls: false;
     externalKmsCalls: false;
+    liveSecretManagerCalls: false;
     providerWrites: false;
     plaintextSecretOutput: false;
     localDisposableOnly: true;
@@ -89,6 +97,74 @@ export const runMicrosoft365ProviderTokenRotationSmoke = (): Microsoft365Provide
     "Previous-key encrypted credential did not decrypt through the configured previous key."
   );
 
+  const fakeKeyProvider = createFakeMicrosoft365SecretManagerTokenKeyProvider({
+    activeKeyId: "m38-fake-current",
+    keys: [
+      {
+        keyId: "m38-fake-current",
+        masterKey: currentKeyMaterial,
+        versionId: "fake-secret-version:m38-current:v2"
+      },
+      {
+        keyId: "m38-fake-previous",
+        masterKey: previousKeyMaterial,
+        versionId: "fake-secret-version:m38-previous:v1"
+      }
+    ]
+  });
+  const fakeCipher = createLocalMicrosoft365TokenCipher({ keyProvider: fakeKeyProvider });
+  const fakeCurrentEnvelope = fakeCipher.encrypt(credentialPayload);
+  const fakePreviousEnvelope = createLocalMicrosoft365TokenCipher({
+    keyProvider: createFakeMicrosoft365SecretManagerTokenKeyProvider({
+      activeKeyId: "m38-fake-previous",
+      keys: [
+        {
+          keyId: "m38-fake-previous",
+          masterKey: previousKeyMaterial,
+          versionId: "fake-secret-version:m38-previous:v1"
+        }
+      ]
+    })
+  }).encrypt(credentialPayload);
+  assertNoSecretMaterial("fake active-key envelope", fakeCurrentEnvelope, forbiddenPlaintext);
+  assertNoSecretMaterial("fake previous-key envelope", fakePreviousEnvelope, forbiddenPlaintext);
+  assert(
+    fakeCipher.decrypt<SmokeCredentialPayload>(fakeCurrentEnvelope).accessToken === credentialPayload.accessToken,
+    "Fake secret-manager active-key encrypted credential did not decrypt."
+  );
+  assert(
+    fakeCipher.decrypt<SmokeCredentialPayload>(fakePreviousEnvelope).refreshToken === credentialPayload.refreshToken,
+    "Fake secret-manager previous-key encrypted credential did not decrypt."
+  );
+  let fakeMissingKeyFailed = false;
+  try {
+    fakeCipher.decrypt<SmokeCredentialPayload>(
+      JSON.stringify({
+        ...JSON.parse(fakePreviousEnvelope),
+        keyId: "m38-fake-missing"
+      })
+    );
+  } catch (error) {
+    fakeMissingKeyFailed = true;
+    assertNoSecretMaterial(
+      "fake missing-key failure",
+      error instanceof Error ? error.message : String(error),
+      forbiddenPlaintext
+    );
+  }
+  assert(fakeMissingKeyFailed, "Fake secret-manager missing-key decrypt unexpectedly succeeded.");
+  const fakeSecretManagerCustody = describeMicrosoft365TokenKeyProvider(fakeKeyProvider);
+  assert(
+    fakeSecretManagerCustody.keyVersions.some(
+      (key) => key.keyId === "m38-fake-current" && key.versionId === "fake-secret-version:m38-current:v2"
+    ),
+    "Fake secret-manager custody summary did not include active key-version metadata."
+  );
+  assert(
+    fakeSecretManagerCustody.rotationReadiness.ciphertextBackfillStatus === "metadata_only_deferred",
+    "Fake secret-manager custody summary did not expose rotation readiness metadata."
+  );
+
   const badKeyProvider = createLocalMicrosoft365TokenKeyProvider({
     activeKeyId: "m34-current",
     keys: [
@@ -116,16 +192,26 @@ export const runMicrosoft365ProviderTokenRotationSmoke = (): Microsoft365Provide
     schemaVersion: microsoft365ProviderTokenRotationSmokeSchemaVersion,
     providerKey: "microsoft365",
     custody: describeMicrosoft365TokenKeyProvider(currentKeyProvider),
+    fakeSecretManagerCustody,
+    rotationRunbook: createMicrosoft365ProviderTokenRotationRunbook(fakeKeyProvider, {
+      generatedAt: "2026-05-02T00:00:00.000Z"
+    }),
     checks: [
       "active-key-encrypt",
       "active-key-decrypt",
       "previous-key-decrypt",
+      "fake-secret-manager-active-key-decrypt",
+      "fake-secret-manager-previous-key-decrypt",
+      "fake-secret-manager-missing-key-failure",
+      "fake-secret-manager-version-metadata",
+      "rotation-runbook-metadata",
       "bad-key-failure",
       "secret-output-redaction"
     ],
     guarantees: {
       liveMicrosoftGraphCalls: false,
       externalKmsCalls: false,
+      liveSecretManagerCalls: false,
       providerWrites: false,
       plaintextSecretOutput: false,
       localDisposableOnly: true

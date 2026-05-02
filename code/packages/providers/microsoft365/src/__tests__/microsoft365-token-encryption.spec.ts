@@ -3,13 +3,16 @@ import { createCipheriv, createHash, randomBytes } from "node:crypto";
 import { describe, expect, it } from "vitest";
 
 import {
+  createFakeMicrosoft365SecretManagerTokenKeyProvider,
   createLocalMicrosoft365TokenCipher,
   createLocalMicrosoft365TokenKeyProvider,
+  createMicrosoft365TokenKeyProviderFromConfig,
   createMicrosoft365TokenCipherFromEnv,
   describeMicrosoft365TokenKeyProvider,
   localDevMicrosoft365TokenMasterKey,
   parseMicrosoft365TokenPreviousKeys
 } from "../crypto";
+import { createMicrosoft365ProviderTokenRotationRunbook } from "../rotation-runbook";
 import { runMicrosoft365ProviderTokenRotationSmoke } from "../rotation-smoke";
 
 const createLegacyEnvelope = (masterKey: string, payload: object): string => {
@@ -110,19 +113,184 @@ describe("Microsoft 365 token encryption", () => {
     const summary = describeMicrosoft365TokenKeyProvider(keyProvider);
     const serializedSummary = JSON.stringify(summary);
 
-    expect(summary).toEqual({
+    expect(summary).toMatchObject({
+      schemaVersion: "puresoc.microsoft365.provider-token.custody.v1",
       providerKind: "local-env-key-ring",
+      status: "ready",
       custodyBoundary: "local-process-key-ring",
       activeKeyId: "current",
       previousKeyIds: ["previous"],
       keyCount: 2,
       plaintextKeyMaterialAccessibleToProcess: true,
       externalKmsBacked: false,
+      externalSecretManagerBacked: false,
+      testOnly: false,
+      capabilities: {
+        activeKeyLookup: true,
+        previousKeyLookup: true,
+        keyVersionMetadata: true,
+        rotationReadinessMetadata: true,
+        ciphertextBackfillPlanning: true,
+        ciphertextBackfillExecution: false,
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        liveMicrosoftGraphCalls: false,
+        providerWrites: false
+      },
+      rotationReadiness: {
+        stagedPreviousKeyCount: 1,
+        activeKeyLookupReady: true,
+        previousKeyLookupReady: true,
+        missingKeyIds: [],
+        operatorSecretInjectionRequired: true,
+        ciphertextBackfillStatus: "metadata_only_deferred",
+        rollbackExpectation: "restore_previous_key_window_and_redeploy"
+      },
       ciphertextBackfillSupported: false
     });
+    expect(summary.keyVersions).toEqual([
+      {
+        keyId: "current",
+        versionId: "environment:current:operator-supplied",
+        role: "active",
+        custodyProviderKind: "local-env-key-ring",
+        source: "environment"
+      },
+      {
+        keyId: "previous",
+        versionId: "environment:previous:operator-supplied",
+        role: "previous",
+        custodyProviderKind: "local-env-key-ring",
+        source: "environment"
+      }
+    ]);
     expect(serializedSummary).not.toContain("current-provider-token-key");
     expect(serializedSummary).not.toContain("previous-provider-token-key");
     expect(JSON.parse(cipher.encrypt({ accessToken: "token-value" })).keyId).toBe("current");
+  });
+
+  it("models deterministic fake secret-manager custody without live external calls", () => {
+    const keyProvider = createFakeMicrosoft365SecretManagerTokenKeyProvider({
+      activeKeyId: "current",
+      keys: [
+        {
+          keyId: "current",
+          masterKey: "current-provider-token-key",
+          versionId: "fake-secret-version:current:v2"
+        },
+        {
+          keyId: "previous",
+          masterKey: "previous-provider-token-key",
+          versionId: "fake-secret-version:previous:v1"
+        }
+      ]
+    });
+    const cipher = createLocalMicrosoft365TokenCipher({ keyProvider });
+    const summary = describeMicrosoft365TokenKeyProvider(keyProvider);
+    const runbook = createMicrosoft365ProviderTokenRotationRunbook(keyProvider, {
+      generatedAt: "2026-05-02T00:00:00.000Z"
+    });
+    const encrypted = cipher.encrypt({
+      tenantId: "tenant-id",
+      accessToken: "token-value"
+    });
+
+    expect(cipher.decrypt(encrypted)).toEqual({
+      tenantId: "tenant-id",
+      accessToken: "token-value"
+    });
+    expect(summary).toMatchObject({
+      providerKind: "fake-secret-manager-test",
+      custodyBoundary: "deterministic-fake-secret-manager",
+      testOnly: true,
+      externalKmsBacked: false,
+      externalSecretManagerBacked: false,
+      capabilities: {
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        liveMicrosoftGraphCalls: false,
+        providerWrites: false
+      },
+      rotationReadiness: {
+        stagedPreviousKeyCount: 1,
+        ciphertextBackfillStatus: "metadata_only_deferred"
+      }
+    });
+    expect(summary.keyVersions).toEqual([
+      {
+        keyId: "current",
+        versionId: "fake-secret-version:current:v2",
+        role: "active",
+        custodyProviderKind: "fake-secret-manager-test",
+        source: "deterministic-fake-secret-manager"
+      },
+      {
+        keyId: "previous",
+        versionId: "fake-secret-version:previous:v1",
+        role: "previous",
+        custodyProviderKind: "fake-secret-manager-test",
+        source: "deterministic-fake-secret-manager"
+      }
+    ]);
+    expect(runbook).toMatchObject({
+      providerKey: "microsoft365",
+      generatedAt: "2026-05-02T00:00:00.000Z",
+      backfill: {
+        executionStatus: "not_executed_metadata_only",
+        previousKeyRetirement: "operator_review_required_after_verified_reencrypt"
+      },
+      rollback: {
+        supported: true,
+        expectation: "restore_previous_key_window_and_redeploy"
+      },
+      guarantees: {
+        liveMicrosoftGraphCalls: false,
+        liveSecretManagerCalls: false,
+        externalKmsCalls: false,
+        providerWrites: false,
+        plaintextSecretOutput: false,
+        ciphertextBackfillExecuted: false
+      }
+    });
+    expect(JSON.stringify(summary)).not.toContain("current-provider-token-key");
+    expect(JSON.stringify(runbook)).not.toContain("previous-provider-token-key");
+  });
+
+  it("fails fake secret-manager decrypt when the envelope key is missing", () => {
+    const keyProvider = createFakeMicrosoft365SecretManagerTokenKeyProvider({
+      activeKeyId: "current",
+      keys: [
+        {
+          keyId: "current",
+          masterKey: "current-provider-token-key"
+        }
+      ]
+    });
+    const cipher = createLocalMicrosoft365TokenCipher({ keyProvider });
+    const encrypted = cipher.encrypt({
+      tenantId: "tenant-id",
+      accessToken: "token-value"
+    });
+    const envelope = JSON.parse(encrypted);
+
+    expect(() =>
+      cipher.decrypt(
+        JSON.stringify({
+          ...envelope,
+          keyId: "missing-key"
+        })
+      )
+    ).toThrow("Microsoft 365 credential key ID is not configured.");
+  });
+
+  it("rejects unsupported provider-token custody providers at construction", () => {
+    expect(() =>
+      createMicrosoft365TokenKeyProviderFromConfig({
+        providerKind: "aws-kms",
+        activeKeyId: "current",
+        activeKeyMaterial: "current-provider-token-key"
+      })
+    ).toThrow("Unsupported Microsoft 365 provider token key custody provider");
   });
 
   it("fails previous-key decrypt when the configured key material is wrong", () => {
@@ -216,6 +384,17 @@ describe("Microsoft 365 token encryption", () => {
     ).toThrow("cannot include the local-dev key");
   });
 
+  it("refuses fake secret-manager provider selection in production env defaults", () => {
+    expect(() =>
+      createMicrosoft365TokenCipherFromEnv({
+        PURESOC_APP_ENV: "production",
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+        PURESOC_PROVIDER_TOKEN_KEY: "production-provider-token-key"
+      })
+    ).toThrow("fake Microsoft 365 secret-manager token key provider cannot be used in production");
+  });
+
   it("runs the bounded provider-token rotation smoke without plaintext secret output", () => {
     const result = runMicrosoft365ProviderTokenRotationSmoke();
     const serialized = JSON.stringify(result);
@@ -224,16 +403,24 @@ describe("Microsoft 365 token encryption", () => {
       "active-key-encrypt",
       "active-key-decrypt",
       "previous-key-decrypt",
+      "fake-secret-manager-active-key-decrypt",
+      "fake-secret-manager-previous-key-decrypt",
+      "fake-secret-manager-missing-key-failure",
+      "fake-secret-manager-version-metadata",
+      "rotation-runbook-metadata",
       "bad-key-failure",
       "secret-output-redaction"
     ]);
     expect(result.guarantees).toMatchObject({
       liveMicrosoftGraphCalls: false,
       externalKmsCalls: false,
+      liveSecretManagerCalls: false,
       providerWrites: false,
       plaintextSecretOutput: false,
       localDisposableOnly: true
     });
+    expect(result.fakeSecretManagerCustody.providerKind).toBe("fake-secret-manager-test");
+    expect(result.rotationRunbook.backfill.executionStatus).toBe("not_executed_metadata_only");
     expect(serialized).not.toContain("m34-smoke-access-token-secret");
     expect(serialized).not.toContain("m34-smoke-current-provider-token-key-material");
   });

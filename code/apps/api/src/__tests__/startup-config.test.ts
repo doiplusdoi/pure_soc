@@ -27,4 +27,20 @@ describe("API startup config validation", () => {
 
     server.close();
   });
+
+  it("starts with deterministic fake provider-token custody in non-production tests", () => {
+    const services = createApiServices({
+      config: loadConfig({
+        env: {
+          PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
+          PURESOC_PROVIDER_TOKEN_KEY_ID: "fake-current",
+          PURESOC_PROVIDER_TOKEN_KEY: "fake-current-provider-token-key",
+          PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "fake-previous=fake-previous-provider-token-key"
+        }
+      })
+    });
+    const server = startApiServer(0, services);
+
+    server.close();
+  });
 });

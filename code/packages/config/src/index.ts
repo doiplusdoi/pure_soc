@@ -187,6 +187,7 @@ export class StartupConfigValidationError extends Error {
 
 export const localDevProviderTokenKey = "local-dev-provider-token-key-change-me" as const;
 export const localProviderTokenKeyProvider = "local-env-key-ring" as const;
+export const fakeProviderTokenKeyProvider = "fake-secret-manager-test" as const;
 export const localDevOidcTransientStateKey = "local-dev-oidc-transient-state-key-change-me" as const;
 
 const readJson = <T>(defaultsDir: string, name: string): T => {
@@ -647,12 +648,23 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (config.connectors.providerTokenKeyProvider !== localProviderTokenKeyProvider) {
+  if (
+    config.connectors.providerTokenKeyProvider !== localProviderTokenKeyProvider &&
+    config.connectors.providerTokenKeyProvider !== fakeProviderTokenKeyProvider
+  ) {
     issues.push({
       code: "provider_token_key_provider_unsupported",
       path: "connectors.providerTokenKeyProvider",
       message:
-        "Provider token key custody currently supports only local-env-key-ring; external KMS/secret-manager adapters remain deferred."
+        "Provider token key custody currently supports local-env-key-ring and the deterministic fake-secret-manager-test provider only; external KMS/secret-manager adapters remain deferred."
+    });
+  }
+
+  if (isProduction && config.connectors.providerTokenKeyProvider === fakeProviderTokenKeyProvider) {
+    issues.push({
+      code: "provider_token_fake_key_provider_not_production",
+      path: "connectors.providerTokenKeyProvider",
+      message: "The fake provider-token secret-manager custody provider is test-only and cannot be used for production startup."
     });
   }
 

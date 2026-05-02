@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M37, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M37.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 37 / `docs/PLAN_M38.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M38, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M38.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 38 / `docs/PLAN_M39.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -67,6 +67,7 @@ The repository currently contains:
 - PLAN_M35 remediation worker provider execution safety: `@puresoc/providers-core` now has a provider-neutral action executor boundary; `@puresoc/provider-mock` has deterministic fake action execution; Microsoft 365 exports only a disabled action executor; worker execution can use injected fake-provider dependencies to prove persisted preflight, approval, pre-state snapshot, provider write-enabled checks, idempotency, failure metadata, post-state snapshot/verification metadata, and audit redaction without live Graph writes or customer-impacting remediation.
 - PLAN_M36 production queue orchestration hardening: `@puresoc/jobs` now uses Redis per-job claim locks, bounded command retry/backoff, explicit stale-running recovery and terminal cleanup hooks, queue metadata/failure-detail redaction, configurable Redis queue settings, deterministic contention/recovery/cleanup/retry tests, and an extended disposable Redis smoke proving competing worker runtime instances claim only one shared job while scheduler and connector-runner remain fake/read-only.
 - PLAN_M37 audit export retention/external checkpoint contracts: `@puresoc/audit` now exposes retention/export policy metadata, `none` and deterministic test-only `fake-local` external checkpoint providers, non-WORM/non-notarized guarantees, and fake-anchor metadata; Prisma checkpoint persistence stores provider/status/local-anchor metadata; API routes expose org-scoped policy/provider metadata while preserving redaction; config defaults/env overrides cover audit retention/checkpoint provider settings.
+- PLAN_M38 provider-token secret-manager custody contracts: `@puresoc/provider-microsoft365` now exposes secret-free custody capability/status metadata, keeps `local-env-key-ring` as the default, adds deterministic test-only `fake-secret-manager-test` behavior, models key-version/rotation-readiness metadata, exposes rotation/backfill runbook contracts, wires API config selection, expands `pnpm provider-token:smoke`, and rejects fake/unsupported custody providers in production/startup validation without live KMS/secret-manager calls or provider writes.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -111,7 +112,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 34 / `docs/PLAN_M35.md` is completed.
 - Prompt 35 / `docs/PLAN_M36.md` is completed.
 - Prompt 36 / `docs/PLAN_M37.md` is completed.
-- Prompt 37 / `docs/PLAN_M38.md` is staged as the next active implementation prompt.
+- Prompt 37 / `docs/PLAN_M38.md` is completed.
+- Prompt 38 / `docs/PLAN_M39.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -126,12 +128,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 37 / `docs/PLAN_M38.md`: Provider Token Secret-Manager Custody Contract And Rotation Runbook Slice.
-2. Expected next handoff after M38: prioritize served web/browser smoke (GAP-031/GAP-035), live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), or audit WORM/external signing operations (GAP-039), depending on what provider-token custody work uncovers.
+1. Prompt 38 / `docs/PLAN_M39.md`: Served Web Runtime And Browser Auth/Middleware Smoke Slice.
+2. Expected next handoff after M39: prioritize live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), audit WORM/external signing operations (GAP-039), or production provider-token custody deployment (GAP-040), depending on what browser/runtime smoke uncovers.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M38 may add provider-token custody adapter boundaries and operator runbook contracts, but live KMS/secret-manager calls, deployed rotation, ciphertext backfill, and production custody claims must stay explicit and disabled unless the prompt acceptance criteria prove them.
+Do not enable live Microsoft Graph write/remediation actions by default. M39 may start local served app/API processes and run browser smoke against local routes, but live Microsoft Graph, Stripe, OIDC provider, object-storage, scanner, public regulatory, KMS/secret-manager, and provider-write calls must stay explicit and disabled unless the prompt acceptance criteria prove them.
 
-## Active Prompt 37 / PLAN_M38: Provider Token Secret-Manager Custody Contract And Rotation Runbook Slice
+## Active Prompt 38 / PLAN_M39: Served Web Runtime And Browser Auth/Middleware Smoke Slice
 
 Read:
 
@@ -141,58 +143,53 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M37.md`
+- `docs/PLAN_M38.md`
 - `docs/threat-model.md`
-- `docs/microsoft365-permissions.md`
-- `code/packages/config/src/**`
+- `code/apps/web/src/**`
+- `code/packages/ui/src/**`
 - `code/apps/api/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/packages/providers/core/src/**`
-- `code/apps/worker/src/**`
-- `code/config/defaults/**`
+- `code/packages/config/src/**`
+- `code/scripts/run-ui-smoke.mjs`
+- `code/tests/**`
 - `code/package.json`
 - `code/README.md`
-- `code/tests/**`
 
 Goal:
 
-Narrow GAP-040 by making provider-token custody and rotation more production-shaped without claiming live KMS/secret-manager custody. Add explicit key-custody provider contracts, deterministic fake/test custody provider behavior, rotation/backfill planning metadata, and operator runbook documentation while preserving the current `local-env-key-ring` behavior.
+Narrow GAP-031 and GAP-035 by turning the existing operational console/UI smoke into a served local browser smoke that exercises real web/API startup boundaries, browser cookies/origin protections, responsive rendering, and non-overlap screenshots without introducing live external integrations.
 
 Deliverables:
 
-- Extend the Microsoft 365 provider-token key-custody boundary so custody providers expose explicit capability/status metadata: local env key ring, deterministic fake secret-manager/test provider, and unsupported provider handling.
-- Keep `local-env-key-ring` as the default and do not call AWS/Azure/GCP/Vault/KMS/HSM/secret-manager APIs.
-- Add deterministic fake/test custody provider behavior that proves active/previous-key lookup, missing-key failure, key-version metadata, rotation readiness, and secret-free custody summaries without live external services.
-- Add rotation/backfill runbook metadata or helper contracts that describe staged previous-key windows, re-encryption/backfill prechecks, rollback/backout expectations, and operator-owned secret injection.
-- Preserve existing provider-token encryption/decryption envelopes, previous-key decrypt support, redaction, production rejection of local-dev keys, and provider-write disablement.
-- Add tests for config validation, fake custody summaries, active/previous decrypt, unsupported provider rejection, production default-key rejection, secret-free outputs, and no provider writes/live Graph calls.
-- Document remaining operator-owned custody requirements: chosen SaaS/in-a-box secret backend, deployed smoke, ciphertext backfill/re-encryption execution, key retirement, access logging, rollback, and incident response.
-- Update docs/gaps/prompts and create `docs/PLAN_M39.md` from the next selected active prompt before final response.
+- Preserve the existing PureSOC operational-console design direction and `@puresoc/ui` semantics while wiring the served web runtime/smoke to the current app contracts.
+- Add or harden a browser smoke harness that starts local web/API processes or equivalent local HTTP fixtures, captures desktop and mobile screenshots, and asserts the first screen is nonblank, readable, responsive, and free of obvious text/control overlap.
+- Exercise local browser auth/session-cookie behavior enough to prove `HttpOnly`, `SameSite`, secure-cookie config behavior, Origin/Referer protections, and middleware exemptions for OIDC/provider/Stripe callbacks remain intact.
+- Keep the smoke deterministic and local-only: use in-memory repositories, mock/static contract data, and no live Microsoft Graph, Stripe, OIDC, object-storage, scanner, KMS/secret-manager, public regulatory, or provider-write calls.
+- Document the served-web/browser smoke command, any host-node or Playwright substitution, and remaining production browser/CORS/proxy/TLS work.
+- Update docs/gaps/prompts and create `docs/PLAN_M40.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/packages/config/src/**`
+- `code/apps/web/src/**`
+- `code/packages/ui/src/**`
 - `code/apps/api/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/packages/providers/core/src/**`
-- `code/apps/worker/src/**`
-- `code/config/defaults/**`
+- `code/packages/config/src/**`
+- `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M38.md`
 - `docs/PLAN_M39.md`
+- `docs/PLAN_M40.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not call live KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, Stripe, OIDC providers, object storage, scanners, or public regulatory URLs.
-- Do not store plaintext provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads in logs, API responses, test snapshots, or smoke output.
-- Do not weaken audit redaction, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, provider-token previous-key decrypt behavior, or provider-write startup disablement.
-- Do not enable live provider write/remediation actions or Microsoft write scopes.
-- Do not claim KMS/secret-manager custody, deployed rotation, ciphertext backfill, or customer production readiness unless a real accepted implementation exists.
+- Do not replace the operational app with a marketing landing page.
+- Do not call live Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, or public regulatory URLs.
+- Do not enable live provider write/remediation actions, Microsoft write scopes, or provider-token production custody claims.
+- Do not weaken audit redaction, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, evidence storage-pointer redaction, or legal caveat enforcement.
+- Do not introduce brittle screenshot assertions that depend on live time, public network assets, or non-deterministic data.
 
 Tests and acceptance commands:
 
@@ -200,20 +197,20 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- config provider microsoft365 encryption api audit worker actions
-pnpm provider-token:smoke
+pnpm test -- web ui api middleware auth health
+pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M38.md`.
+If `pnpm` or bundled browsers are not available, use host-node/Playwright equivalents and record the substitution in `docs/PLAN_M39.md`.
 
 Expected gap movement:
 
-- Narrow GAP-040 for provider-token custody contracts, deterministic fake secret-manager behavior, and operator rotation/backfill runbook metadata.
-- Preserve GAP-030 unless live provider write execution is intentionally implemented and accepted.
-- Preserve GAP-039 unless audit WORM/external signing is intentionally implemented and accepted.
-- Preserve GAP-043 unless deployed multi-container queue orchestration is intentionally added.
+- Narrow GAP-031 for served web runtime and deterministic browser screenshot smoke coverage.
+- Narrow GAP-035 for local browser auth/cookie/origin middleware smoke coverage.
+- Preserve GAP-007/GAP-028/GAP-029/GAP-032 unless live external provider/runtime smoke is intentionally implemented and accepted.
+- Preserve GAP-030, GAP-039, GAP-040, and GAP-043 unless those production hardening areas are intentionally implemented and accepted.
 
 Final response must include:
 
@@ -221,10 +218,31 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M38` updated
-- `PLAN_M39` created
+- `PLAN_M39` updated
+- `PLAN_M40` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 37 / PLAN_M38: Provider Token Secret-Manager Custody Contract And Rotation Runbook Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added Microsoft 365 provider-token custody capability/status metadata, key-version metadata, rotation-readiness summaries, and secret-free custody descriptions while preserving existing AES-GCM credential envelope behavior and previous-key decrypt support.
+- Kept `local-env-key-ring` as the default and added deterministic test-only `fake-secret-manager-test` behavior for active/previous lookup, missing-key failure, key-version metadata, and rotation/backfill planning without live KMS/HSM/secret-manager/cloud/Microsoft Graph calls.
+- Added rotation/backfill runbook metadata covering staged previous-key windows, startup/decrypt prechecks, re-encryption/backfill prerequisites, rollback/backout expectations, key retirement, and operator-owned secret injection.
+- Wired API runtime config selection for provider-token custody, expanded startup validation for fake/unsupported providers, and kept production rejection of local-dev/default provider-token keys.
+- Expanded `pnpm provider-token:smoke` to prove local/fake custody behavior, fake missing-key failure, unsupported-provider rejection, production fake-provider rejection, production default-key rejection, and secret-free output.
+- Documented remaining operator-owned custody requirements: selected SaaS/in-a-box secret backend, deployed smoke, ciphertext backfill/re-encryption execution, key retirement, access logging, rollback, and incident response.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- config provider microsoft365 encryption api audit worker actions`
+- `npm run provider-token:smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-040 is narrowed for custody contracts, deterministic fake secret-manager behavior, rotation/backfill runbook metadata, API/runtime config selection, and expanded provider-token smoke without claiming real KMS/secret-manager custody, deployed rotation, ciphertext backfill execution, key retirement, access logging, or production readiness. GAP-030, GAP-039, and GAP-043 remain preserved.
 
 ## Completed Prompt 36 / PLAN_M37: Audit Export Retention And External Checkpoint Contract Slice
 

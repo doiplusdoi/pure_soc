@@ -26,13 +26,13 @@ const main = (): void => {
     localDevProviderTokenKey
   ]);
 
-  console.log(`[M34 provider-token rotation smoke] ${JSON.stringify(result)}`);
+  console.log(`[M38 provider-token custody smoke] ${JSON.stringify(result)}`);
 };
 
 const rejectProductionTarget = (): void => {
   const isProduction = process.env.PURESOC_APP_ENV === "production" || process.env.NODE_ENV === "production";
   if (isProduction) {
-    throw new Error("M34 provider-token rotation smoke refuses production environments; run only locally or in disposable CI.");
+    throw new Error("M38 provider-token custody smoke refuses production environments; run only locally or in disposable CI.");
   }
 };
 
@@ -66,7 +66,39 @@ const runStartupConfigSmoke = (): string[] => {
     "Production startup did not reject the local-dev provider-token previous key."
   );
 
-  return ["production-default-active-key-rejection", "production-default-previous-key-rejection"];
+  const fakeProviderConfig = loadConfig({
+    env: {
+      PURESOC_APP_ENV: "production",
+      PURESOC_AUTH_COOKIE_SECURE: "true",
+      PURESOC_UPLOAD_SCANNER_MODE: "mock",
+      PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
+      PURESOC_PROVIDER_TOKEN_KEY_ID: "m38-current",
+      PURESOC_PROVIDER_TOKEN_KEY: "m38-production-like-provider-token-key"
+    }
+  });
+  const fakeProviderIssues = collectStartupConfigIssues(fakeProviderConfig).map((issue) => issue.code);
+  assert(
+    fakeProviderIssues.includes("provider_token_fake_key_provider_not_production"),
+    "Production startup did not reject the fake provider-token custody provider."
+  );
+
+  const unsupportedProviderConfig = loadConfig({
+    env: {
+      PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "aws-kms"
+    }
+  });
+  const unsupportedProviderIssues = collectStartupConfigIssues(unsupportedProviderConfig).map((issue) => issue.code);
+  assert(
+    unsupportedProviderIssues.includes("provider_token_key_provider_unsupported"),
+    "Startup validation did not reject the unsupported provider-token custody provider."
+  );
+
+  return [
+    "production-default-active-key-rejection",
+    "production-default-previous-key-rejection",
+    "production-fake-provider-rejection",
+    "unsupported-provider-rejection"
+  ];
 };
 
 const assert = (condition: unknown, message: string): asserts condition => {

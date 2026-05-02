@@ -11,17 +11,67 @@ export interface Microsoft365TokenCipherKey {
 }
 
 export const microsoft365LocalTokenKeyProviderKind = "local-env-key-ring" as const;
+export const microsoft365FakeSecretManagerTokenKeyProviderKind = "fake-secret-manager-test" as const;
+export const microsoft365TokenKeyCustodySummarySchemaVersion =
+  "puresoc.microsoft365.provider-token.custody.v1" as const;
 
-export type Microsoft365TokenKeyProviderKind = typeof microsoft365LocalTokenKeyProviderKind;
+export const microsoft365SupportedTokenKeyProviderKinds = [
+  microsoft365LocalTokenKeyProviderKind,
+  microsoft365FakeSecretManagerTokenKeyProviderKind
+] as const;
+
+export type Microsoft365TokenKeyProviderKind = (typeof microsoft365SupportedTokenKeyProviderKinds)[number];
+
+export type Microsoft365TokenKeyCustodyBoundary =
+  | "local-process-key-ring"
+  | "deterministic-fake-secret-manager";
+
+export interface Microsoft365TokenKeyCustodyCapabilities {
+  activeKeyLookup: true;
+  previousKeyLookup: boolean;
+  keyVersionMetadata: boolean;
+  rotationReadinessMetadata: true;
+  ciphertextBackfillPlanning: true;
+  ciphertextBackfillExecution: false;
+  liveSecretManagerCalls: false;
+  liveKmsCalls: false;
+  liveMicrosoftGraphCalls: false;
+  providerWrites: false;
+}
+
+export interface Microsoft365TokenKeyVersionMetadata {
+  keyId: string;
+  versionId: string;
+  role: "active" | "previous";
+  custodyProviderKind: Microsoft365TokenKeyProviderKind;
+  source: "environment" | "deterministic-fake-secret-manager";
+}
+
+export interface Microsoft365TokenRotationReadinessSummary {
+  stagedPreviousKeyCount: number;
+  activeKeyLookupReady: boolean;
+  previousKeyLookupReady: boolean;
+  missingKeyIds: string[];
+  operatorSecretInjectionRequired: true;
+  ciphertextBackfillStatus: "metadata_only_deferred";
+  rollbackExpectation: "restore_previous_key_window_and_redeploy";
+}
 
 export interface Microsoft365TokenKeyCustodySummary {
+  schemaVersion: typeof microsoft365TokenKeyCustodySummarySchemaVersion;
   providerKind: Microsoft365TokenKeyProviderKind;
-  custodyBoundary: "local-process-key-ring";
+  status: "ready";
+  custodyBoundary: Microsoft365TokenKeyCustodyBoundary;
   activeKeyId: string;
   previousKeyIds: string[];
   keyCount: number;
   plaintextKeyMaterialAccessibleToProcess: true;
   externalKmsBacked: false;
+  externalSecretManagerBacked: false;
+  testOnly: boolean;
+  capabilities: Microsoft365TokenKeyCustodyCapabilities;
+  keyVersions: Microsoft365TokenKeyVersionMetadata[];
+  rotationReadiness: Microsoft365TokenRotationReadinessSummary;
   ciphertextBackfillSupported: false;
 }
 
@@ -47,10 +97,76 @@ export interface CreateLocalMicrosoft365TokenKeyProviderOptions {
   keys?: Microsoft365TokenCipherKey[];
 }
 
+export interface Microsoft365FakeSecretManagerTokenCipherKey extends Microsoft365TokenCipherKey {
+  versionId?: string;
+}
+
+export interface CreateFakeMicrosoft365SecretManagerTokenKeyProviderOptions {
+  activeKeyId: string;
+  keys: Microsoft365FakeSecretManagerTokenCipherKey[];
+}
+
+export interface CreateMicrosoft365TokenKeyProviderFromConfigOptions {
+  providerKind?: string;
+  activeKeyId?: string;
+  activeKeyMaterial?: string;
+  previousKeys?: Microsoft365TokenCipherKey[];
+}
+
 export const localDevMicrosoft365TokenKeyId = "local-dev" as const;
 export const localDevMicrosoft365TokenMasterKey = "local-dev-provider-token-key-change-me" as const;
 
 const keyFromMasterKey = (masterKey: string): Buffer => createHash("sha256").update(masterKey).digest();
+
+const sanitizeKeyIdForVersion = (keyId: string): string =>
+  keyId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, "-")
+    .replace(/^-+|-+$/g, "") || "key";
+
+const custodyCapabilities = (input: {
+  previousKeyCount: number;
+  keyVersionMetadata: boolean;
+}): Microsoft365TokenKeyCustodyCapabilities => ({
+  activeKeyLookup: true,
+  previousKeyLookup: input.previousKeyCount > 0,
+  keyVersionMetadata: input.keyVersionMetadata,
+  rotationReadinessMetadata: true,
+  ciphertextBackfillPlanning: true,
+  ciphertextBackfillExecution: false,
+  liveSecretManagerCalls: false,
+  liveKmsCalls: false,
+  liveMicrosoftGraphCalls: false,
+  providerWrites: false
+});
+
+const rotationReadinessSummary = (input: {
+  previousKeyCount: number;
+  missingKeyIds?: string[];
+}): Microsoft365TokenRotationReadinessSummary => ({
+  stagedPreviousKeyCount: input.previousKeyCount,
+  activeKeyLookupReady: true,
+  previousKeyLookupReady: input.previousKeyCount > 0,
+  missingKeyIds: input.missingKeyIds ?? [],
+  operatorSecretInjectionRequired: true,
+  ciphertextBackfillStatus: "metadata_only_deferred",
+  rollbackExpectation: "restore_previous_key_window_and_redeploy"
+});
+
+const localKeyVersionMetadata = (
+  providerKind: Microsoft365TokenKeyProviderKind,
+  activeKeyId: string,
+  keys: Microsoft365TokenCipherKey[],
+  source: Microsoft365TokenKeyVersionMetadata["source"]
+): Microsoft365TokenKeyVersionMetadata[] =>
+  keys.map((key) => ({
+    keyId: key.keyId,
+    versionId: `${source}:${sanitizeKeyIdForVersion(key.keyId)}:operator-supplied`,
+    role: key.keyId === activeKeyId ? "active" : "previous",
+    custodyProviderKind: providerKind,
+    source
+  }));
 
 const normalizeCipherKeys = (
   options: CreateLocalMicrosoft365TokenKeyProviderOptions
@@ -108,16 +224,130 @@ export const createLocalMicrosoft365TokenKeyProvider = (
       return [activeKey, ...configuredKeys.filter((key) => key.keyId !== activeKey.keyId)];
     },
     describe: () => ({
+      schemaVersion: microsoft365TokenKeyCustodySummarySchemaVersion,
       providerKind: microsoft365LocalTokenKeyProviderKind,
+      status: "ready",
       custodyBoundary: "local-process-key-ring",
       activeKeyId: activeKey.keyId,
       previousKeyIds,
       keyCount: configuredKeys.length,
       plaintextKeyMaterialAccessibleToProcess: true,
       externalKmsBacked: false,
+      externalSecretManagerBacked: false,
+      testOnly: false,
+      capabilities: custodyCapabilities({
+        previousKeyCount: previousKeyIds.length,
+        keyVersionMetadata: true
+      }),
+      keyVersions: localKeyVersionMetadata(
+        microsoft365LocalTokenKeyProviderKind,
+        activeKey.keyId,
+        configuredKeys,
+        "environment"
+      ),
+      rotationReadiness: rotationReadinessSummary({
+        previousKeyCount: previousKeyIds.length
+      }),
       ciphertextBackfillSupported: false
     })
   };
+};
+
+export const createFakeMicrosoft365SecretManagerTokenKeyProvider = (
+  options: CreateFakeMicrosoft365SecretManagerTokenKeyProviderOptions
+): Microsoft365TokenKeyProvider => {
+  const { activeKey, keysById } = normalizeCipherKeys({
+    activeKeyId: options.activeKeyId,
+    keys: options.keys
+  });
+  const configuredKeys = [...keysById.values()];
+  const versionIdsByKeyId = new Map(
+    options.keys.map((key) => [
+      key.keyId,
+      key.versionId ?? `fake-secret-version:${sanitizeKeyIdForVersion(key.keyId)}:v1`
+    ])
+  );
+  const previousKeyIds = configuredKeys
+    .filter((key) => key.keyId !== activeKey.keyId)
+    .map((key) => key.keyId);
+  const keyVersions: Microsoft365TokenKeyVersionMetadata[] = configuredKeys.map((key) => ({
+    keyId: key.keyId,
+    versionId: versionIdsByKeyId.get(key.keyId) ?? `fake-secret-version:${sanitizeKeyIdForVersion(key.keyId)}:v1`,
+    role: key.keyId === activeKey.keyId ? "active" : "previous",
+    custodyProviderKind: microsoft365FakeSecretManagerTokenKeyProviderKind,
+    source: "deterministic-fake-secret-manager"
+  }));
+
+  return {
+    providerKind: microsoft365FakeSecretManagerTokenKeyProviderKind,
+    activeKey: () => activeKey,
+    decryptionKeysForEnvelope: (keyId?: string): Microsoft365TokenCipherKey[] => {
+      if (keyId) {
+        const configuredKey = keysById.get(keyId);
+        return configuredKey ? [configuredKey] : [];
+      }
+
+      return [activeKey, ...configuredKeys.filter((key) => key.keyId !== activeKey.keyId)];
+    },
+    describe: () => ({
+      schemaVersion: microsoft365TokenKeyCustodySummarySchemaVersion,
+      providerKind: microsoft365FakeSecretManagerTokenKeyProviderKind,
+      status: "ready",
+      custodyBoundary: "deterministic-fake-secret-manager",
+      activeKeyId: activeKey.keyId,
+      previousKeyIds,
+      keyCount: configuredKeys.length,
+      plaintextKeyMaterialAccessibleToProcess: true,
+      externalKmsBacked: false,
+      externalSecretManagerBacked: false,
+      testOnly: true,
+      capabilities: custodyCapabilities({
+        previousKeyCount: previousKeyIds.length,
+        keyVersionMetadata: true
+      }),
+      keyVersions,
+      rotationReadiness: rotationReadinessSummary({
+        previousKeyCount: previousKeyIds.length
+      }),
+      ciphertextBackfillSupported: false
+    })
+  };
+};
+
+export const createMicrosoft365TokenKeyProviderFromConfig = (
+  options: CreateMicrosoft365TokenKeyProviderFromConfigOptions
+): Microsoft365TokenKeyProvider => {
+  const providerKind = options.providerKind ?? microsoft365LocalTokenKeyProviderKind;
+  const activeKeyId = options.activeKeyId ?? localDevMicrosoft365TokenKeyId;
+  const activeKeyMaterial = options.activeKeyMaterial ?? localDevMicrosoft365TokenMasterKey;
+  const keys = [
+    {
+      keyId: activeKeyId,
+      masterKey: activeKeyMaterial
+    },
+    ...(options.previousKeys ?? [])
+  ];
+
+  if (providerKind === microsoft365LocalTokenKeyProviderKind) {
+    return createLocalMicrosoft365TokenKeyProvider({
+      activeKeyId,
+      keys
+    });
+  }
+
+  if (providerKind === microsoft365FakeSecretManagerTokenKeyProviderKind) {
+    return createFakeMicrosoft365SecretManagerTokenKeyProvider({
+      activeKeyId,
+      keys: keys.map((key) => ({
+        ...key,
+        versionId: `fake-secret-version:${sanitizeKeyIdForVersion(key.keyId)}:configured`
+      }))
+    });
+  }
+
+  throw new Error(
+    `Unsupported Microsoft 365 provider token key custody provider: ${providerKind}.`
+  );
 };
 
 export const describeMicrosoft365TokenKeyProvider = (
@@ -234,10 +464,22 @@ export const parseMicrosoft365TokenPreviousKeys = (value: string | undefined): M
 export const createMicrosoft365TokenCipherFromEnv = (
   env: Record<string, string | undefined> = process.env
 ): Microsoft365TokenCipher => {
+  const providerKind = env.PURESOC_PROVIDER_TOKEN_KEY_PROVIDER ?? microsoft365LocalTokenKeyProviderKind;
   const activeKey = env.PURESOC_PROVIDER_TOKEN_KEY ?? env.PROVIDER_TOKEN_KEY ?? localDevMicrosoft365TokenMasterKey;
   const activeKeyId = env.PURESOC_PROVIDER_TOKEN_KEY_ID ?? localDevMicrosoft365TokenKeyId;
   const previousKeys = parseMicrosoft365TokenPreviousKeys(env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS);
   const isProduction = env.PURESOC_APP_ENV === "production" || env.NODE_ENV === "production";
+
+  if (
+    providerKind !== microsoft365LocalTokenKeyProviderKind &&
+    providerKind !== microsoft365FakeSecretManagerTokenKeyProviderKind
+  ) {
+    throw new Error(`Unsupported Microsoft 365 provider token key custody provider: ${providerKind}.`);
+  }
+
+  if (isProduction && providerKind === microsoft365FakeSecretManagerTokenKeyProviderKind) {
+    throw new Error("The fake Microsoft 365 secret-manager token key provider cannot be used in production.");
+  }
 
   if (isProduction && activeKey === localDevMicrosoft365TokenMasterKey) {
     throw new Error("Production Microsoft 365 credential encryption requires a non-default provider token key.");
@@ -248,13 +490,11 @@ export const createMicrosoft365TokenCipherFromEnv = (
   }
 
   return createLocalMicrosoft365TokenCipher({
-    activeKeyId,
-    keys: [
-      {
-        keyId: activeKeyId,
-        masterKey: activeKey
-      },
-      ...previousKeys
-    ]
+    keyProvider: createMicrosoft365TokenKeyProviderFromConfig({
+      providerKind,
+      activeKeyId,
+      activeKeyMaterial: activeKey,
+      previousKeys
+    })
   });
 };

@@ -61,20 +61,38 @@ export {
 } from "./permissions";
 export { MicrosoftGraphClient, type MicrosoftGraphHttpClient, type MicrosoftGraphResponse } from "./graph-client";
 export {
+  createFakeMicrosoft365SecretManagerTokenKeyProvider,
   createLocalMicrosoft365TokenCipher,
   createLocalMicrosoft365TokenKeyProvider,
+  createMicrosoft365TokenKeyProviderFromConfig,
   createMicrosoft365TokenCipherFromEnv,
   describeMicrosoft365TokenKeyProvider,
   localDevMicrosoft365TokenKeyId,
   localDevMicrosoft365TokenMasterKey,
+  microsoft365FakeSecretManagerTokenKeyProviderKind,
   microsoft365LocalTokenKeyProviderKind,
+  microsoft365SupportedTokenKeyProviderKinds,
+  microsoft365TokenKeyCustodySummarySchemaVersion,
   parseMicrosoft365TokenPreviousKeys,
+  type CreateFakeMicrosoft365SecretManagerTokenKeyProviderOptions,
+  type CreateMicrosoft365TokenKeyProviderFromConfigOptions,
+  type Microsoft365FakeSecretManagerTokenCipherKey,
   type Microsoft365TokenCipher,
   type Microsoft365TokenCipherKey,
+  type Microsoft365TokenKeyCustodyCapabilities,
+  type Microsoft365TokenKeyCustodyBoundary,
   type Microsoft365TokenKeyCustodySummary,
   type Microsoft365TokenKeyProvider,
-  type Microsoft365TokenKeyProviderKind
+  type Microsoft365TokenKeyProviderKind,
+  type Microsoft365TokenKeyVersionMetadata,
+  type Microsoft365TokenRotationReadinessSummary
 } from "./crypto";
+export {
+  createMicrosoft365ProviderTokenRotationRunbook,
+  microsoft365ProviderTokenRotationRunbookSchemaVersion,
+  type Microsoft365ProviderTokenRotationRunbook,
+  type Microsoft365ProviderTokenRotationRunbookStage
+} from "./rotation-runbook";
 export {
   microsoft365ProviderTokenRotationSmokeSchemaVersion,
   runMicrosoft365ProviderTokenRotationSmoke,

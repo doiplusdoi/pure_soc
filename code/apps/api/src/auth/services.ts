@@ -81,7 +81,7 @@ import {
 } from "@puresoc/evidence";
 import {
   createLocalMicrosoft365TokenCipher,
-  createLocalMicrosoft365TokenKeyProvider
+  createMicrosoft365TokenKeyProviderFromConfig
 } from "@puresoc/provider-microsoft365";
 
 export interface ApiPersistenceRuntime {
@@ -195,18 +195,14 @@ export const createApiServices = (
     store: providerStore,
     auditWriter,
     tokenCipher: createLocalMicrosoft365TokenCipher({
-      keyProvider: createLocalMicrosoft365TokenKeyProvider({
+      keyProvider: createMicrosoft365TokenKeyProviderFromConfig({
+        providerKind: config.connectors.providerTokenKeyProvider,
         activeKeyId: config.connectors.providerTokenEncryptionKeyId,
-        keys: [
-          {
-            keyId: config.connectors.providerTokenEncryptionKeyId,
-            masterKey: config.connectors.providerTokenEncryptionKey
-          },
-          ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
-            keyId: key.id,
-            masterKey: key.key
-          }))
-        ]
+        activeKeyMaterial: config.connectors.providerTokenEncryptionKey,
+        previousKeys: config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
+          keyId: key.id,
+          masterKey: key.key
+        }))
       })
     }),
     now: options.now

@@ -126,7 +126,7 @@ describe("loadConfig", () => {
         PURESOC_AUTH_LOCAL_ENABLED: "false",
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "test-oidc-transient-state-key-with-enough-entropy",
-        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "local-env-key-ring",
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
@@ -196,7 +196,7 @@ describe("loadConfig", () => {
     expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
       "test-oidc-transient-state-key-with-enough-entropy"
     );
-    expect(config.connectors.providerTokenKeyProvider).toBe("local-env-key-ring");
+    expect(config.connectors.providerTokenKeyProvider).toBe("fake-secret-manager-test");
     expect(config.connectors.providerTokenEncryptionKeyId).toBe("current-test");
     expect(config.connectors.providerTokenEncryptionKey).toBe("test-provider-token-key-with-enough-entropy");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([
@@ -443,6 +443,32 @@ describe("loadConfig", () => {
     });
     expect(collectStartupConfigIssues(duplicatePreviousKeyConfig).map((issue) => issue.code)).toContain(
       "provider_token_previous_key_duplicate"
+    );
+  });
+
+  it("allows fake provider-token custody only for non-production contract tests", () => {
+    const fakeProviderConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "fake-current",
+        PURESOC_PROVIDER_TOKEN_KEY: "fake-current-provider-token-key",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "fake-previous=fake-previous-provider-token-key"
+      }
+    });
+    expect(collectStartupConfigIssues(fakeProviderConfig)).toHaveLength(0);
+
+    const productionFakeProviderConfig = loadConfig({
+      env: {
+        PURESOC_APP_ENV: "production",
+        PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_UPLOAD_SCANNER_MODE: "mock",
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "fake-current",
+        PURESOC_PROVIDER_TOKEN_KEY: "fake-current-provider-token-key"
+      }
+    });
+    expect(collectStartupConfigIssues(productionFakeProviderConfig).map((issue) => issue.code)).toContain(
+      "provider_token_fake_key_provider_not_production"
     );
   });
 
