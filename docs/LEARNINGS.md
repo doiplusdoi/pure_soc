@@ -21,6 +21,7 @@ Keep entries short, specific, and actionable.
 - Audit log runtime data now uses the selected audit sink boundary; Prisma mode persists redacted canonical payloads and hash metadata.
 - Provider connection/telemetry runtime data now uses the selected `ProviderResourceStore`; Prisma mode persists provider-neutral connection metadata, encrypted credential envelopes, permission bundles, capabilities, sync runs/modules, raw and normalized resources, findings, and recommendations.
 - OIDC/social-login transient authorization state now uses the runtime-selected state store. Prisma mode persists state and nonce only as hashes, stores the PKCE verifier inside an auth-owned encrypted envelope, and requires `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` outside local development.
+- Live PostgreSQL migration/runtime smoke is `pnpm prisma:smoke:postgres` from `code/`; it must target a disposable database URL and covers checked-in migrations plus representative Prisma repository CRUD without third-party providers or provider writes.
 
 ## How To Add Learnings
 

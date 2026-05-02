@@ -37,6 +37,22 @@ DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:gen
 DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc pnpm prisma:migrate:status
 ```
 
+### Live PostgreSQL Smoke
+
+M31 adds a live PostgreSQL migration and Prisma-mode CRUD smoke. It is for disposable local or CI databases only; do not point it at production, staging, customer, or long-lived developer data.
+
+The command runs checked-in Prisma migrations, regenerates the Prisma client, then writes and reads synthetic `m31-smoke-*` records through the existing Prisma repository boundaries for identity/session/org/RBAC, audit, OIDC transient state, provider telemetry, compliance output, evidence metadata, billing, regulatory source review metadata, remediation action metadata, notification drafts, generated reports, and dashboard snapshots. It does not call Microsoft Graph, Stripe, OIDC providers, object storage, KMS, Redis/BullMQ, browser runtimes, public regulatory URLs, or provider write executors.
+
+Use a disposable database name containing `smoke`, `test`, `ci`, `tmp`, or `disposable`, or set the explicit confirmation variable after verifying the target is disposable:
+
+```sh
+DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc_smoke pnpm prisma:smoke:postgres
+
+PURESOC_DATABASE_SMOKE_CONFIRM_DISPOSABLE=true \
+DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc \
+pnpm prisma:smoke:postgres
+```
+
 ## Runtime Modes
 
 `PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.

@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M30 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M31 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -39,8 +39,9 @@ As of 2026-05-02, M1-M30 are implemented at contract/runtime-baseline level.
 - M28 adds a Prisma audit sink selected in Prisma mode, persists redacted canonical audit payloads plus hash-chain metadata, loads per-organization/global anchors before append, and proves auth/org audit writes persist through fake-Prisma API tests.
 - M29 adds a Prisma provider resource store selected in API Prisma mode for mock/Microsoft provider connections, read-only telemetry, module statuses, findings/recommendations, and compliance inputs; provider credential envelopes remain encrypted/redacted and provider write execution remains disabled.
 - M30 adds a Prisma OIDC authorization-state store selected in API Prisma mode for social-login begin/callback flows; state and nonce remain hashed, PKCE verifiers persist only inside AES-GCM envelopes, pending callbacks survive service recreation, replay/expiry are rejected, and account-link safeguards remain unchanged.
-- Runtime readiness is still partial. Persisted audit concurrency/retention/export hardening, live Redis/BullMQ operation, external audit signing/WORM export, live KMS/key-rotation smoke, live PostgreSQL migration/apply smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M31.md`, the live PostgreSQL migration/apply smoke slice.
+- M31 adds `pnpm prisma:smoke:postgres`, a disposable PostgreSQL migration/apply and Prisma-mode CRUD smoke that runs checked-in migrations and verifies representative repository writes/reads for the Prisma-backed runtime contexts.
+- Runtime readiness is still partial. Persisted audit concurrency/retention/export hardening, live Redis/BullMQ operation, external audit signing/WORM export, live KMS/key-rotation smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M32.md`, the live Redis/BullMQ job durability slice.
 
 ## Milestones
 
@@ -61,8 +62,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M30.md` record completed incremental milestones.
-- `docs/PLAN_M31.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M31.md` record completed incremental milestones.
+- `docs/PLAN_M32.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

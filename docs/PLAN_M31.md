@@ -4,8 +4,10 @@
 
 Implement Prompt 30 from `docs/codex-prompts.md`: add a bounded live PostgreSQL smoke for Prisma migration/apply and representative runtime CRUD against the Prisma adapters.
 
-Status: staged for implementation after M30.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -103,32 +105,58 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started and completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `pnpm prisma:smoke:postgres`, backed by `code/scripts/live-postgres-prisma-smoke.ts`.
+- The smoke validates a caller-provided disposable PostgreSQL `DATABASE_URL`, runs checked-in `prisma migrate deploy`, regenerates the Prisma client, then performs representative real CRUD through existing Prisma repository boundaries.
+- Runtime smoke coverage includes migrations, identity/session/org/RBAC, audit hash/redaction persistence, OIDC transient authorization state with protected PKCE verifier storage, provider connection/telemetry, compliance result persistence, evidence metadata/access logs, billing records/events/entitlements, regulatory source/version/source-map/review metadata, remediation action metadata, notification drafts, stored analysis, generated report metadata, and dashboard snapshots.
+- The smoke preserves M31 exclusions: no Microsoft Graph, Stripe live API, OIDC-provider callback, object storage, scanner, KMS, Redis/BullMQ, browser, public regulatory URL, or provider write execution dependency was added.
+- Documented the command and disposable-database safety language in `code/README.md`.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/package.json`
+- `code/scripts/live-postgres-prisma-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M31.md`
+- `docs/PLAN_M32.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` was not available in the sandbox or host path. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run lint` passed.
+- `npm run test -- database prisma persistence auth organization rbac audit oidc provider compliance evidence billing regulatory actions outputs notification` passed: 51 test files, 194 tests.
+- `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:<ephemeral>/puresoc_smoke npm run prisma:smoke:postgres` passed against a disposable `postgres:16-alpine` container. It applied all 4 migrations to an empty database and passed 12 live PostgreSQL checks.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M31. The smoke applies checked-in migrations to an empty PostgreSQL database and exercises representative Prisma-mode CRUD through repository boundaries without introducing live third-party dependencies or provider write execution.
 
 Gaps updated:
 
-- Pending.
+- GAP-026 resolved for live PostgreSQL migration/apply and representative real-CRUD smoke.
+- GAP-030 preserved; no provider write/remediation execution was added.
+- GAP-032 preserved; no live Microsoft/Google/GitHub provider registration or callback smoke was added.
+- GAP-037 preserved and selected as the next likely runtime durability milestone.
+- GAP-039/GAP-040 preserved; no audit WORM/external signing or KMS/key-rotation smoke was added.
 
 Prompt handoff:
 
-- Pending. M31 implementation must create `docs/PLAN_M32.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 30 / PLAN_M31 complete and stages Prompt 31 / PLAN_M32.
+- `docs/PLAN_M32.md` was created for the live Redis/BullMQ job durability slice.
 
 Residual risk:
 
-- Pending.
+- Live PostgreSQL migration/apply and representative adapter CRUD are covered for a disposable database, but production rollout still needs environment-specific migration operations, backup/restore discipline, and deployment sequencing.
+- Live Redis/BullMQ queue durability remains open under GAP-037.
+- Provider write execution remains disabled and open under GAP-030.
+- Live OIDC provider operations, audit WORM/external signing, and KMS/secret-manager rotation remain deferred under their existing gaps.
