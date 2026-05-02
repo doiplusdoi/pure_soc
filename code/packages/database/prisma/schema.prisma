@@ -485,28 +485,35 @@ model AuditLog {
 }
 
 model AuditCheckpoint {
-  id                          String   @id @default(uuid()) @db.Uuid
-  organizationId              String?  @map("organization_id") @db.Uuid
-  scopeType                   String   @map("scope_type")
-  exportId                    String   @map("export_id")
-  exportedAt                  DateTime @map("exported_at")
-  createdAt                   DateTime @default(now()) @map("created_at")
-  createdByUserId             String?  @map("created_by_user_id") @db.Uuid
-  recordCount                 Int      @map("record_count")
-  firstRecordId               String?  @map("first_record_id")
-  terminalRecordId            String?  @map("terminal_record_id")
-  initialPreviousHash         String?  @map("initial_previous_hash")
-  terminalHash                String?  @map("terminal_hash")
-  exportHash                  String   @map("export_hash")
-  hashAlgorithm               String   @map("hash_algorithm")
-  verificationStatus          String   @map("verification_status")
-  verificationViolationsJson  Json     @default("[]") @map("verification_violations_json")
-  externalCheckpointStatus    String   @default("not_configured") @map("external_checkpoint_status")
-  externalCheckpointReference String?  @map("external_checkpoint_reference")
-  guaranteesJson              Json     @default("{}") @map("guarantees_json")
+  id                                   String    @id @default(uuid()) @db.Uuid
+  organizationId                       String?   @map("organization_id") @db.Uuid
+  scopeType                            String    @map("scope_type")
+  exportId                             String    @map("export_id")
+  exportedAt                           DateTime  @map("exported_at")
+  createdAt                            DateTime  @default(now()) @map("created_at")
+  createdByUserId                      String?   @map("created_by_user_id") @db.Uuid
+  recordCount                          Int       @map("record_count")
+  firstRecordId                        String?   @map("first_record_id")
+  terminalRecordId                     String?   @map("terminal_record_id")
+  initialPreviousHash                  String?   @map("initial_previous_hash")
+  terminalHash                         String?   @map("terminal_hash")
+  exportHash                           String    @map("export_hash")
+  hashAlgorithm                        String    @map("hash_algorithm")
+  verificationStatus                   String    @map("verification_status")
+  verificationViolationsJson           Json      @default("[]") @map("verification_violations_json")
+  externalCheckpointStatus             String    @default("not_configured") @map("external_checkpoint_status")
+  externalCheckpointReference          String?   @map("external_checkpoint_reference")
+  externalCheckpointProvider           String    @default("none") @map("external_checkpoint_provider")
+  externalCheckpointProviderStatusJson Json      @default("{}") @map("external_checkpoint_provider_status_json")
+  externalCheckpointRecordedAt         DateTime? @map("external_checkpoint_recorded_at")
+  externalCheckpointPayloadHash        String?   @map("external_checkpoint_payload_hash")
+  externalCheckpointMetadataJson       Json      @default("{}") @map("external_checkpoint_metadata_json")
+  retentionPolicyJson                  Json      @default("{}") @map("retention_policy_json")
+  guaranteesJson                       Json      @default("{}") @map("guarantees_json")
 
   @@index([organizationId, createdAt], map: "audit_checkpoints_org_created_idx")
   @@index([organizationId, terminalHash], map: "audit_checkpoints_org_terminal_hash_idx")
+  @@index([organizationId, externalCheckpointStatus], map: "audit_checkpoints_org_external_status_idx")
   @@map("audit_checkpoints")
 }
 

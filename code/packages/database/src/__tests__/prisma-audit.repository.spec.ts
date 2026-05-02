@@ -131,7 +131,26 @@ describe("PrismaAuditSink", () => {
     const checkpoint = buildAuditCheckpointFromExportSegment(segment, {
       id: randomUUID(),
       createdAt: new Date("2026-05-02T14:02:00.000Z"),
-      createdByUserId: randomUUID()
+      createdByUserId: randomUUID(),
+      externalCheckpointStatus: "fake_anchor_recorded",
+      externalCheckpointReference: "fake-audit-anchor:abc123",
+      externalCheckpointProvider: "fake-local",
+      externalCheckpointProviderStatus: {
+        providerKey: "fake-local",
+        configured: true,
+        mode: "deterministic_fake",
+        liveExternalService: false,
+        wormStorage: false,
+        externalNotarization: false,
+        legalCertification: false
+      },
+      externalCheckpointRecordedAt: "2026-05-02T14:02:30.000Z",
+      externalCheckpointPayloadHash: "e".repeat(64),
+      externalCheckpointMetadata: {
+        testOnly: true,
+        liveExternalService: false
+      },
+      externalCheckpointGuarantee: "fake_test_anchor_only"
     });
 
     await repository.saveAuditCheckpoint(checkpoint);
@@ -145,7 +164,27 @@ describe("PrismaAuditSink", () => {
       recordCount: 2,
       terminalHash: checkpoint.terminalHash,
       verificationStatus: "valid",
-      externalCheckpointStatus: "not_configured"
+      externalCheckpointStatus: "fake_anchor_recorded",
+      externalCheckpointProvider: "fake-local",
+      externalCheckpointReference: "fake-audit-anchor:abc123",
+      externalCheckpointRecordedAt: "2026-05-02T14:02:30.000Z",
+      externalCheckpointPayloadHash: "e".repeat(64),
+      guarantees: expect.objectContaining({
+        externalCheckpoint: "fake_test_anchor_only",
+        externalNotarization: false
+      }),
+      retentionPolicy: expect.objectContaining({
+        policyKey: "puresoc-audit-database-only-7y"
+      })
+    });
+    expect(saved[0]?.externalCheckpointProviderStatus).toMatchObject({
+      providerKey: "fake-local",
+      mode: "deterministic_fake",
+      liveExternalService: false
+    });
+    expect(saved[0]?.externalCheckpointMetadata).toMatchObject({
+      testOnly: true,
+      liveExternalService: false
     });
     expect(JSON.stringify(client.auditCheckpoint.rows)).not.toContain("must-not-export");
     expect(JSON.stringify(client.auditCheckpoint.rows)).not.toContain("s3://internal/object");

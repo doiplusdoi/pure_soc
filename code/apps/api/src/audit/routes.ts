@@ -77,7 +77,12 @@ export const recordAuditCheckpointRoute = async (
     expectedTerminalHash
   });
 
-  if (!result.checkpoint.guarantees || result.checkpoint.guarantees.databaseRowsAreWorm !== false) {
+  if (
+    !result.checkpoint.guarantees ||
+    result.checkpoint.guarantees.databaseRowsAreWorm !== false ||
+    result.checkpoint.guarantees.externalNotarization !== false ||
+    result.checkpoint.guarantees.legalCertification !== false
+  ) {
     throw new AuditExportError(
       "invalid_audit_checkpoint_guarantees",
       "Audit checkpoint guarantees must not claim WORM or external notarization."
@@ -99,6 +104,8 @@ export const recordAuditCheckpointRoute = async (
       terminalHash: result.checkpoint.terminalHash,
       verificationStatus: result.checkpoint.verificationStatus,
       externalCheckpointStatus: result.checkpoint.externalCheckpointStatus,
+      externalCheckpointProvider: result.checkpoint.externalCheckpointProvider,
+      retentionPolicyKey: result.checkpoint.retentionPolicy.policyKey,
       databaseRowsAreWorm: false
     }
   });

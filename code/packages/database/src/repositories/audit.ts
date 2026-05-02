@@ -2,6 +2,9 @@ import {
   buildAuditCanonicalPayload,
   type AuditCheckpointRecord,
   type AuditCheckpointRepository,
+  createAuditRetentionExportPolicy,
+  noneExternalCheckpointProviderStatus,
+  type AuditExternalCheckpointProviderStatus,
   type AuditExportGuarantees,
   type AuditExportRepositoryScope,
   type AuditExportViolation,
@@ -121,6 +124,12 @@ interface AuditCheckpointRow {
   verificationViolationsJson?: unknown;
   externalCheckpointStatus: string;
   externalCheckpointReference?: string | null;
+  externalCheckpointProvider?: string | null;
+  externalCheckpointProviderStatusJson?: unknown;
+  externalCheckpointRecordedAt?: Date | string | null;
+  externalCheckpointPayloadHash?: string | null;
+  externalCheckpointMetadataJson?: unknown;
+  retentionPolicyJson?: unknown;
   guaranteesJson?: unknown;
 }
 
@@ -250,6 +259,12 @@ const toAuditCheckpointData = (record: AuditCheckpointRecord): Record<string, un
   verificationViolationsJson: record.verificationViolations,
   externalCheckpointStatus: record.externalCheckpointStatus,
   externalCheckpointReference: record.externalCheckpointReference,
+  externalCheckpointProvider: record.externalCheckpointProvider,
+  externalCheckpointProviderStatusJson: record.externalCheckpointProviderStatus,
+  externalCheckpointRecordedAt: record.externalCheckpointRecordedAt ? new Date(record.externalCheckpointRecordedAt) : null,
+  externalCheckpointPayloadHash: record.externalCheckpointPayloadHash,
+  externalCheckpointMetadataJson: record.externalCheckpointMetadata,
+  retentionPolicyJson: record.retentionPolicy,
   guaranteesJson: record.guarantees
 });
 
@@ -302,10 +317,20 @@ const toAuditCheckpointRecord = (row: AuditCheckpointRow): AuditCheckpointRecord
   verificationStatus: row.verificationStatus === "valid" ? "valid" : "invalid",
   verificationViolations: toAuditExportViolations(row.verificationViolationsJson),
   externalCheckpointStatus:
-    row.externalCheckpointStatus === "pending_external_anchor" || row.externalCheckpointStatus === "externally_recorded"
+    row.externalCheckpointStatus === "pending_external_anchor" ||
+    row.externalCheckpointStatus === "fake_anchor_recorded" ||
+    row.externalCheckpointStatus === "externally_recorded"
       ? row.externalCheckpointStatus
       : "not_configured",
   externalCheckpointReference: row.externalCheckpointReference ?? null,
+  externalCheckpointProvider: row.externalCheckpointProvider ?? "none",
+  externalCheckpointProviderStatus: toAuditExternalCheckpointProviderStatus(row.externalCheckpointProviderStatusJson),
+  externalCheckpointRecordedAt: row.externalCheckpointRecordedAt
+    ? toDate(row.externalCheckpointRecordedAt).toISOString()
+    : null,
+  externalCheckpointPayloadHash: row.externalCheckpointPayloadHash ?? null,
+  externalCheckpointMetadata: toRecord(row.externalCheckpointMetadataJson),
+  retentionPolicy: toAuditRetentionExportPolicy(row.retentionPolicyJson),
   guarantees: toAuditExportGuarantees(row.guaranteesJson)
 });
 
@@ -341,7 +366,9 @@ const toAuditExportGuarantees = (value: unknown): AuditExportGuarantees => {
     return {
       databaseHashChain: "tamper_evident_only",
       databaseRowsAreWorm: false,
-      externalCheckpoint: "not_configured",
+      externalCheckpoint:
+        value.externalCheckpoint === "fake_test_anchor_only" ? "fake_test_anchor_only" : "not_configured",
+      externalNotarization: false,
       legalCertification: false
     };
   }
@@ -350,6 +377,47 @@ const toAuditExportGuarantees = (value: unknown): AuditExportGuarantees => {
     databaseHashChain: "tamper_evident_only",
     databaseRowsAreWorm: false,
     externalCheckpoint: "not_configured",
+    externalNotarization: false,
     legalCertification: false
   };
+};
+
+const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
+
+const toAuditExternalCheckpointProviderStatus = (value: unknown): AuditExternalCheckpointProviderStatus => {
+  if (isRecord(value)) {
+    const mode =
+      value.mode === "deterministic_fake" || value.mode === "unsupported" || value.mode === "none"
+        ? value.mode
+        : "none";
+
+    return {
+      providerKey: typeof value.providerKey === "string" ? value.providerKey : "none",
+      configured: value.configured === true,
+      mode,
+      liveExternalService: false,
+      wormStorage: false,
+      externalNotarization: false,
+      legalCertification: false
+    };
+  }
+
+  return noneExternalCheckpointProviderStatus();
+};
+
+const toAuditRetentionExportPolicy = (value: unknown) => {
+  if (!isRecord(value)) {
+    return createAuditRetentionExportPolicy();
+  }
+
+  return createAuditRetentionExportPolicy({
+    policyKey: typeof value.policyKey === "string" ? value.policyKey : undefined,
+    auditLogRetentionDays:
+      typeof value.auditLogRetentionDays === "number" ? value.auditLogRetentionDays : undefined,
+    checkpointRetentionDays:
+      typeof value.checkpointRetentionDays === "number" ? value.checkpointRetentionDays : undefined,
+    exportRetentionDays: typeof value.exportRetentionDays === "number" ? value.exportRetentionDays : undefined,
+    checkpointCadenceDays:
+      typeof value.checkpointCadenceDays === "number" ? value.checkpointCadenceDays : undefined
+  });
 };

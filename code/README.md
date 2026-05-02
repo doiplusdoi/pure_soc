@@ -100,9 +100,24 @@ POST /organizations/:organizationId/audit/checkpoints
 GET  /organizations/:organizationId/audit/checkpoints
 ```
 
-Exports serialize the redacted canonical payloads, previous/current hash anchors, terminal hash, export metadata, verification status, and explicit guarantees. The guarantees intentionally say `databaseRowsAreWorm=false`, `externalCheckpoint=not_configured`, and `legalCertification=false`.
+Exports serialize the redacted canonical payloads, previous/current hash anchors, terminal hash, export metadata, verification status, retention/export policy metadata, external checkpoint provider status, and explicit guarantees. The default guarantees intentionally say `databaseRowsAreWorm=false`, `externalCheckpoint=not_configured`, `externalNotarization=false`, and `legalCertification=false`.
 
-Checkpoint records are database-only terminal-hash records that can support later external anchoring. They are not WORM object-storage exports, HSM/KMS signatures, notarized checkpoints, retention enforcement, or legal certification. Creating a checkpoint appends an `audit_checkpoint_recorded` audit entry after the covered segment, so the checkpoint covers records up to the exported terminal hash, not the audit event that recorded the checkpoint.
+M37 adds configurable audit retention/export policy metadata and explicit external checkpoint provider contracts:
+
+```sh
+PURESOC_AUDIT_RETENTION_POLICY_KEY=puresoc-audit-database-only-7y
+PURESOC_AUDIT_LOG_RETENTION_DAYS=2555
+PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS=2555
+PURESOC_AUDIT_EXPORT_RETENTION_DAYS=2555
+PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS=30
+PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER=none
+```
+
+The only runtime providers are `none` and deterministic `fake-local` for tests. `fake-local` creates a local hash/reference so contract tests can prove anchor metadata shape, but it is not an external timestamp authority, signing service, WORM store, KMS/HSM, legal certification, or production provider; production startup rejects it.
+
+Checkpoint records are database-only terminal-hash records that can support later external anchoring. They persist retention policy, provider status, local/fake anchor metadata, and non-WORM/non-notarized guarantees. They are not WORM object-storage exports, HSM/KMS signatures, notarized checkpoints, retention enforcement, or legal certification. Creating a checkpoint appends an `audit_checkpoint_recorded` audit entry after the covered segment, so the checkpoint covers records up to the exported terminal hash, not the audit event that recorded the checkpoint.
+
+Operators still own append-only/WORM storage, retention deletion/legal-hold policy, checkpoint export to immutable storage, external signing/notarization, audit verification alerts, and concurrent multi-process append semantics before making production auditability claims.
 
 Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
 

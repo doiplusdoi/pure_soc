@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M36 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M37 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -45,8 +45,9 @@ As of 2026-05-02, M1-M36 are implemented at contract/runtime-baseline level.
 - M34 adds an explicit Microsoft 365 provider-token `local-env-key-ring` key-provider/custody boundary, redacted custody summaries, stricter key-ring validation, and `pnpm provider-token:smoke` for local/disposable active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production local-dev-key rejection checks.
 - M35 adds a provider-neutral remediation action executor boundary, deterministic fake/mock provider action execution, a Microsoft 365 disabled executor, and worker-side safety checks for persisted preflight, approval, pre-state snapshots, provider write-enabled state, idempotency, failure metadata, post-state snapshot/verification metadata, and audit redaction. It does not enable live Microsoft Graph writes or customer-impacting provider remediation.
 - M36 hardens the Redis-backed job adapter with per-job claim locks, bounded command retry/backoff, explicit stale-running recovery and terminal cleanup hooks, queue metadata/failure-detail redaction, configurable Redis queue settings, deterministic contention/recovery/cleanup tests, and an extended disposable Redis smoke for competing worker runtime instances plus fake/read-only scheduler and connector-runner jobs.
-- Runtime readiness is still partial. Persisted audit concurrency/retention/export hardening, production multi-process queue orchestration hardening, external audit signing/WORM export, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M37.md`, the audit export retention and external checkpoint contract slice.
+- M37 adds audit retention/export policy metadata, explicit `none` and deterministic test-only `fake-local` external checkpoint provider contracts, persisted checkpoint provider/status/local-anchor metadata, API exposure, config defaults/env overrides, and redaction/scoping tests. It still does not claim WORM storage, real external notarization, legal certification, or database-admin-proof auditability.
+- Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, browser auth/runtime smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M38.md`, the provider-token secret-manager custody contract and rotation-runbook slice.
 
 ## Milestones
 
@@ -67,8 +68,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M36.md` record completed incremental milestones.
-- `docs/PLAN_M37.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M37.md` record completed incremental milestones.
+- `docs/PLAN_M38.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

@@ -1,6 +1,7 @@
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { loadConfig } from "@puresoc/config";
 import { createApiServices } from "../auth/services";
 import { startApiServer } from "../server";
 
@@ -23,6 +24,9 @@ describe("audit export and checkpoint API", () => {
   });
 
   afterEach(async () => {
+    if (!server.listening) {
+      return;
+    }
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
@@ -71,6 +75,16 @@ describe("audit export and checkpoint API", () => {
     return readJson<{ organization: { id: string } }>(response);
   };
 
+  const restartWithServices = async (nextServices: ReturnType<typeof createApiServices>) => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    services = nextServices;
+    server = startApiServer(0, services);
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+  };
+
   it("exports redacted organization audit segments and records database-only checkpoints", async () => {
     const owner = await registerAndLogin("audit-export-owner@example.test");
     const { organization } = await createOrganization(owner.cookie);
@@ -98,7 +112,9 @@ describe("audit export and checkpoint API", () => {
         recordCount: number;
         terminalHash: string;
         verification: { valid: boolean; checkedRecords: number };
-        guarantees: { databaseRowsAreWorm: boolean; externalCheckpoint: string };
+        guarantees: { databaseRowsAreWorm: boolean; externalCheckpoint: string; externalNotarization: boolean };
+        retentionPolicy: { policyKey: string; auditLogRetentionDays: number };
+        externalCheckpointProviderStatus: { providerKey: string; configured: boolean; liveExternalService: boolean };
       };
     };
 
@@ -106,7 +122,17 @@ describe("audit export and checkpoint API", () => {
     expect(exportBody.segment.verification.valid).toBe(true);
     expect(exportBody.segment.guarantees).toMatchObject({
       databaseRowsAreWorm: false,
-      externalCheckpoint: "not_configured"
+      externalCheckpoint: "not_configured",
+      externalNotarization: false
+    });
+    expect(exportBody.segment.retentionPolicy).toMatchObject({
+      policyKey: "puresoc-audit-database-only-7y",
+      auditLogRetentionDays: 2555
+    });
+    expect(exportBody.segment.externalCheckpointProviderStatus).toMatchObject({
+      providerKey: "none",
+      configured: false,
+      liveExternalService: false
     });
     expect(exportText).not.toContain("must-not-leak");
     expect(exportText).not.toContain("s3://internal/audit-export");
@@ -126,7 +152,10 @@ describe("audit export and checkpoint API", () => {
         terminalHash: string;
         verificationStatus: string;
         externalCheckpointStatus: string;
-        guarantees: { databaseRowsAreWorm: boolean; legalCertification: boolean };
+        externalCheckpointProvider: string;
+        externalCheckpointRecordedAt: string | null;
+        retentionPolicy: { policyKey: string };
+        guarantees: { databaseRowsAreWorm: boolean; externalNotarization: boolean; legalCertification: boolean };
       };
       verification: { valid: boolean };
     }>(checkpointResponse);
@@ -136,8 +165,14 @@ describe("audit export and checkpoint API", () => {
       terminalHash: exportBody.segment.terminalHash,
       verificationStatus: "valid",
       externalCheckpointStatus: "not_configured",
+      externalCheckpointProvider: "none",
+      externalCheckpointRecordedAt: null,
+      retentionPolicy: {
+        policyKey: "puresoc-audit-database-only-7y"
+      },
       guarantees: {
         databaseRowsAreWorm: false,
+        externalNotarization: false,
         legalCertification: false
       }
     });
@@ -151,6 +186,103 @@ describe("audit export and checkpoint API", () => {
     await expect(readJson<{ checkpoints: unknown[] }>(listResponse)).resolves.toMatchObject({
       checkpoints: [expect.objectContaining({ terminalHash: exportBody.segment.terminalHash })]
     });
+  });
+
+  it("records fake external anchor and retention metadata through the API when explicitly configured", async () => {
+    await restartWithServices(
+      createApiServices({
+        now: () => new Date("2026-05-02T16:00:00.000Z"),
+        config: loadConfig({
+          env: {
+            PURESOC_AUDIT_RETENTION_POLICY_KEY: "audit-test-api-90d",
+            PURESOC_AUDIT_LOG_RETENTION_DAYS: "90",
+            PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS: "90",
+            PURESOC_AUDIT_EXPORT_RETENTION_DAYS: "30",
+            PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS: "7",
+            PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER: "fake-local"
+          }
+        })
+      })
+    );
+    const owner = await registerAndLogin("audit-export-fake-anchor@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+
+    await services.auditWriter.write({
+      organizationId: organization.id,
+      actorUserId: owner.loginBody.user.id,
+      targetType: "audit",
+      targetId: "checkpoint",
+      action: "fake_anchor_test",
+      afterJson: {
+        status: "ready",
+        refreshToken: "must-not-leak"
+      }
+    });
+
+    const exportResponse = await fetch(`${baseUrl}/organizations/${organization.id}/audit/export`, {
+      headers: { cookie: owner.cookie }
+    });
+    expect(exportResponse.status).toBe(200);
+    const exportBody = await readJson<{
+      segment: {
+        terminalHash: string;
+        retentionPolicy: { policyKey: string; checkpointCadenceDays: number };
+        externalCheckpointProviderStatus: { providerKey: string; configured: boolean; liveExternalService: boolean };
+      };
+    }>(exportResponse);
+    expect(exportBody.segment.retentionPolicy).toMatchObject({
+      policyKey: "audit-test-api-90d",
+      checkpointCadenceDays: 7
+    });
+    expect(exportBody.segment.externalCheckpointProviderStatus).toMatchObject({
+      providerKey: "fake-local",
+      configured: true,
+      liveExternalService: false
+    });
+
+    const checkpointResponse = await postJson(
+      `/organizations/${organization.id}/audit/checkpoints`,
+      {
+        expectedTerminalHash: exportBody.segment.terminalHash
+      },
+      owner.cookie
+    );
+    expect(checkpointResponse.status).toBe(201);
+    const checkpointText = await checkpointResponse.text();
+    const checkpointBody = JSON.parse(checkpointText) as {
+      checkpoint: {
+        externalCheckpointStatus: string;
+        externalCheckpointProvider: string;
+        externalCheckpointReference: string;
+        externalCheckpointRecordedAt: string;
+        externalCheckpointPayloadHash: string;
+        externalCheckpointMetadata: { testOnly: boolean; liveExternalService: boolean };
+        retentionPolicy: { policyKey: string; auditLogRetentionDays: number };
+        guarantees: { externalCheckpoint: string; externalNotarization: boolean; legalCertification: boolean };
+      };
+    };
+
+    expect(checkpointBody.checkpoint).toMatchObject({
+      externalCheckpointStatus: "fake_anchor_recorded",
+      externalCheckpointProvider: "fake-local",
+      externalCheckpointReference: expect.stringMatching(/^fake-audit-anchor:[a-f0-9]{16}$/),
+      externalCheckpointRecordedAt: "2026-05-02T16:00:00.000Z",
+      externalCheckpointPayloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      retentionPolicy: {
+        policyKey: "audit-test-api-90d",
+        auditLogRetentionDays: 90
+      },
+      guarantees: {
+        externalCheckpoint: "fake_test_anchor_only",
+        externalNotarization: false,
+        legalCertification: false
+      }
+    });
+    expect(checkpointBody.checkpoint.externalCheckpointMetadata).toMatchObject({
+      testOnly: true,
+      liveExternalService: false
+    });
+    expect(checkpointText).not.toContain("must-not-leak");
   });
 
   it("rejects cross-organization audit export access", async () => {

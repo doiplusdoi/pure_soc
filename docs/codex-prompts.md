@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M36, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M36.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 36 / `docs/PLAN_M37.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M37, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M37.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 37 / `docs/PLAN_M38.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -66,6 +66,7 @@ The repository currently contains:
 - PLAN_M34 provider-token key custody and rotation smoke: `@puresoc/provider-microsoft365` now has an explicit `local-env-key-ring` key-provider/custody boundary around the local token cipher, redacted custody summaries, and a package-level rotation smoke helper; config validation rejects unsupported custody providers and duplicate/reused provider-token key material; `pnpm provider-token:smoke` proves active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production rejection of checked-in local-dev active/previous provider-token keys without live Microsoft Graph, external KMS, or provider writes. GAP-040 is narrowed without claiming KMS/secret-manager custody.
 - PLAN_M35 remediation worker provider execution safety: `@puresoc/providers-core` now has a provider-neutral action executor boundary; `@puresoc/provider-mock` has deterministic fake action execution; Microsoft 365 exports only a disabled action executor; worker execution can use injected fake-provider dependencies to prove persisted preflight, approval, pre-state snapshot, provider write-enabled checks, idempotency, failure metadata, post-state snapshot/verification metadata, and audit redaction without live Graph writes or customer-impacting remediation.
 - PLAN_M36 production queue orchestration hardening: `@puresoc/jobs` now uses Redis per-job claim locks, bounded command retry/backoff, explicit stale-running recovery and terminal cleanup hooks, queue metadata/failure-detail redaction, configurable Redis queue settings, deterministic contention/recovery/cleanup/retry tests, and an extended disposable Redis smoke proving competing worker runtime instances claim only one shared job while scheduler and connector-runner remain fake/read-only.
+- PLAN_M37 audit export retention/external checkpoint contracts: `@puresoc/audit` now exposes retention/export policy metadata, `none` and deterministic test-only `fake-local` external checkpoint providers, non-WORM/non-notarized guarantees, and fake-anchor metadata; Prisma checkpoint persistence stores provider/status/local-anchor metadata; API routes expose org-scoped policy/provider metadata while preserving redaction; config defaults/env overrides cover audit retention/checkpoint provider settings.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -109,7 +110,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 33 / `docs/PLAN_M34.md` is completed.
 - Prompt 34 / `docs/PLAN_M35.md` is completed.
 - Prompt 35 / `docs/PLAN_M36.md` is completed.
-- Prompt 36 / `docs/PLAN_M37.md` is staged as the next active implementation prompt.
+- Prompt 36 / `docs/PLAN_M37.md` is completed.
+- Prompt 37 / `docs/PLAN_M38.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -124,12 +126,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 36 / `docs/PLAN_M37.md`: Audit Export Retention And External Checkpoint Contract Slice.
-2. Expected next handoff after M37: prioritize live KMS/secret-manager custody (GAP-040), served web/browser smoke (GAP-031/GAP-035), or live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), depending on what audit operations work uncovers.
+1. Prompt 37 / `docs/PLAN_M38.md`: Provider Token Secret-Manager Custody Contract And Rotation Runbook Slice.
+2. Expected next handoff after M38: prioritize served web/browser smoke (GAP-031/GAP-035), live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), or audit WORM/external signing operations (GAP-039), depending on what provider-token custody work uncovers.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M37 may harden audit export/checkpoint contracts using fake/local adapters only, but WORM storage, external notarization, and production legal/auditability claims must stay explicit and disabled unless the prompt acceptance criteria prove them.
+Do not enable live Microsoft Graph write/remediation actions by default. M38 may add provider-token custody adapter boundaries and operator runbook contracts, but live KMS/secret-manager calls, deployed rotation, ciphertext backfill, and production custody claims must stay explicit and disabled unless the prompt acceptance criteria prove them.
 
-## Active Prompt 36 / PLAN_M37: Audit Export Retention And External Checkpoint Contract Slice
+## Active Prompt 37 / PLAN_M38: Provider Token Secret-Manager Custody Contract And Rotation Runbook Slice
 
 Read:
 
@@ -139,13 +141,14 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M36.md`
+- `docs/PLAN_M37.md`
 - `docs/threat-model.md`
-- `code/packages/audit/src/**`
-- `code/packages/database/src/**`
+- `docs/microsoft365-permissions.md`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
-- `code/packages/evidence/src/**`
+- `code/packages/providers/microsoft365/src/**`
+- `code/packages/providers/core/src/**`
+- `code/apps/worker/src/**`
 - `code/config/defaults/**`
 - `code/package.json`
 - `code/README.md`
@@ -153,41 +156,43 @@ Read:
 
 Goal:
 
-Narrow GAP-039 by making audit export/checkpoint operations more production-shaped without claiming WORM storage, external notarization, legal certification, or protection against a database administrator rewriting all rows. Add explicit contracts for retention/export policy and external checkpoint anchoring, using deterministic fake/local adapters only.
+Narrow GAP-040 by making provider-token custody and rotation more production-shaped without claiming live KMS/secret-manager custody. Add explicit key-custody provider contracts, deterministic fake/test custody provider behavior, rotation/backfill planning metadata, and operator runbook documentation while preserving the current `local-env-key-ring` behavior.
 
 Deliverables:
 
-- Add an audit checkpoint/export operations contract that records retention/export policy metadata and external checkpoint provider status.
-- Add a `none` external checkpoint provider and a deterministic fake/test provider; do not call live notarization, timestamping, KMS/HSM, cloud WORM, or object-storage services.
-- Persist or expose checkpoint anchor metadata without changing the current database-only guarantee unless a fake provider is explicitly injected in tests.
-- Keep exported audit segments redacted and organization-scoped.
-- Add tests for intact/tampered exports, fake external anchor metadata, database-only/no-provider guarantees, retention metadata, cross-organization rejection, and secret-free export/checkpoint payloads.
-- Document remaining operator-owned audit requirements: append-only/WORM storage, retention policy, external signing/notarization, checkpoint export, alerting, and concurrent append semantics.
-- Update docs/gaps/prompts and create `docs/PLAN_M38.md` from the next selected active prompt before final response.
+- Extend the Microsoft 365 provider-token key-custody boundary so custody providers expose explicit capability/status metadata: local env key ring, deterministic fake secret-manager/test provider, and unsupported provider handling.
+- Keep `local-env-key-ring` as the default and do not call AWS/Azure/GCP/Vault/KMS/HSM/secret-manager APIs.
+- Add deterministic fake/test custody provider behavior that proves active/previous-key lookup, missing-key failure, key-version metadata, rotation readiness, and secret-free custody summaries without live external services.
+- Add rotation/backfill runbook metadata or helper contracts that describe staged previous-key windows, re-encryption/backfill prechecks, rollback/backout expectations, and operator-owned secret injection.
+- Preserve existing provider-token encryption/decryption envelopes, previous-key decrypt support, redaction, production rejection of local-dev keys, and provider-write disablement.
+- Add tests for config validation, fake custody summaries, active/previous decrypt, unsupported provider rejection, production default-key rejection, secret-free outputs, and no provider writes/live Graph calls.
+- Document remaining operator-owned custody requirements: chosen SaaS/in-a-box secret backend, deployed smoke, ciphertext backfill/re-encryption execution, key retirement, access logging, rollback, and incident response.
+- Update docs/gaps/prompts and create `docs/PLAN_M39.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/packages/audit/src/**`
-- `code/packages/database/src/**`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
-- `code/packages/evidence/src/**`
+- `code/packages/providers/microsoft365/src/**`
+- `code/packages/providers/core/src/**`
+- `code/apps/worker/src/**`
 - `code/config/defaults/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M37.md`
 - `docs/PLAN_M38.md`
+- `docs/PLAN_M39.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not claim audit rows are WORM, externally notarized, legally certified, or database-admin-proof unless a real accepted implementation exists.
-- Do not call live external signing, timestamping, KMS/HSM, object-storage WORM, MinIO/S3, or cloud APIs.
-- Do not weaken audit redaction, organization scoping, auth/session safeguards, provider-token custody, regulatory no-auto-activation rules, or provider-write startup disablement.
-- Do not broaden into Stripe, OIDC, browser UI, Microsoft Graph, provider writes, public regulatory fetches, or queue runtime work.
+- Do not call live KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, Stripe, OIDC providers, object storage, scanners, or public regulatory URLs.
+- Do not store plaintext provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads in logs, API responses, test snapshots, or smoke output.
+- Do not weaken audit redaction, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, provider-token previous-key decrypt behavior, or provider-write startup disablement.
+- Do not enable live provider write/remediation actions or Microsoft write scopes.
+- Do not claim KMS/secret-manager custody, deployed rotation, ciphertext backfill, or customer production readiness unless a real accepted implementation exists.
 
 Tests and acceptance commands:
 
@@ -195,18 +200,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- audit api database config evidence reports exports rbac
+pnpm test -- config provider microsoft365 encryption api audit worker actions
+pnpm provider-token:smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M37.md`.
+If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M38.md`.
 
 Expected gap movement:
 
-- Narrow GAP-039 for audit export/checkpoint retention and external-anchor contracts.
+- Narrow GAP-040 for provider-token custody contracts, deterministic fake secret-manager behavior, and operator rotation/backfill runbook metadata.
 - Preserve GAP-030 unless live provider write execution is intentionally implemented and accepted.
-- Preserve GAP-040 unless live KMS/secret-manager custody is intentionally added.
+- Preserve GAP-039 unless audit WORM/external signing is intentionally implemented and accepted.
 - Preserve GAP-043 unless deployed multi-container queue orchestration is intentionally added.
 
 Final response must include:
@@ -215,10 +221,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M37` updated
-- `PLAN_M38` created
+- `PLAN_M38` updated
+- `PLAN_M39` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 36 / PLAN_M37: Audit Export Retention And External Checkpoint Contract Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added audit retention/export policy metadata in `@puresoc/audit` and config defaults/env overrides for audit log retention, checkpoint/export retention, checkpoint cadence, and external checkpoint provider selection.
+- Added `none` and deterministic test-only `fake-local` external checkpoint providers. The fake provider records local hash/reference metadata only and explicitly avoids live external services, WORM storage, external notarization, and legal certification claims.
+- Extended audit export segments and checkpoint records with retention policy, external provider status, fake/local anchor metadata, and non-WORM/non-notarized guarantees.
+- Persisted the new checkpoint metadata through Prisma schema/migration, repository mapping, and selected drift-check coverage.
+- Exposed the metadata through organization-scoped audit export/checkpoint API routes while keeping exported payloads redacted and cross-organization access rejected.
+- Documented remaining operator-owned audit requirements: append-only/WORM storage, retention/legal-hold/deletion policy, immutable checkpoint export, external signing/notarization, alerts, and concurrent append semantics.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- audit api database config evidence reports exports rbac`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-039 is narrowed for retention/export policy metadata and deterministic none/fake external-anchor contracts without claiming WORM storage, external notarization, legal certification, or database-admin-proof auditability. GAP-030, GAP-040, and GAP-043 remain preserved.
 
 ## Completed Prompt 35 / PLAN_M36: Production Queue Orchestration And Multi-Process BullMQ Hardening Slice
 

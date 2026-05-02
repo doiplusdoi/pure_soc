@@ -1,0 +1,12 @@
+{
+  "retention": {
+    "policyKey": "puresoc-audit-database-only-7y",
+    "auditLogRetentionDays": 2555,
+    "checkpointRetentionDays": 2555,
+    "exportRetentionDays": 2555,
+    "checkpointCadenceDays": 30
+  },
+  "externalCheckpoint": {
+    "provider": "none"
+  }
+}

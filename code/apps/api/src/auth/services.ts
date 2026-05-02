@@ -1,9 +1,13 @@
 import {
   AuditCheckpointService,
   AuditWriter,
+  FakeExternalAuditCheckpointProvider,
   InMemoryAuditCheckpointRepository,
   InMemoryAuditSink,
-  type AuditCheckpointRepository
+  NoneExternalAuditCheckpointProvider,
+  createAuditRetentionExportPolicy,
+  type AuditCheckpointRepository,
+  type AuditExternalCheckpointProvider
 } from "@puresoc/audit";
 import {
   Argon2idPasswordHasher,
@@ -143,6 +147,14 @@ export const createApiServices = (
   });
   const auditCheckpoints = new AuditCheckpointService({
     repository: runtimeRepositories.auditCheckpointRepository,
+    retentionPolicy: createAuditRetentionExportPolicy({
+      policyKey: config.audit.retention.policyKey,
+      auditLogRetentionDays: config.audit.retention.auditLogRetentionDays,
+      checkpointRetentionDays: config.audit.retention.checkpointRetentionDays,
+      exportRetentionDays: config.audit.retention.exportRetentionDays,
+      checkpointCadenceDays: config.audit.retention.checkpointCadenceDays
+    }),
+    externalCheckpointProvider: createAuditExternalCheckpointProvider(config, options.now),
     now: options.now
   });
   const rateLimiter = new FailedLoginRateLimiter({
@@ -414,6 +426,17 @@ const createEvidenceObjectStorage = (config: PureSocConfig): ObjectStorageAdapte
     secretAccessKey: config.storage.objectStorage.secretAccessKey,
     forcePathStyle: config.storage.objectStorage.forcePathStyle
   });
+};
+
+const createAuditExternalCheckpointProvider = (
+  config: PureSocConfig,
+  now: (() => Date) | undefined
+): AuditExternalCheckpointProvider => {
+  if (config.audit.externalCheckpoint.provider === "fake-local") {
+    return new FakeExternalAuditCheckpointProvider({ now });
+  }
+
+  return new NoneExternalAuditCheckpointProvider();
 };
 
 const createUploadScanner = (config: PureSocConfig, now: (() => Date) | undefined): UploadScanningHook => {

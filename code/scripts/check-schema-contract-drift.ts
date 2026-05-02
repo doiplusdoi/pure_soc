@@ -112,6 +112,12 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("verificationViolationsJson", "Json", "verification_violations_json"),
       s("externalCheckpointStatus", "String", "external_checkpoint_status"),
       s("externalCheckpointReference", "String", "external_checkpoint_reference", { isOptional: true }),
+      s("externalCheckpointProvider", "String", "external_checkpoint_provider"),
+      s("externalCheckpointProviderStatusJson", "Json", "external_checkpoint_provider_status_json"),
+      s("externalCheckpointRecordedAt", "DateTime", "external_checkpoint_recorded_at", { isOptional: true }),
+      s("externalCheckpointPayloadHash", "String", "external_checkpoint_payload_hash", { isOptional: true }),
+      s("externalCheckpointMetadataJson", "Json", "external_checkpoint_metadata_json"),
+      s("retentionPolicyJson", "Json", "retention_policy_json"),
       s("guaranteesJson", "Json", "guarantees_json")
     ]
   },

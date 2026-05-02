@@ -89,6 +89,18 @@ export interface PureSocConfig {
     defaultExportFormat: "json" | "pdf";
     storeGeneratedReportsAsEvidence: boolean;
   };
+  audit: {
+    retention: {
+      policyKey: string;
+      auditLogRetentionDays: number;
+      checkpointRetentionDays: number;
+      exportRetentionDays: number;
+      checkpointCadenceDays: number;
+    };
+    externalCheckpoint: {
+      provider: string;
+    };
+  };
   storage: {
     objectStorage: {
       provider: "memory" | "s3";
@@ -263,6 +275,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     connectors: readJson<PureSocConfig["connectors"]>(defaultsDir, "connectors"),
     compliance: readJson<PureSocConfig["compliance"]>(defaultsDir, "compliance"),
     reports: readJson<PureSocConfig["reports"]>(defaultsDir, "reports"),
+    audit: readJson<PureSocConfig["audit"]>(defaultsDir, "audit"),
     storage: readJson<PureSocConfig["storage"]>(defaultsDir, "storage"),
     billing: readJson<PureSocConfig["billing"]>(defaultsDir, "billing"),
     jobs: readJson<PureSocConfig["jobs"]>(defaultsDir, "jobs")
@@ -405,6 +418,34 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
         env.PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE,
         config.reports.storeGeneratedReportsAsEvidence
       )
+    },
+    audit: {
+      ...config.audit,
+      retention: {
+        ...config.audit.retention,
+        policyKey: env.PURESOC_AUDIT_RETENTION_POLICY_KEY ?? config.audit.retention.policyKey,
+        auditLogRetentionDays: readPositiveInteger(
+          env.PURESOC_AUDIT_LOG_RETENTION_DAYS ?? env.AUDIT_LOG_RETENTION_DAYS,
+          config.audit.retention.auditLogRetentionDays
+        ),
+        checkpointRetentionDays: readPositiveInteger(
+          env.PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS,
+          config.audit.retention.checkpointRetentionDays
+        ),
+        exportRetentionDays: readPositiveInteger(
+          env.PURESOC_AUDIT_EXPORT_RETENTION_DAYS,
+          config.audit.retention.exportRetentionDays
+        ),
+        checkpointCadenceDays: readPositiveInteger(
+          env.PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS,
+          config.audit.retention.checkpointCadenceDays
+        )
+      },
+      externalCheckpoint: {
+        ...config.audit.externalCheckpoint,
+        provider:
+          env.PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER ?? config.audit.externalCheckpoint.provider
+      }
     },
     storage: {
       ...config.storage,
@@ -706,6 +747,26 @@ export const collectStartupConfigIssues = (
       code: "oidc_transient_state_key_required",
       path: "auth.socialLogin.transientStateEncryptionKey",
       message: "Production Prisma-mode OIDC callbacks require PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY."
+    });
+  }
+
+  if (
+    config.audit.externalCheckpoint.provider !== "none" &&
+    config.audit.externalCheckpoint.provider !== "fake-local"
+  ) {
+    issues.push({
+      code: "audit_external_checkpoint_provider_unsupported",
+      path: "audit.externalCheckpoint.provider",
+      message:
+        "Audit external checkpoint providers currently support only none or deterministic fake-local contract tests."
+    });
+  }
+
+  if (isProduction && config.audit.externalCheckpoint.provider === "fake-local") {
+    issues.push({
+      code: "audit_fake_checkpoint_provider_not_production",
+      path: "audit.externalCheckpoint.provider",
+      message: "The fake-local audit checkpoint provider is test-only and cannot be used for production startup."
     });
   }
 

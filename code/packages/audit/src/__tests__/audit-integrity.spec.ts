@@ -3,8 +3,10 @@ import { describe, expect, it } from "vitest";
 import {
   AuditCheckpointService,
   AuditWriter,
+  FakeExternalAuditCheckpointProvider,
   InMemoryAuditCheckpointRepository,
   InMemoryAuditSink,
+  createAuditRetentionExportPolicy,
   createAuditExportSegment,
   stringifyAuditCanonicalPayload,
   verifyAuditExportSegment,
@@ -202,7 +204,19 @@ describe("audit integrity", () => {
       databaseHashChain: "tamper_evident_only",
       databaseRowsAreWorm: false,
       externalCheckpoint: "not_configured",
+      externalNotarization: false,
       legalCertification: false
+    });
+    expect(segment.retentionPolicy).toMatchObject({
+      policyKey: "puresoc-audit-database-only-7y",
+      auditLogRetentionDays: 2555,
+      retentionMode: "operator_enforced",
+      exportStorage: "database_checkpoint_metadata_only"
+    });
+    expect(segment.externalCheckpointProviderStatus).toMatchObject({
+      providerKey: "none",
+      configured: false,
+      liveExternalService: false
     });
     expect(globalSegment.scope).toEqual({
       type: "global",
@@ -218,10 +232,92 @@ describe("audit integrity", () => {
       recordCount: 2,
       terminalHash: segment.terminalHash,
       verificationStatus: "valid",
-      externalCheckpointStatus: "not_configured"
+      externalCheckpointStatus: "not_configured",
+      externalCheckpointProvider: "none",
+      externalCheckpointRecordedAt: null,
+      retentionPolicy: expect.objectContaining({
+        policyKey: "puresoc-audit-database-only-7y"
+      })
     });
     expect(checkpoint.exportHash).toMatch(/^[a-f0-9]{64}$/);
     await expect(repository.listAuditCheckpoints({ organizationId: "org-export" })).resolves.toHaveLength(1);
+  });
+
+  it("records deterministic fake external anchor metadata without claiming notarization or WORM storage", async () => {
+    let id = 0;
+    const sink = new InMemoryAuditSink();
+    const writer = new AuditWriter({
+      sink,
+      idFactory: () => `99999999-9999-4999-8999-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date(`2026-05-02T12:10:0${id}.000Z`)
+    });
+
+    await writer.write({
+      organizationId: "org-fake-anchor",
+      targetType: "audit",
+      action: "checkpoint_test",
+      afterJson: {
+        status: "ready",
+        clientSecret: "must-not-anchor"
+      }
+    });
+
+    const repository = new InMemoryAuditCheckpointRepository(sink);
+    const service = new AuditCheckpointService({
+      repository,
+      idFactory: () => `fake-export-${++id}`,
+      now: fixedNow("2026-05-02T12:11:00.000Z"),
+      retentionPolicy: createAuditRetentionExportPolicy({
+        policyKey: "audit-test-90d",
+        auditLogRetentionDays: 90,
+        checkpointRetentionDays: 90,
+        exportRetentionDays: 30,
+        checkpointCadenceDays: 7
+      }),
+      externalCheckpointProvider: new FakeExternalAuditCheckpointProvider({
+        now: fixedNow("2026-05-02T12:12:00.000Z"),
+        referencePrefix: "fake-test-anchor"
+      })
+    });
+
+    const { checkpoint, segment } = await service.recordCheckpoint({
+      organizationId: "org-fake-anchor",
+      createdByUserId: "user-fake-anchor"
+    });
+    const serializedCheckpoint = JSON.stringify(checkpoint);
+
+    expect(segment.externalCheckpointProviderStatus).toMatchObject({
+      providerKey: "fake-local",
+      configured: true,
+      mode: "deterministic_fake",
+      liveExternalService: false
+    });
+    expect(checkpoint).toMatchObject({
+      externalCheckpointStatus: "fake_anchor_recorded",
+      externalCheckpointProvider: "fake-local",
+      externalCheckpointReference: expect.stringMatching(/^fake-test-anchor:[a-f0-9]{16}$/),
+      externalCheckpointRecordedAt: "2026-05-02T12:12:00.000Z",
+      externalCheckpointPayloadHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      retentionPolicy: expect.objectContaining({
+        policyKey: "audit-test-90d",
+        auditLogRetentionDays: 90,
+        checkpointCadenceDays: 7
+      }),
+      guarantees: {
+        databaseHashChain: "tamper_evident_only",
+        databaseRowsAreWorm: false,
+        externalCheckpoint: "fake_test_anchor_only",
+        externalNotarization: false,
+        legalCertification: false
+      }
+    });
+    expect(checkpoint.externalCheckpointMetadata).toMatchObject({
+      testOnly: true,
+      liveExternalService: false,
+      externalNotarization: false,
+      legalCertification: false
+    });
+    expect(serializedCheckpoint).not.toContain("must-not-anchor");
   });
 
   it("verifies exported segments for missing rows, tampered payloads, broken links, and wrong terminal checkpoints", async () => {

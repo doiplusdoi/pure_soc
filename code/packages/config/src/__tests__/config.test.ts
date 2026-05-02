@@ -60,6 +60,18 @@ describe("loadConfig", () => {
       reviewTaskOrganizationId: null
     });
     expect(config.reports.legalCaveatRequired).toBe(true);
+    expect(config.audit).toEqual({
+      retention: {
+        policyKey: "puresoc-audit-database-only-7y",
+        auditLogRetentionDays: 2555,
+        checkpointRetentionDays: 2555,
+        exportRetentionDays: 2555,
+        checkpointCadenceDays: 30
+      },
+      externalCheckpoint: {
+        provider: "none"
+      }
+    });
     expect(config.storage.objectStorage.provider).toBe("memory");
     expect(config.storage.uploadScanner.mode).toBe("noop");
     expect(config.storage.uploadScanner.timeoutMs).toBe(10_000);
@@ -124,6 +136,12 @@ describe("loadConfig", () => {
         PURESOC_UPLOAD_SCANNER_MODE: "mock",
         PURESOC_UPLOAD_SCANNER_MOCK_STATUS: "failed",
         PURESOC_UPLOAD_SCANNER_TIMEOUT_MS: "2500",
+        PURESOC_AUDIT_RETENTION_POLICY_KEY: "audit-test-1y",
+        PURESOC_AUDIT_LOG_RETENTION_DAYS: "365",
+        PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS: "180",
+        PURESOC_AUDIT_EXPORT_RETENTION_DAYS: "90",
+        PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS: "14",
+        PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER: "fake-local",
         PURESOC_JOB_QUEUE_PROVIDER: "bullmq",
         PURESOC_REDIS_URL: "redis://redis.example.test:6379/1",
         PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "5",
@@ -192,6 +210,18 @@ describe("loadConfig", () => {
       }
     ]);
     expect(config.billing.provider).toBe("stripe");
+    expect(config.audit).toEqual({
+      retention: {
+        policyKey: "audit-test-1y",
+        auditLogRetentionDays: 365,
+        checkpointRetentionDays: 180,
+        exportRetentionDays: 90,
+        checkpointCadenceDays: 14
+      },
+      externalCheckpoint: {
+        provider: "fake-local"
+      }
+    });
     expect(config.storage.objectStorage.provider).toBe("s3");
     expect(config.storage.objectStorage.bucket).toBe("evidence-test");
     expect(config.storage.uploadScanner.mode).toBe("mock");
@@ -251,6 +281,10 @@ describe("loadConfig", () => {
         PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS: "later",
         PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS: "soon",
         PURESOC_JOB_REDIS_FAILED_RETENTION_MS: "1.5",
+        PURESOC_AUDIT_LOG_RETENTION_DAYS: "zero",
+        PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS: "0",
+        PURESOC_AUDIT_EXPORT_RETENTION_DAYS: "-1",
+        PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS: "1.5",
         PURESOC_SCHEDULER_INTERVAL_MS: "0",
         REGULATORY_SOURCE_MONITOR_TIMEOUT_MS: "0",
         REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS: "soon"
@@ -274,6 +308,13 @@ describe("loadConfig", () => {
       failedJobRetentionMs: 604_800_000
     });
     expect(config.jobs.scheduler.intervalMs).toBe(3_600_000);
+    expect(config.audit.retention).toEqual({
+      policyKey: "puresoc-audit-database-only-7y",
+      auditLogRetentionDays: 2555,
+      checkpointRetentionDays: 2555,
+      exportRetentionDays: 2555,
+      checkpointCadenceDays: 30
+    });
     expect(config.compliance.sourceMonitor.requestTimeoutMs).toBe(5000);
     expect(config.compliance.sourceMonitor.staleAfterDays).toBe(90);
   });
@@ -331,6 +372,27 @@ describe("loadConfig", () => {
 
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining(["job_redis_url_required", "provider_job_writes_disabled"])
+    );
+  });
+
+  it("rejects unsupported or production fake audit checkpoint providers", () => {
+    const unsupportedProviderConfig = loadConfig({
+      env: {
+        PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER: "timestamp-authority"
+      }
+    });
+    expect(collectStartupConfigIssues(unsupportedProviderConfig).map((issue) => issue.code)).toContain(
+      "audit_external_checkpoint_provider_unsupported"
+    );
+
+    const productionFakeProviderConfig = loadConfig({
+      env: {
+        PURESOC_APP_ENV: "production",
+        PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER: "fake-local"
+      }
+    });
+    expect(collectStartupConfigIssues(productionFakeProviderConfig).map((issue) => issue.code)).toContain(
+      "audit_fake_checkpoint_provider_not_production"
     );
   });
 
