@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M38: narrow GAP-031 and GAP-035 by turning the operational web console/UI smoke into a served local browser smoke with real web/API startup boundaries and browser auth/middleware checks.
 
-Status: staged for implementation after M38.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -101,32 +103,58 @@ If `pnpm` or bundled browsers are not available, run equivalent host-node/Playwr
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Exported `startWebServer` so the web app can be started by the CLI entrypoint and by local smoke harnesses without double-starting during imports.
+- Hardened the operational console CSS for mobile/compact wrapping, stable overflow behavior, focus visibility, and non-nested approval fact blocks while preserving the operational console design direction, legal caveat, source indicators, and disabled provider-write affordance.
+- Replaced the static-only `@ui-smoke` wrapper with a deterministic served web/API smoke. The smoke starts local HTTP surfaces in memory mode, fetches `/`, `/login`, and `/health`, writes desktop/mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, checks nonblank/readable/responsive/no-obvious-overlap invariants, and validates local auth cookie plus Origin middleware behavior.
+- The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config on issued and cleared cookies, trusted-Origin acceptance, untrusted-Origin rejection, and OIDC/Microsoft provider callback Origin exemptions without calling live external providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors.
+- Documented that this workspace does not currently bundle Playwright/browser binaries, so M39 records deterministic HTTP-rendered viewport snapshots and fetch assertions instead of PNG screenshots. M40 is staged for real browser screenshot/navigation coverage when browser binaries are available or approved for installation.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/apps/web/src/operational-console.ts`
+- `code/apps/web/src/server.ts`
+- `code/packages/ui/src/index.ts`
+- `code/scripts/run-ui-smoke.mjs`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M39.md`
+- `docs/PLAN_M40.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `node` were unavailable. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run test:e2e -- --grep @ui-smoke` passed. It wrote deterministic snapshots under `/tmp/puresoc-ui-smoke-*/desktop-1440x900.html` and `/tmp/puresoc-ui-smoke-*/mobile-390x844.html`.
+- `npm run test -- web ui api middleware auth health` passed: 28 test files, 80 tests.
+- Supplemental `timeout 2 npm run start:web` confirmed the web CLI entrypoint still starts and reports `puresoc-web` listening.
+- `npm run lint` passed, including workspace layout, selected schema drift, generated Romania regulatory drift, and TypeScript checks.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M39. The milestone narrows served web/runtime and browser-relevant auth middleware coverage with deterministic local HTTP smoke and explicit no-live-integration guarantees. It does not claim real browser PNG screenshot coverage, deployed TLS/CORS/proxy behavior, or full Playwright/Chromium traversal.
 
 Gaps updated:
 
-- Pending.
+- GAP-031 narrowed for local served web/API startup, deterministic desktop/mobile HTML viewport snapshots, responsive/no-obvious-overlap assertions, and operational-console design preservation without browser PNG screenshots.
+- GAP-035 narrowed for local served API/web cookie, trusted-Origin, untrusted-Origin, and callback-exemption smoke coverage without deployed browser/TLS/proxy claims.
+- GAP-007, GAP-028, GAP-029, GAP-030, GAP-032, GAP-039, GAP-040, and GAP-043 preserved.
 
 Prompt handoff:
 
-- Pending. M39 implementation must create `docs/PLAN_M40.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 38 / PLAN_M39 complete and stages Prompt 39 / PLAN_M40 for browser-grade Playwright screenshot and browser auth smoke.
+- `docs/PLAN_M40.md` was created from the staged M40 prompt.
 
 Residual risk:
 
-- Pending.
+- M39 uses HTTP-rendered HTML viewport snapshots and fetch-level browser-relevant assertions because Playwright/browser binaries are not bundled in this workspace. Real browser PNG screenshots, pointer/keyboard traversal, and browser layout engine overlap checks remain staged for M40/GAP-031.
+- GAP-035 remains open for deployed TLS, CORS, reverse-proxy header trust, browser cookie traversal, SameSite behavior, and OIDC callback cookies in SaaS and in-a-box profiles.
+- No live Microsoft Graph, Stripe API, OIDC provider, object-storage, scanner, KMS/secret-manager, public regulatory, or provider-write smoke was added.

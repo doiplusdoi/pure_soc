@@ -30,7 +30,9 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Pre-state snapshot");
     expect(html).toContain("Queue unavailable");
     expect(html).toContain("Provider write execution remains disabled");
+    expect(html).toContain('class="ps-fact"');
     expect(html).not.toContain(">Apply<");
+    expect(html).not.toContain('<div class="ps-panel"><h4');
   });
 
   it("@ui-smoke renders responsive desktop and mobile affordances without hiding keyboard focus", () => {
@@ -39,7 +41,10 @@ describe("web dashboard reports operational UI", () => {
 
     expect(html).toContain("@media (max-width: 980px)");
     expect(html).toContain("@media (max-width: 640px)");
+    expect(html).toContain("@media (max-width: 420px)");
     expect(html).toContain(":focus-visible");
+    expect(html).toContain("overflow-wrap: anywhere");
+    expect(html).toContain("white-space: normal");
     expect(html).toContain('href="#content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain('aria-label="Primary navigation"');

@@ -458,7 +458,7 @@ const renderPreflightChecks = (run: ActionRun): string => {
 };
 
 const renderFactPanel = (title: string, value: string): string =>
-  `<div class="ps-panel"><h4 class="ps-panel__title">${escapeHtml(title)}</h4><p>${escapeHtml(value)}</p></div>`;
+  `<div class="ps-fact"><h4 class="ps-panel__title">${escapeHtml(title)}</h4><p>${escapeHtml(value)}</p></div>`;
 
 const renderSection = ({ id, title, eyebrow, body }: { id: string; title: string; eyebrow: string; body: string }): string =>
   [

@@ -201,4 +201,12 @@ Country-pack notification drafts should converge on the generic `NotificationDra
 
 The M10 UI milestone adds a contract-backed operational console renderer in `apps/web` and shared design-system primitives in `packages/ui`. The console renders from stored dashboard, report, evidence, and remediation action contracts; it does not call live providers directly and does not make legal certification claims.
 
-`pnpm test:e2e -- --grep "@ui-smoke"` runs the current static UI smoke checks. Browser-grade Playwright screenshots are tracked as deferred runtime hardening until the served web runtime is wired.
+`pnpm test:e2e -- --grep "@ui-smoke"` runs the M39 served-web/runtime smoke. It starts local web and API HTTP surfaces in deterministic memory mode, fetches the operational console and login pages, writes desktop and mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, and checks browser-relevant local auth/session-cookie behavior:
+
+```sh
+pnpm test:e2e -- --grep "@ui-smoke"
+```
+
+The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config behavior, trusted-Origin acceptance, untrusted-Origin rejection, and OIDC/Microsoft provider callback Origin exemptions without calling Microsoft Graph, Stripe APIs, OIDC providers, object storage, scanners, KMS/secret-manager backends, public regulatory URLs, or provider write executors.
+
+This workspace does not currently bundle Playwright or browser binaries. The M39 smoke therefore records deterministic HTTP-rendered HTML viewport snapshots and browser-relevant fetch assertions instead of PNG screenshots. Browser-grade Playwright/Chromium screenshots, deployed TLS/CORS/proxy behavior, and real browser cookie traversal remain release-hardening work.

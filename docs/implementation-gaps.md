@@ -319,12 +319,12 @@ Status: Open; narrowed 2026-05-02 by PLAN_M35 for fake/mock provider action exec
 
 Severity: Medium
 Area: Frontend/runtime
-Current state: PLAN_M10 added a deterministic operational console renderer, shared UI tokens/primitives, login form surface, and static `@ui-smoke` checks. The repository still does not include a served Next.js/React runtime, Playwright dependency/configuration, or browser-generated desktop/mobile screenshots.
-Impact: Source, caveat, responsive CSS, focus affordance, and approval-state semantics are testable, but real browser layout, screenshot diffing, pointer/keyboard traversal, and text-overlap checks are not yet proven in Chromium/WebKit/Firefox.
-Next action: When the served web runtime is in scope, add Next.js route wiring or equivalent, install/configure Playwright, capture desktop and mobile screenshots for dashboard/gaps/evidence/approval/login flows, and fail CI on overlap or inaccessible focus regressions.
+Current state: PLAN_M10 added a deterministic operational console renderer, shared UI tokens/primitives, login form surface, and static `@ui-smoke` checks. PLAN_M39 replaces the static-only `@ui-smoke` command with a served local web/API smoke that starts real HTTP surfaces in memory mode, fetches the operational console and login routes, writes deterministic desktop/mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, checks responsive/no-obvious-overlap layout invariants, preserves the operational console design direction, and avoids live external integrations. The repository still does not include a served Next.js/React runtime, Playwright dependency/configuration, or browser-generated PNG screenshots.
+Impact: Source, caveat, responsive CSS, focus affordance, approval-state semantics, local web/API startup, and deterministic viewport snapshots are testable. Real browser layout, screenshot diffing, pointer/keyboard traversal, and text-overlap checks are still not proven in Chromium/WebKit/Firefox.
+Next action: Add Playwright or another approved browser harness when browser binaries are available, capture desktop and mobile screenshots for dashboard/gaps/evidence/approval/login flows, and fail CI on overlap or inaccessible focus regressions. Wire a full served React/Next.js runtime only when product scope requires it.
 Owner: Codex/Frontend
 Target phase: Phase K
-Status: Open
+Status: Open; narrowed 2026-05-02 by PLAN_M39 for local served web/API startup, deterministic desktop/mobile HTML viewport snapshots, responsive/no-obvious-overlap assertions, and static operational-console design preservation without browser PNG screenshots.
 
 ### GAP-032: Live OIDC Provider Registration And Callback Smoke Deferred
 
@@ -363,12 +363,12 @@ Status: Resolved 2026-05-01 for configurable parser limits, decoded evidence byt
 
 Severity: Medium
 Area: Auth/session operations
-Current state: PLAN_M14 wired configurable `Secure` session cookies through `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE`, while preserving the development default. PLAN_M20 added contract-level Origin/Referer allowlist checks for browser state-changing routes, with explicit webhook/OIDC/provider callback exemptions. The current API harness does not yet prove deployed TLS, CORS, SameSite behavior, reverse-proxy headers, or cookie clearing across real browser navigation.
-Impact: A misconfigured production deployment could issue session cookies without the expected browser protections or allow unintended cross-origin credentialed requests. Contract tests now cover cookie attribute emission and untrusted-Origin rejection, but not full browser/runtime behavior.
-Next action: Add a deployed/browser smoke that verifies `Secure`, `HttpOnly`, `SameSite`, logout clearing, expected origin/CORS policy, forwarded IP handling, and OIDC callback cookies in SaaS and in-a-box profiles.
+Current state: PLAN_M14 wired configurable `Secure` session cookies through `PURESOC_AUTH_COOKIE_SECURE` / `AUTH_COOKIE_SECURE`, while preserving the development default. PLAN_M20 added contract-level Origin/Referer allowlist checks for browser state-changing routes, with explicit webhook/OIDC/provider callback exemptions. PLAN_M39 adds a local served API/web smoke that verifies `HttpOnly`, `SameSite=Lax`, secure-cookie config on issued and cleared cookies, trusted-Origin acceptance, untrusted-Origin rejection, and OIDC/Microsoft provider callback Origin exemptions through local fetches without consuming live callback providers. The current harness still does not prove deployed TLS, CORS, SameSite behavior in an actual browser, reverse-proxy headers, or cookie clearing across real browser navigation.
+Impact: Local browser-relevant cookie and Origin middleware behavior now has deterministic served-runtime coverage, but a misconfigured production deployment could still issue session cookies or CORS/proxy behavior differently behind TLS/ingress.
+Next action: Add a deployed/browser smoke that verifies `Secure`, `HttpOnly`, `SameSite`, logout clearing, expected origin/CORS policy, forwarded IP handling, and OIDC callback cookies in SaaS and in-a-box profiles with real browser navigation.
 Owner: Codex/DevOps
 Target phase: Phase K
-Status: Open; narrowed 2026-05-01 by PLAN_M20 for contract-level Origin/Referer protection.
+Status: Open; narrowed 2026-05-01 by PLAN_M20 for contract-level Origin/Referer protection; narrowed 2026-05-02 by PLAN_M39 for local served API/web cookie, trusted-Origin, untrusted-Origin, and callback-exemption smoke coverage without deployed browser/TLS/proxy claims.
 
 ### GAP-036: Prisma Runtime Mode Still Has Memory-Backed Contexts
 
