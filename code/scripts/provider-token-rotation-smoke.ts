@@ -13,7 +13,8 @@ const main = (): void => {
   const configChecks = runStartupConfigSmoke();
   const result = {
     ...smoke,
-    checks: [...smoke.checks, ...configChecks]
+    checks: [...smoke.checks, ...configChecks.checks],
+    startupValidationBlockerCodes: configChecks.blockerCodes
   };
 
   assertNoPlaintextSecrets(JSON.stringify(result), [
@@ -23,10 +24,12 @@ const main = (): void => {
     "m34-smoke-access-token-secret",
     "m34-smoke-refresh-token-secret",
     "m34-smoke-client-secret",
-    localDevProviderTokenKey
+    localDevProviderTokenKey,
+    "duplicate-provider-token-key",
+    "same-provider-token-key"
   ]);
 
-  console.log(`[M38 provider-token custody smoke] ${JSON.stringify(result)}`);
+  console.log(`[M48 provider-token custody smoke] ${JSON.stringify(result)}`);
 };
 
 const rejectProductionTarget = (): void => {
@@ -36,7 +39,10 @@ const rejectProductionTarget = (): void => {
   }
 };
 
-const runStartupConfigSmoke = (): string[] => {
+const runStartupConfigSmoke = (): {
+  checks: string[];
+  blockerCodes: Record<string, string[]>;
+} => {
   const unsafeDefaultConfig = loadConfig({
     env: {
       PURESOC_APP_ENV: "production",
@@ -93,12 +99,77 @@ const runStartupConfigSmoke = (): string[] => {
     "Startup validation did not reject the unsupported provider-token custody provider."
   );
 
-  return [
-    "production-default-active-key-rejection",
-    "production-default-previous-key-rejection",
-    "production-fake-provider-rejection",
-    "unsupported-provider-rejection"
-  ];
+  const missingKeyIdConfig = loadConfig({
+    env: {
+      PURESOC_PROVIDER_TOKEN_KEY_ID: ""
+    }
+  });
+  const missingKeyIdIssues = collectStartupConfigIssues(missingKeyIdConfig).map((issue) => issue.code);
+  assert(
+    missingKeyIdIssues.includes("provider_token_key_id_required"),
+    "Startup validation did not reject a missing provider-token key ID."
+  );
+
+  const invalidPreviousKeyConfig = loadConfig({
+    env: {
+      PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-without-secret"
+    }
+  });
+  const invalidPreviousKeyIssues = collectStartupConfigIssues(invalidPreviousKeyConfig).map((issue) => issue.code);
+  assert(
+    invalidPreviousKeyIssues.includes("provider_token_previous_key_invalid"),
+    "Startup validation did not reject an invalid provider-token previous-key entry."
+  );
+
+  const duplicatePreviousKeyConfig = loadConfig({
+    env: {
+      PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS:
+        "previous-a=duplicate-provider-token-key,previous-b=duplicate-provider-token-key"
+    }
+  });
+  const duplicatePreviousKeyIssues = collectStartupConfigIssues(duplicatePreviousKeyConfig).map((issue) => issue.code);
+  assert(
+    duplicatePreviousKeyIssues.includes("provider_token_previous_key_duplicate"),
+    "Startup validation did not reject duplicate provider-token previous-key material."
+  );
+
+  const reusedActivePreviousKeyConfig = loadConfig({
+    env: {
+      PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+      PURESOC_PROVIDER_TOKEN_KEY: "same-provider-token-key",
+      PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous=same-provider-token-key"
+    }
+  });
+  const reusedActivePreviousKeyIssues = collectStartupConfigIssues(reusedActivePreviousKeyConfig).map(
+    (issue) => issue.code
+  );
+  assert(
+    reusedActivePreviousKeyIssues.includes("provider_token_previous_key_reuses_active"),
+    "Startup validation did not reject previous provider-token key material that reuses the active key."
+  );
+
+  return {
+    checks: [
+      "production-default-active-key-rejection",
+      "production-default-previous-key-rejection",
+      "production-fake-provider-rejection",
+      "unsupported-provider-rejection",
+      "missing-key-id-rejection",
+      "invalid-previous-key-rejection",
+      "duplicate-previous-key-rejection",
+      "previous-key-reuses-active-rejection"
+    ],
+    blockerCodes: {
+      productionDefaultActiveKey: unsafeDefaultIssues,
+      productionDefaultPreviousKey: unsafePreviousIssues,
+      productionFakeProvider: fakeProviderIssues,
+      unsupportedProvider: unsupportedProviderIssues,
+      missingKeyId: missingKeyIdIssues,
+      invalidPreviousKey: invalidPreviousKeyIssues,
+      duplicatePreviousKey: duplicatePreviousKeyIssues,
+      previousKeyReusesActive: reusedActivePreviousKeyIssues
+    }
+  };
 };
 
 const assert = (condition: unknown, message: string): asserts condition => {

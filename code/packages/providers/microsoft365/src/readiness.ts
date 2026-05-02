@@ -1,4 +1,8 @@
 import {
+  microsoft365ProviderTokenCustodyDeploymentReadinessSchemaVersion,
+  microsoft365ProviderTokenCustodyTargetKinds
+} from "./custody-readiness";
+import {
   microsoft365DeferredReadModules,
   microsoft365ModuleRequirements,
   microsoft365PermissionBundles,
@@ -29,6 +33,23 @@ export interface Microsoft365ExternalSmokeReadinessMetadata {
     unsupportedNationalClouds?: string[];
   }>;
   deferredReadModules: string[];
+  providerTokenCustody: {
+    schemaVersion: typeof microsoft365ProviderTokenCustodyDeploymentReadinessSchemaVersion;
+    targetKinds: Array<(typeof microsoft365ProviderTokenCustodyTargetKinds)[number]>;
+    implementedRealCustodyProviders: ["local-env-key-ring"];
+    testOnlyCustodyProviders: ["fake-secret-manager-test"];
+    deferredExternalCustodyProviders: string[];
+    requiredEnvironmentVariables: string[];
+    previousKeyConfirmationVariables: string[];
+    guarantees: {
+      liveMicrosoftGraphCalls: false;
+      liveSecretManagerCalls: false;
+      liveKmsCalls: false;
+      providerWrites: false;
+      plaintextSecretOutput: false;
+      ciphertextBackfillExecuted: false;
+    };
+  };
 }
 
 export const getMicrosoft365ExternalSmokeReadinessMetadata =
@@ -57,5 +78,38 @@ export const getMicrosoft365ExternalSmokeReadinessMetadata =
           : undefined
       };
     }),
-    deferredReadModules: [...microsoft365DeferredReadModules]
+    deferredReadModules: [...microsoft365DeferredReadModules],
+    providerTokenCustody: {
+      schemaVersion: microsoft365ProviderTokenCustodyDeploymentReadinessSchemaVersion,
+      targetKinds: [...microsoft365ProviderTokenCustodyTargetKinds],
+      implementedRealCustodyProviders: ["local-env-key-ring"],
+      testOnlyCustodyProviders: ["fake-secret-manager-test"],
+      deferredExternalCustodyProviders: [
+        "azure-key-vault",
+        "aws-kms",
+        "gcp-secret-manager",
+        "hashicorp-vault",
+        "hsm"
+      ],
+      requiredEnvironmentVariables: [
+        "PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND",
+        "PURESOC_PROVIDER_TOKEN_KEY_PROVIDER",
+        "PURESOC_PROVIDER_TOKEN_KEY_ID",
+        "PURESOC_PROVIDER_TOKEN_KEY",
+        "PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS"
+      ],
+      previousKeyConfirmationVariables: [
+        "PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED",
+        "PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED",
+        "PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED"
+      ],
+      guarantees: {
+        liveMicrosoftGraphCalls: false,
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        providerWrites: false,
+        plaintextSecretOutput: false,
+        ciphertextBackfillExecuted: false
+      }
+    }
   });

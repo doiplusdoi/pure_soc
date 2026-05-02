@@ -26,7 +26,33 @@ const microsoft365MetadataFixture = {
       licenseRequired: []
     }
   ],
-  deferredReadModules: ["exchange-posture"]
+  deferredReadModules: ["exchange-posture"],
+  providerTokenCustody: {
+    schemaVersion: "puresoc.microsoft365.provider-token.custody-deployment-readiness.v1",
+    targetKinds: ["local", "in_a_box", "saas"],
+    implementedRealCustodyProviders: ["local-env-key-ring"],
+    testOnlyCustodyProviders: ["fake-secret-manager-test"],
+    deferredExternalCustodyProviders: ["azure-key-vault", "aws-kms", "hsm"],
+    requiredEnvironmentVariables: [
+      "PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND",
+      "PURESOC_PROVIDER_TOKEN_KEY_PROVIDER",
+      "PURESOC_PROVIDER_TOKEN_KEY_ID",
+      "PURESOC_PROVIDER_TOKEN_KEY"
+    ],
+    previousKeyConfirmationVariables: [
+      "PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED",
+      "PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED",
+      "PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED"
+    ],
+    guarantees: {
+      liveMicrosoftGraphCalls: false,
+      liveSecretManagerCalls: false,
+      liveKmsCalls: false,
+      providerWrites: false,
+      plaintextSecretOutput: false,
+      ciphertextBackfillExecuted: false
+    }
+  }
 };
 
 const buildReport = (env: NodeJS.ProcessEnv = {}) => {
@@ -92,6 +118,55 @@ describe("external smoke readiness", () => {
       writePermissionBundlesDisabled: ["m365_remediation_write", "m365_defender_write"]
     });
     expect(JSON.stringify(report)).not.toContain("client-secret");
+  });
+
+  it("reports provider-token custody readiness without returning key material", () => {
+    const report = buildReport({
+      PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND: "in-a-box",
+      PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "local-env-key-ring",
+      PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+      PURESOC_PROVIDER_TOKEN_KEY: "current-key-material-do-not-print",
+      PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous=previous-key-material-do-not-print"
+    });
+
+    const custody = report.checks.find((check) => check.id === "provider_token_custody_deployment");
+    expect(custody?.status).toBe("blocked_missing_secret");
+    expect(custody?.blockers).toEqual(
+      expect.arrayContaining([
+        "provider_token_previous_key_window_unconfirmed",
+        "provider_token_backfill_plan_unconfirmed",
+        "provider_token_key_retirement_plan_unconfirmed"
+      ])
+    );
+    expect(custody?.metadata).toMatchObject({
+      targetKind: "in_a_box",
+      providerKind: "local-env-key-ring",
+      previousKeyCount: 1,
+      previousKeyIds: ["previous"],
+      activeKeyMaterialReturned: false,
+      previousKeyMaterialReturned: false
+    });
+    expect(JSON.stringify(report)).not.toContain("current-key-material-do-not-print");
+    expect(JSON.stringify(report)).not.toContain("previous-key-material-do-not-print");
+  });
+
+  it("blocks SaaS provider-token custody until live external custody is implemented", () => {
+    const report = buildReport({
+      PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND: "saas",
+      PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "local-env-key-ring",
+      PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+      PURESOC_PROVIDER_TOKEN_KEY: "saas-current-key-material-do-not-print"
+    });
+
+    const custody = report.checks.find((check) => check.id === "provider_token_custody_deployment");
+    expect(custody?.status).toBe("unsafe_production_target");
+    expect(custody?.blockers).toContain("provider_token_saas_external_custody_deferred");
+    expect(custody?.metadata).toMatchObject({
+      targetKind: "saas",
+      implementedRealCustodyProviders: ["local-env-key-ring"],
+      deferredExternalCustodyProviders: ["azure-key-vault", "aws-kms", "hsm"]
+    });
+    expect(JSON.stringify(report)).not.toContain("saas-current-key-material-do-not-print");
   });
 
   it("flags Stripe live-mode secrets as unsafe even when disposable guards are set", () => {

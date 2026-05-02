@@ -94,9 +94,19 @@ export {
   type Microsoft365TokenRotationReadinessSummary
 } from "./crypto";
 export {
+  createMicrosoft365ProviderTokenCustodyDeploymentReadiness,
+  microsoft365ProviderTokenCustodyDeploymentReadinessSchemaVersion,
+  microsoft365ProviderTokenCustodyTargetKinds,
+  type CreateMicrosoft365ProviderTokenCustodyDeploymentReadinessInput,
+  type Microsoft365ProviderTokenCustodyDeploymentReadiness,
+  type Microsoft365ProviderTokenCustodyDeploymentReadinessStatus,
+  type Microsoft365ProviderTokenCustodyTargetKind
+} from "./custody-readiness";
+export {
   createMicrosoft365ProviderTokenRotationRunbook,
   microsoft365ProviderTokenRotationRunbookSchemaVersion,
   type Microsoft365ProviderTokenRotationRunbook,
+  type Microsoft365ProviderTokenRotationRunbookOperatorPhase,
   type Microsoft365ProviderTokenRotationRunbookStage
 } from "./rotation-runbook";
 export {

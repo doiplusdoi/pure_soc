@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M47, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M47.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 47 / `docs/PLAN_M48.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M48, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M48.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 48 / `docs/PLAN_M49.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -77,6 +77,7 @@ The repository currently contains:
 - PLAN_M45 Microsoft 365 read-only disposable tenant smoke harness: `pnpm microsoft365:smoke:read-only` now defaults to dry-run, first evaluates the M42 readiness matrix for `microsoft365_read_only_tenant`, reports planned app-only token, encrypted credential-envelope, provider-neutral storage, and read-only Graph module operations without live calls, refuses live execution unless readiness and disposable/test opt-ins are ready, checks disabled write-bundle metadata, and keeps client secrets, tokens, tenant IDs, tenant payloads, user emails, endpoint URLs, and provider credential envelopes out of output.
 - PLAN_M46 OIDC/social-login disposable callback smoke harness: `pnpm oidc:smoke:callback` now defaults to dry-run, first evaluates the M42 readiness matrix for `oidc_microsoft_entra_callback`, `oidc_google_callback`, or `oidc_github_callback` based on `PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER`, reports planned authorization, callback, token/JWKS/profile/email lookup, account-link, session-cookie, audit, and callback-Origin-exemption operations without live provider calls, refuses live-candidate execution unless readiness and disposable/test opt-ins are ready, requires provider enablement, and keeps client secrets, authorization codes, ID/access/refresh tokens, raw state/nonce, PKCE verifiers, cookies, profile payloads, user emails, and endpoint URLs out of output. Deterministic tests exercise local callback/session/account-link behavior with an injected provider harness; no approved live Microsoft/Google/GitHub provider app was exercised.
 - PLAN_M47 deployed-auth smoke guardrail slice: `pnpm auth:smoke:deployment` now defaults to dry-run, first evaluates the M42 readiness matrix for `auth_deployment_browser`, reports planned registration/login/session/logout, cookie-attribute, trusted-Origin, untrusted-Origin, callback-exemption, forwarded-header, health, and RBAC checks without target calls, refuses live-candidate execution unless local/test/ci/disposable guardrails and `PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true` are set, and keeps endpoint URLs, passwords, session tokens/cookies, authorization headers, provider endpoint URLs, live user emails, and secrets out of output. Deterministic tests exercise a local disposable API target; no approved deployed TLS/reverse-proxy/browser target was exercised.
+- PLAN_M48 provider-token custody deployment readiness/runbook slice: `pnpm provider-token:smoke` now reports local, in-a-box, and SaaS provider-token custody deployment readiness; `pnpm external-smoke:readiness` includes a provider-token custody check with supported local key-ring metadata, previous-key window/backfill/retirement confirmation blockers, and SaaS external-custody deferral. Rotation runbook metadata separates smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key-retirement expectations, and deferred live KMS/HSM/secret-manager custody. The only real implemented custody provider remains `local-env-key-ring`; `fake-secret-manager-test` remains deterministic and test-only; no live KMS/HSM/secret-manager, Microsoft Graph, provider writes, or ciphertext backfill was executed.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -131,7 +132,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 44 / `docs/PLAN_M45.md` is completed.
 - Prompt 45 / `docs/PLAN_M46.md` is completed.
 - Prompt 46 / `docs/PLAN_M47.md` is completed.
-- Prompt 47 / `docs/PLAN_M48.md` is staged as the next active implementation prompt.
+- Prompt 47 / `docs/PLAN_M48.md` is completed.
+- Prompt 48 / `docs/PLAN_M49.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -146,12 +148,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 47 / `docs/PLAN_M48.md`: Provider-Token Custody Deployment Readiness And Runbook Slice.
-2. Expected next handoff after M48: choose approved evidence runtime live execution follow-up, Microsoft 365 approved disposable tenant live execution follow-up, real OIDC provider-app execution, or deployed TLS/browser auth execution based on available approved disposable/test targets.
+1. Prompt 48 / `docs/PLAN_M49.md`: External Live-Smoke Target Selection And Readiness Audit Slice.
+2. Expected next handoff after M49: run exactly one approved disposable/test live-smoke follow-up, or keep all live paths blocked if no approved target exists.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M48 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors in default dry-run mode.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M49 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors unless the selected prompt path has explicit local/test/disposable target approval and existing command guardrails are satisfied.
 
-## Active Prompt 47 / PLAN_M48: Provider-Token Custody Deployment Readiness And Runbook Slice
+## Active Prompt 48 / PLAN_M49: External Live-Smoke Target Selection And Readiness Audit Slice
 
 Read:
 
@@ -161,55 +163,48 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M47.md`
+- `docs/PLAN_M48.md`
 - `docs/threat-model.md`
 - `code/packages/config/src/**`
-- `code/packages/providers/microsoft365/src/crypto.ts`
-- `code/packages/providers/microsoft365/src/rotation-runbook.ts`
-- `code/packages/providers/microsoft365/src/rotation-smoke.ts`
-- `code/packages/providers/microsoft365/src/readiness.ts`
-- `code/packages/providers/microsoft365/src/index.ts`
-- `code/packages/providers/microsoft365/src/__tests__/**`
-- `code/scripts/provider-token-rotation-smoke.ts`
+- `code/scripts/external-smoke-readiness.ts`
+- `code/scripts/*smoke*.ts`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Add a deterministic provider-token custody deployment readiness/runbook slice that helps operators choose and validate the current supported custody posture (`local-env-key-ring`) versus future KMS/secret-manager custody, while remaining secret-free and dry-run/local-only by default.
+Add a deterministic external live-smoke target-selection/readiness audit slice that helps operators choose exactly one next approved disposable/test smoke path from the existing readiness matrix without making live calls by default.
 
 Deliverables:
 
-- Add provider-token custody deployment readiness metadata and/or command output for local/in-a-box/SaaS target kinds.
-- Keep `local-env-key-ring` as the only real implemented custody provider unless a no-live-call interface boundary is explicitly added; keep `fake-secret-manager-test` deterministic and test-only.
-- Report stable blockers for production use of unsupported custody providers, checked-in local-dev keys, duplicate/reused key material, missing key IDs, invalid previous-key entries, and unsafe previous-key windows.
-- Expand rotation/backfill runbook metadata so operators can distinguish smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key retirement expectations, and deferred live KMS custody.
-- Preserve provider-token encryption/decryption behavior, active/previous-key decrypt support, production startup validation, and provider write disablement.
-- Add tests proving redaction, production-safety blockers, local/test fake provider behavior, and no provider-token/key-material leakage.
-- Update docs/gaps/prompts and create `docs/PLAN_M49.md` from the next selected active prompt before final response.
+- Add or refine a metadata-only selector over `pnpm external-smoke:readiness` that ranks currently configured paths and explains why each is ready, blocked, unsafe, or not configured.
+- The selector must cover at least Microsoft 365 read-only tenant, Stripe test-mode, OIDC/social callback, object-storage/scanner, evidence/report runtime, auth deployment, and provider-token custody paths.
+- Do not execute live smoke commands unless the user has provided an explicit approved local/test/ci/disposable target and the existing command guardrails are satisfied.
+- Preserve all existing dry-run defaults, opt-in/disposable confirmations, secret redaction, endpoint redaction, provider-write disablement, and no-customer-impact posture.
+- If no approved target exists, record blockers and stage the next prompt around the most actionable approved path rather than faking live coverage.
+- Update docs/gaps/prompts and create `docs/PLAN_M50.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
 - `code/packages/config/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/scripts/provider-token-rotation-smoke.ts`
+- `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M48.md`
 - `docs/PLAN_M49.md`
+- `docs/PLAN_M50.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not call KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, OIDC/OAuth providers, Stripe, object storage, scanners, browser/PDF services, public regulatory URLs, external timestamp/signing services, or provider write executors.
-- Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting token backfill by default.
-- Do not print, snapshot, log, or persist provider tokens, OAuth codes, client secrets, key material, decrypted credential payloads, authorization headers, session cookies, endpoint URLs for live services, KMS/secret-manager values, or customer tenant identifiers.
-- Do not claim KMS/HSM/secret-manager custody, WORM storage, external notarization, or production readiness unless a real adapter and approved live deployment smoke are implemented and validated.
+- Do not call Microsoft Graph, OIDC/OAuth providers, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors by default.
+- Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting token/evidence/billing/provider operations.
+- Do not print, snapshot, log, or persist provider tokens, OAuth codes, client secrets, key material, decrypted credential payloads, authorization headers, session cookies, endpoint URLs for live services, KMS/secret-manager values, customer tenant identifiers, Stripe object IDs, storage object keys, report bodies, or user emails.
+- Do not claim a live smoke ran unless an approved local/test/ci/disposable target was actually exercised and the command output proves it without secrets.
 
 Tests and acceptance commands:
 
@@ -217,19 +212,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- config provider-token custody rotation microsoft365
-pnpm provider-token:smoke
+pnpm test -- external-smoke readiness smoke target selection config
 pnpm external-smoke:readiness
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M48.md`. If no approved live custody backend exists, preserve local/dry-run behavior and document blockers instead of faking KMS/HSM/secret-manager coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M49.md`. If no approved live target exists, preserve metadata-only behavior and document blockers instead of faking live execution.
 
 Expected gap movement:
 
-- Narrow GAP-040 only for implemented custody readiness/runbook metadata, local/test smoke guardrails, stricter production-safety blockers, and any deterministic local/fake custody tests.
-- Preserve GAP-030, GAP-039, and GAP-043 unless those areas are intentionally implemented and accepted.
+- Narrow whichever live-smoke gap receives selector/readiness-audit improvements only for metadata and guardrail work actually implemented.
+- Preserve GAP-030, GAP-039, GAP-040, and GAP-043 unless those areas are intentionally implemented and accepted.
 
 Final response must include:
 
@@ -237,10 +231,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M48` updated
-- `PLAN_M49` created
+- `PLAN_M49` updated
+- `PLAN_M50` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 47 / PLAN_M48: Provider-Token Custody Deployment Readiness And Runbook Slice
+
+Completed on 2026-05-03.
+
+Summary:
+- Added provider-token custody deployment readiness metadata for local, in-a-box, and SaaS target kinds.
+- Added `provider_token_custody_deployment` to `pnpm external-smoke:readiness`, including supported local key-ring metadata, test-only fake-provider metadata, previous-key window/backfill/retirement confirmation blockers, and SaaS external-custody deferral.
+- Expanded `pnpm provider-token:smoke` output with target-specific custody readiness, startup validation blocker codes, and rotation runbook phases for smoke verification, previous-key staging, ciphertext backfill planning, rollback, key retirement, and deferred live KMS/HSM/secret-manager custody.
+- Preserved `local-env-key-ring` as the only real implemented custody provider and kept `fake-secret-manager-test` deterministic and test-only.
+- No KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, external providers, object storage, scanners, browser/PDF services, public regulatory URLs, provider writes, or ciphertext backfill were called or enabled.
+
+Validated with host-node/npm equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- config provider-token custody rotation microsoft365`
+- `npm run provider-token:smoke`
+- `npm run external-smoke:readiness`
+- Full acceptance results are recorded in `docs/PLAN_M48.md`.
 
 ## Completed Prompt 46 / PLAN_M47: Deployed Browser/TLS/Proxy Auth Smoke Guardrail Slice
 

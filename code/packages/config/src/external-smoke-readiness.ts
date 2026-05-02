@@ -28,6 +28,7 @@ export type ExternalSmokeTargetKind =
 export type ExternalSmokeReadinessArea =
   | "auth_deployment"
   | "microsoft365"
+  | "provider_token_custody"
   | "stripe"
   | "oidc_social_login"
   | "object_storage_scanner"
@@ -93,6 +94,16 @@ export interface Microsoft365ReadinessMetadata {
     unsupportedNationalClouds?: string[];
   }>;
   deferredReadModules: string[];
+  providerTokenCustody?: {
+    schemaVersion: string;
+    targetKinds: string[];
+    implementedRealCustodyProviders: string[];
+    testOnlyCustodyProviders: string[];
+    deferredExternalCustodyProviders: string[];
+    requiredEnvironmentVariables: string[];
+    previousKeyConfirmationVariables: string[];
+    guarantees: Record<string, boolean>;
+  };
 }
 
 export interface ExternalSmokeReadinessMetadata {
@@ -156,6 +167,7 @@ export const createExternalSmokeReadinessReport = (
   const checks = [
     authDeploymentCheck(input.config, env, mode, targetReady, globalUnsafe),
     microsoft365Check(input.config, env, mode, targetReady, globalUnsafe, input.metadata?.microsoft365),
+    providerTokenCustodyCheck(input.config, env, startupValidationIssueCodes, input.metadata?.microsoft365),
     stripeCheck(input.config, env, mode, targetReady, globalUnsafe),
     ...oidcChecks(input.config, env, mode, targetReady, globalUnsafe, startupValidationIssueCodes),
     objectStorageScannerCheck(input.config, env, mode, targetReady, globalUnsafe),
@@ -328,6 +340,151 @@ const microsoft365Check = (
       writeScopesAllowed: config.connectors.microsoft365.writeScopesAllowed,
       defaultSmokeMode: "metadata_only_no_graph_calls",
       permissionMetadata: metadata ?? null
+    }
+  });
+};
+
+const providerTokenCustodyCheck = (
+  config: PureSocConfig,
+  env: NodeJS.ProcessEnv,
+  startupValidationIssueCodes: string[],
+  metadata?: Microsoft365ReadinessMetadata
+): ExternalSmokeReadinessCheck => {
+  const requirements = [
+    requirement(
+      "Provider-token custody target kind",
+      ["PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND"],
+      env,
+      false,
+      "configuration"
+    ),
+    requirement("Provider-token custody provider", ["PURESOC_PROVIDER_TOKEN_KEY_PROVIDER"], env, false, "configuration"),
+    requirement("Provider-token active key ID", ["PURESOC_PROVIDER_TOKEN_KEY_ID"], env, false, "configuration"),
+    requirement("Provider-token active key material", ["PURESOC_PROVIDER_TOKEN_KEY", "PROVIDER_TOKEN_KEY"], env, true, "secret"),
+    requirement("Provider-token previous keys", ["PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS"], env, true, "secret")
+  ];
+  const targetKind = normalizeProviderTokenCustodyTargetKind(env.PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND);
+  const previousKeyCount = config.connectors.providerTokenEncryptionPreviousKeys.length;
+  const previousKeyConfirmations = [
+    {
+      code: "provider_token_previous_key_window_unconfirmed",
+      env: "PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED"
+    },
+    {
+      code: "provider_token_backfill_plan_unconfirmed",
+      env: "PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED"
+    },
+    {
+      code: "provider_token_key_retirement_plan_unconfirmed",
+      env: "PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED"
+    }
+  ];
+  const providerTokenStartupIssueCodes = startupValidationIssueCodes
+    .filter((code) => code.startsWith("provider_token_"))
+    .sort();
+  const missing = [
+    ...(config.app.env === "production" && targetKind === "unknown"
+      ? ["provider_token_custody_target_kind_required"]
+      : []),
+    ...(previousKeyCount > 0
+      ? previousKeyConfirmations
+          .filter((confirmation) => !readBoolean(env[confirmation.env]))
+          .map((confirmation) => confirmation.code)
+      : [])
+  ];
+  const unsafe = [
+    ...providerTokenStartupIssueCodes,
+    ...(targetKind === "invalid" ? ["provider_token_custody_target_kind_invalid"] : []),
+    ...(targetKind === "saas" ? ["provider_token_saas_external_custody_deferred"] : []),
+    ...(targetKind !== "local" && config.connectors.providerTokenKeyProvider === "fake-secret-manager-test"
+      ? ["provider_token_fake_custody_not_deployable"]
+      : [])
+  ];
+  const status: ExternalSmokeReadinessStatus =
+    unsafe.length > 0
+      ? "unsafe_production_target"
+      : missing.length > 0
+        ? "blocked_missing_secret"
+        : "configured_dry_run_only";
+
+  return check({
+    id: "provider_token_custody_deployment",
+    area: "provider_token_custody",
+    label: "Provider-token custody deployment readiness",
+    status,
+    configuredEnvironmentVariables: configuredEnvNames(requirements, env),
+    requiredEnvironment: [
+      ...requirements,
+      ...previousKeyConfirmations.map((confirmation) => ({
+        label: confirmation.code,
+        env: [confirmation.env],
+        sensitive: false,
+        requiredFor: "configuration" as const,
+        configured: readBoolean(env[confirmation.env])
+      }))
+    ],
+    blockers: [...missing, ...unsafe],
+    guardrails: [
+      {
+        id: "metadata_only_no_live_custody_calls",
+        status: "satisfied",
+        summary: "This check reports custody readiness metadata only and never calls KMS, HSM, secret-manager, Microsoft Graph, or provider writes."
+      },
+      {
+        id: "real_custody_provider_supported",
+        status:
+          config.connectors.providerTokenKeyProvider === "local-env-key-ring"
+            ? "satisfied"
+            : config.connectors.providerTokenKeyProvider === "fake-secret-manager-test"
+              ? "required"
+              : "unsafe",
+        summary: "local-env-key-ring is the only real implemented provider-token custody provider."
+      },
+      {
+        id: "saas_external_custody_deferred",
+        status: targetKind === "saas" ? "required" : "not_applicable",
+        summary: "SaaS KMS/HSM/secret-manager custody remains deferred until a real adapter and approved deployed smoke exist."
+      }
+    ],
+    summary:
+      status === "configured_dry_run_only"
+        ? "Reports provider-token custody readiness for local or in-a-box deployment without live custody calls."
+        : "Reports provider-token custody blockers and deferred live-custody requirements without exposing key material.",
+    metadata: {
+      targetKind,
+      providerKind: config.connectors.providerTokenKeyProvider,
+      activeKeyIdConfigured: nonEmpty(config.connectors.providerTokenEncryptionKeyId),
+      previousKeyCount,
+      previousKeyIds: config.connectors.providerTokenEncryptionPreviousKeys.map((key) => key.id).filter(nonEmpty).sort(),
+      previousKeyWindowConfirmed: readBoolean(env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED),
+      backfillPlanConfirmed: readBoolean(env.PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED),
+      keyRetirementPlanConfirmed: readBoolean(env.PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED),
+      activeKeyMaterialReturned: false,
+      previousKeyMaterialReturned: false,
+      localDevKeyMaterialDetectedByStartupValidation:
+        providerTokenStartupIssueCodes.includes("provider_token_key_required") ||
+        providerTokenStartupIssueCodes.includes("provider_token_previous_key_default"),
+      implementedRealCustodyProviders: metadata?.providerTokenCustody?.implementedRealCustodyProviders ?? [
+        "local-env-key-ring"
+      ],
+      testOnlyCustodyProviders: metadata?.providerTokenCustody?.testOnlyCustodyProviders ?? [
+        "fake-secret-manager-test"
+      ],
+      deferredExternalCustodyProviders: metadata?.providerTokenCustody?.deferredExternalCustodyProviders ?? [
+        "azure-key-vault",
+        "aws-kms",
+        "gcp-secret-manager",
+        "hashicorp-vault",
+        "hsm"
+      ],
+      guarantees: metadata?.providerTokenCustody?.guarantees ?? {
+        liveMicrosoftGraphCalls: false,
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        providerWrites: false,
+        plaintextSecretOutput: false,
+        ciphertextBackfillExecuted: false
+      }
     }
   });
 };
@@ -733,6 +890,21 @@ const normalizeTargetKind = (value: string | undefined): ExternalSmokeTargetKind
   }
 
   return "unknown";
+};
+
+const normalizeProviderTokenCustodyTargetKind = (
+  value: string | undefined
+): "local" | "in_a_box" | "saas" | "unknown" | "invalid" => {
+  const normalized = (value ?? "").trim().toLowerCase().replace(/-/g, "_");
+  if (!normalized) {
+    return "unknown";
+  }
+
+  if (normalized === "local" || normalized === "in_a_box" || normalized === "saas") {
+    return normalized;
+  }
+
+  return "invalid";
 };
 
 const isSafeDisposableTarget = (targetKind: ExternalSmokeTargetKind): boolean =>

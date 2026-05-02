@@ -12,6 +12,7 @@ import {
   localDevMicrosoft365TokenMasterKey,
   parseMicrosoft365TokenPreviousKeys
 } from "../crypto";
+import { createMicrosoft365ProviderTokenCustodyDeploymentReadiness } from "../custody-readiness";
 import { createMicrosoft365ProviderTokenRotationRunbook } from "../rotation-runbook";
 import { runMicrosoft365ProviderTokenRotationSmoke } from "../rotation-smoke";
 
@@ -252,8 +253,80 @@ describe("Microsoft 365 token encryption", () => {
         ciphertextBackfillExecuted: false
       }
     });
+    expect(runbook.operatorPhases.map((phase) => phase.phase)).toEqual([
+      "smoke-verification",
+      "previous-key-staging",
+      "ciphertext-backfill-planning",
+      "rollback-expectations",
+      "key-retirement-expectations",
+      "deferred-live-kms-custody"
+    ]);
+    expect(runbook.deferredLiveCustody).toMatchObject({
+      kmsHsmSecretManagerStatus: "deferred_no_adapter",
+      implementedRealCustodyProviders: ["local-env-key-ring"],
+      testOnlyCustodyProviders: ["fake-secret-manager-test"]
+    });
     expect(JSON.stringify(summary)).not.toContain("current-provider-token-key");
     expect(JSON.stringify(runbook)).not.toContain("previous-provider-token-key");
+  });
+
+  it("reports provider-token custody deployment blockers without key material", () => {
+    const keyProvider = createLocalMicrosoft365TokenKeyProvider({
+      activeKeyId: "current",
+      keys: [
+        {
+          keyId: "current",
+          masterKey: "current-provider-token-key"
+        },
+        {
+          keyId: "previous",
+          masterKey: "previous-provider-token-key"
+        }
+      ]
+    });
+    const summary = describeMicrosoft365TokenKeyProvider(keyProvider);
+
+    const inBoxReadiness = createMicrosoft365ProviderTokenCustodyDeploymentReadiness({
+      custody: summary,
+      targetKind: "in_a_box"
+    });
+    const saasReadiness = createMicrosoft365ProviderTokenCustodyDeploymentReadiness({
+      custody: summary,
+      targetKind: "saas",
+      previousKeyWindowConfirmed: true,
+      backfillPlanConfirmed: true,
+      keyRetirementPlanConfirmed: true
+    });
+
+    expect(inBoxReadiness).toMatchObject({
+      status: "blocked_operator_action_required",
+      blockers: [
+        "provider_token_backfill_plan_unconfirmed",
+        "provider_token_key_retirement_plan_unconfirmed",
+        "provider_token_previous_key_window_unconfirmed"
+      ],
+      metadata: {
+        previousKeyCount: 1,
+        previousKeyIds: ["previous"],
+        plaintextKeyMaterialAccessibleToProcess: true,
+        providerWritesEnabled: false
+      },
+      guarantees: {
+        liveMicrosoftGraphCalls: false,
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        providerWrites: false,
+        plaintextSecretOutput: false,
+        ciphertextBackfillExecuted: false,
+        productionKmsCustodyClaimed: false
+      }
+    });
+    expect(saasReadiness).toMatchObject({
+      status: "deferred_external_custody_required",
+      blockers: ["provider_token_saas_external_custody_deferred"]
+    });
+    expect(JSON.stringify(inBoxReadiness)).not.toContain("current-provider-token-key");
+    expect(JSON.stringify(inBoxReadiness)).not.toContain("previous-provider-token-key");
   });
 
   it("fails fake secret-manager decrypt when the envelope key is missing", () => {
@@ -407,6 +480,7 @@ describe("Microsoft 365 token encryption", () => {
       "fake-secret-manager-previous-key-decrypt",
       "fake-secret-manager-missing-key-failure",
       "fake-secret-manager-version-metadata",
+      "custody-deployment-readiness-metadata",
       "rotation-runbook-metadata",
       "bad-key-failure",
       "secret-output-redaction"
@@ -420,6 +494,12 @@ describe("Microsoft 365 token encryption", () => {
       localDisposableOnly: true
     });
     expect(result.fakeSecretManagerCustody.providerKind).toBe("fake-secret-manager-test");
+    expect(result.deploymentReadiness.local.status).toBe("ready_for_local_or_in_box_deployment");
+    expect(result.deploymentReadiness.inBox.status).toBe("ready_for_local_or_in_box_deployment");
+    expect(result.deploymentReadiness.saas).toMatchObject({
+      status: "deferred_external_custody_required",
+      blockers: ["provider_token_saas_external_custody_deferred"]
+    });
     expect(result.rotationRunbook.backfill.executionStatus).toBe("not_executed_metadata_only");
     expect(serialized).not.toContain("m34-smoke-access-token-secret");
     expect(serialized).not.toContain("m34-smoke-current-provider-token-key-material");

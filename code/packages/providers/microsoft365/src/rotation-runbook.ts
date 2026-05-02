@@ -20,6 +20,24 @@ export interface Microsoft365ProviderTokenRotationRunbookStage {
   backoutExpectation: string;
 }
 
+export interface Microsoft365ProviderTokenRotationRunbookOperatorPhase {
+  phase:
+    | "smoke-verification"
+    | "previous-key-staging"
+    | "ciphertext-backfill-planning"
+    | "rollback-expectations"
+    | "key-retirement-expectations"
+    | "deferred-live-kms-custody";
+  status:
+    | "available_metadata_only"
+    | "operator_confirmation_required"
+    | "not_executed_metadata_only"
+    | "deferred_no_adapter";
+  owner: "operator" | "application";
+  summary: string;
+  evidenceRequired: string[];
+}
+
 export interface Microsoft365ProviderTokenRotationRunbook {
   schemaVersion: typeof microsoft365ProviderTokenRotationRunbookSchemaVersion;
   providerKey: "microsoft365";
@@ -28,6 +46,7 @@ export interface Microsoft365ProviderTokenRotationRunbook {
   activeKeyVersion: Microsoft365TokenKeyVersionMetadata | null;
   previousKeyVersions: Microsoft365TokenKeyVersionMetadata[];
   prechecks: string[];
+  operatorPhases: Microsoft365ProviderTokenRotationRunbookOperatorPhase[];
   stages: Microsoft365ProviderTokenRotationRunbookStage[];
   rollback: {
     supported: true;
@@ -39,6 +58,12 @@ export interface Microsoft365ProviderTokenRotationRunbook {
     precheckInputs: string[];
     completionCriteria: string[];
     previousKeyRetirement: "operator_review_required_after_verified_reencrypt";
+  };
+  deferredLiveCustody: {
+    kmsHsmSecretManagerStatus: "deferred_no_adapter";
+    implementedRealCustodyProviders: ["local-env-key-ring"];
+    testOnlyCustodyProviders: ["fake-secret-manager-test"];
+    requiredBeforeClaimingExternalCustody: string[];
   };
   guarantees: {
     liveMicrosoftGraphCalls: false;
@@ -71,6 +96,74 @@ export const createMicrosoft365ProviderTokenRotationRunbook = (
       "previous-key-window-configured-before-rotation",
       "decrypt-smoke-covers-active-and-previous-envelopes",
       "operator-confirms-no-production-target-for-local-smoke"
+    ],
+    operatorPhases: [
+      {
+        phase: "smoke-verification",
+        status: "available_metadata_only",
+        owner: "application",
+        summary: "Local smoke verifies synthetic active-key encryption and previous-key decryption without live providers.",
+        evidenceRequired: [
+          "provider-token-smoke-result",
+          "startup-validation-blocker-codes",
+          "secret-free-output-review"
+        ]
+      },
+      {
+        phase: "previous-key-staging",
+        status: previousKeyVersions.length > 0 ? "operator_confirmation_required" : "available_metadata_only",
+        owner: "operator",
+        summary: "Previous keys are a temporary compatibility window, not a completed rotation.",
+        evidenceRequired: [
+          "previous-key-ids-recorded",
+          "rollback-window-approved",
+          "backfill-plan-linked"
+        ]
+      },
+      {
+        phase: "ciphertext-backfill-planning",
+        status: "not_executed_metadata_only",
+        owner: "operator",
+        summary: "The repository models backfill prechecks and completion criteria but does not re-encrypt stored ciphertexts.",
+        evidenceRequired: [
+          "credential-envelope-inventory",
+          "dry-run-backfill-plan",
+          "rollback-snapshot-reference"
+        ]
+      },
+      {
+        phase: "rollback-expectations",
+        status: "operator_confirmation_required",
+        owner: "operator",
+        summary: "Rollback means restoring the last known-good key ring and keeping required previous keys available.",
+        evidenceRequired: [
+          "last-known-good-key-id",
+          "previous-key-window-duration",
+          "operator-incident-log-reference"
+        ]
+      },
+      {
+        phase: "key-retirement-expectations",
+        status: "operator_confirmation_required",
+        owner: "operator",
+        summary: "Previous keys must not be retired until no stored envelope references them and post-backfill decrypt checks pass.",
+        evidenceRequired: [
+          "no-envelope-references-retiring-key",
+          "post-backfill-decrypt-smoke",
+          "retirement-approval-record"
+        ]
+      },
+      {
+        phase: "deferred-live-kms-custody",
+        status: "deferred_no_adapter",
+        owner: "operator",
+        summary: "Live KMS/HSM/secret-manager custody is not implemented by this repository.",
+        evidenceRequired: [
+          "selected-custody-provider-decision",
+          "adapter-implementation-tests",
+          "approved-disposable-live-custody-smoke"
+        ]
+      }
     ],
     stages: [
       {
@@ -150,6 +243,17 @@ export const createMicrosoft365ProviderTokenRotationRunbook = (
         "previous key retirement has explicit operator approval"
       ],
       previousKeyRetirement: "operator_review_required_after_verified_reencrypt"
+    },
+    deferredLiveCustody: {
+      kmsHsmSecretManagerStatus: "deferred_no_adapter",
+      implementedRealCustodyProviders: ["local-env-key-ring"],
+      testOnlyCustodyProviders: ["fake-secret-manager-test"],
+      requiredBeforeClaimingExternalCustody: [
+        "approved custody provider selected for SaaS or in-a-box target",
+        "real KMS/HSM/secret-manager adapter implemented",
+        "secret-free deployed rotation smoke passes against an approved disposable target",
+        "custody access logging and incident response runbook are approved"
+      ]
     },
     guarantees: {
       liveMicrosoftGraphCalls: false,

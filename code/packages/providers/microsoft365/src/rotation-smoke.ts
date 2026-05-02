@@ -6,18 +6,27 @@ import {
   type Microsoft365TokenKeyCustodySummary
 } from "./crypto";
 import {
+  createMicrosoft365ProviderTokenCustodyDeploymentReadiness,
+  type Microsoft365ProviderTokenCustodyDeploymentReadiness
+} from "./custody-readiness";
+import {
   createMicrosoft365ProviderTokenRotationRunbook,
   type Microsoft365ProviderTokenRotationRunbook
 } from "./rotation-runbook";
 
 export const microsoft365ProviderTokenRotationSmokeSchemaVersion =
-  "puresoc.microsoft365.provider-token.rotation-smoke.v2" as const;
+  "puresoc.microsoft365.provider-token.rotation-smoke.v3" as const;
 
 export interface Microsoft365ProviderTokenRotationSmokeResult {
   schemaVersion: typeof microsoft365ProviderTokenRotationSmokeSchemaVersion;
   providerKey: "microsoft365";
   custody: Microsoft365TokenKeyCustodySummary;
   fakeSecretManagerCustody: Microsoft365TokenKeyCustodySummary;
+  deploymentReadiness: {
+    local: Microsoft365ProviderTokenCustodyDeploymentReadiness;
+    inBox: Microsoft365ProviderTokenCustodyDeploymentReadiness;
+    saas: Microsoft365ProviderTokenCustodyDeploymentReadiness;
+  };
   rotationRunbook: Microsoft365ProviderTokenRotationRunbook;
   checks: string[];
   guarantees: {
@@ -188,11 +197,35 @@ export const runMicrosoft365ProviderTokenRotationSmoke = (): Microsoft365Provide
   }
   assert(badKeyFailed, "Bad-key decrypt unexpectedly succeeded.");
 
+  const localCustody = describeMicrosoft365TokenKeyProvider(currentKeyProvider);
   const result: Microsoft365ProviderTokenRotationSmokeResult = {
     schemaVersion: microsoft365ProviderTokenRotationSmokeSchemaVersion,
     providerKey: "microsoft365",
-    custody: describeMicrosoft365TokenKeyProvider(currentKeyProvider),
+    custody: localCustody,
     fakeSecretManagerCustody,
+    deploymentReadiness: {
+      local: createMicrosoft365ProviderTokenCustodyDeploymentReadiness({
+        custody: localCustody,
+        targetKind: "local",
+        previousKeyWindowConfirmed: true,
+        backfillPlanConfirmed: true,
+        keyRetirementPlanConfirmed: true
+      }),
+      inBox: createMicrosoft365ProviderTokenCustodyDeploymentReadiness({
+        custody: localCustody,
+        targetKind: "in_a_box",
+        previousKeyWindowConfirmed: true,
+        backfillPlanConfirmed: true,
+        keyRetirementPlanConfirmed: true
+      }),
+      saas: createMicrosoft365ProviderTokenCustodyDeploymentReadiness({
+        custody: localCustody,
+        targetKind: "saas",
+        previousKeyWindowConfirmed: true,
+        backfillPlanConfirmed: true,
+        keyRetirementPlanConfirmed: true
+      })
+    },
     rotationRunbook: createMicrosoft365ProviderTokenRotationRunbook(fakeKeyProvider, {
       generatedAt: "2026-05-02T00:00:00.000Z"
     }),
@@ -204,6 +237,7 @@ export const runMicrosoft365ProviderTokenRotationSmoke = (): Microsoft365Provide
       "fake-secret-manager-previous-key-decrypt",
       "fake-secret-manager-missing-key-failure",
       "fake-secret-manager-version-metadata",
+      "custody-deployment-readiness-metadata",
       "rotation-runbook-metadata",
       "bad-key-failure",
       "secret-output-redaction"

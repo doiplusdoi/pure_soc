@@ -23,5 +23,19 @@ describe("Microsoft 365 external smoke readiness metadata", () => {
       licenseRequired: ["DEFENDER_XDR"],
       unsupportedNationalClouds: ["china"]
     });
+    expect(metadata.providerTokenCustody).toMatchObject({
+      schemaVersion: "puresoc.microsoft365.provider-token.custody-deployment-readiness.v1",
+      targetKinds: ["local", "in_a_box", "saas"],
+      implementedRealCustodyProviders: ["local-env-key-ring"],
+      testOnlyCustodyProviders: ["fake-secret-manager-test"],
+      guarantees: {
+        liveMicrosoftGraphCalls: false,
+        liveSecretManagerCalls: false,
+        liveKmsCalls: false,
+        providerWrites: false,
+        plaintextSecretOutput: false,
+        ciphertextBackfillExecuted: false
+      }
+    });
   });
 });
