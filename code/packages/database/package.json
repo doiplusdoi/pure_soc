@@ -13,6 +13,7 @@
   },
   "dependencies": {
     "@prisma/client": "6.19.3",
+    "@puresoc/audit": "workspace:*",
     "@puresoc/billing-core": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",
     "@puresoc/evidence": "workspace:*",

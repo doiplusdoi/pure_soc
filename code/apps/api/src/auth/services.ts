@@ -1,4 +1,10 @@
-import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
+import {
+  AuditCheckpointService,
+  AuditWriter,
+  InMemoryAuditCheckpointRepository,
+  InMemoryAuditSink,
+  type AuditCheckpointRepository
+} from "@puresoc/audit";
 import {
   Argon2idPasswordHasher,
   FailedLoginRateLimiter,
@@ -31,6 +37,7 @@ import {
   InMemoryNotificationDraftRepository,
   InMemoryOutputRecordRepository,
   PrismaActionRepository,
+  PrismaAuditCheckpointRepository,
   PrismaBillingRepository,
   PrismaComplianceResultRepository,
   PrismaEvidenceRepository,
@@ -83,6 +90,7 @@ export interface ApiServices {
   prismaClient?: PureSocPrismaClient;
   auditSink: RuntimeAuditSink;
   auditWriter: AuditWriter;
+  auditCheckpoints: AuditCheckpointService;
   localAuth: LocalAuthService;
   oidcAuth: OidcSocialLoginService;
   organizations: OrganizationService;
@@ -128,6 +136,10 @@ export const createApiServices = (
   });
   const auditWriter = new AuditWriter({
     sink: runtimeRepositories.auditSink,
+    now: options.now
+  });
+  const auditCheckpoints = new AuditCheckpointService({
+    repository: runtimeRepositories.auditCheckpointRepository,
     now: options.now
   });
   const rateLimiter = new FailedLoginRateLimiter({
@@ -241,6 +253,7 @@ export const createApiServices = (
     prismaClient: runtimeRepositories.prismaClient,
     auditSink: runtimeRepositories.auditSink,
     auditWriter,
+    auditCheckpoints,
     localAuth,
     oidcAuth,
     organizations,
@@ -267,6 +280,7 @@ interface RuntimeRepositorySet {
   persistence: ApiPersistenceRuntime;
   prismaClient?: PureSocPrismaClient;
   auditSink: RuntimeAuditSink;
+  auditCheckpointRepository: AuditCheckpointRepository;
   complianceResultRepository: ComplianceResultRepository<RecommendationContract>;
   regulatorySourceRepository: RegulatorySourceRepository;
   actionsRepository: RemediationActionRepository;
@@ -288,6 +302,8 @@ const createRuntimeRepositories = (input: {
   now?: () => Date;
 }): RuntimeRepositorySet => {
   if (input.config.app.persistenceMode !== "prisma") {
+    const auditSink = new InMemoryAuditSink();
+
     return {
       persistence: {
         mode: "memory",
@@ -307,7 +323,8 @@ const createRuntimeRepositories = (input: {
         ]
       },
       complianceResultRepository: new InMemoryComplianceResultRepository<RecommendationContract>(),
-      auditSink: new InMemoryAuditSink(),
+      auditSink,
+      auditCheckpointRepository: new InMemoryAuditCheckpointRepository(auditSink),
       regulatorySourceRepository: new InMemoryRegulatorySourceRepository(),
       actionsRepository: new InMemoryRemediationActionRepository(),
       evidenceRepository: input.memoryRepository,
@@ -344,6 +361,7 @@ const createRuntimeRepositories = (input: {
     },
     prismaClient,
     auditSink,
+    auditCheckpointRepository: new PrismaAuditCheckpointRepository(prismaClient as never),
     complianceResultRepository: new PrismaComplianceResultRepository(prismaClient),
     regulatorySourceRepository: new PrismaRegulatorySourceRepository(prismaClient as never),
     actionsRepository: new PrismaActionRepository(prismaClient as never),

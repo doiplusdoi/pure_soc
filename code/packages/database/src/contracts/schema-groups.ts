@@ -10,7 +10,8 @@ export const schemaGroups = {
     "organization_members",
     "roles",
     "role_bindings",
-    "audit_logs"
+    "audit_logs",
+    "audit_checkpoints"
   ],
   customerBusinessMetadata: [
     "customer_profiles",
@@ -92,6 +93,7 @@ export const tenantOwnedTables = [
   "organization_members",
   "role_bindings",
   "audit_logs",
+  "audit_checkpoints",
   "customer_profiles",
   "business_profiles",
   "business_locations",

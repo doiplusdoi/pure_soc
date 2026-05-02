@@ -2,7 +2,19 @@ import { randomUUID } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
-import { PrismaAuditSink, type PrismaAuditClient, type PrismaAuditLogRecord } from "../index";
+import {
+  AuditWriter,
+  InMemoryAuditSink,
+  buildAuditCheckpointFromExportSegment,
+  createAuditExportSegment
+} from "@puresoc/audit";
+import {
+  PrismaAuditCheckpointRepository,
+  PrismaAuditSink,
+  type PrismaAuditCheckpointClient,
+  type PrismaAuditClient,
+  type PrismaAuditLogRecord
+} from "../index";
 
 describe("PrismaAuditSink", () => {
   it("persists redacted audit records and chains organization/global anchors across sink instances", async () => {
@@ -78,6 +90,66 @@ describe("PrismaAuditSink", () => {
     expect(JSON.stringify(client.auditLog.rows)).not.toContain("must-not-persist");
     expect(JSON.stringify(client.auditLog.rows)).toContain("canonicalPayload");
   });
+
+  it("exports audit rows and stores database-only checkpoint metadata", async () => {
+    let id = 0;
+    const auditSink = new InMemoryAuditSink();
+    const writer = new AuditWriter({
+      sink: auditSink,
+      idFactory: () => `aaaaaaaa-aaaa-4aaa-8aaa-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date(`2026-05-02T14:00:0${id}.000Z`)
+    });
+    const organizationId = randomUUID();
+
+    await writer.write({
+      organizationId,
+      targetType: "evidence",
+      action: "evidence_uploaded",
+      afterJson: {
+        status: "stored",
+        storageUri: "s3://internal/object",
+        refreshToken: "must-not-export"
+      }
+    });
+    await writer.write({
+      organizationId,
+      targetType: "report",
+      action: "report_export_created",
+      afterJson: {
+        status: "ready"
+      }
+    });
+
+    const client = createFakeAuditCheckpointClient(auditSink.records);
+    const repository = new PrismaAuditCheckpointRepository(client);
+    const rows = await repository.listAuditRecords({ organizationId });
+    const segment = createAuditExportSegment(rows, {
+      organizationId,
+      exportedAt: new Date("2026-05-02T14:01:00.000Z"),
+      exportId: randomUUID()
+    });
+    const checkpoint = buildAuditCheckpointFromExportSegment(segment, {
+      id: randomUUID(),
+      createdAt: new Date("2026-05-02T14:02:00.000Z"),
+      createdByUserId: randomUUID()
+    });
+
+    await repository.saveAuditCheckpoint(checkpoint);
+    const saved = await repository.listAuditCheckpoints({ organizationId });
+
+    expect(rows).toHaveLength(2);
+    expect(segment.verification.valid).toBe(true);
+    expect(saved).toHaveLength(1);
+    expect(saved[0]).toMatchObject({
+      organizationId,
+      recordCount: 2,
+      terminalHash: checkpoint.terminalHash,
+      verificationStatus: "valid",
+      externalCheckpointStatus: "not_configured"
+    });
+    expect(JSON.stringify(client.auditCheckpoint.rows)).not.toContain("must-not-export");
+    expect(JSON.stringify(client.auditCheckpoint.rows)).not.toContain("s3://internal/object");
+  });
 });
 
 const makeAuditRecord = (
@@ -152,6 +224,16 @@ const createFakeAuditClient = (): PrismaAuditClient & { auditLog: FakeAuditLogDe
   auditLog: createAuditLogDelegate()
 });
 
+const createFakeAuditCheckpointClient = (
+  auditRows: PrismaAuditLogRecord[]
+): PrismaAuditCheckpointClient & {
+  auditLog: FakeAuditLogExportDelegate;
+  auditCheckpoint: FakeAuditCheckpointDelegate;
+} => ({
+  auditLog: createAuditLogExportDelegate(auditRows),
+  auditCheckpoint: createAuditCheckpointDelegate()
+});
+
 const createAuditLogDelegate = (): FakeAuditLogDelegate => {
   const rows: FakeAuditLogRow[] = [];
 
@@ -172,6 +254,82 @@ const createAuditLogDelegate = (): FakeAuditLogDelegate => {
       const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
       sortRows(found, input.orderBy);
       return found[0] ?? null;
+    }
+  };
+};
+
+type FakeAuditLogExportDelegate = {
+  rows: Array<PrismaAuditLogRecord & Record<string, unknown>>;
+  findMany(input: {
+    orderBy?: { createdAt?: "asc" | "desc" };
+    where?: Record<string, unknown>;
+  }): Promise<Array<PrismaAuditLogRecord & Record<string, unknown>>>;
+};
+
+const createAuditLogExportDelegate = (inputRows: PrismaAuditLogRecord[]): FakeAuditLogExportDelegate => {
+  const rows = inputRows as unknown as Array<PrismaAuditLogRecord & Record<string, unknown>>;
+
+  return {
+    rows,
+  async findMany(input: {
+    orderBy?: { createdAt?: "asc" | "desc" };
+    where?: Record<string, unknown>;
+  }): Promise<Array<PrismaAuditLogRecord & Record<string, unknown>>> {
+    const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
+    sortRows(found as unknown as FakeAuditLogRow[], input.orderBy);
+    return found;
+  }
+  };
+};
+
+interface FakeAuditCheckpointRow extends Record<string, unknown> {
+  id: string;
+  organizationId: string | null;
+  scopeType: string;
+  exportId: string;
+  exportedAt: Date;
+  createdAt: Date;
+  recordCount: number;
+  exportHash: string;
+  hashAlgorithm: string;
+  verificationStatus: string;
+  externalCheckpointStatus: string;
+}
+
+type FakeAuditCheckpointDelegate = {
+  rows: FakeAuditCheckpointRow[];
+  create(input: { data: Record<string, unknown> }): Promise<FakeAuditCheckpointRow>;
+  findMany(input: {
+    orderBy?: { createdAt?: "asc" | "desc" };
+    where?: Record<string, unknown>;
+  }): Promise<FakeAuditCheckpointRow[]>;
+};
+
+const createAuditCheckpointDelegate = (): FakeAuditCheckpointDelegate => {
+  const rows: FakeAuditCheckpointRow[] = [];
+
+  return {
+    rows,
+    async create(input: { data: Record<string, unknown> }): Promise<FakeAuditCheckpointRow> {
+      const row = {
+        ...input.data,
+        createdAt: toDate(input.data.createdAt),
+        exportedAt: toDate(input.data.exportedAt)
+      } as FakeAuditCheckpointRow;
+      rows.push(row);
+      return row;
+    },
+    async findMany(input: {
+      orderBy?: { createdAt?: "asc" | "desc" };
+      where?: Record<string, unknown>;
+    }): Promise<FakeAuditCheckpointRow[]> {
+      const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
+      found.sort((left, right) => {
+        const leftTime = toDate(left.createdAt).getTime();
+        const rightTime = toDate(right.createdAt).getTime();
+        return input.orderBy?.createdAt === "asc" ? leftTime - rightTime : rightTime - leftTime;
+      });
+      return found;
     }
   };
 };

@@ -81,6 +81,18 @@ Production Prisma-mode startup rejects the checked-in local-dev OIDC transient-s
 
 Audit records written through `@puresoc/audit` include `previousHash`, `entryHash`, `hashAlgorithm`, and a redacted canonical payload. The in-memory sink can verify per-organization and global chains for contract tests. This is tamper-evident metadata only; it is not WORM storage, external signing, or proof that a database administrator could not rewrite all rows.
 
+M33 adds audit export/checkpoint contracts and organization-scoped API routes:
+
+```sh
+GET  /organizations/:organizationId/audit/export
+POST /organizations/:organizationId/audit/checkpoints
+GET  /organizations/:organizationId/audit/checkpoints
+```
+
+Exports serialize the redacted canonical payloads, previous/current hash anchors, terminal hash, export metadata, verification status, and explicit guarantees. The guarantees intentionally say `databaseRowsAreWorm=false`, `externalCheckpoint=not_configured`, and `legalCertification=false`.
+
+Checkpoint records are database-only terminal-hash records that can support later external anchoring. They are not WORM object-storage exports, HSM/KMS signatures, notarized checkpoints, retention enforcement, or legal certification. Creating a checkpoint appends an `audit_checkpoint_recorded` audit entry after the covered segment, so the checkpoint covers records up to the exported terminal hash, not the audit event that recorded the checkpoint.
+
 Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
 
 ## API Middleware

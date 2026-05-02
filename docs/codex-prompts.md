@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M32, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M32.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 32 / `docs/PLAN_M33.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M33, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M33.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 33 / `docs/PLAN_M34.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -62,6 +62,7 @@ The repository currently contains:
 - PLAN_M30 OIDC transient authorization-state persistence: `@puresoc/database` now has a `PrismaOidcAuthorizationStateStore` selected by API Prisma mode for social-login begin/callback flows; state and nonce remain hashed, PKCE verifiers persist only as AES-GCM envelopes, callbacks survive service recreation, replay/expiry are rejected, and runtime reporting marks `oidc_transient_state` as persisted.
 - PLAN_M31 live PostgreSQL migration and Prisma runtime smoke: `pnpm prisma:smoke:postgres` validates a disposable `DATABASE_URL`, applies checked-in migrations to PostgreSQL, regenerates Prisma Client, and performs representative real CRUD through Prisma repositories for identity/session/org/RBAC, audit, OIDC transient state, provider telemetry, compliance output, evidence, billing, regulatory sources, remediation metadata, notification drafts, and stored outputs. GAP-026 is resolved for disposable live PostgreSQL smoke.
 - PLAN_M32 live Redis/BullMQ job durability smoke: `@puresoc/jobs` now has an opt-in Redis-backed queue adapter under `PURESOC_JOB_QUEUE_PROVIDER=bullmq`; `pnpm jobs:smoke:redis` targets a local/disposable Redis URL and proves enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync without live external services or provider writes. GAP-037 is resolved for the bounded live queue smoke, while GAP-043 tracks production multi-process queue hardening.
+- PLAN_M33 audit export/checkpoint contracts: `@puresoc/audit` now exports redacted audit chain segments with verification status, non-WORM/non-notarized guarantees, deterministic violation detection for missing rows, tampered payloads, broken links, and wrong terminal checkpoints; memory and Prisma checkpoint repositories persist database-only checkpoint metadata in `audit_checkpoints`; API routes expose organization-scoped audit export/checkpoint operations; GAP-039 is narrowed without claiming WORM storage or external notarization.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -101,7 +102,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 29 / `docs/PLAN_M30.md` is completed.
 - Prompt 30 / `docs/PLAN_M31.md` is completed.
 - Prompt 31 / `docs/PLAN_M32.md` is completed.
-- Prompt 32 / `docs/PLAN_M33.md` is staged as the next active implementation prompt.
+- Prompt 32 / `docs/PLAN_M33.md` is completed.
+- Prompt 33 / `docs/PLAN_M34.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -116,12 +118,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 32 / `docs/PLAN_M33.md`: Audit WORM Export And External Checkpoint Planning Slice.
-2. Expected next handoff after M33: prioritize KMS/key rotation smoke (GAP-040), remediation worker/provider execution safety (GAP-030), or production queue orchestration hardening (GAP-043), depending on what the audit durability work uncovers.
+1. Prompt 33 / `docs/PLAN_M34.md`: Provider Token KMS And Rotation Smoke Planning Slice.
+2. Expected next handoff after M34: prioritize remediation worker/provider execution safety (GAP-030), production queue orchestration hardening (GAP-043), or audit WORM/external signing operations (GAP-039), depending on what the provider-token custody work uncovers.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 32 / PLAN_M33: Audit WORM Export And External Checkpoint Planning Slice
+## Active Prompt 33 / PLAN_M34: Provider Token KMS And Rotation Smoke Planning Slice
 
 Read:
 
@@ -131,11 +133,12 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M32.md`
+- `docs/PLAN_M33.md`
 - `docs/threat-model.md`
-- `code/packages/audit/src/**`
-- `code/packages/database/src/**`
+- `code/packages/providers/microsoft365/src/**`
+- `code/packages/config/src/**`
 - `code/apps/api/src/**`
+- `code/scripts/**`
 - `code/config/defaults/**`
 - `code/package.json`
 - `code/README.md`
@@ -143,45 +146,46 @@ Read:
 
 Goal:
 
-Narrow GAP-039 by turning the current audit hash-chain metadata into an explicit export/checkpoint contract that distinguishes tamper-evident database rows from WORM storage or external notarization claims.
+Narrow GAP-040 by adding a bounded provider-token key-custody and rotation smoke foundation for the existing Microsoft 365 credential envelope, without live Microsoft Graph calls, external KMS dependencies, or provider write execution.
 
 Context:
 
-- M21 added audit hash-chain metadata and in-memory verification helpers.
-- M28 added a Prisma audit sink that persists redacted canonical payloads and hash metadata.
-- GAP-039 remains open because persisted audit rows are not WORM, external checkpoints/signatures are not implemented, retention/export policy is not defined, and multi-process append ordering is not hardened.
-- This milestone should build a bounded audit export/checkpoint foundation and should not broaden into KMS provider-token custody, provider writes, browser smoke, live Stripe, live OIDC providers, or public regulatory fetches.
+- M21 added provider-token key IDs, active/previous-key decrypt support, and production startup rejection for unsafe local-dev provider-token keys.
+- GAP-040 remains open because production key custody is still environment-variable based and there is no live KMS/secret-manager adapter, deployed rotation smoke, ciphertext backfill/re-encryption workflow, or operator runbook.
+- This milestone should build a bounded key-custody/rotation smoke foundation and should not broaden into provider writes, live Microsoft Graph, live Stripe, live OIDC providers, MinIO/S3, scanners, browser smoke, public regulatory fetches, or external KMS calls.
 
 Deliverables:
 
-- Add an audit export/checkpoint data contract that can serialize organization/global audit chain segments with redacted canonical payloads, previous/current hash anchors, exported-at metadata, and verification status.
-- Add deterministic verification helpers for exported audit segments, including intact chain, missing row, tampered canonical payload, broken previous-hash link, and wrong terminal checkpoint scenarios.
-- Add repository or service boundaries for recording/exporting audit checkpoints without claiming external WORM storage exists.
-- Add documentation that clearly states the current guarantees and deferred work for WORM object storage, external signing/notarization, retention/export operations, and concurrency semantics.
-- Update docs/gaps/prompts and create `docs/PLAN_M34.md` from the next selected active prompt before final response.
+- Add or clarify a provider-token key-provider/custody boundary around the existing local Microsoft 365 token cipher.
+- Add a deterministic rotation smoke command or script proving active-key encrypt, previous-key decrypt, bad-key failure, and safe local/disposable execution without live providers.
+- Keep production startup validation for unsafe provider-token keys strict, and add tests if gaps are found.
+- Ensure smoke output, logs, audit payloads, and API responses do not expose plaintext provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads.
+- Document local env/Docker-secret guidance and clearly state what remains deferred for SaaS KMS/secret-manager custody, live rotation smoke, ciphertext backfill/re-encryption, and operator rollback.
+- Update docs/gaps/prompts and create `docs/PLAN_M35.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/packages/audit/src/**`
-- `code/packages/database/src/**`
+- `code/packages/providers/microsoft365/src/**`
+- `code/packages/config/src/**`
 - `code/apps/api/src/**`
 - `code/config/defaults/**`
+- `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M33.md`
 - `docs/PLAN_M34.md`
+- `docs/PLAN_M35.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
 - Do not enable provider write/remediation execution.
-- Do not claim database hash chains are WORM storage, legal evidence certification, external notarization, or proof against a database administrator rewriting all rows.
-- Do not add live Microsoft Graph, Stripe, OIDC-provider, MinIO/S3, scanner, public regulatory URL, KMS, browser, or provider-write dependencies.
-- Do not expose sensitive audit payload values or internal storage URIs in exports.
-- Do not weaken audit redaction, organization scoping, auth/session safeguards, or regulatory no-auto-activation rules.
+- Do not call live Microsoft Graph or any live external KMS/secret-manager.
+- Do not print, log, return, or persist plaintext provider tokens, client secrets, OAuth codes, key material, or decrypted credential payloads in smoke output.
+- Do not claim env-var/local key-ring custody is production KMS, HSM custody, or equivalent to external signing.
+- Do not weaken existing startup validation for production provider-token keys, audit redaction, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, or provider-write disablement.
 
 Tests and acceptance commands:
 
@@ -189,18 +193,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- audit database api auth organization rbac evidence reports
+pnpm test -- config provider microsoft365 encryption api audit
+pnpm <new-provider-token-rotation-smoke-command>
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M33.md`.
+If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M34.md`.
 
 Expected gap movement:
 
-- Close or narrow GAP-039 for audit export/checkpoint contracts.
+- Narrow GAP-040 for provider-token key-custody/rotation smoke.
 - Preserve GAP-030 unless remediation worker/provider execution safety is explicitly implemented and accepted in a later prompt.
-- Preserve GAP-040 unless KMS/key rotation smoke is intentionally added.
+- Preserve GAP-039 unless external audit signing/WORM storage is intentionally added.
 - Preserve GAP-043 unless production queue orchestration hardening is intentionally added.
 
 Final response must include:
@@ -209,10 +214,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M33` updated
-- `PLAN_M34` created
+- `PLAN_M34` updated
+- `PLAN_M35` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 32 / PLAN_M33: Audit WORM Export And External Checkpoint Planning Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added audit export/checkpoint contracts in `@puresoc/audit`, including redacted canonical payload export records, organization/global scopes, export guarantees that explicitly avoid WORM/notarization/legal-certification claims, export hashing, checkpoint records, and `AuditCheckpointService`.
+- Added deterministic verification helpers for exported segments covering intact chains, missing rows, tampered payloads, broken previous-hash links, wrong terminal checkpoints, scope mismatches, and record-count mismatches.
+- Added `InMemoryAuditCheckpointRepository` and `PrismaAuditCheckpointRepository`, plus `audit_checkpoints` Prisma schema/migration metadata and selected drift-check coverage.
+- Added organization-scoped API routes for audit export, checkpoint creation, and checkpoint listing; checkpoint creation appends an `audit_checkpoint_recorded` audit event after the covered segment.
+- Documented that checkpoints are database-only terminal-hash records, not WORM storage, external notarization, legal certification, retention enforcement, or protection against a database administrator rewriting all rows.
+- GAP-039 is narrowed for export/checkpoint contracts and database-only checkpoint persistence. GAP-030, GAP-040, and GAP-043 remain preserved.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- audit database api auth organization rbac evidence reports`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
 
 ## Completed Prompt 31 / PLAN_M32: Live Redis/BullMQ Job Durability Smoke Slice
 

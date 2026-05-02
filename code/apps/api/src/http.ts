@@ -1,6 +1,6 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 
-import { assertNoSensitiveResponseFields } from "@puresoc/audit";
+import { AuditExportError, assertNoSensitiveResponseFields } from "@puresoc/audit";
 import { AuthError } from "@puresoc/auth-core";
 import { BillingError } from "@puresoc/billing-core";
 import { EvidenceAccessError } from "@puresoc/evidence";
@@ -217,6 +217,18 @@ export const toJsonResultError = (error: unknown): JsonResult => {
   }
 
   if (error instanceof PayloadTooLargeError) {
+    return {
+      statusCode: error.statusCode,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof AuditExportError) {
     return {
       statusCode: error.statusCode,
       body: {

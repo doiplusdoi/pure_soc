@@ -69,6 +69,12 @@ import {
   requestActionApprovalRoute,
   verifyActionRunRoute
 } from "./actions/routes";
+import {
+  assertAuditCheckpointRequestBody,
+  exportAuditSegmentRoute,
+  listAuditCheckpointsRoute,
+  recordAuditCheckpointRoute
+} from "./audit/routes";
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   validateConfigForStartup(services.config, { serviceName: "api" });
@@ -312,6 +318,38 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         sendJson(
           response,
           await closeActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
+        );
+        return;
+      }
+
+      const auditExportRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/audit\/export$/);
+      if (auditExportRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await exportAuditSegmentRoute(auditExportRouteMatch[1] ?? "", request.headers.cookie, services)
+        );
+        return;
+      }
+
+      const auditCheckpointsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/audit\/checkpoints$/);
+      if (auditCheckpointsRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await listAuditCheckpointsRoute(auditCheckpointsRouteMatch[1] ?? "", request.headers.cookie, services)
+        );
+        return;
+      }
+
+      if (auditCheckpointsRouteMatch && request.method === "POST") {
+        sendJson(
+          response,
+          await recordAuditCheckpointRoute(
+            auditCheckpointsRouteMatch[1] ?? "",
+            assertAuditCheckpointRequestBody(body),
+            request.headers.cookie,
+            context,
+            services
+          )
         );
         return;
       }

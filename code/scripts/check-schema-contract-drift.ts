@@ -90,6 +90,32 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "AuditCheckpointRecord",
+    modelName: "AuditCheckpoint",
+    tableName: "audit_checkpoints",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id", { isOptional: true }),
+      s("scopeType", "String", "scope_type"),
+      s("exportId", "String", "export_id"),
+      s("exportedAt", "DateTime", "exported_at"),
+      s("createdAt", "DateTime", "created_at"),
+      s("createdByUserId", "String", "created_by_user_id", { isOptional: true }),
+      s("recordCount", "Int", "record_count"),
+      s("firstRecordId", "String", "first_record_id", { isOptional: true }),
+      s("terminalRecordId", "String", "terminal_record_id", { isOptional: true }),
+      s("initialPreviousHash", "String", "initial_previous_hash", { isOptional: true }),
+      s("terminalHash", "String", "terminal_hash", { isOptional: true }),
+      s("exportHash", "String", "export_hash"),
+      s("hashAlgorithm", "String", "hash_algorithm"),
+      s("verificationStatus", "String", "verification_status"),
+      s("verificationViolationsJson", "Json", "verification_violations_json"),
+      s("externalCheckpointStatus", "String", "external_checkpoint_status"),
+      s("externalCheckpointReference", "String", "external_checkpoint_reference", { isOptional: true }),
+      s("guaranteesJson", "Json", "guarantees_json")
+    ]
+  },
+  {
     contractName: "OidcAuthorizationStateRecord",
     modelName: "OidcAuthorizationState",
     tableName: "oidc_authorization_states",
