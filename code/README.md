@@ -130,6 +130,33 @@ The matrix reports these paths independently:
 - Object-storage/scanner prerequisites: S3/MinIO metadata, bucket/access configuration, HTTP scanner metadata, and no-op scanner warnings.
 - Evidence/report runtime prerequisites: legal-caveat enforcement, generated-report evidence storage, export format, upload limits, and storage-pointer redaction.
 
+### Stripe Test-Mode Smoke
+
+M43 adds a Stripe-specific disposable smoke harness:
+
+```sh
+pnpm stripe:smoke:test-mode
+```
+
+The default command is a dry-run. It first evaluates the M42 readiness matrix, then prints the planned Stripe test-mode operations and configured/missing environment variable names without calling Stripe. It does not print Stripe secret keys, webhook secrets, Checkout URLs, Portal URLs, full customer IDs, full session IDs, cookies, provider tokens, or storage pointers.
+
+Live/test execution is refused unless all of these are true:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
+PURESOC_EXTERNAL_SMOKE_TARGET_KIND=disposable
+PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
+PURESOC_EXTERNAL_SMOKE_STRIPE=true
+PURESOC_BILLING_PROVIDER=stripe
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+STRIPE_PRICE_ID_BASE=price_...
+STRIPE_PRICE_ID_PRO=price_...
+STRIPE_PRICE_ID_MSP=price_...
+```
+
+The live path rejects `sk_live_*`, production/customer/staging targets, placeholder price IDs, non-Stripe billing mode, and non-default Stripe API base URLs. When explicitly enabled, it creates a synthetic Stripe test-mode customer, Checkout Session, Customer Portal Session, and verifies a synthetic webhook signature locally. Absence of a disposable Stripe test account remains a blocker, not a successful live smoke.
+
 OIDC/social-login callback state in Prisma mode stores state and nonce as hashes and stores the PKCE verifier in a local AES-GCM envelope. Configure the auth-owned envelope key with:
 
 ```sh

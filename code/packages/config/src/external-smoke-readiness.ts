@@ -234,12 +234,20 @@ const stripeCheck = (
   globalUnsafe: string[]
 ): ExternalSmokeReadinessCheck => {
   const requirements = [
+    requirement("Stripe billing provider", ["PURESOC_BILLING_PROVIDER"], env, false, "configuration"),
     requirement("Stripe test secret key", ["STRIPE_SECRET_KEY"], env, true, "secret"),
     requirement("Stripe webhook secret", ["STRIPE_WEBHOOK_SECRET"], env, true, "secret"),
-    requirement("Stripe Base price ID", ["STRIPE_PRICE_ID_BASE"], env, false, "configuration")
+    requirement("Stripe Base price ID", ["STRIPE_PRICE_ID_BASE"], env, false, "configuration"),
+    requirement("Stripe Pro price ID", ["STRIPE_PRICE_ID_PRO"], env, false, "configuration"),
+    requirement("Stripe MSP price ID", ["STRIPE_PRICE_ID_MSP"], env, false, "configuration")
   ];
   const configured = config.billing.provider === "stripe" || requirements.some((entry) => entry.configured);
-  const missing = configured ? missingRequirementCodes(requirements) : [];
+  const missing = configured
+    ? [
+        ...(config.billing.provider === "stripe" ? [] : ["billing_provider_not_stripe"]),
+        ...missingRequirementCodes(requirements.filter((entry) => entry.label !== "Stripe billing provider"))
+      ]
+    : [];
   const placeholderPriceIds = Object.entries(config.billing.stripe.priceIdsByPlan)
     .filter(([, priceIds]) => priceIds.some((priceId) => priceId.includes("configure")))
     .map(([planKey]) => `placeholder_price_id:${planKey}`);

@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M42: add a guarded Stripe test-mode smoke harness that remains dry-run by default and only allows live Stripe test-mode execution when M42 readiness guardrails report the Stripe path is ready for a disposable/test run.
 
-Status: staged for implementation after M42.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -41,6 +43,14 @@ Expected implementation areas:
 - Live-test guardrails for Stripe test mode only.
 - Secret-free output and tests for redaction, live-key rejection, missing blockers, and dry-run behavior.
 - Documentation and gap/prompt handoff updates.
+
+Implementation approach:
+
+- Keep the M42 readiness matrix as the first preflight for the command.
+- Add Stripe-specific smoke orchestration under `@puresoc/billing-stripe`, with dry-run output that never creates Stripe objects.
+- Add the CLI wrapper under `code/scripts/stripe-test-mode-smoke.ts` and expose it as `pnpm stripe:smoke:test-mode`.
+- Require live/test execution to use `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, a safe disposable/test target, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, `PURESOC_EXTERNAL_SMOKE_STRIPE=true`, `PURESOC_BILLING_PROVIDER=stripe`, `sk_test_*` credentials, and M42 readiness status `ready_for_disposable_smoke`.
+- Return only operation names, endpoint paths, status, configured/missing environment variable names, object ID prefixes, and booleans; never return Stripe secret values, webhook secrets, Checkout/Portal URLs, or full object IDs.
 
 Locked assumptions:
 
@@ -107,32 +117,61 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `pnpm stripe:smoke:test-mode`, implemented by `code/scripts/stripe-test-mode-smoke.ts`.
+- Added Stripe smoke orchestration in `@puresoc/billing-stripe`, with a dry-run default, M42 readiness preflight input, live/test guardrail checks, synthetic customer/Checkout/Portal/webhook-signature operations for explicit live-candidate mode, and sanitized result output.
+- Tightened Stripe external-smoke readiness so a ready Stripe path requires `PURESOC_BILLING_PROVIDER=stripe` and Base/Pro/MSP price variables, not only secret-shaped values.
+- Added deterministic tests for dry-run no-call behavior, readiness/live-key blocking, `sk_test_*` enforcement, fake-client live-candidate execution, and output redaction.
+- Updated README, learnings, milestone index, gap register, active prompts, and staged `docs/PLAN_M44.md`.
+- Verified current official Stripe docs for Checkout Sessions, Customer Portal Sessions, and webhook signature handling. M43 preserved the existing server-side Checkout/Portal request shape and raw-body webhook signature contract.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/package.json`
+- `code/packages/billing/stripe/src/index.ts`
+- `code/packages/billing/stripe/src/__tests__/stripe-test-mode-smoke.test.ts`
+- `code/packages/config/src/external-smoke-readiness.ts`
+- `code/packages/config/src/__tests__/external-smoke-readiness.test.ts`
+- `code/scripts/stripe-test-mode-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M43.md`
+- `docs/PLAN_M44.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable, so validation used host-node/npm equivalents through `flatpak-spawn --host`.
+- `npm run test -- stripe external-smoke config` passed: 6 files, 31 tests.
+- `npm run lint` passed.
+- `npm run test -- config billing stripe external-smoke api health` passed: 27 files, 92 tests.
+- `npm run external-smoke:readiness` passed. Default summary remained dry-run/no-live-call with `not_configured=5`, `configured_dry_run_only=1`, `ready_for_disposable_smoke=0`, `blocked_missing_secret=1`, `unsafe_production_target=0`; Stripe now reports missing `PURESOC_BILLING_PROVIDER` and Base/Pro/MSP price variables in its required environment.
+- `npm run stripe:smoke:test-mode` passed in default dry-run mode. It planned customer, Checkout Session, Customer Portal Session, and webhook-signature operations, reported missing variable names, and made no live network calls.
+- `npm run test:e2e -- --grep @ui-smoke` passed and wrote deterministic HTML snapshots under `/tmp/puresoc-ui-smoke-*`.
+- `docker compose -f infra/compose/docker-compose.yml config` passed through the host Docker CLI.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M43. The Stripe smoke command is deterministic and dry-run by default; live/test execution is blocked unless M42 readiness and all disposable/test guardrails are satisfied; `sk_live_*` and non-`sk_test_*` secrets are rejected; output is secret-free and omits Checkout/Portal URLs and full Stripe object IDs.
 
 Gaps updated:
 
-- Pending.
+- GAP-028 narrowed for a dry-run-first Stripe test-mode smoke command, M42 readiness preflight reuse, `sk_test_*`/`sk_live_*` guardrails, sanitized output, and deterministic fake-client coverage without real Stripe calls or webhook delivery.
+- GAP-007, GAP-029, GAP-030, GAP-032, GAP-035, GAP-039, GAP-040, and GAP-043 preserved.
 
 Prompt handoff:
 
-- Pending. M43 implementation must create `docs/PLAN_M44.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 42 / PLAN_M43 complete and stages Prompt 43 / PLAN_M44 for an object-storage/scanner/evidence runtime disposable smoke harness.
+- `docs/PLAN_M44.md` was created from the staged M44 prompt.
 
 Residual risk:
 
-- Pending.
+- No live Stripe test account was exercised and no real Stripe webhook delivery was verified.
+- Stripe portal configuration, endpoint registration, webhook retry ordering, scheduled billing reconciliation jobs, live database migration/apply operations, and final product/price decisions remain open under GAP-028 and GAP-012.
+- The smoke creates Stripe objects only when explicitly run in live-candidate mode against a confirmed disposable/test target; default validation is dry-run only.

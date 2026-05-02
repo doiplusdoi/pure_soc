@@ -115,6 +115,35 @@ describe("external smoke readiness", () => {
     expect(JSON.stringify(report)).not.toContain("whsec_do-not-print");
   });
 
+  it("marks Stripe test-mode prerequisites ready only when billing is Stripe and all disposable guards are set", () => {
+    const report = buildReport({
+      PURESOC_EXTERNAL_SMOKE_MODE: "live_candidate",
+      PURESOC_EXTERNAL_SMOKE_TARGET_KIND: "disposable",
+      PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: "true",
+      PURESOC_EXTERNAL_SMOKE_STRIPE: "true",
+      PURESOC_BILLING_PROVIDER: "stripe",
+      STRIPE_SECRET_KEY: "sk_test_do-not-print",
+      STRIPE_WEBHOOK_SECRET: "whsec_do-not-print",
+      STRIPE_PRICE_ID_BASE: "price_test_base",
+      STRIPE_PRICE_ID_PRO: "price_test_pro",
+      STRIPE_PRICE_ID_MSP: "price_test_msp"
+    });
+
+    const stripe = report.checks.find((check) => check.id === "stripe_test_mode_billing");
+    expect(stripe?.status).toBe("ready_for_disposable_smoke");
+    expect(stripe?.blockers).toEqual([]);
+    expect(stripe?.configuredEnvironmentVariables).toEqual([
+      "PURESOC_BILLING_PROVIDER",
+      "STRIPE_PRICE_ID_BASE",
+      "STRIPE_PRICE_ID_MSP",
+      "STRIPE_PRICE_ID_PRO",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET"
+    ]);
+    expect(JSON.stringify(report)).not.toContain("sk_test_do-not-print");
+    expect(JSON.stringify(report)).not.toContain("whsec_do-not-print");
+  });
+
   it("blocks enabled OIDC providers when callback app secrets are absent", () => {
     const report = buildReport({
       PURESOC_AUTH_GOOGLE_ENABLED: "true"
