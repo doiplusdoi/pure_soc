@@ -53,6 +53,19 @@ Write bundles stay separate and are not requested during first onboarding:
 - Application permission grant introspection through service principal app-role assignments is not yet persisted as a separate resource module.
 - National cloud behavior is modeled at module-status level for documented unsupported Graph security paths; endpoint base-URL selection for sovereign clouds still needs runtime configuration before production use.
 
+## External Smoke Readiness
+
+M42 adds `pnpm external-smoke:readiness` as a dry-run readiness matrix for future Microsoft 365 live tenant smoke work. The command does not call Microsoft Graph or exchange tokens. It reports only prerequisite metadata:
+
+- required client ID, client secret, and disposable/test tenant ID variable names;
+- read-only bundle and module metadata from `@puresoc/provider-microsoft365`;
+- disabled write bundles (`m365_remediation_write`, `m365_defender_write`);
+- blocker status for missing configuration;
+- unsafe status for production-like target indicators or write-scope/write-job enablement;
+- live-candidate guardrails for explicit disposable/test confirmation and per-provider opt-in.
+
+`ready_for_disposable_smoke` in this report means the local configuration and guardrails are present for a future approved read-only test-tenant run. It is not evidence that a live Microsoft tenant smoke has been executed.
+
 ## Microsoft Learn References
 
 - App-only access and admin consent: https://learn.microsoft.com/en-us/graph/auth-v2-service

@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M41: prepare live external smoke work with a deterministic, secret-free readiness matrix and guardrail command before any real provider calls are attempted.
 
-Status: staged for implementation after M41.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -109,32 +111,70 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added a secret-free external smoke readiness contract under `@puresoc/config`.
+- Added a Microsoft 365 metadata helper that exposes read-only permission bundles, read modules, deferred modules, and disabled write bundles for readiness reporting without calling Graph.
+- Added `pnpm external-smoke:readiness`, implemented as a deterministic dry-run JSON report that evaluates Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime smoke prerequisites.
+- Gated future live-candidate readiness behind `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, `PURESOC_EXTERNAL_SMOKE_TARGET_KIND`, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, and per-provider opt-in variables.
+- Readiness output uses statuses `not_configured`, `configured_dry_run_only`, `ready_for_disposable_smoke`, `blocked_missing_secret`, and `unsafe_production_target`.
+- Output includes only variable names, booleans, config-path-level metadata, blocker codes, and permission/module metadata. It does not print secret values, provider tokens, OAuth codes, webhook secrets, storage credentials, scanner endpoints, object-storage endpoints, session cookies, key material, or storage URIs.
+- Updated application documentation and `.env.example` with the dry-run defaults and live-candidate guardrails.
 
 Changed files:
 
-- Pending.
+- `code/.env.example`
+- `code/README.md`
+- `code/package.json`
+- `code/pnpm-lock.yaml`
+- `code/packages/config/src/external-smoke-readiness.ts`
+- `code/packages/config/src/index.ts`
+- `code/packages/config/src/__tests__/external-smoke-readiness.test.ts`
+- `code/packages/providers/microsoft365/src/readiness.ts`
+- `code/packages/providers/microsoft365/src/index.ts`
+- `code/packages/providers/microsoft365/src/__tests__/microsoft365-readiness-metadata.spec.ts`
+- `code/scripts/external-smoke-readiness.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M42.md`
+- `docs/PLAN_M43.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
+- `docs/microsoft365-permissions.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable, so validation used host-node/npm equivalents through `flatpak-spawn --host`.
+- `pnpm test -- external-smoke microsoft365-readiness config` could not run because `pnpm` is not installed in this environment.
+- `npm run test -- external-smoke microsoft365-readiness config` passed: 4 files, 19 tests.
+- `npm run lint` passed.
+- `npm run test -- config provider microsoft365 billing oidc evidence api health` passed: 38 files, 140 tests.
+- `npm run external-smoke:readiness` passed and reported default dry-run readiness without live network calls. Default summary: `not_configured=5`, `configured_dry_run_only=1`, `ready_for_disposable_smoke=0`, `blocked_missing_secret=1`, `unsafe_production_target=0`.
+- `npm run test:e2e -- --grep @ui-smoke` passed and wrote deterministic HTML snapshots under `/tmp/puresoc-ui-smoke-*`.
+- `docker compose -f infra/compose/docker-compose.yml config` passed through the host Docker CLI.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M42. The core readiness matrix is deterministic, dry-run by default, secret-free, and does not call live external services.
 
 Gaps updated:
 
-- Pending.
+- GAP-007 narrowed for Microsoft 365 read-only smoke prerequisite metadata and disabled write-bundle reporting without live Graph calls.
+- GAP-028 narrowed for Stripe test-mode readiness metadata, missing-secret/placeholder-price blockers, and live-key unsafe-target detection without live Stripe calls.
+- GAP-029 narrowed for object-storage/scanner and evidence/report readiness metadata, no endpoint/storage-pointer output, and live-candidate guardrails without bucket/scanner/PDF calls.
+- GAP-032 narrowed for Microsoft Entra, Google, and GitHub OIDC readiness metadata, provider enablement/secret/redirect blockers, and live-candidate guardrails without live provider calls.
+- GAP-030, GAP-035, GAP-039, GAP-040, and GAP-043 preserved.
 
 Prompt handoff:
 
-- Pending. M42 implementation must create `docs/PLAN_M43.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 41 / PLAN_M42 complete and stages Prompt 42 / PLAN_M43 for a guarded Stripe test-mode disposable smoke harness.
+- `docs/PLAN_M43.md` was created from the staged M43 prompt.
 
 Residual risk:
 
-- Pending.
+- The readiness command is metadata-only. It does not prove live Microsoft Graph, Stripe, OIDC, object-storage, scanner, report-renderer, browser PDF, deployed TLS/proxy, KMS/secret-manager, or external signing behavior.
+- `ready_for_disposable_smoke` means local configuration and guardrails are present for a future approved disposable/test run; it is not a claim that a live smoke was executed.
+- Provider writes and Microsoft write scopes remain disabled.

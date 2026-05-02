@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M41 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M42 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -50,8 +50,9 @@ As of 2026-05-02, M1-M41 are implemented at contract/runtime-baseline level.
 - M39 replaces the static-only `@ui-smoke` wrapper with a served local web/API smoke that starts real HTTP surfaces in memory mode, fetches the operational console and login routes, writes deterministic desktop/mobile HTML viewport snapshots, checks responsive/no-obvious-overlap UI invariants, and verifies local browser-relevant auth cookies, trusted-Origin rejection/acceptance, and callback Origin exemptions without live external integrations or provider writes.
 - M40 adds `@browser-smoke` using host Firefox WebDriver BiDi when available. It captures browser-generated PNG screenshots for dashboard desktop/mobile, login mobile, evidence desktop, and approvals desktop; checks browser DOM/layout invariants; verifies real browser register/login/session/logout cookie-jar behavior through a same-origin local auth proxy; and preserves the M39 HTTP fallback without live external integrations or provider writes.
 - M41 adds explicit audit export handoff metadata for `database_only`, `worm_export_pending`, `externally_anchored`, and `external_anchor_failed` states; preserves failed external-anchor attempts with generic secret-free metadata; surfaces handoff status through API and Prisma mappings; and documents that immutable export, real external signing/notarization, legal hold, and verification alerting are operator-owned before production auditability claims.
+- M42 adds `pnpm external-smoke:readiness`, a deterministic dry-run readiness matrix for Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime smokes. It reports configured, blocked, unsafe, or ready-for-disposable-smoke states with secret-free metadata and explicit live-candidate/disposable/per-provider opt-in guardrails, without calling live external services or enabling provider writes.
 - Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M42.md`, focused on external integration smoke readiness matrix and guardrails.
+- Next planned milestone: `docs/PLAN_M43.md`, focused on a guarded Stripe test-mode disposable smoke harness.
 
 ## Milestones
 
@@ -72,8 +73,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M41.md` record completed incremental milestones.
-- `docs/PLAN_M42.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M42.md` record completed incremental milestones.
+- `docs/PLAN_M43.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

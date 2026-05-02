@@ -99,6 +99,11 @@ export {
   type Microsoft365ProviderTokenRotationSmokeResult
 } from "./rotation-smoke";
 export { createMicrosoft365DisabledActionExecutor } from "./action-executor";
+export {
+  getMicrosoft365ExternalSmokeReadinessMetadata,
+  microsoft365ExternalSmokeReadinessMetadataSchemaVersion,
+  type Microsoft365ExternalSmokeReadinessMetadata
+} from "./readiness";
 
 export interface Microsoft365TokenResponse {
   accessToken: string;

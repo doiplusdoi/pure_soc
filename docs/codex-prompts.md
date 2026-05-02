@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M41, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M41.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 41 / `docs/PLAN_M42.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M42, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M42.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 42 / `docs/PLAN_M43.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -71,6 +71,7 @@ The repository currently contains:
 - PLAN_M39 served web runtime and browser auth/middleware smoke: `pnpm test:e2e -- --grep @ui-smoke` now starts local web/API HTTP surfaces in memory mode, fetches the operational console and login pages, writes deterministic desktop/mobile HTML viewport snapshots, checks responsive/no-obvious-overlap UI invariants, and verifies local `HttpOnly`/`SameSite=Lax`/secure-cookie config behavior plus trusted-Origin, untrusted-Origin, and OIDC/Microsoft provider callback Origin exemption behavior without live external integrations or provider writes.
 - PLAN_M40 browser-grade local smoke: `pnpm test:e2e -- --grep @browser-smoke` now uses host Firefox WebDriver BiDi when available, captures browser-generated PNG screenshots for dashboard desktop/mobile, login mobile, evidence desktop, and approvals desktop, checks browser DOM/layout invariants, and verifies real browser cookie-jar register/login/session/logout behavior through a same-origin local auth proxy while preserving the M39 `@ui-smoke` fallback and avoiding live external integrations.
 - PLAN_M41 audit export handoff operations prep: `@puresoc/audit` now exposes explicit export/checkpoint handoff metadata for `database_only`, `worm_export_pending`, `externally_anchored`, and `external_anchor_failed` states; checkpoint recording preserves failed external-anchor attempts with generic secret-free failure metadata; API/database mappings return handoff status while preserving redaction, organization scoping, and non-WORM/non-notarized guarantees.
+- PLAN_M42 external integration smoke readiness matrix: `@puresoc/config` now exposes a secret-free external smoke readiness contract; `@puresoc/provider-microsoft365` exposes read-only smoke metadata; `pnpm external-smoke:readiness` reports Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime readiness without live network calls; future live-candidate paths require disposable/test confirmation and per-provider opt-in while preserving provider-write disablement.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -119,7 +120,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 38 / `docs/PLAN_M39.md` is completed.
 - Prompt 39 / `docs/PLAN_M40.md` is completed.
 - Prompt 40 / `docs/PLAN_M41.md` is completed.
-- Prompt 41 / `docs/PLAN_M42.md` is staged as the next active implementation prompt.
+- Prompt 41 / `docs/PLAN_M42.md` is completed.
+- Prompt 42 / `docs/PLAN_M43.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -134,12 +136,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 41 / `docs/PLAN_M42.md`: External Integration Smoke Readiness Matrix And Guardrail Slice.
-2. Expected next handoff after M42: choose one approved live smoke path from the readiness matrix, or continue with production provider-token custody deployment (GAP-040) or deployed browser/TLS/proxy smoke (GAP-035).
+1. Prompt 42 / `docs/PLAN_M43.md`: Stripe Test-Mode Disposable Smoke Harness And Guardrail Slice.
+2. Expected next handoff after M43: choose Microsoft 365 read-only disposable tenant smoke, OIDC provider callback smoke, object-storage/scanner/evidence runtime smoke, production provider-token custody deployment (GAP-040), or deployed browser/TLS/proxy smoke (GAP-035), based on available approved disposable/test targets.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M42 must not call live Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, or external signing services unless the command is explicitly opt-in, secret-safe, and documented as targeting a disposable/test environment. Provider writes and Microsoft write scopes remain disabled.
+Do not enable live Microsoft Graph write/remediation actions by default. M43 must not call live Stripe unless `pnpm external-smoke:readiness` reports `stripe_test_mode_billing` as `ready_for_disposable_smoke` and the smoke command is explicitly run in live/test mode against Stripe test-mode credentials. Provider writes and Microsoft write scopes remain disabled.
 
-## Active Prompt 41 / PLAN_M42: External Integration Smoke Readiness Matrix And Guardrail Slice
+## Active Prompt 42 / PLAN_M43: Stripe Test-Mode Disposable Smoke Harness And Guardrail Slice
 
 Read:
 
@@ -149,18 +151,14 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M41.md`
+- `docs/PLAN_M42.md`
 - `docs/threat-model.md`
-- `docs/microsoft365-permissions.md`
 - `code/packages/config/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/apps/api/src/provider-connections/**`
-- `code/packages/billing/**`
+- `code/packages/billing/core/src/**`
+- `code/packages/billing/stripe/src/**`
 - `code/apps/api/src/billing/**`
-- `code/packages/auth/oidc/src/**`
-- `code/apps/api/src/auth/**`
-- `code/packages/evidence/src/**`
-- `code/apps/api/src/evidence/**`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/http.ts`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/package.json`
@@ -168,42 +166,43 @@ Read:
 
 Goal:
 
-Prepare the next live-external-smoke phase without accidentally calling real providers or leaking secrets. Build a deterministic readiness matrix and guardrail command that reports which Microsoft 365, Stripe, OIDC/social-login, object-storage/scanner, and evidence/report runtime smokes are configured, blocked, unsafe, or explicitly ready for a disposable/test run.
+Add a guarded Stripe test-mode smoke harness that can prove checkout/customer-portal/webhook-signature basics against a disposable Stripe test account only when explicitly enabled. Dry-run mode must remain the default and must not call Stripe.
 
 Deliverables:
 
-- Add a secret-free external smoke readiness contract and report shape with statuses such as `not_configured`, `configured_dry_run_only`, `ready_for_disposable_smoke`, `blocked_missing_secret`, and `unsafe_production_target`.
-- Add a deterministic command, for example `pnpm external-smoke:readiness`, that evaluates local config/environment readiness without live network calls by default.
-- Gate any future live mode behind explicit confirmation variables, disposable/test-target checks, and per-provider opt-in flags. Dry-run mode must remain the default.
-- Cover Microsoft 365 read-only tenant smoke prerequisites, Stripe test-mode webhook/checkout prerequisites, Microsoft/Google/GitHub OIDC callback prerequisites, S3/MinIO/scanner prerequisites, and evidence/report runtime prerequisites as metadata only.
-- Ensure readiness output redacts secrets and never prints provider tokens, OAuth codes, client secrets, webhook secrets, object-storage credentials, session cookies, KMS/secret-manager values, or internal storage URIs.
-- Update docs/gaps/prompts and create `docs/PLAN_M43.md` from the next selected active prompt before final response.
+- Add a deterministic Stripe smoke command, for example `pnpm stripe:smoke:test-mode`, with dry-run as the default.
+- The command must first evaluate the M42 readiness report and refuse live execution unless `stripe_test_mode_billing` is `ready_for_disposable_smoke`.
+- Live execution, if implemented, must require `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, `PURESOC_EXTERNAL_SMOKE_TARGET_KIND` set to a safe test/disposable value, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, `PURESOC_EXTERNAL_SMOKE_STRIPE=true`, and Stripe test-mode credentials. Reject `sk_live_*`.
+- Dry-run output should show the planned test-mode operations, configured/missing variable names, and no secret values.
+- If live credentials or a disposable Stripe account are unavailable, keep dry-run behavior passing and document blockers instead of faking live coverage.
+- Preserve billing idempotency, webhook raw-body signature behavior, entitlements/RBAC separation, and billing audit events.
+- Update docs/gaps/prompts and create `docs/PLAN_M44.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
 - `code/packages/config/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/packages/billing/**`
-- `code/packages/auth/oidc/src/**`
-- `code/packages/evidence/src/**`
-- `code/apps/api/src/**`
+- `code/packages/billing/core/src/**`
+- `code/packages/billing/stripe/src/**`
+- `code/apps/api/src/billing/**`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/http.ts`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M42.md`
 - `docs/PLAN_M43.md`
+- `docs/PLAN_M44.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
-- `docs/microsoft365-permissions.md`
 
 Negative constraints:
 
-- Do not call live Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, or public regulatory URLs in the default readiness command.
+- Do not call live Stripe in the default command or any test unless the command is explicitly opt-in, secret-safe, and documented as targeting Stripe test mode in a disposable/test account.
+- Do not call Microsoft Graph, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, or provider write executors.
 - Do not enable live provider write/remediation actions, Microsoft write scopes, or provider-token production custody claims.
-- Do not weaken audit redaction, hash-chain verification, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, evidence storage-pointer redaction, or legal caveat enforcement.
-- Do not print, snapshot, log, or persist secrets in readiness outputs, test fixtures, docs, or failure metadata.
+- Do not weaken Stripe webhook signature verification, billing event idempotency, entitlement calculation, audit redaction, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, evidence storage-pointer redaction, or legal caveat enforcement.
+- Do not print, snapshot, log, or persist Stripe secret keys, webhook secrets, customer IDs from real accounts, checkout URLs from real live-mode sessions, session cookies, provider tokens, OAuth codes, object-storage credentials, KMS/secret-manager values, or internal storage URIs.
 - Do not treat live smoke absence as success; report blockers honestly.
 
 Tests and acceptance commands:
@@ -212,20 +211,20 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- config provider microsoft365 billing oidc evidence api health
+pnpm test -- config billing stripe external-smoke api health
 pnpm external-smoke:readiness
+pnpm stripe:smoke:test-mode
 pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M42.md`. If live provider credentials or disposable targets are unavailable, preserve dry-run readiness behavior and document blockers instead of faking live smoke coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M43.md`. If live Stripe test credentials or a disposable target are unavailable, preserve dry-run behavior and document blockers instead of faking live smoke coverage.
 
 Expected gap movement:
 
-- Narrow GAP-007, GAP-028, GAP-029, and GAP-032 only for explicit readiness metadata, opt-in guardrails, and blocker reporting unless actual live disposable smoke is intentionally implemented and accepted.
-- Preserve GAP-030, GAP-039, GAP-040, and GAP-043 unless those production hardening areas are intentionally implemented and accepted.
-- Preserve GAP-035 unless deployed browser/TLS/proxy smoke is intentionally implemented and accepted.
+- Narrow GAP-028 only for the implemented Stripe smoke harness, dry-run/live-test guardrails, and any actual approved test-mode execution result.
+- Preserve GAP-007, GAP-029, GAP-030, GAP-032, GAP-035, GAP-039, GAP-040, and GAP-043 unless those areas are intentionally implemented and accepted.
 
 Final response must include:
 
@@ -233,10 +232,34 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M42` updated
-- `PLAN_M43` created
+- `PLAN_M43` updated
+- `PLAN_M44` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 41 / PLAN_M42: External Integration Smoke Readiness Matrix And Guardrail Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added a secret-free external smoke readiness contract under `@puresoc/config`.
+- Added Microsoft 365 readiness metadata under `@puresoc/provider-microsoft365` for read-only bundles, read modules, deferred modules, and disabled write bundles.
+- Added `pnpm external-smoke:readiness`, a deterministic dry-run JSON report for Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime smoke prerequisites.
+- Readiness output reports `not_configured`, `configured_dry_run_only`, `ready_for_disposable_smoke`, `blocked_missing_secret`, and `unsafe_production_target` without live network calls.
+- Future live-candidate readiness requires `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, a safe `PURESOC_EXTERNAL_SMOKE_TARGET_KIND`, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, and per-provider opt-in flags.
+- Readiness output includes variable names, blocker codes, booleans, and non-secret metadata only; it does not print secrets, tokens, webhook secrets, endpoint values, storage URIs, cookies, key material, or provider-write data.
+- Updated `.env.example`, `code/README.md`, gap register entries, `docs/microsoft365-permissions.md`, and milestone handoff docs.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- external-smoke microsoft365-readiness config`
+- `npm run test -- config provider microsoft365 billing oidc evidence api health`
+- `npm run external-smoke:readiness`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-007, GAP-028, GAP-029, and GAP-032 are narrowed for readiness metadata, blocker reporting, and opt-in/disposable guardrails without live external calls. GAP-030, GAP-035, GAP-039, GAP-040, and GAP-043 remain preserved.
 
 ## Completed Prompt 40 / PLAN_M41: Audit WORM Export And External Checkpoint Operations Prep Slice
 

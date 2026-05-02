@@ -891,3 +891,20 @@ const valueAtPath = (config: PureSocConfig, path: string): unknown =>
 
     return (current as Record<string, unknown>)[key];
   }, config);
+
+export {
+  createExternalSmokeReadinessReport,
+  externalSmokeReadinessSchemaVersion,
+  externalSmokeReadinessStatuses,
+  type CreateExternalSmokeReadinessReportInput,
+  type ExternalSmokeEnvironmentRequirement,
+  type ExternalSmokeGuardrail,
+  type ExternalSmokeReadinessArea,
+  type ExternalSmokeReadinessCheck,
+  type ExternalSmokeReadinessMetadata,
+  type ExternalSmokeReadinessMode,
+  type ExternalSmokeReadinessReport,
+  type ExternalSmokeReadinessStatus,
+  type ExternalSmokeTargetKind,
+  type Microsoft365ReadinessMetadata
+} from "./external-smoke-readiness";
