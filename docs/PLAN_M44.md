@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M43: add a guarded object-storage/scanner/evidence runtime smoke harness that remains dry-run by default and only allows disposable local/test execution when M42 readiness guardrails report the selected runtime path is ready.
 
-Status: staged for implementation after M43.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -110,32 +112,63 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `pnpm evidence:smoke:runtime`, implemented by `code/scripts/evidence-runtime-smoke.ts`.
+- Added a dry-run-first evidence runtime smoke harness in `@puresoc/evidence`. The harness reuses M42 readiness preflights for `object_storage_scanner_runtime` and `evidence_report_runtime`, reports planned renderer/scanner/S3/evidence/export metadata operations, refuses live execution unless both readiness paths and all disposable/local/test opt-ins are satisfied, and keeps endpoint URLs, credentials, storage URIs, full object keys, uploaded bytes, and rendered report bodies out of output.
+- Added live-candidate execution logic for explicitly confirmed local/test/disposable targets: render synthetic PDF data through the configured report-renderer URL, scan and store the generated report as evidence through the HTTP scanner and S3-compatible adapter, read it back through the evidence vault, record an access log, and report CSV/binary evidence-package metadata as smoke metadata.
+- Added deterministic tests for dry-run no-call behavior, blocked live guardrails, fake-runtime live-candidate execution, scanner fail-closed behavior, and output redaction.
+- Wired `PURESOC_REPORT_RENDERER` into config loading and extended readiness metadata with scanner/renderer endpoint classes without returning endpoint values.
+- Updated README, learnings, milestone index, gap register, active prompts, and staged `docs/PLAN_M45.md`.
 
 Changed files:
 
-- Pending.
+- `code/.env.example`
+- `code/README.md`
+- `code/package.json`
+- `code/packages/config/src/index.ts`
+- `code/packages/config/src/external-smoke-readiness.ts`
+- `code/packages/config/src/__tests__/external-smoke-readiness.test.ts`
+- `code/packages/evidence/src/index.ts`
+- `code/packages/evidence/src/__tests__/evidence-runtime-smoke.test.ts`
+- `code/scripts/evidence-runtime-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M44.md`
+- `docs/PLAN_M45.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable, so validation used host-node/npm equivalents through `flatpak-spawn --host`.
+- `npm run test -- evidence-runtime-smoke external-smoke` passed: 2 files, 11 tests.
+- `npm run evidence:smoke:runtime` passed in default dry-run mode. It planned report-renderer, evidence upload/download, and export metadata operations; reported readiness statuses and missing/configured variable names; and made no live network calls.
+- `npm run lint` passed.
+- `npm run test -- config evidence reports external-smoke api health` passed: 30 files, 102 tests.
+- `npm run external-smoke:readiness` passed. Default summary remained dry-run/no-live-call with `not_configured=5`, `configured_dry_run_only=1`, `ready_for_disposable_smoke=0`, `blocked_missing_secret=1`, `unsafe_production_target=0`; the evidence/report check reports the renderer endpoint class without endpoint values.
+- `npm run test:e2e -- --grep @ui-smoke` passed and wrote deterministic HTML snapshots under `/tmp/puresoc-ui-smoke-*`.
+- `docker compose -f infra/compose/docker-compose.yml config` passed through the host Docker CLI.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M44. The command is deterministic and dry-run by default; live/disposable execution is blocked unless both M42 readiness paths are ready and all disposable/local/test guardrails are set; output is secret-free and omits endpoint URLs, storage pointers, full object keys, uploaded bytes, and report bodies.
 
 Gaps updated:
 
-- Pending.
+- GAP-029 narrowed for a dry-run-first evidence runtime smoke command, M42 readiness preflight reuse, local/test/disposable endpoint guardrails, sanitized output, deterministic fake-runtime coverage of renderer/scanner/S3/evidence metadata/access logs, and scanner fail-closed behavior without approved live runtime service calls.
+- GAP-007, GAP-028, GAP-030, GAP-032, GAP-035, GAP-039, GAP-040, and GAP-043 preserved.
 
 Prompt handoff:
 
-- Pending. M44 implementation must create `docs/PLAN_M45.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 43 / PLAN_M44 complete and stages Prompt 44 / PLAN_M45 for a Microsoft 365 read-only disposable tenant smoke harness.
+- `docs/PLAN_M45.md` was created from the staged M45 prompt.
 
 Residual risk:
 
-- Pending.
+- No approved live MinIO/S3, scanner, or report-renderer target was exercised; default validation remains dry-run plus deterministic fake-runtime tests.
+- The M44 smoke writes/reads objects when explicitly enabled but does not provision buckets, validate object-storage IAM policies, or prove deployed bucket lifecycle/retention settings.
+- Browser-grade PDF fidelity, persisted CSV export records, and real binary evidence-package assembly remain open under GAP-029.

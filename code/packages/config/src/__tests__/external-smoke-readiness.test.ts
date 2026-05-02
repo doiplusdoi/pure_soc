@@ -181,7 +181,8 @@ describe("external smoke readiness", () => {
       objectStorageProvider: "s3",
       objectStorageEndpointClass: "local",
       uploadScannerMode: "http",
-      uploadScannerEndpointConfigured: true
+      uploadScannerEndpointConfigured: true,
+      uploadScannerEndpointClass: "local"
     });
 
     const serialized = JSON.stringify(report);
@@ -189,5 +190,27 @@ describe("external smoke readiness", () => {
     expect(serialized).not.toContain("http://localhost:3310/scan");
     expect(serialized).not.toContain("storage-access");
     expect(serialized).not.toContain("storage-secret");
+  });
+
+  it("marks evidence/report runtime ready only with disposable guards and omits renderer endpoint values", () => {
+    const report = buildReport({
+      PURESOC_EXTERNAL_SMOKE_MODE: "live_candidate",
+      PURESOC_EXTERNAL_SMOKE_TARGET_KIND: "ci",
+      PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: "true",
+      PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS: "true",
+      PURESOC_REPORT_RENDERER: "http://localhost:3002",
+      PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE: "true"
+    });
+
+    const evidenceReports = report.checks.find((check) => check.id === "evidence_report_runtime");
+    expect(evidenceReports?.status).toBe("ready_for_disposable_smoke");
+    expect(evidenceReports?.metadata).toMatchObject({
+      legalCaveatRequired: true,
+      rendererConfigured: true,
+      reportRendererEndpointClass: "local",
+      storeGeneratedReportsAsEvidence: true,
+      storagePointerReturnedToClient: false
+    });
+    expect(JSON.stringify(report)).not.toContain("http://localhost:3002");
   });
 });

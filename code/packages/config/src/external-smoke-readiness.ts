@@ -423,6 +423,7 @@ const objectStorageScannerCheck = (
       objectStorageBucketConfigured: nonEmpty(config.storage.objectStorage.bucket),
       uploadScannerMode: config.storage.uploadScanner.mode,
       uploadScannerEndpointConfigured: nonEmpty(config.storage.uploadScanner.endpoint),
+      uploadScannerEndpointClass: classifyEndpoint(config.storage.uploadScanner.endpoint),
       scannerTimeoutMs: config.storage.uploadScanner.timeoutMs
     }
   });
@@ -471,6 +472,7 @@ const evidenceReportsCheck = (
     metadata: {
       legalCaveatRequired: config.reports.legalCaveatRequired,
       rendererConfigured: nonEmpty(config.reports.renderer),
+      reportRendererEndpointClass: classifyEndpoint(config.reports.renderer),
       defaultExportFormat: config.reports.defaultExportFormat,
       storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
       evidenceUploadLimitBytes: config.api.requestLimits.evidenceUploadMaxBytes,

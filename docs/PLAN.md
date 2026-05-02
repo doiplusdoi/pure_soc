@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M43 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M44 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -52,8 +52,9 @@ As of 2026-05-02, M1-M43 are implemented at contract/runtime-baseline level.
 - M41 adds explicit audit export handoff metadata for `database_only`, `worm_export_pending`, `externally_anchored`, and `external_anchor_failed` states; preserves failed external-anchor attempts with generic secret-free metadata; surfaces handoff status through API and Prisma mappings; and documents that immutable export, real external signing/notarization, legal hold, and verification alerting are operator-owned before production auditability claims.
 - M42 adds `pnpm external-smoke:readiness`, a deterministic dry-run readiness matrix for Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime smokes. It reports configured, blocked, unsafe, or ready-for-disposable-smoke states with secret-free metadata and explicit live-candidate/disposable/per-provider opt-in guardrails, without calling live external services or enabling provider writes.
 - M43 adds `pnpm stripe:smoke:test-mode`, a Stripe-specific disposable test-mode smoke harness that stays dry-run by default, reuses the M42 readiness preflight, refuses live execution unless Stripe readiness is `ready_for_disposable_smoke` and all disposable/test opt-ins are set, rejects `sk_live_*`, and keeps Stripe secret values, webhook secrets, Checkout/Portal URLs, and full Stripe object IDs out of output. No live Stripe account was exercised in the default validation.
+- M44 adds `pnpm evidence:smoke:runtime`, an object-storage/scanner/evidence/report runtime smoke harness that stays dry-run by default, reuses the M42 readiness preflight for both storage/scanner and evidence/report paths, refuses live execution unless both paths are ready with local/test/disposable target confirmation and opt-ins, exercises renderer/scanner/S3/evidence metadata/access-log behavior through deterministic fake-runtime tests, and keeps endpoint URLs, credentials, storage URIs, full object keys, uploaded bytes, and report bodies out of output. No approved live MinIO/S3, scanner, or report-renderer target was exercised in default validation.
 - Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M44.md`, focused on an object-storage/scanner/evidence runtime disposable smoke harness.
+- Next planned milestone: `docs/PLAN_M45.md`, focused on a Microsoft 365 read-only disposable tenant smoke harness.
 
 ## Milestones
 
@@ -74,8 +75,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M43.md` record completed incremental milestones.
-- `docs/PLAN_M44.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M44.md` record completed incremental milestones.
+- `docs/PLAN_M45.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

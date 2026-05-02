@@ -740,6 +740,765 @@ export const evidenceArtifactToComplianceState = (artifact: EvidenceArtifactMeta
     : []
 });
 
+export const evidenceRuntimeSmokeSchemaVersion = "puresoc.evidence_runtime_smoke.v1" as const;
+export const evidenceRuntimeSmokeCommand = "pnpm evidence:smoke:runtime" as const;
+
+export type EvidenceRuntimeSmokeStatus = "dry_run_passed" | "blocked" | "passed" | "failed";
+export type EvidenceRuntimeSmokeOperationStatus = "planned" | "skipped" | "passed" | "failed";
+
+export interface EvidenceRuntimeSmokeEnvironmentRequirement {
+  label: string;
+  env: string[];
+  sensitive: boolean;
+  requiredFor: "configuration" | "secret" | "disposable_smoke";
+  configured: boolean;
+}
+
+export interface EvidenceRuntimeSmokeGuardrail {
+  id: string;
+  status: "satisfied" | "required" | "unsafe" | "not_applicable";
+  summary: string;
+  env?: string[];
+}
+
+export interface EvidenceRuntimeSmokeReadinessPreflight {
+  checkId: "object_storage_scanner_runtime" | "evidence_report_runtime";
+  status: string;
+  mode: "dry_run" | "live_candidate";
+  target: {
+    kind: string;
+    disposableConfirmation: boolean;
+  };
+  requiredEnvironment: EvidenceRuntimeSmokeEnvironmentRequirement[];
+  configuredEnvironmentVariables: string[];
+  blockers: string[];
+  guardrails: EvidenceRuntimeSmokeGuardrail[];
+  metadata: Record<string, unknown>;
+}
+
+export interface EvidenceRuntimeSmokeConfig {
+  app: {
+    env: string;
+    legalCaveat: string;
+  };
+  api: {
+    requestLimits: {
+      evidenceUploadMaxBytes: number;
+    };
+  };
+  storage: {
+    objectStorage: {
+      provider: "memory" | "s3";
+      endpoint: string;
+      region: string;
+      bucket: string;
+      accessKeyId: string;
+      secretAccessKey: string;
+      forcePathStyle: boolean;
+    };
+    uploadScanner: {
+      mode: "noop" | "mock" | "http";
+      endpoint: string;
+      mockStatus: EvidenceScanStatus;
+      allowNoopInProduction: boolean;
+      timeoutMs: number;
+    };
+  };
+  reports: {
+    legalCaveatRequired: boolean;
+    renderer: string;
+    defaultExportFormat: "json" | "pdf";
+    storeGeneratedReportsAsEvidence: boolean;
+  };
+}
+
+export interface EvidenceRuntimeSmokeOperation {
+  id: string;
+  label: string;
+  runtimeTarget: "object_storage" | "scanner" | "evidence_vault" | "report_renderer" | "export_metadata";
+  performsNetworkInLiveMode: boolean;
+  status: EvidenceRuntimeSmokeOperationStatus;
+  metadata: Record<string, unknown>;
+}
+
+export interface EvidenceRuntimeSmokeReport {
+  schemaVersion: typeof evidenceRuntimeSmokeSchemaVersion;
+  command: typeof evidenceRuntimeSmokeCommand;
+  status: EvidenceRuntimeSmokeStatus;
+  exitCode: 0 | 1;
+  mode: "dry_run" | "live_candidate";
+  readinessStatuses: Record<"object_storage_scanner_runtime" | "evidence_report_runtime", string>;
+  liveNetworkCallsMade: boolean;
+  secretValuesReturned: false;
+  endpointUrlsReturned: false;
+  storagePointersReturned: false;
+  publicUrlsReturned: false;
+  uploadedFileContentsReturned: false;
+  reportContentsReturned: false;
+  fullObjectKeysReturned: false;
+  target: {
+    kind: string;
+    disposableConfirmation: boolean;
+  };
+  configuredEnvironmentVariables: string[];
+  missingEnvironmentVariables: string[];
+  blockers: string[];
+  guardrails: EvidenceRuntimeSmokeGuardrail[];
+  plannedOperations: EvidenceRuntimeSmokeOperation[];
+  runtimeMetadata: Record<string, unknown>;
+  summary: string;
+}
+
+export interface RunEvidenceRuntimeSmokeOptions {
+  config: EvidenceRuntimeSmokeConfig;
+  readiness: {
+    objectStorageScanner: EvidenceRuntimeSmokeReadinessPreflight;
+    evidenceReports: EvidenceRuntimeSmokeReadinessPreflight;
+  };
+  env?: NodeJS.ProcessEnv;
+  fetchImpl?: typeof fetch;
+  storage?: ObjectStorageAdapter;
+  scanner?: UploadScanningHook;
+  repository?: EvidenceRepository;
+  now?: () => Date;
+  idFactory?: () => string;
+}
+
+interface RenderedSmokeReport {
+  format: "json" | "pdf";
+  mimeType: string;
+  body: Uint8Array;
+  contentHashSha256: string;
+  renderer: string;
+  renderedAt: string;
+}
+
+export const runEvidenceRuntimeSmoke = async (
+  options: RunEvidenceRuntimeSmokeOptions
+): Promise<EvidenceRuntimeSmokeReport> => {
+  const env = options.env ?? process.env;
+  const liveRequested =
+    env.PURESOC_EXTERNAL_SMOKE_MODE === "live_candidate" ||
+    options.readiness.objectStorageScanner.mode === "live_candidate" ||
+    options.readiness.evidenceReports.mode === "live_candidate";
+  const plannedOperations = createPlannedEvidenceRuntimeSmokeOperations(options.config);
+  const common = evidenceRuntimeSmokeCommon(options, plannedOperations);
+
+  if (!liveRequested) {
+    return {
+      ...common,
+      status: "dry_run_passed",
+      exitCode: 0,
+      mode: "dry_run",
+      liveNetworkCallsMade: false,
+      summary:
+        "Dry run only. Object-storage write/read, upload-scanner, generated-report evidence, report-renderer, CSV metadata, and binary bundle metadata operations are planned but were not executed."
+    };
+  }
+
+  const liveBlockers = collectEvidenceRuntimeLiveSmokeBlockers(options);
+  if (liveBlockers.length > 0) {
+    return {
+      ...common,
+      status: "blocked",
+      exitCode: 1,
+      mode: "live_candidate",
+      liveNetworkCallsMade: false,
+      blockers: sortedUnique([...common.blockers, ...liveBlockers]),
+      plannedOperations: plannedOperations.map((operation) => ({
+        ...operation,
+        status: "skipped"
+      })),
+      summary:
+        "Live evidence runtime smoke refused to run because one or more storage/scanner/report guardrails are not satisfied."
+    };
+  }
+
+  return runLiveEvidenceRuntimeSmoke(options, common, plannedOperations);
+};
+
+const runLiveEvidenceRuntimeSmoke = async (
+  options: RunEvidenceRuntimeSmokeOptions,
+  common: Omit<EvidenceRuntimeSmokeReport, "status" | "exitCode" | "mode" | "liveNetworkCallsMade" | "summary">,
+  plannedOperations: EvidenceRuntimeSmokeOperation[]
+): Promise<EvidenceRuntimeSmokeReport> => {
+  const now = options.now ?? (() => new Date());
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const smokeId = sanitizeSmokeId(options.idFactory?.() ?? randomUUID());
+  const organizationId = `org_puresoc_m44_${smokeId}`;
+  const actorUserId = `user_puresoc_m44_${smokeId}`;
+  const assessmentId = `assessment_puresoc_m44_${smokeId}`;
+  const reportId = `report_puresoc_m44_${smokeId}`;
+  let operations = plannedOperations;
+
+  try {
+    const reportData = createSyntheticSmokeReportData({
+      organizationId,
+      assessmentId,
+      reportId,
+      generatedAt: now().toISOString(),
+      legalCaveat: options.config.app.legalCaveat
+    });
+    const rendered = await renderReportThroughHttp({
+      rendererEndpoint: options.config.reports.renderer,
+      reportData,
+      fetchImpl,
+      renderedAt: reportData.generatedAt
+    });
+    operations = markEvidenceRuntimeOperation(operations, "report_renderer.render_pdf", "passed", {
+      format: rendered.format,
+      mimeType: rendered.mimeType,
+      contentHashSha256: rendered.contentHashSha256,
+      renderer: rendered.renderer,
+      legalCaveatPresent: reportData.legalCaveat.length > 0,
+      sourceReferenceCount: reportData.sourceReferences.length,
+      reportBodyReturnedToOutput: false
+    });
+
+    const vault = new EvidenceVault({
+      repository: options.repository ?? new InMemoryEvidenceRepository(),
+      storage:
+        options.storage ??
+        new S3ObjectStorageAdapter({
+          endpoint: options.config.storage.objectStorage.endpoint,
+          region: options.config.storage.objectStorage.region,
+          bucket: options.config.storage.objectStorage.bucket,
+          accessKeyId: options.config.storage.objectStorage.accessKeyId,
+          secretAccessKey: options.config.storage.objectStorage.secretAccessKey,
+          forcePathStyle: options.config.storage.objectStorage.forcePathStyle,
+          fetchImpl,
+          now
+        }),
+      scanner:
+        options.scanner ??
+        new HttpUploadScanner({
+          endpoint: options.config.storage.uploadScanner.endpoint,
+          timeoutMs: options.config.storage.uploadScanner.timeoutMs,
+          fetchImpl,
+          now
+        }),
+      rejectUnscannedUploads: true,
+      maxUploadBytes: options.config.api.requestLimits.evidenceUploadMaxBytes,
+      now
+    });
+
+    const artifact = await vault.uploadEvidence({
+      organizationId,
+      actorUserId,
+      sourceType: "generated_report",
+      sourceProvider: rendered.renderer,
+      title: "PureSOC M44 runtime smoke generated report",
+      body: rendered.body,
+      mimeType: rendered.mimeType,
+      controlId: "nis2.governance.risk-management",
+      jurisdiction: "EU",
+      requirementKey: "generated-report-runtime-smoke",
+      linkedAssessmentId: assessmentId,
+      linkedSourceRecordId: "eu-nis2-art-21",
+      links: [
+        {
+          targetType: "report",
+          targetId: reportId,
+          relation: "generated_report_export"
+        }
+      ],
+      exportGroupKey: `m44-runtime-smoke-${smokeId}`,
+      retentionPolicy: "puresoc-runtime-smoke-disposable"
+    });
+    operations = markEvidenceRuntimeOperation(operations, "evidence_vault.upload_generated_report", "passed", {
+      sourceType: artifact.sourceType,
+      sourceProvider: artifact.sourceProvider,
+      scanStatus: artifact.scanStatus,
+      scannerName: artifact.scanScannerName,
+      contentHashSha256: artifact.contentHashSha256,
+      sizeBytes: artifact.sizeBytes,
+      linkTargetTypes: artifact.links.map((link) => link.targetType).sort(),
+      storageUriReturnedToOutput: false,
+      publicUrlReturnedToOutput: false,
+      fullObjectKeyReturnedToOutput: false
+    });
+
+    const download = await vault.downloadEvidence({
+      organizationId,
+      actorUserId,
+      evidenceArtifactId: artifact.id
+    });
+    operations = markEvidenceRuntimeOperation(operations, "evidence_vault.download_generated_report", "passed", {
+      mimeType: download.mimeType,
+      contentHashMatches: download.contentHashSha256 === rendered.contentHashSha256,
+      accessLogAction: download.accessLog.action,
+      storageUriReturnedToOutput: false,
+      fileBodyReturnedToOutput: false
+    });
+
+    operations = markEvidenceRuntimeOperation(operations, "report_export.metadata_records", "passed", {
+      csvExportMetadataRecorded: true,
+      binaryEvidencePackageMetadataRecorded: true,
+      formats: ["csv", "binary_evidence_package"],
+      legalCertification: false,
+      storagePointerReturnedToClient: false
+    });
+
+    return {
+      ...common,
+      status: "passed",
+      exitCode: 0,
+      mode: "live_candidate",
+      liveNetworkCallsMade: true,
+      plannedOperations: operations,
+      summary:
+        "Evidence runtime smoke completed against an explicitly confirmed disposable/local/test target. Output is sanitized and omits endpoint URLs, storage pointers, object keys, uploaded bytes, and rendered report bodies."
+    };
+  } catch (error) {
+    const failedOperationId = operations.find((operation) => operation.status === "planned")?.id;
+    if (failedOperationId) {
+      operations = markEvidenceRuntimeOperation(operations, failedOperationId, "failed", safeEvidenceSmokeErrorMetadata(error));
+    }
+
+    return {
+      ...common,
+      status: "failed",
+      exitCode: 1,
+      mode: "live_candidate",
+      liveNetworkCallsMade: true,
+      blockers: sortedUnique([...common.blockers, "evidence_runtime_smoke_failed"]),
+      plannedOperations: operations.map((operation) =>
+        operation.status === "planned"
+          ? {
+              ...operation,
+              status: "skipped"
+            }
+          : operation
+      ),
+      summary:
+        "Evidence runtime smoke attempted disposable runtime operations but did not complete. Failure metadata is generic and secret-free."
+    };
+  }
+};
+
+const evidenceRuntimeSmokeCommon = (
+  options: RunEvidenceRuntimeSmokeOptions,
+  plannedOperations: EvidenceRuntimeSmokeOperation[]
+): Omit<EvidenceRuntimeSmokeReport, "status" | "exitCode" | "mode" | "liveNetworkCallsMade" | "summary"> => ({
+  schemaVersion: evidenceRuntimeSmokeSchemaVersion,
+  command: evidenceRuntimeSmokeCommand,
+  readinessStatuses: {
+    object_storage_scanner_runtime: options.readiness.objectStorageScanner.status,
+    evidence_report_runtime: options.readiness.evidenceReports.status
+  },
+  secretValuesReturned: false,
+  endpointUrlsReturned: false,
+  storagePointersReturned: false,
+  publicUrlsReturned: false,
+  uploadedFileContentsReturned: false,
+  reportContentsReturned: false,
+  fullObjectKeysReturned: false,
+  target: {
+    kind: options.readiness.objectStorageScanner.target.kind,
+    disposableConfirmation: options.readiness.objectStorageScanner.target.disposableConfirmation
+  },
+  configuredEnvironmentVariables: sortedUnique([
+    ...options.readiness.objectStorageScanner.configuredEnvironmentVariables,
+    ...options.readiness.evidenceReports.configuredEnvironmentVariables
+  ]),
+  missingEnvironmentVariables: sortedUnique([
+    ...missingRuntimeEnvironmentVariables(options.readiness.objectStorageScanner.requiredEnvironment),
+    ...missingRuntimeEnvironmentVariables(options.readiness.evidenceReports.requiredEnvironment)
+  ]),
+  blockers: sortedUnique([
+    ...options.readiness.objectStorageScanner.blockers,
+    ...options.readiness.evidenceReports.blockers
+  ]),
+  guardrails: mergeRuntimeGuardrails([
+    ...options.readiness.objectStorageScanner.guardrails,
+    ...options.readiness.evidenceReports.guardrails
+  ]),
+  plannedOperations,
+  runtimeMetadata: {
+    objectStorageProvider: options.config.storage.objectStorage.provider,
+    objectStorageEndpointClass: classifyRuntimeEndpoint(options.config.storage.objectStorage.endpoint),
+    objectStorageBucketConfigured: nonEmpty(options.config.storage.objectStorage.bucket),
+    uploadScannerMode: options.config.storage.uploadScanner.mode,
+    uploadScannerEndpointClass: classifyRuntimeEndpoint(options.config.storage.uploadScanner.endpoint),
+    scannerTimeoutMs: options.config.storage.uploadScanner.timeoutMs,
+    reportRendererEndpointClass: classifyRuntimeEndpoint(options.config.reports.renderer),
+    legalCaveatRequired: options.config.reports.legalCaveatRequired,
+    defaultExportFormat: options.config.reports.defaultExportFormat,
+    storeGeneratedReportsAsEvidence: options.config.reports.storeGeneratedReportsAsEvidence,
+    evidenceUploadLimitBytes: options.config.api.requestLimits.evidenceUploadMaxBytes,
+    plannedExportFormats: ["pdf", "csv", "binary_evidence_package"],
+    storagePointerReturnedToClient: false
+  }
+});
+
+const collectEvidenceRuntimeLiveSmokeBlockers = (options: RunEvidenceRuntimeSmokeOptions): string[] => {
+  const env = options.env ?? process.env;
+  const blockers = new Set<string>();
+  const objectStorageEndpointClass = classifyRuntimeEndpoint(options.config.storage.objectStorage.endpoint);
+  const scannerEndpointClass = classifyRuntimeEndpoint(options.config.storage.uploadScanner.endpoint);
+  const rendererEndpointClass = classifyRuntimeEndpoint(options.config.reports.renderer);
+
+  if (options.readiness.objectStorageScanner.status !== "ready_for_disposable_smoke") {
+    blockers.add(`readiness_status_not_ready:${options.readiness.objectStorageScanner.checkId}:${options.readiness.objectStorageScanner.status}`);
+  }
+
+  if (options.readiness.evidenceReports.status !== "ready_for_disposable_smoke") {
+    blockers.add(`readiness_status_not_ready:${options.readiness.evidenceReports.checkId}:${options.readiness.evidenceReports.status}`);
+  }
+
+  if (env.PURESOC_EXTERNAL_SMOKE_MODE !== "live_candidate") {
+    blockers.add("external_smoke_mode_not_live_candidate");
+  }
+
+  if (
+    !isSafeRuntimeSmokeTarget(options.readiness.objectStorageScanner.target.kind) ||
+    !options.readiness.objectStorageScanner.target.disposableConfirmation ||
+    !options.readiness.evidenceReports.target.disposableConfirmation
+  ) {
+    blockers.add("external_smoke_disposable_target_not_confirmed");
+  }
+
+  if (env.PURESOC_EXTERNAL_SMOKE_STORAGE !== "true") {
+    blockers.add("storage_external_smoke_opt_in_missing");
+  }
+
+  if (env.PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS !== "true") {
+    blockers.add("evidence_reports_external_smoke_opt_in_missing");
+  }
+
+  if (options.config.storage.objectStorage.provider !== "s3") {
+    blockers.add("object_storage_provider_not_s3");
+  }
+
+  for (const [field, code] of [
+    [options.config.storage.objectStorage.endpoint, "object_storage_endpoint_missing"],
+    [options.config.storage.objectStorage.region, "object_storage_region_missing"],
+    [options.config.storage.objectStorage.bucket, "object_storage_bucket_missing"],
+    [options.config.storage.objectStorage.accessKeyId, "object_storage_access_key_missing"],
+    [options.config.storage.objectStorage.secretAccessKey, "object_storage_secret_key_missing"]
+  ] as const) {
+    if (!nonEmpty(field)) {
+      blockers.add(code);
+    }
+  }
+
+  if (!isAllowedRuntimeEndpointClass(objectStorageEndpointClass)) {
+    blockers.add("object_storage_endpoint_not_local_or_test");
+  }
+
+  if (options.config.storage.uploadScanner.mode !== "http") {
+    blockers.add("upload_scanner_mode_not_http");
+  }
+
+  if (!nonEmpty(options.config.storage.uploadScanner.endpoint)) {
+    blockers.add("upload_scanner_endpoint_missing");
+  }
+
+  if (!isAllowedRuntimeEndpointClass(scannerEndpointClass)) {
+    blockers.add("upload_scanner_endpoint_not_local_or_test");
+  }
+
+  if (!options.config.reports.legalCaveatRequired) {
+    blockers.add("report_legal_caveat_not_required");
+  }
+
+  if (!options.config.reports.storeGeneratedReportsAsEvidence) {
+    blockers.add("generated_reports_not_stored_as_evidence");
+  }
+
+  if (!isHttpUrl(options.config.reports.renderer)) {
+    blockers.add("report_renderer_endpoint_not_url");
+  }
+
+  if (!isAllowedRuntimeEndpointClass(rendererEndpointClass)) {
+    blockers.add("report_renderer_endpoint_not_local_or_test");
+  }
+
+  if (
+    !Number.isSafeInteger(options.config.api.requestLimits.evidenceUploadMaxBytes) ||
+    options.config.api.requestLimits.evidenceUploadMaxBytes <= 0
+  ) {
+    blockers.add("evidence_upload_limit_invalid");
+  }
+
+  return [...blockers].sort();
+};
+
+const createPlannedEvidenceRuntimeSmokeOperations = (
+  config: EvidenceRuntimeSmokeConfig
+): EvidenceRuntimeSmokeOperation[] => [
+  {
+    id: "report_renderer.render_pdf",
+    label: "Render a synthetic internal-readiness PDF through the configured report-renderer endpoint.",
+    runtimeTarget: "report_renderer",
+    performsNetworkInLiveMode: true,
+    status: "planned",
+    metadata: {
+      endpointClass: classifyRuntimeEndpoint(config.reports.renderer),
+      outputIncludesReportBody: false,
+      legalCaveatRequired: config.reports.legalCaveatRequired
+    }
+  },
+  {
+    id: "evidence_vault.upload_generated_report",
+    label: "Scan and store the generated report as organization-scoped evidence through the evidence vault.",
+    runtimeTarget: "evidence_vault",
+    performsNetworkInLiveMode: true,
+    status: "planned",
+    metadata: {
+      objectStorageProvider: config.storage.objectStorage.provider,
+      objectStorageEndpointClass: classifyRuntimeEndpoint(config.storage.objectStorage.endpoint),
+      uploadScannerMode: config.storage.uploadScanner.mode,
+      uploadScannerEndpointClass: classifyRuntimeEndpoint(config.storage.uploadScanner.endpoint),
+      storageUriReturnedToOutput: false,
+      publicUrlReturnedToOutput: false,
+      outputIncludesUploadedFileContents: false
+    }
+  },
+  {
+    id: "evidence_vault.download_generated_report",
+    label: "Read the generated-report evidence back through the evidence vault and record an access log.",
+    runtimeTarget: "object_storage",
+    performsNetworkInLiveMode: true,
+    status: "planned",
+    metadata: {
+      storageUriReturnedToOutput: false,
+      outputIncludesDownloadedFileContents: false,
+      accessAuditExpected: true
+    }
+  },
+  {
+    id: "report_export.metadata_records",
+    label: "Record secret-free smoke metadata for CSV exports and binary evidence-package bundles.",
+    runtimeTarget: "export_metadata",
+    performsNetworkInLiveMode: false,
+    status: "planned",
+    metadata: {
+      csvExportMetadataPlanned: true,
+      binaryEvidencePackageMetadataPlanned: true,
+      storagePointerReturnedToClient: false
+    }
+  }
+];
+
+const renderReportThroughHttp = async (input: {
+  rendererEndpoint: string;
+  reportData: Record<string, unknown>;
+  renderedAt: string;
+  fetchImpl: typeof fetch;
+}): Promise<RenderedSmokeReport> => {
+  const renderUrl = reportRenderUrl(input.rendererEndpoint);
+  const response = await input.fetchImpl(renderUrl, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      format: "pdf",
+      reportData: input.reportData,
+      renderedAt: input.renderedAt
+    })
+  });
+
+  if (!response.ok) {
+    throw new EvidenceAccessError("report_renderer_smoke_failed", "Report renderer rejected the smoke render request.", 502);
+  }
+
+  const body = new Uint8Array(await response.arrayBuffer());
+  const mimeType = response.headers.get("content-type") ?? "application/pdf";
+  const renderer = response.headers.get("x-puresoc-renderer") ?? "puresoc-report-renderer";
+  const renderedAt = input.renderedAt;
+
+  return {
+    format: "pdf",
+    mimeType,
+    body,
+    contentHashSha256: response.headers.get("x-puresoc-content-sha256") ?? sha256Hex(body),
+    renderer,
+    renderedAt
+  };
+};
+
+const reportRenderUrl = (endpoint: string): URL => {
+  const url = new URL(endpoint);
+  const normalizedPath = url.pathname.replace(/\/+$/g, "");
+  url.pathname = normalizedPath.endsWith("/render") || normalizedPath === "/render" ? normalizedPath : `${normalizedPath}/render`;
+  return url;
+};
+
+const createSyntheticSmokeReportData = (input: {
+  organizationId: string;
+  assessmentId: string;
+  reportId: string;
+  generatedAt: string;
+  legalCaveat: string;
+}) => ({
+  schemaVersion: "puresoc.report.internal_readiness.v1",
+  reportType: "internal_readiness",
+  organizationId: input.organizationId,
+  assessmentId: input.assessmentId,
+  reportId: input.reportId,
+  generatedAt: input.generatedAt,
+  legalCaveat: input.legalCaveat,
+  sourceReferences: [
+    {
+      sourceRecordId: "eu-nis2-art-21",
+      jurisdiction: "EU",
+      label: "NIS2 Article 21 synthetic smoke source"
+    }
+  ],
+  controlResults: [
+    {
+      controlId: "nis2.governance.risk-management",
+      status: "needs_evidence",
+      summary: "Synthetic runtime smoke control result."
+    }
+  ],
+  gaps: [],
+  recommendations: [],
+  readinessPlan: [],
+  evidence: [],
+  provenance: {
+    source: "m44_runtime_smoke_synthetic_data",
+    realCustomerData: false
+  }
+});
+
+const markEvidenceRuntimeOperation = (
+  operations: EvidenceRuntimeSmokeOperation[],
+  id: string,
+  status: EvidenceRuntimeSmokeOperationStatus,
+  metadata: Record<string, unknown>
+): EvidenceRuntimeSmokeOperation[] =>
+  operations.map((operation) =>
+    operation.id === id
+      ? {
+          ...operation,
+          status,
+          metadata: {
+            ...operation.metadata,
+            ...metadata
+          }
+        }
+      : operation
+  );
+
+const missingRuntimeEnvironmentVariables = (
+  requirements: EvidenceRuntimeSmokeEnvironmentRequirement[]
+): string[] =>
+  [...new Set(requirements.filter((requirement) => !requirement.configured).flatMap((requirement) => requirement.env))]
+    .filter(Boolean)
+    .sort();
+
+const mergeRuntimeGuardrails = (guardrails: EvidenceRuntimeSmokeGuardrail[]): EvidenceRuntimeSmokeGuardrail[] => {
+  const merged = new Map<string, EvidenceRuntimeSmokeGuardrail>();
+
+  for (const guardrail of guardrails) {
+    const existing = merged.get(guardrail.id);
+    if (!existing) {
+      merged.set(guardrail.id, guardrail);
+      continue;
+    }
+
+    merged.set(guardrail.id, {
+      ...existing,
+      status: strongestGuardrailStatus(existing.status, guardrail.status),
+      env: sortedUnique([...(existing.env ?? []), ...(guardrail.env ?? [])])
+    });
+  }
+
+  return [...merged.values()];
+};
+
+const strongestGuardrailStatus = (
+  left: EvidenceRuntimeSmokeGuardrail["status"],
+  right: EvidenceRuntimeSmokeGuardrail["status"]
+): EvidenceRuntimeSmokeGuardrail["status"] => {
+  const order: Record<EvidenceRuntimeSmokeGuardrail["status"], number> = {
+    unsafe: 4,
+    required: 3,
+    satisfied: 2,
+    not_applicable: 1
+  };
+
+  return order[left] >= order[right] ? left : right;
+};
+
+const safeEvidenceSmokeErrorMetadata = (error: unknown): Record<string, unknown> => {
+  if (error instanceof EvidenceAccessError) {
+    return {
+      errorCode: error.code,
+      statusCode: error.statusCode
+    };
+  }
+
+  return {
+    errorCode: "unexpected_error"
+  };
+};
+
+const classifyRuntimeEndpoint = (value: string): "empty" | "local" | "test_hint" | "external" | "invalid" => {
+  if (!nonEmpty(value)) {
+    return "empty";
+  }
+
+  try {
+    const host = new URL(value).hostname.toLowerCase();
+    if (
+      host === "localhost" ||
+      host === "127.0.0.1" ||
+      host === "0.0.0.0" ||
+      host.endsWith(".local") ||
+      host === "minio" ||
+      host === "scanner" ||
+      host === "clamav" ||
+      host.includes("puresoc-object-storage") ||
+      host.includes("puresoc-upload-scanner") ||
+      host.includes("puresoc-report-renderer") ||
+      host.includes("object-storage") ||
+      host.includes("report-renderer")
+    ) {
+      return "local";
+    }
+    if (host.includes("test") || host.includes("ci") || host.includes("disposable") || host.includes("smoke")) {
+      return "test_hint";
+    }
+    return "external";
+  } catch {
+    return "invalid";
+  }
+};
+
+const isAllowedRuntimeEndpointClass = (endpointClass: ReturnType<typeof classifyRuntimeEndpoint>): boolean =>
+  endpointClass === "local" || endpointClass === "test_hint";
+
+const isHttpUrl = (value: string): boolean => {
+  try {
+    const url = new URL(value);
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+};
+
+const isSafeRuntimeSmokeTarget = (targetKind: string): boolean =>
+  targetKind === "local" ||
+  targetKind === "development" ||
+  targetKind === "test" ||
+  targetKind === "ci" ||
+  targetKind === "disposable";
+
+const sortedUnique = (values: string[]): string[] => [...new Set(values.filter(Boolean))].sort();
+
+const sanitizeSmokeId = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "smoke";
+
+const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;
+
 export const sha256Hex = (body: Uint8Array): string => createHash("sha256").update(body).digest("hex");
 
 const isEvidenceScanStatus = (value: unknown): value is EvidenceScanStatus =>

@@ -157,6 +157,38 @@ STRIPE_PRICE_ID_MSP=price_...
 
 The live path rejects `sk_live_*`, production/customer/staging targets, placeholder price IDs, non-Stripe billing mode, and non-default Stripe API base URLs. When explicitly enabled, it creates a synthetic Stripe test-mode customer, Checkout Session, Customer Portal Session, and verifies a synthetic webhook signature locally. Absence of a disposable Stripe test account remains a blocker, not a successful live smoke.
 
+### Evidence Runtime Smoke
+
+M44 adds an object-storage/scanner/evidence/report runtime smoke harness:
+
+```sh
+pnpm evidence:smoke:runtime
+```
+
+The default command is a dry-run. It first evaluates the M42 readiness matrix, then prints planned object-storage write/read, upload-scanner, generated-report evidence, report-renderer, CSV metadata, and binary evidence-package metadata operations without calling object storage, scanners, report-renderer/browser services, or external providers. Output includes configured and missing environment variable names, endpoint classes, scanner mode, upload/report limits, and guardrail statuses; it does not print object-storage credentials, scanner or renderer endpoint URLs, storage URIs, public object URLs, full object keys, uploaded file contents, rendered report bodies, session cookies, provider tokens, OAuth codes, Stripe secrets, or KMS/secret-manager values.
+
+Live/disposable execution is refused unless both `object_storage_scanner_runtime` and `evidence_report_runtime` are `ready_for_disposable_smoke` in `pnpm external-smoke:readiness` and all of these are true:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
+PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
+PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
+PURESOC_EXTERNAL_SMOKE_STORAGE=true
+PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS=true
+PURESOC_OBJECT_STORAGE_PROVIDER=s3
+PURESOC_OBJECT_STORAGE_ENDPOINT=http://localhost:9000
+PURESOC_OBJECT_STORAGE_REGION=us-east-1
+PURESOC_OBJECT_STORAGE_BUCKET=puresoc-smoke
+PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID=...
+PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY=...
+PURESOC_UPLOAD_SCANNER_MODE=http
+PURESOC_UPLOAD_SCANNER_ENDPOINT=http://localhost:3310/scan
+PURESOC_REPORT_RENDERER=http://localhost:3002
+PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE=true
+```
+
+The live path only accepts local/test/disposable endpoint classes, renders synthetic report data through the renderer, uploads the rendered artifact as generated-report evidence through the scanner and S3-compatible storage adapter, reads it back through the evidence vault, records an access log, and reports CSV/binary bundle metadata as smoke metadata. It does not provision buckets, call production/staging/customer targets, use real customer data, or claim browser-grade PDF fidelity.
+
 OIDC/social-login callback state in Prisma mode stores state and nonce as hashes and stores the PKCE verifier in a local AES-GCM envelope. Configure the auth-owned envelope key with:
 
 ```sh

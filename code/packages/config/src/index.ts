@@ -413,6 +413,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     },
     reports: {
       ...config.reports,
+      renderer: env.PURESOC_REPORT_RENDERER ?? config.reports.renderer,
       defaultExportFormat:
         env.PURESOC_REPORT_DEFAULT_EXPORT_FORMAT === "pdf" ? "pdf" : config.reports.defaultExportFormat,
       storeGeneratedReportsAsEvidence: readBoolean(
