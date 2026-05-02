@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M49 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M50 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -58,8 +58,9 @@ As of 2026-05-03, M1-M49 are implemented at contract/runtime-baseline level.
 - M47 adds `pnpm auth:smoke:deployment`, a deployed-auth smoke harness that stays dry-run by default, adds an M42 `auth_deployment_browser` readiness check, refuses live-candidate execution unless local/test/ci/disposable target guardrails and `PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true` are set, and exercises local disposable API health, trusted/untrusted Origin, registration/login/session/logout cookies, callback exemptions, forwarded-IP rate limiting, and RBAC scoping through deterministic tests while keeping endpoint URLs, passwords, session tokens/cookies, authorization headers, user emails, and secrets out of output. No approved deployed TLS/reverse-proxy/browser target was exercised in default validation.
 - M48 adds provider-token custody deployment readiness and runbook hardening. `pnpm provider-token:smoke` now reports local, in-a-box, and SaaS custody readiness; `pnpm external-smoke:readiness` includes a `provider_token_custody_deployment` check; previous-key window/backfill/retirement confirmations are reported as blockers; SaaS external KMS/HSM/secret-manager custody remains explicitly deferred; and rotation runbook metadata separates smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key retirement expectations, and deferred live custody. No live custody backend, Microsoft Graph call, provider write, or ciphertext backfill was executed.
 - M49 adds a metadata-only external live-smoke target selector. `pnpm external-smoke:readiness` now includes a `targetSelection` block, and `pnpm external-smoke:select-target` prints the selector alone. The selector ranks Microsoft 365 read-only tenant, Stripe test-mode, OIDC callback, auth deployment, evidence runtime, and provider-token custody paths with stable reason codes, selects exactly one path only when readiness is `ready_for_disposable_smoke`, and keeps default/no-approved-target posture dry-run only. No external service, deployment, KMS/HSM/secret-manager, browser/PDF service, public regulatory URL, or provider write executor was called.
+- M50 runs the M49 readiness/selector flow as a blocker-review milestone. The selector stayed in dry-run mode with unknown target kind, no disposable confirmation, `readyCandidateCount: 0`, `selectedPathId: null`, and no selected command. No live smoke command was run, and GAP-044 remains open with explicit blockers until an approved local/test/ci/disposable target is configured and selected.
 - Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M50.md`, focused on selecting one approved disposable/test live-smoke path or keeping all live paths blocked until approval exists.
+- Next planned milestone: `docs/PLAN_M51.md`, focused on distributed API rate limiting, proxy-aware client-IP trust, and CSRF-token decision hardening while external live-smoke targets remain blocked.
 
 ## Milestones
 
@@ -80,8 +81,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M49.md` record completed incremental milestones.
-- `docs/PLAN_M50.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M50.md` record completed incremental milestones.
+- `docs/PLAN_M51.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

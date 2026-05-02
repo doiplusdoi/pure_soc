@@ -4,8 +4,10 @@
 
 Use the M49 selector to run exactly one approved disposable/test live-smoke follow-up if the selector chooses one ready path and the user has explicitly approved that target. If no approved target exists, keep every live path blocked and document the blockers.
 
-Status: staged for implementation after M49.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -96,32 +98,55 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Ran the M50 selector preflight commands before any live smoke command.
+- `pnpm` and sandbox-local `npm` were unavailable, so host `npm run ...` equivalents were used through `flatpak-spawn --host`.
+- `external-smoke:readiness` remained metadata-only and reported dry-run mode, unknown target kind, no disposable confirmation, no live network calls, no provider writes, and `ready_for_disposable_smoke: 0`.
+- `external-smoke:select-target` reported `outcome: "no_ready_path"`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`.
+- No live smoke command was run because the selector selected no path and no approved local/test/ci/disposable target was provided.
+- Top blocker posture recorded from selector output:
+  - Microsoft 365 read-only tenant smoke is blocked by missing client ID, client secret, and disposable/test tenant ID variables.
+  - Provider-token custody deployment remains configured dry-run only because live-candidate target approval/path opt-in is absent.
+  - Auth deployment, Stripe, Microsoft Entra, Google, GitHub, and evidence runtime paths are not configured for live smoke selection.
 
 Changed files:
 
-- Pending.
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M50.md`
+- `docs/PLAN_M51.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Failed first, expected: `pnpm external-smoke:readiness` (`pnpm: command not found`).
+- Failed fallback, expected: `npm run external-smoke:readiness` (`npm: command not found`).
+- Passed: `flatpak-spawn --host npm run external-smoke:readiness` (metadata-only; no selected path; no live calls).
+- Passed: `flatpak-spawn --host npm run external-smoke:select-target` (selector-only; `selectedPathId: null`; no live calls).
+- Passed: `flatpak-spawn --host npm run lint`.
+- Passed: `flatpak-spawn --host npm run external-smoke:readiness` after documentation updates (same metadata-only blocker posture).
+- Passed: `flatpak-spawn --host npm run external-smoke:select-target` after documentation updates (`outcome: no_ready_path`, `selectedPathId: null`).
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M50 blocker-review scope. The selector was run first, selected no ready path, and no live external service or provider write command was executed.
 
 Gaps updated:
 
-- Pending.
+- GAP-044 remains open and was narrowed with the M50 blocker-review result. No live external smoke target was approved or exercised.
+- GAP-030, GAP-039, GAP-040, and GAP-043 were preserved.
 
 Prompt handoff:
 
-- Pending. M50 implementation must create `docs/PLAN_M51.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 49 / PLAN_M50 complete and stages Prompt 50 / PLAN_M51.
+- `docs/PLAN_M51.md` created as the next active milestone stub.
 
 Residual risk:
 
-- Pending.
+- Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, report-renderer/browser services, KMS/HSM/secret-manager APIs, external signing services, public regulatory URLs, deployed auth targets, and provider writes remain untested live paths because no approved disposable/test target was selected or provided.
