@@ -3,11 +3,14 @@ import { randomUUID } from "node:crypto";
 import {
   assertReadOnlyProviderOperation,
   emptyProviderModuleSyncResult,
+  InMemoryProviderResourceStore,
   ProviderConnectorError,
   redactProviderSecrets,
+  runProviderConnectorPipeline,
   type CloudProviderConnector,
   type CompleteConnectionInput,
   type ConnectionRedirect,
+  type ProviderPipelineResult,
   type ProviderCapabilityRecord,
   type ProviderConnectionRecord,
   type ProviderConnectionResult,
@@ -18,6 +21,7 @@ import {
   type ProviderPermissionBundleInput,
   type ProviderRawResourceInput,
   type ProviderRecommendationInput,
+  type ProviderResourceStore,
   type SyncInput,
   type TenantProfileInput
 } from "@puresoc/providers-core";
@@ -33,6 +37,8 @@ import {
   microsoft365PermissionBundles,
   microsoft365ProviderKey,
   microsoft365ReadModules,
+  microsoft365ReadPermissionBundles,
+  microsoft365WritePermissionBundles,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   missingPermissions,
@@ -217,7 +223,7 @@ export const createMicrosoft365Connector = (
   };
 
   return {
-    providerKey: microsoft365ProviderKey,
+    providerKey: microsoft365ProviderKey as typeof microsoft365ProviderKey,
     beginConnection: async (input): Promise<ConnectionRedirect> => {
       if (!options.clientId) {
         throw new ProviderConnectorError("microsoft365_client_id_missing", "Microsoft 365 client ID is not configured.");
@@ -1251,3 +1257,687 @@ const severityValue = (value: unknown): "informational" | "low" | "medium" | "hi
     ? severity
     : "informational";
 };
+
+export const microsoft365ReadOnlySmokeSchemaVersion = "puresoc.microsoft365.read_only_smoke.v1" as const;
+export const microsoft365ReadOnlySmokeCommand = "pnpm microsoft365:smoke:read-only" as const;
+
+export type Microsoft365ReadOnlySmokeStatus = "dry_run_passed" | "blocked" | "passed" | "failed";
+export type Microsoft365ReadOnlySmokeOperationStatus = "planned" | "skipped" | "passed" | "failed";
+
+export interface Microsoft365ReadOnlySmokeEnvironmentRequirement {
+  label: string;
+  env: string[];
+  sensitive: boolean;
+  requiredFor: "configuration" | "secret" | "disposable_smoke";
+  configured: boolean;
+}
+
+export interface Microsoft365ReadOnlySmokeGuardrail {
+  id: string;
+  status: "satisfied" | "required" | "unsafe" | "not_applicable";
+  summary: string;
+  env?: string[];
+}
+
+export interface Microsoft365ReadOnlySmokeReadinessPreflight {
+  checkId: "microsoft365_read_only_tenant";
+  status: string;
+  mode: "dry_run" | "live_candidate";
+  target: {
+    kind: string;
+    disposableConfirmation: boolean;
+  };
+  requiredEnvironment: Microsoft365ReadOnlySmokeEnvironmentRequirement[];
+  configuredEnvironmentVariables: string[];
+  blockers: string[];
+  guardrails: Microsoft365ReadOnlySmokeGuardrail[];
+  metadata: Record<string, unknown>;
+}
+
+export interface Microsoft365ReadOnlySmokeConfig {
+  clientId: string;
+  clientSecret: string;
+  tenantId: string;
+  authorityHost: string;
+  graphBaseUrl: string;
+  requestedModules: string[];
+  requestedPermissionBundles: Microsoft365ReadPermissionBundleKey[];
+  maxRetries: number;
+}
+
+export interface Microsoft365ReadOnlySmokeOperation {
+  id: string;
+  label: string;
+  graphPathPattern: string | null;
+  performsNetworkInLiveMode: boolean;
+  status: Microsoft365ReadOnlySmokeOperationStatus;
+  metadata: Record<string, unknown>;
+}
+
+export interface Microsoft365ReadOnlySmokeReport {
+  schemaVersion: typeof microsoft365ReadOnlySmokeSchemaVersion;
+  command: typeof microsoft365ReadOnlySmokeCommand;
+  status: Microsoft365ReadOnlySmokeStatus;
+  exitCode: 0 | 1;
+  mode: "dry_run" | "live_candidate";
+  readinessStatus: string;
+  liveNetworkCallsMade: boolean;
+  secretValuesReturned: false;
+  tokenValuesReturned: false;
+  endpointUrlsReturned: false;
+  tenantPayloadsReturned: false;
+  providerWritesEnabled: false;
+  writeScopesRequested: false;
+  writeBundlesEnabled: false;
+  target: {
+    kind: string;
+    disposableConfirmation: boolean;
+  };
+  configuredEnvironmentVariables: string[];
+  missingEnvironmentVariables: string[];
+  blockers: string[];
+  guardrails: Microsoft365ReadOnlySmokeGuardrail[];
+  plannedOperations: Microsoft365ReadOnlySmokeOperation[];
+  permissionMetadata: {
+    providerKey: typeof microsoft365ProviderKey;
+    readPermissionBundleKeys: string[];
+    readModuleKeys: string[];
+    deferredReadModules: string[];
+    writePermissionBundlesDisabled: string[];
+    allReadBundlesMarkedReadOnly: boolean;
+  };
+  runtimeMetadata: {
+    authorityHostClass: Microsoft365SmokeEndpointClass;
+    graphBaseUrlClass: Microsoft365SmokeEndpointClass;
+    requestedModuleCount: number;
+    requestedPermissionBundleCount: number;
+    maxRetries: number;
+    credentialEnvelopeUsed: boolean;
+    providerStore: "in_memory_provider_neutral";
+    providerWriteExecution: "disabled";
+  };
+  summary: string;
+}
+
+export interface RunMicrosoft365ReadOnlySmokeOptions {
+  config: Microsoft365ReadOnlySmokeConfig;
+  readiness: Microsoft365ReadOnlySmokeReadinessPreflight;
+  env?: NodeJS.ProcessEnv;
+  tokenClient?: Microsoft365TokenClient;
+  graphHttpClient?: MicrosoftGraphHttpClient;
+  tokenCipher?: Microsoft365TokenCipher;
+  store?: ProviderResourceStore;
+  now?: () => Date;
+  idFactory?: () => string;
+}
+
+type Microsoft365SmokeEndpointClass = "official_microsoft_public_cloud" | "empty" | "custom";
+
+export const microsoft365ReadOnlySmokeConfigFromEnv = (
+  env: NodeJS.ProcessEnv = process.env
+): Microsoft365ReadOnlySmokeConfig => ({
+  clientId: firstConfiguredEnv(env, ["MICROSOFT365_CLIENT_ID", "M365_CLIENT_ID"]),
+  clientSecret: firstConfiguredEnv(env, ["MICROSOFT365_CLIENT_SECRET", "M365_CLIENT_SECRET"]),
+  tenantId: firstConfiguredEnv(env, ["PURESOC_MICROSOFT365_SMOKE_TENANT_ID", "MICROSOFT365_TENANT_ID", "M365_TENANT_ID"]),
+  authorityHost: "https://login.microsoftonline.com",
+  graphBaseUrl: "https://graph.microsoft.com/v1.0",
+  requestedModules: [...microsoft365ReadModules],
+  requestedPermissionBundles: [...microsoft365ReadPermissionBundles],
+  maxRetries: 3
+});
+
+export const runMicrosoft365ReadOnlySmoke = async (
+  options: RunMicrosoft365ReadOnlySmokeOptions
+): Promise<Microsoft365ReadOnlySmokeReport> => {
+  const env = options.env ?? process.env;
+  const liveRequested =
+    env.PURESOC_EXTERNAL_SMOKE_MODE === "live_candidate" || options.readiness.mode === "live_candidate";
+  const plannedOperations = createPlannedMicrosoft365SmokeOperations(options.config);
+  const common = microsoft365SmokeReportCommon(options, plannedOperations);
+
+  if (!liveRequested) {
+    return {
+      ...common,
+      status: "dry_run_passed",
+      exitCode: 0,
+      mode: "dry_run",
+      liveNetworkCallsMade: false,
+      summary:
+        "Dry run only. Microsoft 365 app-only token, encrypted credential envelope, provider-neutral storage, and read-only Graph module operations are planned but were not executed."
+    };
+  }
+
+  const liveBlockers = collectMicrosoft365LiveSmokeBlockers(options);
+  if (liveBlockers.length > 0) {
+    return {
+      ...common,
+      status: "blocked",
+      exitCode: 1,
+      mode: "live_candidate",
+      liveNetworkCallsMade: false,
+      blockers: sortedUnique([...common.blockers, ...liveBlockers]),
+      plannedOperations: plannedOperations.map((operation) => ({
+        ...operation,
+        status: "skipped"
+      })),
+      summary: "Live Microsoft 365 read-only smoke refused to run because one or more guardrails are not satisfied."
+    };
+  }
+
+  return runLiveMicrosoft365ReadOnlySmoke(options, common, plannedOperations);
+};
+
+const runLiveMicrosoft365ReadOnlySmoke = async (
+  options: RunMicrosoft365ReadOnlySmokeOptions,
+  common: Omit<
+    Microsoft365ReadOnlySmokeReport,
+    "status" | "exitCode" | "mode" | "liveNetworkCallsMade" | "summary"
+  >,
+  plannedOperations: Microsoft365ReadOnlySmokeOperation[]
+): Promise<Microsoft365ReadOnlySmokeReport> => {
+  const now = options.now ?? (() => new Date());
+  const smokeId = sanitizeMicrosoft365SmokeId(options.idFactory?.() ?? randomUUID());
+  const organizationId = `org_puresoc_m45_${smokeId}`;
+  const providerConnectionId = `m365_connection_m45_${smokeId}`;
+  const tokenClient = options.tokenClient ?? createFetchMicrosoft365TokenClient();
+  const tokenCipher = options.tokenCipher ?? createMicrosoft365TokenCipherFromEnv(options.env);
+  const graphClient = new MicrosoftGraphClient({
+    baseUrl: options.config.graphBaseUrl,
+    httpClient: options.graphHttpClient
+  });
+  const store =
+    options.store ??
+    new InMemoryProviderResourceStore({
+      now,
+      idFactory: () => `m45_${sanitizeMicrosoft365SmokeId(randomUUID())}`
+    });
+  let operations = plannedOperations;
+
+  try {
+    operations = markMicrosoft365SmokeOperation(operations, "microsoft365.permission_metadata.validate", "passed", {
+      readPermissionBundles: options.config.requestedPermissionBundles,
+      readModuleCount: options.config.requestedModules.length,
+      writeBundlesEnabled: false,
+      writeScopesRequested: false
+    });
+
+    const token = await tokenClient({
+      tenantId: options.config.tenantId,
+      clientId: options.config.clientId,
+      clientSecret: options.config.clientSecret,
+      authorityHost: options.config.authorityHost
+    });
+    const grantedPermissions = [...new Set(token.grantedPermissions ?? decodeJwtRoles(token.accessToken))].sort();
+    const tokenTenantId = token.tenantId ?? decodeJwtTenantId(token.accessToken);
+    if (tokenTenantId && tokenTenantId !== options.config.tenantId) {
+      throw new ProviderConnectorError("microsoft365_smoke_tenant_mismatch", "Microsoft 365 smoke token tenant mismatch.", {
+        tokenTenantConfigured: true,
+        callbackTenantConfigured: true
+      });
+    }
+    operations = markMicrosoft365SmokeOperation(operations, "microsoft365.token.acquire_app_only", "passed", {
+      tokenType: token.tokenType ?? "Bearer",
+      expiresAtConfigured: Boolean(token.expiresAt || token.expiresIn),
+      grantedPermissionCount: grantedPermissions.length,
+      tokenReturnedToOutput: false,
+      clientSecretReturnedToOutput: false
+    });
+
+    const credential: Microsoft365StoredCredential = {
+      tenantId: options.config.tenantId,
+      accessToken: token.accessToken,
+      tokenType: token.tokenType ?? "Bearer",
+      expiresAt: token.expiresAt ?? new Date(now().getTime() + (token.expiresIn ?? 3600) * 1000).toISOString(),
+      grantedPermissions,
+      requestedPermissionBundles: options.config.requestedPermissionBundles,
+      consentedAt: now().toISOString()
+    };
+    const encryptedPayload = tokenCipher.encrypt(credential);
+    const decryptedCredential = tokenCipher.decrypt<Microsoft365StoredCredential>(encryptedPayload);
+    operations = markMicrosoft365SmokeOperation(operations, "microsoft365.credential_envelope.encrypt", "passed", {
+      encryptedEnvelopeCreated: true,
+      decryptedForReadOnlyPipeline: true,
+      encryptedEnvelopeReturnedToOutput: false,
+      accessTokenReturnedToOutput: false,
+      refreshTokenStored: false
+    });
+
+    const connection = await store.createConnection({
+      id: providerConnectionId,
+      organizationId,
+      providerKey: microsoft365ProviderKey,
+      displayName: "Microsoft 365: PureSOC M45 disposable smoke",
+      externalTenantId: options.config.tenantId,
+      externalTenantName: "PureSOC M45 disposable smoke tenant",
+      status: "connected",
+      readEnabled: true,
+      writeEnabled: false,
+      metadata: {
+        smoke: "puresoc_m45",
+        requestedPermissionBundles: options.config.requestedPermissionBundles,
+        grantedPermissionCount: grantedPermissions.length
+      }
+    });
+    await store.upsertCredential({
+      organizationId,
+      providerConnectionId: connection.id,
+      providerKey: microsoft365ProviderKey,
+      credentialType: "oauth_token",
+      encryptedPayload,
+      expiresAt: credential.expiresAt,
+      rotationRequired: false
+    });
+    for (const bundle of buildPermissionBundleInputs({
+      organizationId,
+      providerConnectionId: connection.id,
+      requestedBundles: options.config.requestedPermissionBundles,
+      grantedPermissions
+    })) {
+      await store.upsertPermissionBundle(bundle);
+    }
+    operations = markMicrosoft365SmokeOperation(operations, "microsoft365.provider_storage.seed_connection", "passed", {
+      providerKey: microsoft365ProviderKey,
+      readEnabled: connection.readEnabled,
+      writeEnabled: connection.writeEnabled,
+      credentialEnvelopePersisted: true,
+      organizationScoped: true,
+      tenantIdReturnedToOutput: false
+    });
+
+    const connector = createMicrosoft365Connector({
+      clientId: options.config.clientId,
+      graphClient,
+      staticCredential: decryptedCredential,
+      now
+    });
+    const pipelineResult = await runProviderConnectorPipeline({
+      connector,
+      store,
+      organizationId,
+      providerConnectionId: connection.id,
+      requestedModules: options.config.requestedModules,
+      maxRetries: options.config.maxRetries,
+      allowProviderWrites: false
+    });
+    operations = markMicrosoft365SmokeOperation(
+      operations,
+      "microsoft365.graph.read_only_modules",
+      "passed",
+      providerPipelineSmokeMetadata(pipelineResult)
+    );
+
+    return {
+      ...common,
+      status: "passed",
+      exitCode: 0,
+      mode: "live_candidate",
+      liveNetworkCallsMade: true,
+      plannedOperations: operations,
+      summary:
+        "Microsoft 365 read-only smoke completed against an explicitly confirmed disposable/test tenant. Output is sanitized and omits tokens, tenant payloads, endpoint URLs, and raw Graph data."
+    };
+  } catch (error) {
+    const failedOperationId = operations.find((operation) => operation.status === "planned")?.id;
+    if (failedOperationId) {
+      operations = markMicrosoft365SmokeOperation(operations, failedOperationId, "failed", safeMicrosoft365SmokeErrorMetadata(error));
+    }
+
+    return {
+      ...common,
+      status: "failed",
+      exitCode: 1,
+      mode: "live_candidate",
+      liveNetworkCallsMade: true,
+      blockers: sortedUnique([...common.blockers, "microsoft365_read_only_smoke_failed"]),
+      plannedOperations: operations.map((operation) =>
+        operation.status === "planned"
+          ? {
+              ...operation,
+              status: "skipped"
+            }
+          : operation
+      ),
+      summary:
+        "Microsoft 365 read-only smoke attempted disposable Graph operations but did not complete. Failure metadata is generic and secret-free."
+    };
+  }
+};
+
+const microsoft365SmokeReportCommon = (
+  options: RunMicrosoft365ReadOnlySmokeOptions,
+  plannedOperations: Microsoft365ReadOnlySmokeOperation[]
+): Omit<Microsoft365ReadOnlySmokeReport, "status" | "exitCode" | "mode" | "liveNetworkCallsMade" | "summary"> => ({
+  schemaVersion: microsoft365ReadOnlySmokeSchemaVersion,
+  command: microsoft365ReadOnlySmokeCommand,
+  readinessStatus: options.readiness.status,
+  secretValuesReturned: false,
+  tokenValuesReturned: false,
+  endpointUrlsReturned: false,
+  tenantPayloadsReturned: false,
+  providerWritesEnabled: false,
+  writeScopesRequested: false,
+  writeBundlesEnabled: false,
+  target: {
+    kind: options.readiness.target.kind,
+    disposableConfirmation: options.readiness.target.disposableConfirmation
+  },
+  configuredEnvironmentVariables: [...options.readiness.configuredEnvironmentVariables].sort(),
+  missingEnvironmentVariables: missingMicrosoft365SmokeEnvironmentVariables(options.readiness.requiredEnvironment),
+  blockers: sortedUnique(options.readiness.blockers),
+  guardrails: options.readiness.guardrails,
+  plannedOperations,
+  permissionMetadata: microsoft365SmokePermissionMetadata(options.readiness.metadata),
+  runtimeMetadata: {
+    authorityHostClass: classifyMicrosoft365SmokeEndpoint(options.config.authorityHost, "https://login.microsoftonline.com"),
+    graphBaseUrlClass: classifyMicrosoft365SmokeEndpoint(options.config.graphBaseUrl, "https://graph.microsoft.com/v1.0"),
+    requestedModuleCount: options.config.requestedModules.length,
+    requestedPermissionBundleCount: options.config.requestedPermissionBundles.length,
+    maxRetries: options.config.maxRetries,
+    credentialEnvelopeUsed: true,
+    providerStore: "in_memory_provider_neutral",
+    providerWriteExecution: "disabled"
+  }
+});
+
+const collectMicrosoft365LiveSmokeBlockers = (options: RunMicrosoft365ReadOnlySmokeOptions): string[] => {
+  const env = options.env ?? process.env;
+  const blockers = new Set<string>();
+  const permissionMetadata = microsoft365SmokePermissionMetadata(options.readiness.metadata);
+
+  if (options.readiness.status !== "ready_for_disposable_smoke") {
+    blockers.add(`readiness_status_not_ready:${options.readiness.status}`);
+  }
+
+  if (env.PURESOC_EXTERNAL_SMOKE_MODE !== "live_candidate") {
+    blockers.add("external_smoke_mode_not_live_candidate");
+  }
+
+  if (!isSafeMicrosoft365SmokeTarget(options.readiness.target.kind) || !options.readiness.target.disposableConfirmation) {
+    blockers.add("external_smoke_disposable_target_not_confirmed");
+  }
+
+  if (env.PURESOC_EXTERNAL_SMOKE_MICROSOFT365 !== "true") {
+    blockers.add("microsoft365_external_smoke_opt_in_missing");
+  }
+
+  if (!nonEmpty(options.config.clientId)) {
+    blockers.add("microsoft365_client_id_missing");
+  }
+
+  if (!nonEmpty(options.config.clientSecret)) {
+    blockers.add("microsoft365_client_secret_missing");
+  }
+
+  if (!nonEmpty(options.config.tenantId)) {
+    blockers.add("microsoft365_tenant_id_missing");
+  }
+
+  if (classifyMicrosoft365SmokeEndpoint(options.config.authorityHost, "https://login.microsoftonline.com") !== "official_microsoft_public_cloud") {
+    blockers.add("microsoft365_authority_host_not_official_public_cloud");
+  }
+
+  if (classifyMicrosoft365SmokeEndpoint(options.config.graphBaseUrl, "https://graph.microsoft.com/v1.0") !== "official_microsoft_public_cloud") {
+    blockers.add("microsoft365_graph_base_url_not_official_public_cloud");
+  }
+
+  if (!permissionMetadata.allReadBundlesMarkedReadOnly) {
+    blockers.add("microsoft365_read_bundle_metadata_not_read_only");
+  }
+
+  for (const writeBundle of microsoft365WritePermissionBundles) {
+    if (!permissionMetadata.writePermissionBundlesDisabled.includes(writeBundle)) {
+      blockers.add(`microsoft365_write_bundle_not_reported_disabled:${writeBundle}`);
+    }
+  }
+
+  const requestedModuleSet = new Set(microsoft365ReadModules);
+  for (const moduleKey of options.config.requestedModules) {
+    if (!requestedModuleSet.has(moduleKey as Microsoft365ModuleKey)) {
+      blockers.add(`microsoft365_requested_module_not_read_only:${moduleKey}`);
+    }
+  }
+
+  const requestedBundleSet = new Set(microsoft365ReadPermissionBundles);
+  for (const bundleKey of options.config.requestedPermissionBundles) {
+    if (!requestedBundleSet.has(bundleKey)) {
+      blockers.add(`microsoft365_requested_bundle_not_read_only:${bundleKey}`);
+    }
+  }
+
+  return [...blockers].sort();
+};
+
+const createPlannedMicrosoft365SmokeOperations = (
+  config: Microsoft365ReadOnlySmokeConfig
+): Microsoft365ReadOnlySmokeOperation[] => [
+  {
+    id: "microsoft365.permission_metadata.validate",
+    label: "Validate read-only permission bundle metadata and disabled write-bundle reporting.",
+    graphPathPattern: null,
+    performsNetworkInLiveMode: false,
+    status: "planned",
+    metadata: {
+      requestedPermissionBundles: config.requestedPermissionBundles,
+      writeBundlesEnabled: false,
+      writeScopesRequested: false
+    }
+  },
+  {
+    id: "microsoft365.token.acquire_app_only",
+    label: "Acquire an app-only Microsoft Graph token for the approved disposable/test tenant.",
+    graphPathPattern: null,
+    performsNetworkInLiveMode: true,
+    status: "planned",
+    metadata: {
+      authorityHostClass: classifyMicrosoft365SmokeEndpoint(config.authorityHost, "https://login.microsoftonline.com"),
+      scopeResource: "microsoft_graph_default",
+      grantType: "client_credentials",
+      tokenReturnedToOutput: false,
+      clientSecretReturnedToOutput: false
+    }
+  },
+  {
+    id: "microsoft365.credential_envelope.encrypt",
+    label: "Create and validate a local encrypted provider credential envelope without returning it.",
+    graphPathPattern: null,
+    performsNetworkInLiveMode: false,
+    status: "planned",
+    metadata: {
+      encryptedEnvelopeReturnedToOutput: false,
+      accessTokenReturnedToOutput: false,
+      refreshTokenStored: false
+    }
+  },
+  {
+    id: "microsoft365.provider_storage.seed_connection",
+    label: "Seed provider-neutral in-memory connection, permission-bundle, and credential records.",
+    graphPathPattern: null,
+    performsNetworkInLiveMode: false,
+    status: "planned",
+    metadata: {
+      providerKey: microsoft365ProviderKey,
+      organizationScoped: true,
+      writeEnabled: false,
+      tenantIdReturnedToOutput: false
+    }
+  },
+  {
+    id: "microsoft365.graph.read_only_modules",
+    label: "Run read-only Microsoft Graph modules through the provider-neutral connector pipeline.",
+    graphPathPattern: microsoft365SmokeGraphPathSummary(config.requestedModules),
+    performsNetworkInLiveMode: true,
+    status: "planned",
+    metadata: {
+      graphBaseUrlClass: classifyMicrosoft365SmokeEndpoint(config.graphBaseUrl, "https://graph.microsoft.com/v1.0"),
+      requestedModules: config.requestedModules,
+      rawTenantPayloadsReturnedToOutput: false,
+      userEmailsReturnedToOutput: false,
+      providerWritesEnabled: false
+    }
+  }
+];
+
+const microsoft365SmokePermissionMetadata = (metadata: Record<string, unknown>) => {
+  const permissionMetadata = asRecord(metadata.permissionMetadata);
+  const readPermissionBundlesRaw = Array.isArray(permissionMetadata.readPermissionBundles)
+    ? permissionMetadata.readPermissionBundles.map(asRecord)
+    : [];
+  const readModulesRaw = Array.isArray(permissionMetadata.readModules)
+    ? permissionMetadata.readModules.map(asRecord)
+    : [];
+  const deferredReadModules = arrayOfStrings(permissionMetadata.deferredReadModules);
+  const writePermissionBundlesDisabled = arrayOfStrings(permissionMetadata.writePermissionBundlesDisabled);
+
+  return {
+    providerKey: microsoft365ProviderKey as "microsoft365",
+    readPermissionBundleKeys: readPermissionBundlesRaw
+      .map((bundle) => stringValue(bundle.bundleKey))
+      .filter(Boolean)
+      .sort(),
+    readModuleKeys: readModulesRaw.map((module) => stringValue(module.moduleKey)).filter(Boolean).sort(),
+    deferredReadModules: [...deferredReadModules].sort(),
+    writePermissionBundlesDisabled: [...writePermissionBundlesDisabled].sort(),
+    allReadBundlesMarkedReadOnly:
+      readPermissionBundlesRaw.length > 0 && readPermissionBundlesRaw.every((bundle) => bundle.readOnly === true)
+  };
+};
+
+const providerPipelineSmokeMetadata = (result: ProviderPipelineResult): Record<string, unknown> => ({
+  syncRunStatus: result.syncRun.status,
+  moduleStatuses: Object.fromEntries(result.modules.map((module) => [module.moduleKey, module.status])),
+  moduleStatusCounts: result.modules.reduce<Record<string, number>>((counts, module) => {
+    counts[module.status] = (counts[module.status] ?? 0) + 1;
+    return counts;
+  }, {}),
+  rawResourceCount: result.rawResources.length,
+  normalizedResourceCount: result.normalizedResources.length,
+  findingCount: result.findings.length,
+  recommendationCount: result.recommendations.length,
+  rawTenantPayloadsReturnedToOutput: false,
+  userEmailsReturnedToOutput: false,
+  endpointUrlsReturnedToOutput: false,
+  providerWritesEnabled: false
+});
+
+const markMicrosoft365SmokeOperation = (
+  operations: Microsoft365ReadOnlySmokeOperation[],
+  id: string,
+  status: Microsoft365ReadOnlySmokeOperationStatus,
+  metadata: Record<string, unknown>
+): Microsoft365ReadOnlySmokeOperation[] =>
+  operations.map((operation) =>
+    operation.id === id
+      ? {
+          ...operation,
+          status,
+          metadata: {
+            ...operation.metadata,
+            ...metadata
+          }
+        }
+      : operation
+  );
+
+const missingMicrosoft365SmokeEnvironmentVariables = (
+  requirements: Microsoft365ReadOnlySmokeEnvironmentRequirement[]
+): string[] =>
+  [...new Set(requirements.filter((requirement) => !requirement.configured).flatMap((requirement) => requirement.env))]
+    .filter(Boolean)
+    .sort();
+
+const microsoft365SmokeGraphPathSummary = (requestedModules: string[]): string => {
+  const paths = new Set<string>();
+
+  for (const moduleKey of requestedModules) {
+    if (moduleKey === "tenant-profile") {
+      paths.add("/organization");
+      paths.add("/domains");
+    }
+    if (moduleKey === "licensing") {
+      paths.add("/subscribedSkus");
+    }
+    if (moduleKey === "users-groups-roles") {
+      paths.add("/users");
+      paths.add("/groups");
+      paths.add("/directoryRoles");
+    }
+    if (moduleKey === "applications") {
+      paths.add("/applications");
+      paths.add("/servicePrincipals");
+    }
+    if (moduleKey === "conditional-access") {
+      paths.add("/identity/conditionalAccess/policies");
+    }
+    if (moduleKey === "entra-audit-logs") {
+      paths.add("/auditLogs/directoryAudits");
+    }
+    if (moduleKey === "entra-sign-in-logs") {
+      paths.add("/auditLogs/signIns");
+    }
+    if (moduleKey === "secure-score") {
+      paths.add("/security/secureScores");
+    }
+    if (moduleKey === "intune-devices") {
+      paths.add("/deviceManagement/managedDevices");
+    }
+    if (moduleKey === "defender-xdr") {
+      paths.add("/security/incidents");
+      paths.add("/security/alerts_v2");
+    }
+  }
+
+  return [...paths].sort().join(", ");
+};
+
+const safeMicrosoft365SmokeErrorMetadata = (error: unknown): Record<string, unknown> => {
+  if (error instanceof ProviderConnectorError) {
+    return {
+      errorCode: error.code
+    };
+  }
+
+  return {
+    errorCode: "unexpected_error"
+  };
+};
+
+const classifyMicrosoft365SmokeEndpoint = (value: string, expected: string): Microsoft365SmokeEndpointClass => {
+  if (!nonEmpty(value)) {
+    return "empty";
+  }
+
+  try {
+    return new URL(value).toString().replace(/\/+$/g, "") === expected ? "official_microsoft_public_cloud" : "custom";
+  } catch {
+    return "custom";
+  }
+};
+
+const firstConfiguredEnv = (env: NodeJS.ProcessEnv, names: string[]): string => {
+  for (const name of names) {
+    const value = env[name];
+    if (nonEmpty(value)) {
+      return value;
+    }
+  }
+
+  return "";
+};
+
+const sortedUnique = (values: string[]): string[] => [...new Set(values.filter(Boolean))].sort();
+
+const isSafeMicrosoft365SmokeTarget = (targetKind: string): boolean =>
+  targetKind === "local" ||
+  targetKind === "development" ||
+  targetKind === "test" ||
+  targetKind === "ci" ||
+  targetKind === "disposable";
+
+const sanitizeMicrosoft365SmokeId = (value: string): string =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 48) || "smoke";
+
+const nonEmpty = (value: unknown): value is string => typeof value === "string" && value.trim().length > 0;

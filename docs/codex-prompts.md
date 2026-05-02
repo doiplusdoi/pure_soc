@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M44, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M44.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 44 / `docs/PLAN_M45.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M45, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M45.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 45 / `docs/PLAN_M46.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -74,6 +74,7 @@ The repository currently contains:
 - PLAN_M42 external integration smoke readiness matrix: `@puresoc/config` now exposes a secret-free external smoke readiness contract; `@puresoc/provider-microsoft365` exposes read-only smoke metadata; `pnpm external-smoke:readiness` reports Microsoft 365, Stripe, Microsoft/Google/GitHub OIDC, object-storage/scanner, and evidence/report runtime readiness without live network calls; future live-candidate paths require disposable/test confirmation and per-provider opt-in while preserving provider-write disablement.
 - PLAN_M43 Stripe test-mode disposable smoke harness: `pnpm stripe:smoke:test-mode` now defaults to dry-run, first evaluates the M42 readiness matrix, reports planned Stripe test-mode customer/Checkout/Portal/webhook-signature operations plus configured/missing variable names without calling Stripe, refuses live execution unless Stripe readiness is `ready_for_disposable_smoke` with disposable/test opt-ins, rejects `sk_live_*`, requires `sk_test_*`, and keeps Stripe secret values, webhook secrets, Checkout/Portal URLs, and full Stripe object IDs out of output.
 - PLAN_M44 object-storage/scanner/evidence runtime disposable smoke harness: `pnpm evidence:smoke:runtime` now defaults to dry-run, first evaluates the M42 readiness matrix for both `object_storage_scanner_runtime` and `evidence_report_runtime`, reports planned report-renderer, scanner, S3 write/read, generated-report evidence, access-log, CSV metadata, and binary evidence-package metadata operations without live calls, refuses live execution unless both readiness paths and local/test/disposable opt-ins are ready, and keeps storage credentials, endpoint URLs, storage URIs, full object keys, uploaded bytes, and report bodies out of output.
+- PLAN_M45 Microsoft 365 read-only disposable tenant smoke harness: `pnpm microsoft365:smoke:read-only` now defaults to dry-run, first evaluates the M42 readiness matrix for `microsoft365_read_only_tenant`, reports planned app-only token, encrypted credential-envelope, provider-neutral storage, and read-only Graph module operations without live calls, refuses live execution unless readiness and disposable/test opt-ins are ready, checks disabled write-bundle metadata, and keeps client secrets, tokens, tenant IDs, tenant payloads, user emails, endpoint URLs, and provider credential envelopes out of output.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -125,7 +126,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 41 / `docs/PLAN_M42.md` is completed.
 - Prompt 42 / `docs/PLAN_M43.md` is completed.
 - Prompt 43 / `docs/PLAN_M44.md` is completed.
-- Prompt 44 / `docs/PLAN_M45.md` is staged as the next active implementation prompt.
+- Prompt 44 / `docs/PLAN_M45.md` is completed.
+- Prompt 45 / `docs/PLAN_M46.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -140,12 +142,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 44 / `docs/PLAN_M45.md`: Microsoft 365 Read-Only Disposable Tenant Smoke Harness.
-2. Expected next handoff after M45: choose OIDC provider callback smoke, deployed browser/TLS/proxy smoke (GAP-035), production provider-token custody deployment (GAP-040), or approved evidence runtime live execution follow-up based on available approved disposable/test targets.
+1. Prompt 45 / `docs/PLAN_M46.md`: OIDC/Social Login Disposable Callback Smoke Harness.
+2. Expected next handoff after M46: choose deployed browser/TLS/proxy smoke (GAP-035), production provider-token custody deployment (GAP-040), approved evidence runtime live execution follow-up, or Microsoft 365 approved disposable tenant live execution follow-up based on available approved disposable/test targets.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M45 must not call Microsoft Graph or any external provider unless `pnpm external-smoke:readiness` reports the Microsoft 365 read-only path as ready and the smoke command is explicitly run in live/disposable mode against an approved local/test/ci/disposable tenant. Provider writes and Microsoft write scopes remain disabled.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M46 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, or provider write executors in default dry-run mode.
 
-## Active Prompt 44 / PLAN_M45: Microsoft 365 Read-Only Disposable Tenant Smoke Harness
+## Active Prompt 45 / PLAN_M46: OIDC/Social Login Disposable Callback Smoke Harness
 
 Read:
 
@@ -155,15 +157,14 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M44.md`
+- `docs/PLAN_M45.md`
 - `docs/threat-model.md`
 - `code/packages/config/src/**`
-- `code/packages/providers/core/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/apps/api/src/provider-connections/**`
-- `code/apps/api/src/auth/services.ts`
+- `code/packages/auth/oidc/src/**`
+- `code/packages/auth/local/src/**`
+- `code/apps/api/src/auth/**`
 - `code/apps/api/src/http.ts`
-- `code/apps/connector-runner/src/**`
+- `code/apps/api/src/rbac/**`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/package.json`
@@ -171,44 +172,42 @@ Read:
 
 Goal:
 
-Add a guarded Microsoft 365 read-only disposable tenant smoke harness that can prove the currently implemented Microsoft Graph read modules are safe to execute only when explicitly enabled against an approved disposable/test tenant. Dry-run mode must remain the default and must not call Microsoft Graph, request write scopes, mutate tenant state, expose provider tokens, or enable remediation writes.
+Add a guarded OIDC/social-login disposable callback smoke harness that can prove Microsoft Entra, Google, and GitHub callback prerequisites and callback/session behavior are safe to exercise only when explicitly enabled against approved disposable/test provider apps. Dry-run mode must remain the default and must not contact OIDC/OAuth providers, exchange real codes, expose ID/access tokens, leak cookies, or weaken account-linking/session safeguards.
 
 Deliverables:
 
-- Add a deterministic Microsoft 365 smoke command, for example `pnpm microsoft365:smoke:read-only`, with dry-run as the default.
-- The command must first evaluate the M42 readiness report and refuse live execution unless `microsoft365_read_only_tenant` is `ready_for_disposable_smoke`.
-- Live/disposable execution, if implemented, must require `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, `PURESOC_EXTERNAL_SMOKE_TARGET_KIND` set to a safe local/test/ci/disposable value, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, and `PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true`.
-- Dry-run output should show planned read-only module operations, configured/missing variable names, permission bundle metadata, disabled write bundle metadata, and no secret values, tokens, tenant payloads, or endpoint URLs.
-- If an approved disposable Microsoft 365 tenant is unavailable, keep dry-run behavior passing and document blockers instead of faking live Graph coverage.
-- Preserve provider-neutral storage, encrypted credential envelope handling, token redaction, module-level permission/license degradation, organization scoping, audit events, and provider-write disablement.
-- Update docs/gaps/prompts and create `docs/PLAN_M46.md` from the next selected active prompt before final response.
+- Add a deterministic OIDC/social smoke command, for example `pnpm oidc:smoke:callback`, with dry-run as the default.
+- The command must first evaluate the M42 readiness report and refuse live execution unless the selected provider check (`oidc_microsoft_entra_callback`, `oidc_google_callback`, or `oidc_github_callback`) is `ready_for_disposable_smoke`.
+- Live/disposable execution, if implemented, must require `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, `PURESOC_EXTERNAL_SMOKE_TARGET_KIND` set to a safe local/test/ci/disposable value, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, an explicit selected provider, and the existing provider-specific opt-in (`PURESOC_EXTERNAL_SMOKE_OIDC_MICROSOFT_ENTRA`, `PURESOC_EXTERNAL_SMOKE_OIDC_GOOGLE`, or `PURESOC_EXTERNAL_SMOKE_OIDC_GITHUB`).
+- Dry-run output should show planned authorization URL/state/nonce/PKCE, callback, token/JWKS/profile/email lookup, explicit account-linking, session creation, cookie, and audit operations using configured/missing variable names and metadata only.
+- If approved disposable OIDC provider apps are unavailable, keep dry-run behavior passing and document blockers instead of faking live callback coverage.
+- Preserve hashed state/nonce storage, encrypted PKCE verifier envelopes, replay/expiry rejection, issuer/audience/expiry/signature validation, explicit email-collision account-link approval, session creation/logout semantics, audit redaction, organization scoping, origin/callback exemptions, and local-auth safeguards.
+- Update docs/gaps/prompts and create `docs/PLAN_M47.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
 - `code/packages/config/src/**`
-- `code/packages/providers/core/src/**`
-- `code/packages/providers/microsoft365/src/**`
-- `code/apps/api/src/provider-connections/**`
-- `code/apps/api/src/auth/services.ts`
+- `code/packages/auth/oidc/src/**`
+- `code/packages/auth/local/src/**`
+- `code/apps/api/src/auth/**`
 - `code/apps/api/src/http.ts`
-- `code/apps/connector-runner/src/**`
+- `code/apps/api/src/rbac/**`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M45.md`
 - `docs/PLAN_M46.md`
+- `docs/PLAN_M47.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not call Microsoft Graph, OIDC providers, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, or provider write executors in default dry-run mode.
-- Do not call production/staging/customer Microsoft 365 tenants; live/disposable execution must be explicitly approved for local/test/ci/disposable tenant targets only.
-- Do not request, persist, or enable Microsoft write scopes; do not enable live provider write/remediation actions or provider-token production custody claims.
-- Do not weaken encrypted provider credential handling, provider-token redaction, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, audit redaction, or module-level partial-failure behavior.
-- Do not print, snapshot, log, or persist provider tokens, refresh tokens, access tokens, OAuth codes, client secrets, tenant raw payloads, user emails from live tenants, session cookies, Stripe secrets, object-storage credentials, KMS/secret-manager values, or endpoint URLs.
+- Do not call OIDC/OAuth providers, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, or provider write executors in default dry-run mode.
+- Do not call production/staging/customer OIDC apps or tenants; live/disposable execution must be explicitly approved for local/test/ci/disposable provider app targets only.
+- Do not weaken local auth, session cookies, state/nonce/PKCE storage, account-linking safeguards, origin/rate-limit middleware, audit redaction, regulatory no-auto-activation rules, provider-token redaction, organization scoping, or provider-write disablement.
+- Do not print, snapshot, log, or persist client secrets, authorization codes, ID tokens, access tokens, refresh tokens, PKCE code verifiers, state/nonce raw values, session cookies, live profile payloads, user emails from live providers, provider endpoint URLs, Stripe secrets, object-storage credentials, KMS/secret-manager values, or provider tokens.
 - Do not treat live smoke absence as success; report blockers honestly.
 
 Tests and acceptance commands:
@@ -217,20 +216,20 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- config provider microsoft365 external-smoke api health
+pnpm test -- config auth oidc social login external-smoke api health middleware
 pnpm external-smoke:readiness
-pnpm microsoft365:smoke:read-only
+pnpm oidc:smoke:callback
 pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M45.md`. If an approved disposable Microsoft 365 tenant is unavailable, preserve dry-run behavior and document blockers instead of faking live Graph coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M46.md`. If approved disposable OIDC/social provider apps are unavailable, preserve dry-run behavior and document blockers instead of faking live provider coverage.
 
 Expected gap movement:
 
-- Narrow GAP-007 only for the implemented Microsoft 365 read-only disposable tenant smoke harness, dry-run/live-test guardrails, permission metadata checks, and any actual approved disposable tenant execution result.
-- Preserve GAP-028, GAP-029, GAP-030, GAP-032, GAP-035, GAP-039, GAP-040, and GAP-043 unless those areas are intentionally implemented and accepted.
+- Narrow GAP-032 only for the implemented OIDC/social-login disposable callback smoke harness, dry-run/live-test guardrails, callback/session/cookie metadata checks, and any actual approved disposable app execution result.
+- Preserve GAP-007, GAP-028, GAP-029, GAP-030, GAP-035, GAP-039, GAP-040, and GAP-043 unless those areas are intentionally implemented and accepted.
 
 Final response must include:
 
@@ -238,10 +237,27 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M45` updated
-- `PLAN_M46` created
+- `PLAN_M46` updated
+- `PLAN_M47` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 44 / PLAN_M45: Microsoft 365 Read-Only Disposable Tenant Smoke Harness
+
+Completed on 2026-05-02.
+
+Summary:
+- Added `pnpm microsoft365:smoke:read-only`, a dry-run-first Microsoft 365 read-only smoke command.
+- The command evaluates the M42 readiness matrix before any live/disposable execution and refuses live execution unless `microsoft365_read_only_tenant` is `ready_for_disposable_smoke`.
+- Live/disposable execution requires `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, a safe disposable/test target, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, `PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true`, Microsoft 365 client ID/secret, and a disposable/test tenant ID.
+- The smoke harness plans or, when explicitly enabled, executes app-only token acquisition, local encrypted provider credential-envelope creation, provider-neutral in-memory connection/permission/credential storage, and read-only Microsoft Graph module sync through the connector pipeline. Output omits client secrets, tokens, tenant IDs, tenant payloads, live user emails, endpoint URLs, provider credential envelopes, and provider-write metadata.
+- No approved live Microsoft 365 disposable tenant was used during M45 validation.
+
+Validated with host-node/npm equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- microsoft365-read-only-smoke microsoft365-readiness external-smoke`
+- `npm run microsoft365:smoke:read-only`
+- Full acceptance results are recorded in `docs/PLAN_M45.md`.
 
 ## Completed Prompt 43 / PLAN_M44: Object-Storage, Scanner, And Evidence Runtime Disposable Smoke Harness
 

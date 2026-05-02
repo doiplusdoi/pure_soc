@@ -66,6 +66,8 @@ M42 adds `pnpm external-smoke:readiness` as a dry-run readiness matrix for futur
 
 `ready_for_disposable_smoke` in this report means the local configuration and guardrails are present for a future approved read-only test-tenant run. It is not evidence that a live Microsoft tenant smoke has been executed.
 
+M45 adds `pnpm microsoft365:smoke:read-only` as the guarded runner for that future read-only tenant smoke. The command is dry-run by default, first evaluates the readiness matrix, and refuses live execution unless `microsoft365_read_only_tenant` is ready with explicit disposable/test target confirmation and `PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true`. In live-candidate mode it uses app-only client credentials, stores the token only inside a local encrypted provider credential envelope, seeds provider-neutral in-memory connection metadata, and runs the implemented read-only modules through the connector pipeline. Output omits client secrets, access tokens, refresh tokens, tenant IDs, raw tenant payloads, live user emails, endpoint URLs, and provider credential envelopes. Default M45 validation did not exercise an approved live Microsoft tenant.
+
 ## Microsoft Learn References
 
 - App-only access and admin consent: https://learn.microsoft.com/en-us/graph/auth-v2-service

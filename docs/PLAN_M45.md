@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M44: add a guarded Microsoft 365 read-only disposable tenant smoke harness that remains dry-run by default and only allows live Graph read execution when M42 readiness guardrails report the Microsoft 365 read-only path is ready.
 
-Status: staged for implementation after M44.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -110,32 +112,64 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
+Completed 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added `pnpm microsoft365:smoke:read-only` via `code/scripts/microsoft365-read-only-smoke.ts` and a Microsoft 365 provider-package smoke runner.
+- Reused the M42 readiness preflight for `microsoft365_read_only_tenant`; default execution is dry-run and makes no token or Graph calls.
+- Dry-run output plans app-only token acquisition, encrypted credential envelope creation, provider-neutral in-memory connection/credential/permission-bundle storage, and read-only module sync.
+- Live-candidate execution is blocked unless readiness is `ready_for_disposable_smoke`, `PURESOC_EXTERNAL_SMOKE_MODE=live_candidate`, a safe target kind is selected, `PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true`, `PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true`, and Microsoft 365 client ID, client secret, and tenant ID are configured.
+- Live-candidate execution is constrained to the official public-cloud Microsoft identity and Graph base URLs for this smoke; sovereign-cloud base URL selection remains deferred.
+- Added disabled write-bundle checks and report redaction so write scopes, write bundles, tokens, client secrets, tenant IDs, raw tenant payloads, live user emails, endpoint URLs, and credential envelopes are not emitted.
+- Added deterministic fake live-candidate token and Graph coverage without requiring an approved disposable tenant.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/package.json`
+- `code/packages/providers/microsoft365/src/index.ts`
+- `code/packages/providers/microsoft365/src/__tests__/microsoft365-read-only-smoke.spec.ts`
+- `code/scripts/microsoft365-read-only-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M45.md`
+- `docs/PLAN_M46.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
+- `docs/microsoft365-permissions.md`
 
 Validation:
 
-- Pending.
+- `pnpm` was unavailable in the sandbox and local `npm` was unavailable because the sandbox cannot create namespaces; host-node/npm equivalents were used through `flatpak-spawn --host`.
+- Passed: `npm run test -- microsoft365-read-only-smoke microsoft365-readiness external-smoke`
+- Passed: `npm run microsoft365:smoke:read-only` in default dry-run mode; readiness reported `blocked_missing_secret`, status `dry_run_passed`, and no live calls.
+- Passed: `npm run lint`
+- Passed: `npm run test -- config provider microsoft365 external-smoke api health`
+- Passed: `npm run external-smoke:readiness`
+- Passed: `npm run test:e2e -- --grep @ui-smoke`
+- Passed: `docker compose -f infra/compose/docker-compose.yml config`
+- Passed: `git diff --check`
 
 Acceptance status:
 
-- Pending.
+- Accepted for M45. The command is deterministic and secret-free in dry-run, live execution is impossible without M42 readiness plus disposable/test opt-ins, production-like targets and write bundles are rejected, provider-token redaction is preserved, and prompt/gap handoff docs are updated.
 
 Gaps updated:
 
-- Pending.
+- GAP-007 narrowed for the guarded Microsoft 365 read-only smoke command, dry-run/live-candidate preflight, disabled write-bundle checks, sanitized output, and deterministic fake token/Graph tests.
+- GAP-028, GAP-029, GAP-030, GAP-032, GAP-035, GAP-039, GAP-040, and GAP-043 remain preserved.
 
 Prompt handoff:
 
-- Pending. M45 implementation must create `docs/PLAN_M46.md` before final response.
+- `docs/codex-prompts.md` marks M45 completed and stages M46.
+- `docs/PLAN_M46.md` was created for the OIDC/Social Login Disposable Callback Smoke Harness.
 
 Residual risk:
 
-- Pending.
+- No approved live Microsoft 365 disposable tenant was available, so real Graph execution remains unproven.
+- No real service-plan or tenant-license validation was performed.
+- Sovereign-cloud Microsoft identity/Graph base URL selection remains deferred.
+- Live customer, staging, and production tenants remain blocked.
+- Microsoft write scopes and remediation/provider writes remain disabled.

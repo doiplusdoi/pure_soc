@@ -130,6 +130,30 @@ The matrix reports these paths independently:
 - Object-storage/scanner prerequisites: S3/MinIO metadata, bucket/access configuration, HTTP scanner metadata, and no-op scanner warnings.
 - Evidence/report runtime prerequisites: legal-caveat enforcement, generated-report evidence storage, export format, upload limits, and storage-pointer redaction.
 
+### Microsoft 365 Read-Only Smoke
+
+M45 adds a Microsoft 365 read-only disposable tenant smoke harness:
+
+```sh
+pnpm microsoft365:smoke:read-only
+```
+
+The default command is a dry-run. It first evaluates the M42 readiness matrix, then prints planned app-only token, encrypted credential envelope, provider-neutral storage, and read-only Graph module operations without calling Microsoft Graph or Microsoft identity endpoints. Output includes configured/missing environment variable names, read-only permission bundle metadata, module metadata, disabled write bundle metadata, and guardrail statuses; it does not print client secrets, provider tokens, refresh tokens, OAuth codes, tenant IDs, raw tenant payloads, user emails from live tenants, endpoint URLs, session cookies, Stripe secrets, object-storage credentials, or key material.
+
+Live/disposable execution is refused unless `microsoft365_read_only_tenant` is `ready_for_disposable_smoke` in `pnpm external-smoke:readiness` and all of these are true:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
+PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
+PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
+PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true
+MICROSOFT365_CLIENT_ID=...
+MICROSOFT365_CLIENT_SECRET=...
+MICROSOFT365_TENANT_ID=...
+```
+
+`PURESOC_MICROSOFT365_SMOKE_TENANT_ID` or `M365_TENANT_ID` can be used instead of `MICROSOFT365_TENANT_ID`; `M365_CLIENT_ID` and `M365_CLIENT_SECRET` are also accepted. The live path only uses the official Microsoft public-cloud identity and Graph endpoints for this smoke; sovereign-cloud endpoint selection remains deferred. When explicitly enabled, it acquires an app-only token, stores it only inside a local encrypted provider credential envelope, seeds a provider-neutral in-memory connection, and runs the implemented read-only modules through the connector pipeline. Missing permissions, unavailable licenses, national-cloud unsupported modules, revoked consent, throttling, and connector errors remain module statuses rather than provider writes or remediation actions.
+
 ### Stripe Test-Mode Smoke
 
 M43 adds a Stripe-specific disposable smoke harness:
