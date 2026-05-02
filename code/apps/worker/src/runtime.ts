@@ -10,24 +10,22 @@ import {
 } from "@puresoc/jobs";
 import type { PureSocConfig } from "@puresoc/config";
 
-import { assertRemediationJobHasSafetyGates, type RemediationActionExecutionJob } from "./actions";
+import type { RemediationActionExecutionJob } from "./actions";
+import {
+  executeRemediationActionJob,
+  validateRemediationActionJobOnly,
+  type RemediationActionExecutionDependencies,
+  type WorkerActionExecutionResult
+} from "./action-execution";
 
 export const workerRuntimeJobNames = {
   executeAction: "actions.execute"
 } as const;
 
-export interface WorkerActionJobResult {
-  actionRunId: string;
-  organizationId: string;
-  providerConnectionId: string;
-  providerKey: string;
-  providerWriteExecution: "disabled";
-  safetyGateStatus: "validated";
-}
-
 export interface WorkerRuntimeDependencies {
   config: Pick<PureSocConfig, "jobs">;
   queue?: JobQueueAdapter;
+  actionExecution?: RemediationActionExecutionDependencies;
   now?: () => Date;
   idFactory?: () => string;
 }
@@ -41,14 +39,18 @@ export interface WorkerRuntime {
 
 export const createWorkerRuntime = (dependencies: WorkerRuntimeDependencies): WorkerRuntime => {
   const queue = dependencies.queue ?? createWorkerQueue(dependencies);
-  const registry = new JobRegistry().register<RemediationActionExecutionJob, WorkerActionJobResult>({
+  const registry = new JobRegistry().register<RemediationActionExecutionJob, WorkerActionExecutionResult>({
     name: workerRuntimeJobNames.executeAction,
     defaultMaxAttempts: dependencies.config.jobs.defaultMaxAttempts,
     retryBackoffMs: dependencies.config.jobs.retryBackoffMs,
     idempotencyKey: (payload) => payload.actionRunId,
-    handler: ({ payload }) => {
+    handler: async ({ payload }) => {
+      if (dependencies.actionExecution) {
+        return executeRemediationActionJob(payload, dependencies.actionExecution);
+      }
+
       try {
-        assertRemediationJobHasSafetyGates(payload);
+        return validateRemediationActionJobOnly(payload);
       } catch (error) {
         throw new JobRuntimeError(
           "remediation_safety_gates_missing",
@@ -62,15 +64,6 @@ export const createWorkerRuntime = (dependencies: WorkerRuntimeDependencies): Wo
           }
         );
       }
-
-      return {
-        actionRunId: payload.actionRunId,
-        organizationId: payload.organizationId,
-        providerConnectionId: payload.providerConnectionId,
-        providerKey: payload.providerKey,
-        providerWriteExecution: "disabled",
-        safetyGateStatus: "validated"
-      };
     }
   });
 

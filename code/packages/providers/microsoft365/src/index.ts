@@ -80,6 +80,7 @@ export {
   runMicrosoft365ProviderTokenRotationSmoke,
   type Microsoft365ProviderTokenRotationSmokeResult
 } from "./rotation-smoke";
+export { createMicrosoft365DisabledActionExecutor } from "./action-executor";
 
 export interface Microsoft365TokenResponse {
   accessToken: string;

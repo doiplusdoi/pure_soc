@@ -9,6 +9,8 @@
   "dependencies": {
     "@puresoc/config": "workspace:*",
     "@puresoc/jobs": "workspace:*",
+    "@puresoc/provider-mock": "workspace:*",
+    "@puresoc/providers-core": "workspace:*",
     "@puresoc/recommendations": "workspace:*"
   }
 }

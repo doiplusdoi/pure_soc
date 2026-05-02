@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M34: narrow GAP-030 by adding a bounded remediation worker/provider execution safety contract around existing action-run metadata, using deterministic fake/mock provider action execution only, without enabling live Microsoft Graph writes or production provider remediation.
 
-Status: staged for implementation after M34.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -117,32 +119,67 @@ If `pnpm` is not available, run equivalent host-node commands and record the sub
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added a provider-neutral `ProviderActionExecutor` boundary in `@puresoc/providers-core`, including a disabled executor and redacted provider-action execution errors.
+- Added a deterministic fake action executor in `@puresoc/provider-mock` that validates, applies, emits post-state evidence metadata, verifies, and redacts configured fake failures without live provider calls.
+- Added a Microsoft 365 disabled action executor in `@puresoc/provider-microsoft365`; Microsoft live write execution remains unavailable by default.
+- Added `apps/worker/src/action-execution.ts`, which keeps the default worker runtime in safety-validation-only mode unless fake-provider execution dependencies are explicitly injected. The execution path checks persisted preflight, approval, pre-state snapshot, provider connection identity, write-enabled state, executor identity, idempotent already-completed runs, failure metadata, post-state snapshot metadata, verification metadata, and redacted audit payloads.
+- Added focused worker, mock-provider, and Microsoft disabled-executor tests for safety gates, write-enabled checks, idempotency, fake apply failures, verification metadata, and secret redaction.
+- Documented the fake/mock-only execution boundary and remaining live-provider/queue risks in README, gap register, prompts, learnings, and the next milestone stub.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/worker/package.json`
+- `code/apps/worker/src/action-execution.ts`
+- `code/apps/worker/src/__tests__/action-execution.test.ts`
+- `code/apps/worker/src/index.ts`
+- `code/apps/worker/src/runtime.ts`
+- `code/pnpm-lock.yaml`
+- `code/packages/audit/src/index.ts`
+- `code/packages/providers/core/src/actions.ts`
+- `code/packages/providers/core/src/index.ts`
+- `code/packages/providers/microsoft365/src/action-executor.ts`
+- `code/packages/providers/microsoft365/src/__tests__/microsoft365-action-executor-disabled.spec.ts`
+- `code/packages/providers/microsoft365/src/index.ts`
+- `code/packages/providers/mock/src/__tests__/mock-action-executor.spec.ts`
+- `code/packages/providers/mock/src/index.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M35.md`
+- `docs/PLAN_M36.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run lint` passed, including layout checks, schema drift checks for 29 models / 432 fields, generated Romania regulatory drift checks, and TypeScript.
+- `npm run test -- actions worker jobs provider remediation api database audit` passed: 46 test files, 156 tests.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M35. The milestone adds fake/mock provider action execution contracts and worker-side safety/idempotency/failure/verification/audit coverage without enabling live Microsoft Graph writes or customer-impacting provider remediation.
 
 Gaps updated:
 
-- Pending.
+- GAP-030 narrowed for fake/mock provider action executor contracts, worker-side persisted safety checks, idempotency, failure/verification metadata, and redacted audit coverage.
+- GAP-039 preserved; no external audit signing/WORM storage was added.
+- GAP-040 preserved; no live KMS/secret-manager custody was added.
+- GAP-043 preserved; no production multi-process queue orchestration hardening was added.
 
 Prompt handoff:
 
-- Pending. M35 implementation must create `docs/PLAN_M36.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 34 / PLAN_M35 complete and stages Prompt 35 / PLAN_M36 for production queue orchestration and multi-process BullMQ hardening.
+- `docs/PLAN_M36.md` was created from the staged M36 prompt.
 
 Residual risk:
 
-- Pending.
+- Provider execution is fake/mock only. Live Microsoft 365 or other customer-impacting write execution remains blocked and still requires provider-specific preflight/snapshot/apply/verify/evidence contracts, rollback runbooks, live tenant smoke, and separate write consent.
+- M35 records action post-state evidence metadata but does not create binary evidence artifacts through object storage.
+- Production multi-process queue orchestration, atomic Redis claiming under real contention, retention cleanup, metrics/alerts, reconnect/backoff, and deployed shutdown/recovery remain open under GAP-043.

@@ -22,6 +22,7 @@ export type AuditAction =
   | "action_approved"
   | "action_rejected"
   | "action_queued"
+  | "action_applied"
   | "action_failed"
   | "action_verified"
   | "action_closed"

@@ -1,12 +1,19 @@
 export type {
   ApplyActionInput,
   EvidenceCollectionInput,
+  ProviderActionExecutionErrorCode,
   ProviderActionEvidenceArtifact,
+  ProviderActionExecutor,
+  ProviderActionExecutorMode,
   ProviderActionExecutionResult,
   ProviderActionValidationResult,
   ProviderActionVerificationResult,
   ValidateActionInput,
   VerifyActionInput
+} from "./actions";
+export {
+  createDisabledProviderActionExecutor,
+  ProviderActionExecutionError
 } from "./actions";
 export type {
   BeginConnectionInput,

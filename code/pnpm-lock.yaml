@@ -194,6 +194,12 @@ importers:
       '@puresoc/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@puresoc/provider-mock':
+        specifier: workspace:*
+        version: link:../../packages/providers/mock
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../../packages/providers/core
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../../packages/recommendations

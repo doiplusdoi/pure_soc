@@ -1,10 +1,18 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import {
   assertReadOnlyProviderOperation,
+  redactProviderSecrets,
   type CloudProviderConnector,
   type CompleteConnectionInput,
   type ConnectionRedirect,
+  type ApplyActionInput,
+  type EvidenceCollectionInput,
+  type ProviderActionEvidenceArtifact,
+  type ProviderActionExecutionResult,
+  type ProviderActionExecutor,
+  type ProviderActionValidationResult,
+  type ProviderActionVerificationResult,
   type ProviderCapabilityRecord,
   type ProviderConnectionRecord,
   type ProviderConnectionResult,
@@ -15,7 +23,9 @@ import {
   type ProviderRecommendationInput,
   type ProviderFindingInput,
   type SyncInput,
-  type TenantProfileInput
+  type TenantProfileInput,
+  type ValidateActionInput,
+  type VerifyActionInput
 } from "@puresoc/providers-core";
 
 export type MockProviderScenarioKey =
@@ -63,6 +73,11 @@ export interface CreateMockConnectorOptions {
   providerKey?: ProviderKey | string;
   now?: () => Date;
   idFactory?: () => string;
+}
+
+export interface CreateMockProviderActionExecutorOptions {
+  providerKey?: ProviderKey | string;
+  now?: () => Date;
 }
 
 const raw = (
@@ -551,6 +566,124 @@ export const createMockConnector = (options: CreateMockConnectorOptions = {}): C
   }
 };
 
+export const createMockProviderActionExecutor = (
+  options: CreateMockProviderActionExecutorOptions = {}
+): ProviderActionExecutor => {
+  const providerKey = options.providerKey ?? "mock";
+  const now = options.now ?? (() => new Date());
+
+  return {
+    providerKey,
+    executionMode: "fake",
+    validateAction: async (input: ValidateActionInput): Promise<ProviderActionValidationResult> => {
+      const controls = mockExecutionControls(input.parameters);
+      const status = controls.preflightStatus === "failed" ? "failed" : "passed";
+
+      return {
+        status,
+        checkedAt: now().toISOString(),
+        checks: [
+          {
+            code: "mock_provider_action_fixture",
+            status,
+            message:
+              status === "passed"
+                ? "Mock provider action fixture is safe to execute."
+                : "Mock provider action fixture was configured to fail validation."
+          }
+        ],
+        diff: {
+          summary: `Mock action ${input.actionKey} would update a fake provider resource only.`,
+          before: {
+            mode: "fixture"
+          },
+          after: {
+            mode: "fixture_applied"
+          }
+        }
+      };
+    },
+    applyAction: async (input: ApplyActionInput): Promise<ProviderActionExecutionResult> => {
+      const controls = mockExecutionControls(input.parameters);
+      if (controls.applyStatus === "failed") {
+        return {
+          status: "failed",
+          executedAt: now().toISOString(),
+          error: redactProviderSecrets({
+            code: "mock_provider_action_apply_failed",
+            message: "Mock provider action fixture was configured to fail apply.",
+            authorization: controls.authorization,
+            accessToken: controls.accessToken,
+            clientSecret: controls.clientSecret
+          }) as Record<string, unknown>
+        };
+      }
+
+      return {
+        status: "applied",
+        executedAt: now().toISOString(),
+        postState: {
+          providerKey,
+          organizationId: input.organizationId,
+          providerConnectionId: input.providerConnectionId,
+          actionRunId: input.actionRunId,
+          actionKey: input.actionKey,
+          applied: true,
+          fixtureOnly: true
+        }
+      };
+    },
+    verifyAction: async (input: VerifyActionInput): Promise<ProviderActionVerificationResult> => {
+      const controls = mockExecutionControls(input.parameters);
+      const status = controls.verificationStatus ?? "passed";
+
+      return {
+        status,
+        verifiedAt: now().toISOString(),
+        checks: [
+          {
+            code: "mock_provider_action_verified",
+            status: status === "failed" ? "failed" : "passed",
+            message:
+              status === "failed"
+                ? "Mock provider action verification was configured to fail."
+                : "Mock provider action post-state metadata is present."
+          }
+        ]
+      };
+    },
+    collectActionEvidence: async (input: EvidenceCollectionInput): Promise<ProviderActionEvidenceArtifact[]> => {
+      const sourceType = input.snapshotPhase === "pre_state" ? "action_pre_state" : "action_post_state";
+      const body = JSON.stringify(
+        {
+          schemaVersion: "puresoc.mock-provider.action-evidence.v1",
+          providerKey,
+          organizationId: input.organizationId,
+          providerConnectionId: input.providerConnectionId,
+          actionRunId: input.actionRunId,
+          actionKey: input.actionKey,
+          snapshotPhase: input.snapshotPhase,
+          generatedAt: now().toISOString(),
+          fixtureOnly: true
+        },
+        null,
+        2
+      );
+
+      return [
+        {
+          title: `Mock provider ${input.snapshotPhase.replace("_", "-")} snapshot`,
+          description: "Deterministic fake-provider action evidence; no external provider write was performed.",
+          sourceType,
+          mimeType: "application/json",
+          body,
+          contentHashSha256: createHash("sha256").update(body).digest("hex")
+        }
+      ];
+    }
+  };
+};
+
 const buildModuleResult = (
   module: MockModuleScenario,
   input: SyncInput,
@@ -622,3 +755,34 @@ const buildModuleResult = (
     retryCount
   };
 };
+
+const mockExecutionControls = (
+  parameters: Record<string, unknown> | undefined
+): {
+  preflightStatus?: "failed";
+  applyStatus?: "failed";
+  verificationStatus?: "passed" | "failed" | "manual_required";
+  authorization?: unknown;
+  accessToken?: unknown;
+  clientSecret?: unknown;
+} => {
+  const mockExecution = asRecord(parameters?.mockExecution);
+  const verificationStatus =
+    mockExecution.verificationStatus === "passed" ||
+    mockExecution.verificationStatus === "failed" ||
+    mockExecution.verificationStatus === "manual_required"
+      ? mockExecution.verificationStatus
+      : undefined;
+
+  return {
+    preflightStatus: mockExecution.preflightStatus === "failed" ? "failed" : undefined,
+    applyStatus: mockExecution.applyStatus === "failed" ? "failed" : undefined,
+    verificationStatus,
+    authorization: mockExecution.authorization,
+    accessToken: mockExecution.accessToken,
+    clientSecret: mockExecution.clientSecret
+  };
+};
+
+const asRecord = (value: unknown): Record<string, unknown> =>
+  value && typeof value === "object" && !Array.isArray(value) ? (value as Record<string, unknown>) : {};

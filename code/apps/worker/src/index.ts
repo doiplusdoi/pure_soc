@@ -9,7 +9,12 @@ export {
   createWorkerRuntime,
   startWorkerRuntimeLoop,
   workerRuntimeJobNames,
-  type WorkerActionJobResult,
   type WorkerRuntime,
   type WorkerRuntimeDependencies
 } from "./runtime";
+export {
+  executeRemediationActionJob,
+  validateRemediationActionJobOnly,
+  type RemediationActionExecutionDependencies,
+  type WorkerActionExecutionResult
+} from "./action-execution";

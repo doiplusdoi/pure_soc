@@ -25,6 +25,7 @@ Keep entries short, specific, and actionable.
 - Live PostgreSQL migration/runtime smoke is `pnpm prisma:smoke:postgres` from `code/`; it must target a disposable database URL and covers checked-in migrations plus representative Prisma repository CRUD without third-party providers or provider writes.
 - Live Redis job-runtime smoke is `pnpm jobs:smoke:redis` from `code/`; it must target a local/disposable Redis URL and covers the `@puresoc/jobs` Redis-backed queue adapter without enabling provider writes or live external integrations.
 - Provider-token rotation smoke is `pnpm provider-token:smoke` from `code/`; it is local/disposable only, uses the Microsoft 365 `local-env-key-ring` custody boundary, and must not print provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads.
+- Remediation worker provider execution is still fake/mock only. The M35 worker path requires persisted preflight, approval, pre-state snapshot, provider write-enabled state, and a test-injected fake executor; Microsoft 365 exports only a disabled action executor until live write contracts are explicitly implemented.
 
 ## How To Add Learnings
 
