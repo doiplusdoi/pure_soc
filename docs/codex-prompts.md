@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M31, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M31.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 31 / `docs/PLAN_M32.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M32, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M32.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 32 / `docs/PLAN_M33.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -61,6 +61,7 @@ The repository currently contains:
 - PLAN_M29 provider connection and telemetry persistence: `@puresoc/database` now has a `PrismaProviderResourceStore` implementing the provider-neutral `ProviderResourceStore` contract for provider connections, encrypted credential envelopes, permission bundles, capabilities, sync runs/modules, raw/normalized resources, findings, and recommendations; API Prisma mode selects it for mock/Microsoft provider flows and compliance inputs; provider telemetry is now reported as persisted.
 - PLAN_M30 OIDC transient authorization-state persistence: `@puresoc/database` now has a `PrismaOidcAuthorizationStateStore` selected by API Prisma mode for social-login begin/callback flows; state and nonce remain hashed, PKCE verifiers persist only as AES-GCM envelopes, callbacks survive service recreation, replay/expiry are rejected, and runtime reporting marks `oidc_transient_state` as persisted.
 - PLAN_M31 live PostgreSQL migration and Prisma runtime smoke: `pnpm prisma:smoke:postgres` validates a disposable `DATABASE_URL`, applies checked-in migrations to PostgreSQL, regenerates Prisma Client, and performs representative real CRUD through Prisma repositories for identity/session/org/RBAC, audit, OIDC transient state, provider telemetry, compliance output, evidence, billing, regulatory sources, remediation metadata, notification drafts, and stored outputs. GAP-026 is resolved for disposable live PostgreSQL smoke.
+- PLAN_M32 live Redis/BullMQ job durability smoke: `@puresoc/jobs` now has an opt-in Redis-backed queue adapter under `PURESOC_JOB_QUEUE_PROVIDER=bullmq`; `pnpm jobs:smoke:redis` targets a local/disposable Redis URL and proves enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync without live external services or provider writes. GAP-037 is resolved for the bounded live queue smoke, while GAP-043 tracks production multi-process queue hardening.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -99,7 +100,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 28 / `docs/PLAN_M29.md` is completed.
 - Prompt 29 / `docs/PLAN_M30.md` is completed.
 - Prompt 30 / `docs/PLAN_M31.md` is completed.
-- Prompt 31 / `docs/PLAN_M32.md` is staged as the next active implementation prompt.
+- Prompt 31 / `docs/PLAN_M32.md` is completed.
+- Prompt 32 / `docs/PLAN_M33.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -114,12 +116,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 31 / `docs/PLAN_M32.md`: Live Redis/BullMQ Job Durability Smoke Slice.
-2. Expected next handoff after M32: reassess GAP-037 and prioritize audit WORM/external signing (GAP-039), KMS/key rotation smoke (GAP-040), or remediation worker/provider execution safety (GAP-030), depending on what the live queue smoke uncovers.
+1. Prompt 32 / `docs/PLAN_M33.md`: Audit WORM Export And External Checkpoint Planning Slice.
+2. Expected next handoff after M33: prioritize KMS/key rotation smoke (GAP-040), remediation worker/provider execution safety (GAP-030), or production queue orchestration hardening (GAP-043), depending on what the audit durability work uncovers.
 
 Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
 
-## Active Prompt 31 / PLAN_M32: Live Redis/BullMQ Job Durability Smoke Slice
+## Active Prompt 32 / PLAN_M33: Audit WORM Export And External Checkpoint Planning Slice
 
 Read:
 
@@ -129,59 +131,57 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M31.md`
+- `docs/PLAN_M32.md`
 - `docs/threat-model.md`
-- `code/packages/jobs/src/**`
-- `code/apps/worker/src/**`
-- `code/apps/scheduler/src/**`
-- `code/apps/connector-runner/src/**`
-- `code/apps/api/src/auth/services.ts`
-- `code/infra/compose/docker-compose.yml`
+- `code/packages/audit/src/**`
+- `code/packages/database/src/**`
+- `code/apps/api/src/**`
+- `code/config/defaults/**`
 - `code/package.json`
-- `code/scripts/**`
+- `code/README.md`
 - `code/tests/**`
 
 Goal:
 
-Add a bounded live Redis/BullMQ durability smoke that proves the existing job-runtime boundary can enqueue, claim, complete, retry/fail, preserve idempotency metadata, and shut down cleanly against a real Redis-backed queue runtime.
+Narrow GAP-039 by turning the current audit hash-chain metadata into an explicit export/checkpoint contract that distinguishes tamper-evident database rows from WORM storage or external notarization claims.
 
 Context:
 
-- M19 added `@puresoc/jobs`, typed job registration, dispatch results, retry/failure metadata, idempotent in-memory queue behavior, graceful shutdown hooks, and a BullMQ-ready adapter boundary.
-- Worker, scheduler, and connector-runner entrypoints now start runtime loops, but GAP-037 remains open because no prompt has proven live Redis/BullMQ durability across enqueue/claim/complete/retry/shutdown behavior.
-- M31 proved live PostgreSQL migration/apply and representative Prisma CRUD. This milestone should focus on queue/runtime durability and should not broaden into live providers, provider writes, KMS, browser, Stripe, or public regulatory fetches.
+- M21 added audit hash-chain metadata and in-memory verification helpers.
+- M28 added a Prisma audit sink that persists redacted canonical payloads and hash metadata.
+- GAP-039 remains open because persisted audit rows are not WORM, external checkpoints/signatures are not implemented, retention/export policy is not defined, and multi-process append ordering is not hardened.
+- This milestone should build a bounded audit export/checkpoint foundation and should not broaden into KMS provider-token custody, provider writes, browser smoke, live Stripe, live OIDC providers, or public regulatory fetches.
 
 Deliverables:
 
-- Add a live Redis/BullMQ adapter implementation or smoke harness under the existing `@puresoc/jobs` boundary.
-- Add a disposable Redis smoke command that targets a caller-provided `REDIS_URL` or local disposable Redis container and exercises enqueue/claim/complete/retry/failure/idempotency behavior.
-- Cover representative worker, scheduler, and connector-runner job semantics using existing bounded contracts: read-only provider sync metadata, regulatory source monitor job metadata without public URL fetches, and remediation action safety-metadata validation without provider execution.
-- Preserve deterministic memory-mode tests and keep `PURESOC_JOB_QUEUE_PROVIDER=memory` as the default.
-- Document local/CI command usage and safety constraints in `code/README.md`.
-- Update docs/gaps/prompts and create `docs/PLAN_M33.md` from the next selected active prompt before final response.
+- Add an audit export/checkpoint data contract that can serialize organization/global audit chain segments with redacted canonical payloads, previous/current hash anchors, exported-at metadata, and verification status.
+- Add deterministic verification helpers for exported audit segments, including intact chain, missing row, tampered canonical payload, broken previous-hash link, and wrong terminal checkpoint scenarios.
+- Add repository or service boundaries for recording/exporting audit checkpoints without claiming external WORM storage exists.
+- Add documentation that clearly states the current guarantees and deferred work for WORM object storage, external signing/notarization, retention/export operations, and concurrency semantics.
+- Update docs/gaps/prompts and create `docs/PLAN_M34.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/packages/jobs/src/**`
-- `code/apps/worker/src/**`
-- `code/apps/scheduler/src/**`
-- `code/apps/connector-runner/src/**`
-- `code/scripts/**`
+- `code/packages/audit/src/**`
+- `code/packages/database/src/**`
+- `code/apps/api/src/**`
+- `code/config/defaults/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M32.md`
 - `docs/PLAN_M33.md`
+- `docs/PLAN_M34.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
 - Do not enable provider write/remediation execution.
+- Do not claim database hash chains are WORM storage, legal evidence certification, external notarization, or proof against a database administrator rewriting all rows.
 - Do not add live Microsoft Graph, Stripe, OIDC-provider, MinIO/S3, scanner, public regulatory URL, KMS, browser, or provider-write dependencies.
-- Do not make Redis/BullMQ the default unless deterministic memory mode remains preserved and documented.
-- Do not weaken remediation safety metadata checks, connector-runner read-only enforcement, regulatory no-auto-activation rules, audit redaction, or organization scoping.
+- Do not expose sensitive audit payload values or internal storage URIs in exports.
+- Do not weaken audit redaction, organization scoping, auth/session safeguards, or regulatory no-auto-activation rules.
 
 Tests and acceptance commands:
 
@@ -189,19 +189,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- jobs worker scheduler connector-runner provider regulatory actions
-pnpm <new-live-redis-bullmq-smoke-command>
+pnpm test -- audit database api auth organization rbac evidence reports
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M32.md`.
+If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M33.md`.
 
 Expected gap movement:
 
-- Close or narrow GAP-037 for live Redis/BullMQ queue durability.
+- Close or narrow GAP-039 for audit export/checkpoint contracts.
 - Preserve GAP-030 unless remediation worker/provider execution safety is explicitly implemented and accepted in a later prompt.
-- Preserve GAP-039/GAP-040 unless audit WORM/external signing or KMS/key rotation smoke is intentionally added.
+- Preserve GAP-040 unless KMS/key rotation smoke is intentionally added.
+- Preserve GAP-043 unless production queue orchestration hardening is intentionally added.
 
 Final response must include:
 
@@ -209,10 +209,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M32` updated
-- `PLAN_M33` created
+- `PLAN_M33` updated
+- `PLAN_M34` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 31 / PLAN_M32: Live Redis/BullMQ Job Durability Smoke Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Replaced the placeholder BullMQ boundary in `@puresoc/jobs` with an opt-in Redis-backed queue adapter selected by `PURESOC_JOB_QUEUE_PROVIDER=bullmq`, while preserving deterministic `memory` mode as the default.
+- Added `pnpm jobs:smoke:redis`, backed by `code/scripts/live-redis-bullmq-smoke.ts`, with local/disposable Redis target guards and unique synthetic `m32-smoke-*` queue names.
+- The live smoke proves Redis ping, enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata without provider writes, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync plus non-read-only rejection.
+- Documented Redis smoke usage and safety constraints in `code/README.md`.
+- GAP-037 is resolved for the bounded live Redis queue durability smoke; GAP-043 tracks production multi-process queue orchestration hardening. GAP-030, GAP-039, and GAP-040 remain preserved.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- jobs worker scheduler connector-runner provider regulatory actions`
+- `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` against a disposable `redis:7-alpine` container
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
 
 ## Completed Prompt 30 / PLAN_M31: Live PostgreSQL Migration And Prisma Runtime Smoke Slice
 

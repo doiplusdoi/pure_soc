@@ -168,7 +168,7 @@ describe("job runtime", () => {
     expect(processed).toEqual(["first"]);
   });
 
-  it("exposes a BullMQ-ready boundary without live Redis calls", async () => {
+  it("exposes a Redis-backed BullMQ queue adapter for opt-in live smokes", () => {
     const adapter = createBullMqReadyJobQueueAdapter({
       queueName: "puresoc-jobs",
       redisUrl: "redis://puresoc-redis:6379/0",
@@ -180,17 +180,8 @@ describe("job runtime", () => {
     });
 
     expect(adapter).toBeInstanceOf(BullMqReadyJobQueueAdapter);
-    expect(adapter.kind).toBe("bullmq_ready");
-    await expect(
-      adapter.enqueue({
-        name: "example.job",
-        payload: {},
-        maxAttempts: 1
-      })
-    ).rejects.toMatchObject({
-      code: "bullmq_adapter_boundary_only",
-      retryable: false
-    });
+    expect(adapter.kind).toBe("bullmq");
+    expect(adapter.options.queueName).toBe("puresoc-jobs");
   });
 });
 

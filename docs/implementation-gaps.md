@@ -385,12 +385,12 @@ Status: Resolved 2026-05-02 by PLAN_M30 for the tracked API runtime repository c
 
 Severity: High
 Area: Job runtime
-Current state: PLAN_M19 added `@puresoc/jobs` with a typed job registry, dispatch results, failure/retry metadata, idempotency hooks, deterministic in-memory queue/runner, graceful shutdown behavior, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops. Scheduler can enqueue `regulatory.monitorCountrySources` under explicit config without auto-activating legal logic. Worker validates remediation safety metadata only. Connector-runner executes `provider.sync` read-only and rejects non-read-only payloads. Live Redis/BullMQ queue calls are intentionally not implemented.
-Impact: Docker job roles now execute implemented runtime loops for the current contract harness, but scheduled/regulatory jobs, billing reconciliation, connector sync dispatch, and future remediation execution are not durable across restarts until Redis/BullMQ-backed queue operation is wired and smoke-tested.
-Next action: Add a live Redis/BullMQ adapter implementation and bounded Compose smoke for enqueue/claim/complete/retry/shutdown across worker, scheduler, and connector-runner; keep provider write execution disabled until GAP-030 is satisfied.
+Current state: PLAN_M19 added `@puresoc/jobs` with a typed job registry, dispatch results, failure/retry metadata, idempotency hooks, deterministic in-memory queue/runner, graceful shutdown behavior, and a BullMQ-ready adapter boundary. Worker, scheduler, and connector-runner entrypoints now start runtime loops. Scheduler can enqueue `regulatory.monitorCountrySources` under explicit config without auto-activating legal logic. Worker validates remediation safety metadata only. Connector-runner executes `provider.sync` read-only and rejects non-read-only payloads. PLAN_M32 replaced the placeholder boundary with an opt-in Redis-backed adapter under `PURESOC_JOB_QUEUE_PROVIDER=bullmq`, added `pnpm jobs:smoke:redis`, and proved enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync against a disposable Redis container.
+Impact: The bounded live Redis queue durability gap is resolved for the current job-runtime contract without changing the deterministic memory default or enabling provider writes. Production-grade multi-process BullMQ worker orchestration, queue retention/observability, and long-running deployed loop smoke remain separate release-hardening work.
+Next action: Use GAP-043 for production queue orchestration hardening. Keep provider write execution disabled until GAP-030 is satisfied.
 Owner: Codex/DevOps
 Target phase: Phase K runtime orchestration
-Status: Open but narrowed 2026-05-01 by PLAN_M19 for typed runtime loops, in-memory harness, idempotency/retry metadata, graceful shutdown tests, and BullMQ-ready boundary. Live Redis/BullMQ durability remains deferred.
+Status: Resolved 2026-05-02 by PLAN_M32 for bounded live Redis queue adapter and durability smoke while preserving memory mode and no-provider-write constraints.
 
 ### GAP-038: Distributed Rate Limiting, Proxy-Aware IP Trust, And Strict CSRF Tokens Deferred
 
@@ -446,6 +446,17 @@ Next action: Add product/legal-approved Romanian caveat/message entries when ava
 Owner: Codex/Product/legal
 Target phase: Phase K/i18n and country-pack export hardening
 Status: Open; created 2026-05-01 by PLAN_M23, narrowed 2026-05-01 by PLAN_M24 for generic envelope validation, Romania envelope generation, and Prisma-boundary notification draft persistence, and narrowed 2026-05-01 by PLAN_M25 for runtime persistence routes and deterministic Romania backfill posture.
+
+### GAP-043: Production Queue Orchestration And Multi-Process BullMQ Hardening Deferred
+
+Severity: Medium
+Area: Job runtime/operations
+Current state: PLAN_M32 adds an opt-in Redis-backed adapter under the existing `bullmq` queue-provider boundary and a disposable live Redis smoke that exercises queue durability through the `@puresoc/jobs` contract. The smoke runs bounded in-process runtime drains and uses synthetic queue names; it does not install the third-party BullMQ library, exercise separate long-running worker/scheduler/connector-runner containers claiming the same queue concurrently, or define production queue retention/observability settings.
+Impact: The repository now has live Redis proof for enqueue/claim/complete/retry/failure/idempotency semantics, but production queue operations could still fail due to multi-process claim races, queue retention choices, Redis connection interruption behavior, or missing operational metrics/alerts.
+Next action: Before relying on Redis queues in production, either adopt and test a full BullMQ worker/queue implementation or harden the current Redis adapter with atomic claim scripts, multi-process Compose smoke, connection retry policy, retention cleanup, queue metrics, and shutdown/recovery tests.
+Owner: Codex/DevOps
+Target phase: Phase K runtime orchestration
+Status: Open; created 2026-05-02 by PLAN_M32 after the bounded live Redis smoke resolved GAP-037 but intentionally left production orchestration hardening out of scope.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

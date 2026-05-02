@@ -4,8 +4,10 @@
 
 Implement Prompt 31 from `docs/codex-prompts.md`: add a bounded live Redis/BullMQ durability smoke for the existing job-runtime boundary, without enabling provider writes.
 
-Status: staged for implementation after M31.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -47,6 +49,8 @@ Locked assumptions:
 - BullMQ/Redis durability proof does not imply production-ready live provider writes.
 - Provider write/remediation execution remains disabled until GAP-030 is intentionally addressed.
 - The smoke must not require Microsoft Graph, Stripe, OIDC providers, PostgreSQL beyond existing contracts, object storage, scanner, public regulatory URL fetches, KMS, browser runtime, or provider write permissions.
+- The live queue slice may implement a minimal Redis-backed adapter under the existing BullMQ queue-provider boundary without adding a third-party BullMQ dependency, because the repository does not currently carry BullMQ in `node_modules` or `package.json`.
+- The Redis smoke writes only synthetic `m32-smoke-*` job keys under unique queue names and must target a local/disposable Redis instance unless an explicit disposable confirmation is provided.
 
 Expected files:
 
@@ -101,32 +105,57 @@ If `pnpm` is not available, run the equivalent host-node commands and record the
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Replaced the placeholder BullMQ boundary in `@puresoc/jobs` with an opt-in Redis-backed queue adapter selected by `PURESOC_JOB_QUEUE_PROVIDER=bullmq`, while preserving deterministic `memory` mode as the default.
+- Added `pnpm jobs:smoke:redis`, backed by `code/scripts/live-redis-bullmq-smoke.ts`, with local/disposable Redis safety checks and unique synthetic `m32-smoke-*` queue names.
+- The live smoke proves Redis connectivity, enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync plus non-read-only rejection.
+- Documented local/CI Redis smoke usage and safety constraints in `code/README.md`.
+- No live Microsoft Graph, Stripe, OIDC provider, object storage, scanner, public regulatory URL, KMS, browser, or provider write dependency was added.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/package.json`
+- `code/packages/jobs/src/index.ts`
+- `code/packages/jobs/src/__tests__/job-runtime.spec.ts`
+- `code/scripts/live-redis-bullmq-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M32.md`
+- `docs/PLAN_M33.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were not available. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run lint` passed.
+- `npm run test -- jobs worker scheduler connector-runner provider regulatory actions` passed: 23 test files, 82 tests.
+- `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` passed against a disposable `redis:7-alpine` container.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M32. The live Redis smoke proves the bounded queue durability behaviors requested by the prompt without changing the memory default or enabling provider writes.
 
 Gaps updated:
 
-- Pending.
+- GAP-037 resolved for bounded live Redis queue adapter and durability smoke.
+- GAP-043 created for production multi-process queue orchestration, queue retention/observability, and full BullMQ hardening that remains outside M32.
+- GAP-030 preserved; no provider write/remediation execution was added.
+- GAP-039/GAP-040 preserved; no audit WORM/external signing or KMS/key-rotation smoke was added.
 
 Prompt handoff:
 
-- Pending. M32 implementation must create `docs/PLAN_M33.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 31 / PLAN_M32 complete and stages Prompt 32 / PLAN_M33.
+- `docs/PLAN_M33.md` was created for the audit WORM/export and external checkpoint planning slice.
 
 Residual risk:
 
-- Pending.
+- The Redis adapter is a minimal implementation under the existing `bullmq` provider boundary and not a full third-party BullMQ worker deployment.
+- The live smoke is bounded and in-process; production multi-process queue claiming, retry recovery, retention cleanup, metrics, and long-running deployed loop behavior remain tracked by GAP-043.
+- Provider write execution remains disabled and open under GAP-030.

@@ -101,9 +101,27 @@ PURESOC_API_RATE_LIMIT_MAX_REQUESTS=120
 
 Distributed rate limiting, proxy-aware client-IP trust policy, strict CSRF-token rollout, and deployed browser/CORS smoke remain tracked as release hardening work.
 
-The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and a BullMQ-ready adapter boundary. The worker validates remediation job safety metadata only and keeps provider write execution disabled. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
+The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and an opt-in Redis-backed adapter under the `bullmq` queue-provider boundary. The worker validates remediation job safety metadata only and keeps provider write execution disabled. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
 
-`PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is modeled as an adapter boundary for future Redis-backed deployment work; live Redis/BullMQ calls are not claimed as production-ready by this milestone.
+`PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is now covered by a bounded live Redis durability smoke, but that smoke is not a claim that Redis/BullMQ operations, provider sync orchestration, or remediation execution are production-ready.
+
+### Live Redis/BullMQ Smoke
+
+M32 adds `pnpm jobs:smoke:redis`. It targets `PURESOC_REDIS_URL`, `REDIS_URL`, or `redis://127.0.0.1:6379/0` and writes only synthetic `m32-smoke-*` job keys under unique queue names. Use a local/disposable Redis instance, such as the Compose `puresoc-redis` service or an ephemeral CI service. Do not point it at production, staging, customer, or long-lived shared Redis data.
+
+```sh
+REDIS_URL=redis://127.0.0.1:6379/0 pnpm jobs:smoke:redis
+```
+
+For a non-local disposable Redis target, explicitly confirm the target is disposable:
+
+```sh
+PURESOC_REDIS_SMOKE_CONFIRM_DISPOSABLE=true \
+REDIS_URL=redis://redis-ci.example.internal:6379/0 \
+pnpm jobs:smoke:redis
+```
+
+The smoke proves enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync. It does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, public regulatory URLs, KMS, browser runtimes, or provider write executors.
 
 ## Locale And Notification Draft Contracts
 
