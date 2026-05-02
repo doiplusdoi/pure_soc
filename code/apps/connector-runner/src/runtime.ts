@@ -98,6 +98,11 @@ const createConnectorRunnerQueue = (dependencies: ConnectorRunnerRuntimeDependen
           attempts: dependencies.config.jobs.defaultMaxAttempts,
           backoffMs: dependencies.config.jobs.retryBackoffMs,
           removeOnComplete: true
+        },
+        claimLeaseMs: dependencies.config.jobs.redis.claimLeaseMs,
+        redisCommand: {
+          maxAttempts: dependencies.config.jobs.redis.commandMaxAttempts,
+          backoffMs: dependencies.config.jobs.redis.commandRetryBackoffMs
         }
       })
     : new InMemoryJobQueue({ now: dependencies.now, idFactory: dependencies.idFactory });

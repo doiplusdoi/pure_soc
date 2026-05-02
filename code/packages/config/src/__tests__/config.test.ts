@@ -70,6 +70,14 @@ describe("loadConfig", () => {
       retryBackoffMs: 1000,
       pollIntervalMs: 1000,
       shutdownGraceMs: 5000,
+      redis: {
+        commandMaxAttempts: 3,
+        commandRetryBackoffMs: 100,
+        claimLeaseMs: 30_000,
+        staleRunningJobRecoveryMs: 900_000,
+        completedJobRetentionMs: 86_400_000,
+        failedJobRetentionMs: 604_800_000
+      },
       worker: {
         enabled: true
       },
@@ -122,6 +130,12 @@ describe("loadConfig", () => {
         PURESOC_JOB_RETRY_BACKOFF_MS: "2000",
         PURESOC_JOB_POLL_INTERVAL_MS: "250",
         PURESOC_JOB_SHUTDOWN_GRACE_MS: "3000",
+        PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS: "7",
+        PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS: "75",
+        PURESOC_JOB_REDIS_CLAIM_LEASE_MS: "45000",
+        PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS: "120000",
+        PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS: "600000",
+        PURESOC_JOB_REDIS_FAILED_RETENTION_MS: "1200000",
         PURESOC_WORKER_ENABLED: "false",
         PURESOC_SCHEDULER_RUN_ON_STARTUP: "true",
         PURESOC_SCHEDULER_INTERVAL_MS: "60000",
@@ -190,6 +204,14 @@ describe("loadConfig", () => {
       retryBackoffMs: 2000,
       pollIntervalMs: 250,
       shutdownGraceMs: 3000,
+      redis: {
+        commandMaxAttempts: 7,
+        commandRetryBackoffMs: 75,
+        claimLeaseMs: 45_000,
+        staleRunningJobRecoveryMs: 120_000,
+        completedJobRetentionMs: 600_000,
+        failedJobRetentionMs: 1_200_000
+      },
       worker: {
         enabled: false
       },
@@ -223,6 +245,12 @@ describe("loadConfig", () => {
         PURESOC_JOB_RETRY_BACKOFF_MS: "soon",
         PURESOC_JOB_POLL_INTERVAL_MS: "-1",
         PURESOC_JOB_SHUTDOWN_GRACE_MS: "1.5",
+        PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS: "never",
+        PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS: "0",
+        PURESOC_JOB_REDIS_CLAIM_LEASE_MS: "-1",
+        PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS: "later",
+        PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS: "soon",
+        PURESOC_JOB_REDIS_FAILED_RETENTION_MS: "1.5",
         PURESOC_SCHEDULER_INTERVAL_MS: "0",
         REGULATORY_SOURCE_MONITOR_TIMEOUT_MS: "0",
         REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS: "soon"
@@ -237,6 +265,14 @@ describe("loadConfig", () => {
     expect(config.jobs.retryBackoffMs).toBe(1000);
     expect(config.jobs.pollIntervalMs).toBe(1000);
     expect(config.jobs.shutdownGraceMs).toBe(5000);
+    expect(config.jobs.redis).toEqual({
+      commandMaxAttempts: 3,
+      commandRetryBackoffMs: 100,
+      claimLeaseMs: 30_000,
+      staleRunningJobRecoveryMs: 900_000,
+      completedJobRetentionMs: 86_400_000,
+      failedJobRetentionMs: 604_800_000
+    });
     expect(config.jobs.scheduler.intervalMs).toBe(3_600_000);
     expect(config.compliance.sourceMonitor.requestTimeoutMs).toBe(5000);
     expect(config.compliance.sourceMonitor.staleAfterDays).toBe(90);

@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M35: narrow GAP-043 by hardening the production queue orchestration contract around the existing Redis-backed `bullmq` adapter and runtime loops, without enabling live provider writes or external provider calls.
 
-Status: staged for implementation after M35.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -115,32 +117,65 @@ If `pnpm` is not available, run equivalent host-node commands and record the sub
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Hardened `@puresoc/jobs` Redis queue behavior with per-job claim locks, bounded Redis command retry/backoff, explicit stale-running recovery, terminal cleanup hooks, and queue metadata/failure-detail redaction.
+- Added Redis job settings to config defaults/env overrides for command attempts/backoff, claim lease, stale-running recovery threshold, and terminal retention windows.
+- Extended worker/scheduler/connector-runner Redis queue construction to pass the configured Redis command and claim settings while preserving memory mode as the default.
+- Added deterministic tests for Redis claim contention across two runtime instances, stale-running recovery, completed/failed retention cleanup, idempotency-index cleanup, Redis command retry/backoff, and secret-free queue metadata/failure details.
+- Extended `pnpm jobs:smoke:redis` so the disposable Redis smoke now uses synthetic `puresoc-m36-smoke-*` queues and proves competing worker runtime instances process only one shared job, plus recovery, cleanup, graceful shutdown, scheduler fake metadata dispatch, and connector-runner read-only provider sync.
+- Documented remaining operator-owned Redis settings and preserved fake/mock/read-only provider behavior only.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/connector-runner/src/runtime.ts`
+- `code/apps/scheduler/src/runtime.ts`
+- `code/apps/worker/src/runtime.ts`
+- `code/config/defaults/jobs.json`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `code/packages/config/src/index.ts`
+- `code/packages/jobs/src/__tests__/job-runtime.spec.ts`
+- `code/packages/jobs/src/index.ts`
+- `code/scripts/live-redis-bullmq-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M36.md`
+- `docs/PLAN_M37.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run lint` passed, including layout checks, schema drift checks for 29 models / 432 fields, generated Romania regulatory drift checks, and TypeScript.
+- `npm run test -- jobs worker scheduler connector-runner provider actions queue redis api database audit` passed: 49 test files, 165 tests.
+- `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` passed against a disposable `redis:7-alpine` container.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M36. The milestone narrows queue orchestration risk for the current Redis adapter with claim-lock contention safety, recovery/retention hooks, bounded command retry, redaction, deterministic tests, and disposable Redis smoke coverage without enabling live provider writes.
 
 Gaps updated:
 
-- Pending.
+- GAP-043 narrowed for per-job claim locks, bounded Redis command retry/backoff, stale-running recovery, terminal cleanup hooks, queue metadata/failure-detail redaction, and disposable Redis smoke coverage.
+- GAP-030 preserved; no live provider write execution was added.
+- GAP-039 preserved; no external audit signing/WORM storage was added.
+- GAP-040 preserved; no live KMS/secret-manager custody was added.
 
 Prompt handoff:
 
-- Pending. M36 implementation must create `docs/PLAN_M37.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 35 / PLAN_M36 complete and stages Prompt 36 / PLAN_M37 for audit export retention and external checkpoint contracts.
+- `docs/PLAN_M37.md` was created from the staged M37 prompt.
 
 Residual risk:
 
-- Pending.
+- The Redis smoke uses bounded in-process runtime instances and a disposable Redis container; it is not a deployed multi-container soak with independently started long-running services.
+- Redis durability mode, eviction policy, metrics/alerts, cleanup cadence, stale-running recovery thresholds, and shutdown/recovery runbooks remain operator-owned.
+- Stale-running recovery is explicit rather than automatically scheduled; enabling it too aggressively could duplicate legitimate long-running work.
+- The queue adapter remains a minimal Redis-backed contract under the `bullmq` boundary, not the third-party BullMQ library.
+- Provider execution remains fake/mock or read-only only; production/customer provider writes remain blocked under GAP-030.

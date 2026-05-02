@@ -124,15 +124,28 @@ PURESOC_API_RATE_LIMIT_MAX_REQUESTS=120
 
 Distributed rate limiting, proxy-aware client-IP trust policy, strict CSRF-token rollout, and deployed browser/CORS smoke remain tracked as release hardening work.
 
-The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and an opt-in Redis-backed adapter under the `bullmq` queue-provider boundary. The worker validates remediation job safety metadata by default and keeps provider write execution disabled unless a caller injects the bounded fake-provider action-execution dependencies used by tests. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
+The job runtime baseline lives in `packages/jobs`. It provides a typed registry, dispatch results, failure/retry metadata, idempotent in-memory queue behavior for deterministic tests, graceful shutdown hooks, and an opt-in Redis-backed adapter under the `bullmq` queue-provider boundary. The Redis adapter uses a bounded command retry policy, atomic per-job claim locks, explicit stale-running recovery hooks, terminal-job cleanup hooks, and redaction for queue metadata/failure details. The worker validates remediation job safety metadata by default and keeps provider write execution disabled unless a caller injects the bounded fake-provider action-execution dependencies used by tests. The scheduler can enqueue the regulatory source monitor job under explicit config. The connector-runner executes read-only provider sync jobs and rejects non-read-only payloads.
 
 M35 adds a provider-neutral action executor boundary in `@puresoc/providers-core` and a deterministic fake executor in `@puresoc/provider-mock`. The worker action-execution path checks the persisted action run, preflight result, approval, pre-state snapshot, provider connection, write-enabled state, and idempotency before invoking that fake executor. It records post-state snapshot and verification metadata and writes redacted `action_applied`, `action_verified`, or `action_failed` audit payloads. Microsoft 365 exports only a disabled action executor; no Microsoft Graph write endpoint is called and no Microsoft write scope is enabled by default. Live provider write execution, rollback/verification against real tenants, customer-facing enablement, and production multi-process queue orchestration remain deferred release-hardening work.
 
-`PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is now covered by a bounded live Redis durability smoke, but that smoke is not a claim that Redis/BullMQ operations, provider sync orchestration, or remediation execution are production-ready.
+`PURESOC_JOB_QUEUE_PROVIDER=memory` is the default. `bullmq` is now covered by bounded live Redis smoke tests, but those smokes are not a claim that provider sync orchestration or remediation execution is production-ready.
+
+Redis queue hardening settings:
+
+```sh
+PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS=3
+PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS=100
+PURESOC_JOB_REDIS_CLAIM_LEASE_MS=30000
+PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS=900000
+PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS=86400000
+PURESOC_JOB_REDIS_FAILED_RETENTION_MS=604800000
+```
+
+Operators still own Redis durability mode, persistence/AOF policy, eviction policy, memory limits, backup/restore, retention cleanup cadence, queue metrics and alerts, multi-process deployment sizing, and shutdown/recovery runbooks. Stale-running recovery is intentionally explicit because recovering a genuinely long-running job too aggressively can create duplicate work.
 
 ### Live Redis/BullMQ Smoke
 
-M32 adds `pnpm jobs:smoke:redis`. It targets `PURESOC_REDIS_URL`, `REDIS_URL`, or `redis://127.0.0.1:6379/0` and writes only synthetic `m32-smoke-*` job keys under unique queue names. Use a local/disposable Redis instance, such as the Compose `puresoc-redis` service or an ephemeral CI service. Do not point it at production, staging, customer, or long-lived shared Redis data.
+M36 extends `pnpm jobs:smoke:redis`. It targets `PURESOC_REDIS_URL`, `REDIS_URL`, or `redis://127.0.0.1:6379/0` and writes only synthetic `puresoc-m36-smoke-*` job keys under unique queue names. Use a local/disposable Redis instance, such as the Compose `puresoc-redis` service or an ephemeral CI service. Do not point it at production, staging, customer, or long-lived shared Redis data.
 
 ```sh
 REDIS_URL=redis://127.0.0.1:6379/0 pnpm jobs:smoke:redis
@@ -146,7 +159,7 @@ REDIS_URL=redis://redis-ci.example.internal:6379/0 \
 pnpm jobs:smoke:redis
 ```
 
-The smoke proves enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync. It does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, public regulatory URLs, KMS, browser runtimes, or provider write executors.
+The smoke proves enqueue, duplicate idempotency, single-claim behavior under competing worker runtimes, complete, retry/failure metadata, stale-running recovery, terminal retention cleanup, graceful shutdown, worker safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync. It does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, public regulatory URLs, KMS, browser runtimes, or provider write executors.
 
 ## Locale And Notification Draft Contracts
 

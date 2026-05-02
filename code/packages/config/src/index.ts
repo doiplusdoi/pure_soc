@@ -115,6 +115,14 @@ export interface PureSocConfig {
     retryBackoffMs: number;
     pollIntervalMs: number;
     shutdownGraceMs: number;
+    redis: {
+      commandMaxAttempts: number;
+      commandRetryBackoffMs: number;
+      claimLeaseMs: number;
+      staleRunningJobRecoveryMs: number;
+      completedJobRetentionMs: number;
+      failedJobRetentionMs: number;
+    };
     worker: {
       enabled: boolean;
     };
@@ -476,6 +484,30 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       retryBackoffMs: readPositiveInteger(env.PURESOC_JOB_RETRY_BACKOFF_MS, config.jobs.retryBackoffMs),
       pollIntervalMs: readPositiveInteger(env.PURESOC_JOB_POLL_INTERVAL_MS, config.jobs.pollIntervalMs),
       shutdownGraceMs: readPositiveInteger(env.PURESOC_JOB_SHUTDOWN_GRACE_MS, config.jobs.shutdownGraceMs),
+      redis: {
+        ...config.jobs.redis,
+        commandMaxAttempts: readPositiveInteger(
+          env.PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS,
+          config.jobs.redis.commandMaxAttempts
+        ),
+        commandRetryBackoffMs: readPositiveInteger(
+          env.PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS,
+          config.jobs.redis.commandRetryBackoffMs
+        ),
+        claimLeaseMs: readPositiveInteger(env.PURESOC_JOB_REDIS_CLAIM_LEASE_MS, config.jobs.redis.claimLeaseMs),
+        staleRunningJobRecoveryMs: readPositiveInteger(
+          env.PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS,
+          config.jobs.redis.staleRunningJobRecoveryMs
+        ),
+        completedJobRetentionMs: readPositiveInteger(
+          env.PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS,
+          config.jobs.redis.completedJobRetentionMs
+        ),
+        failedJobRetentionMs: readPositiveInteger(
+          env.PURESOC_JOB_REDIS_FAILED_RETENTION_MS,
+          config.jobs.redis.failedJobRetentionMs
+        )
+      },
       worker: {
         ...config.jobs.worker,
         enabled: readBoolean(env.PURESOC_WORKER_ENABLED, config.jobs.worker.enabled)

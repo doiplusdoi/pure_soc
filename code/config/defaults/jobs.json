@@ -5,6 +5,14 @@
   "retryBackoffMs": 1000,
   "pollIntervalMs": 1000,
   "shutdownGraceMs": 5000,
+  "redis": {
+    "commandMaxAttempts": 3,
+    "commandRetryBackoffMs": 100,
+    "claimLeaseMs": 30000,
+    "staleRunningJobRecoveryMs": 900000,
+    "completedJobRetentionMs": 86400000,
+    "failedJobRetentionMs": 604800000
+  },
   "worker": {
     "enabled": true
   },

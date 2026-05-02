@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M35, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M35.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 35 / `docs/PLAN_M36.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M36, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M36.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 36 / `docs/PLAN_M37.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -65,6 +65,7 @@ The repository currently contains:
 - PLAN_M33 audit export/checkpoint contracts: `@puresoc/audit` now exports redacted audit chain segments with verification status, non-WORM/non-notarized guarantees, deterministic violation detection for missing rows, tampered payloads, broken links, and wrong terminal checkpoints; memory and Prisma checkpoint repositories persist database-only checkpoint metadata in `audit_checkpoints`; API routes expose organization-scoped audit export/checkpoint operations; GAP-039 is narrowed without claiming WORM storage or external notarization.
 - PLAN_M34 provider-token key custody and rotation smoke: `@puresoc/provider-microsoft365` now has an explicit `local-env-key-ring` key-provider/custody boundary around the local token cipher, redacted custody summaries, and a package-level rotation smoke helper; config validation rejects unsupported custody providers and duplicate/reused provider-token key material; `pnpm provider-token:smoke` proves active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production rejection of checked-in local-dev active/previous provider-token keys without live Microsoft Graph, external KMS, or provider writes. GAP-040 is narrowed without claiming KMS/secret-manager custody.
 - PLAN_M35 remediation worker provider execution safety: `@puresoc/providers-core` now has a provider-neutral action executor boundary; `@puresoc/provider-mock` has deterministic fake action execution; Microsoft 365 exports only a disabled action executor; worker execution can use injected fake-provider dependencies to prove persisted preflight, approval, pre-state snapshot, provider write-enabled checks, idempotency, failure metadata, post-state snapshot/verification metadata, and audit redaction without live Graph writes or customer-impacting remediation.
+- PLAN_M36 production queue orchestration hardening: `@puresoc/jobs` now uses Redis per-job claim locks, bounded command retry/backoff, explicit stale-running recovery and terminal cleanup hooks, queue metadata/failure-detail redaction, configurable Redis queue settings, deterministic contention/recovery/cleanup/retry tests, and an extended disposable Redis smoke proving competing worker runtime instances claim only one shared job while scheduler and connector-runner remain fake/read-only.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -107,7 +108,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 32 / `docs/PLAN_M33.md` is completed.
 - Prompt 33 / `docs/PLAN_M34.md` is completed.
 - Prompt 34 / `docs/PLAN_M35.md` is completed.
-- Prompt 35 / `docs/PLAN_M36.md` is staged as the next active implementation prompt.
+- Prompt 35 / `docs/PLAN_M36.md` is completed.
+- Prompt 36 / `docs/PLAN_M37.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -122,12 +124,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 35 / `docs/PLAN_M36.md`: Production Queue Orchestration And Multi-Process BullMQ Hardening Slice.
-2. Expected next handoff after M36: prioritize audit WORM/external signing operations (GAP-039), live KMS/secret-manager custody (GAP-040), served web/browser smoke (GAP-031/GAP-035), or live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), depending on what queue hardening uncovers.
+1. Prompt 36 / `docs/PLAN_M37.md`: Audit Export Retention And External Checkpoint Contract Slice.
+2. Expected next handoff after M37: prioritize live KMS/secret-manager custody (GAP-040), served web/browser smoke (GAP-031/GAP-035), or live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), depending on what audit operations work uncovers.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M36 may harden queue orchestration and worker claiming semantics around fake/mock jobs only, but production provider writes must stay disabled until explicit acceptance criteria pass.
+Do not enable live Microsoft Graph write/remediation actions by default. M37 may harden audit export/checkpoint contracts using fake/local adapters only, but WORM storage, external notarization, and production legal/auditability claims must stay explicit and disabled unless the prompt acceptance criteria prove them.
 
-## Active Prompt 35 / PLAN_M36: Production Queue Orchestration And Multi-Process BullMQ Hardening Slice
+## Active Prompt 36 / PLAN_M37: Audit Export Retention And External Checkpoint Contract Slice
 
 Read:
 
@@ -137,18 +139,13 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M35.md`
+- `docs/PLAN_M36.md`
 - `docs/threat-model.md`
-- `code/packages/jobs/src/**`
-- `code/apps/worker/src/**`
-- `code/apps/scheduler/src/**`
-- `code/apps/connector-runner/src/**`
-- `code/packages/providers/core/src/**`
-- `code/packages/providers/mock/src/**`
+- `code/packages/audit/src/**`
 - `code/packages/database/src/**`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
-- `code/scripts/**`
+- `code/packages/evidence/src/**`
 - `code/config/defaults/**`
 - `code/package.json`
 - `code/README.md`
@@ -156,55 +153,41 @@ Read:
 
 Goal:
 
-Narrow GAP-043 by hardening the production queue orchestration contract around the existing Redis-backed `bullmq` adapter and runtime loops, with deterministic in-process and disposable/local Redis coverage for multi-worker claiming, recovery, shutdown, retry/failure metadata, and retention behavior. Keep all provider work fake/mock or read-only, and do not enable live provider writes.
-
-Context:
-
-- M19 added the typed job registry/runtime loops and deterministic in-memory queue behavior.
-- M32 added an opt-in Redis-backed adapter and disposable Redis smoke for enqueue/claim/complete/retry/failure/idempotency semantics.
-- M35 added fake/mock remediation action execution behind explicit injected dependencies, increasing the importance of robust queue claiming and recovery before any production worker path is trusted.
-- GAP-043 remains open because the Redis smoke is bounded and in-process; it does not prove multiple long-running worker/scheduler/connector-runner processes competing for the same queue, atomic claim behavior under contention, retention cleanup, reconnect/backoff, queue metrics, or shutdown/recovery in a deployed profile.
+Narrow GAP-039 by making audit export/checkpoint operations more production-shaped without claiming WORM storage, external notarization, legal certification, or protection against a database administrator rewriting all rows. Add explicit contracts for retention/export policy and external checkpoint anchoring, using deterministic fake/local adapters only.
 
 Deliverables:
 
-- Harden or explicitly bound Redis queue claim semantics so duplicate workers cannot successfully process the same job in normal operation.
-- Add deterministic tests for multi-worker contention, retry scheduling, failed-job retention, completed-job retention/cleanup expectations, reconnect/backoff behavior where feasible, and graceful shutdown while a job is running.
-- Add or extend a disposable local Redis smoke that proves separate worker/scheduler/connector-runner runtime instances can share the Redis queue contract without live external services or provider writes.
-- Preserve memory-mode deterministic behavior and keep `PURESOC_JOB_QUEUE_PROVIDER=memory` as the fast local/test default.
-- Ensure queue logs and job metadata remain secret-free; job payloads must not expose provider tokens, OAuth codes, client secrets, authorization headers, key material, or decrypted credential payloads.
-- Document production queue settings that remain operator-owned, including Redis durability mode, eviction policy, retention/cleanup cadence, metrics/alerts, and shutdown/recovery runbooks.
-- Update docs/gaps/prompts and create `docs/PLAN_M37.md` from the next selected active prompt before final response.
+- Add an audit checkpoint/export operations contract that records retention/export policy metadata and external checkpoint provider status.
+- Add a `none` external checkpoint provider and a deterministic fake/test provider; do not call live notarization, timestamping, KMS/HSM, cloud WORM, or object-storage services.
+- Persist or expose checkpoint anchor metadata without changing the current database-only guarantee unless a fake provider is explicitly injected in tests.
+- Keep exported audit segments redacted and organization-scoped.
+- Add tests for intact/tampered exports, fake external anchor metadata, database-only/no-provider guarantees, retention metadata, cross-organization rejection, and secret-free export/checkpoint payloads.
+- Document remaining operator-owned audit requirements: append-only/WORM storage, retention policy, external signing/notarization, checkpoint export, alerting, and concurrent append semantics.
+- Update docs/gaps/prompts and create `docs/PLAN_M38.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/packages/jobs/src/**`
-- `code/apps/worker/src/**`
-- `code/apps/scheduler/src/**`
-- `code/apps/connector-runner/src/**`
-- `code/packages/providers/core/src/**`
-- `code/packages/providers/mock/src/**`
+- `code/packages/audit/src/**`
 - `code/packages/database/src/**`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
+- `code/packages/evidence/src/**`
 - `code/config/defaults/**`
-- `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M36.md`
 - `docs/PLAN_M37.md`
+- `docs/PLAN_M38.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not call live Microsoft Graph or any external provider write endpoint.
-- Do not request or enable Microsoft write scopes by default.
-- Do not make remediation actions executable for production/customer provider connections beyond the M35 fake/mock executor path.
-- Do not weaken audit redaction, provider-token custody, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, or provider-write startup disablement.
-- Do not broaden into Stripe, OIDC, browser UI, MinIO/S3, scanners, public regulatory fetches, KMS, or audit WORM/signing work.
-- Do not replace the current queue package with a large third-party abstraction unless the change is tightly scoped, tested, and documented; prefer hardening the existing adapter unless implementation discovery proves that unsafe.
+- Do not claim audit rows are WORM, externally notarized, legally certified, or database-admin-proof unless a real accepted implementation exists.
+- Do not call live external signing, timestamping, KMS/HSM, object-storage WORM, MinIO/S3, or cloud APIs.
+- Do not weaken audit redaction, organization scoping, auth/session safeguards, provider-token custody, regulatory no-auto-activation rules, or provider-write startup disablement.
+- Do not broaden into Stripe, OIDC, browser UI, Microsoft Graph, provider writes, public regulatory fetches, or queue runtime work.
 
 Tests and acceptance commands:
 
@@ -212,20 +195,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- jobs worker scheduler connector-runner provider actions queue redis api database audit
-pnpm jobs:smoke:redis
+pnpm test -- audit api database config evidence reports exports rbac
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M36.md`. `pnpm jobs:smoke:redis` must target a local/disposable Redis instance; if no disposable Redis is available, record the skipped smoke and exact blocker in `docs/PLAN_M36.md` and `docs/implementation-gaps.md`.
+If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M37.md`.
 
 Expected gap movement:
 
-- Narrow GAP-043 for production queue orchestration hardening.
+- Narrow GAP-039 for audit export/checkpoint retention and external-anchor contracts.
 - Preserve GAP-030 unless live provider write execution is intentionally implemented and accepted.
-- Preserve GAP-039 unless external audit signing/WORM storage is intentionally added.
 - Preserve GAP-040 unless live KMS/secret-manager custody is intentionally added.
+- Preserve GAP-043 unless deployed multi-container queue orchestration is intentionally added.
 
 Final response must include:
 
@@ -233,10 +215,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M36` updated
-- `PLAN_M37` created
+- `PLAN_M37` updated
+- `PLAN_M38` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 35 / PLAN_M36: Production Queue Orchestration And Multi-Process BullMQ Hardening Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Hardened the Redis-backed `bullmq` adapter in `@puresoc/jobs` with per-job claim locks, bounded Redis command retry/backoff, explicit stale-running recovery, terminal cleanup hooks, and queue metadata/failure-detail redaction.
+- Added Redis job settings to config defaults and environment overrides for command attempts/backoff, claim lease, stale-running recovery threshold, and completed/failed retention windows.
+- Extended deterministic tests for multi-worker claim contention, retry/failure metadata, recovery, cleanup, Redis command retry, and secret-free queue metadata.
+- Extended `pnpm jobs:smoke:redis` to use synthetic `puresoc-m36-smoke-*` queues and prove duplicate idempotency, single shared-job claim under competing worker runtime instances, recovery, cleanup, graceful shutdown, scheduler fake metadata dispatch, and connector-runner read-only provider sync.
+- Kept `PURESOC_JOB_QUEUE_PROVIDER=memory` as the default and did not enable live provider writes, live Microsoft Graph, external providers, KMS, WORM storage, browser runtime, object storage, or public regulatory fetches.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- jobs worker scheduler connector-runner provider actions queue redis api database audit`
+- `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` against a disposable `redis:7-alpine` container
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-043 is narrowed for claim-lock contention safety, bounded command retry, explicit recovery/retention hooks, queue redaction, and disposable Redis smoke coverage without claiming deployed production orchestration readiness. GAP-030, GAP-039, and GAP-040 remain preserved.
 
 ## Completed Prompt 34 / PLAN_M35: Remediation Worker Provider Execution Safety Contract Slice
 

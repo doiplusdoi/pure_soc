@@ -28,18 +28,24 @@ const main = async (): Promise<void> => {
   requireDisposableRedisUrl(redisUrl);
 
   const runId = randomUUID();
-  const queuePrefix = `puresoc-m32-smoke-${runId}`;
+  const queuePrefix = `puresoc-m36-smoke-${runId}`;
   const queues: BullMqReadyJobQueueAdapter[] = [];
   const checks: string[] = [];
+  const config = smokeConfig(redisUrl);
 
-  const createQueue = (role: string): BullMqReadyJobQueueAdapter => {
+  const createQueue = (role: string, queueName = `${queuePrefix}-${role}`): BullMqReadyJobQueueAdapter => {
     const queue = createBullMqReadyJobQueueAdapter({
-      queueName: `${queuePrefix}-${role}`,
+      queueName,
       redisUrl,
       defaultJobOptions: {
         attempts: 2,
         backoffMs: 0,
         removeOnComplete: false
+      },
+      claimLeaseMs: config.jobs.redis.claimLeaseMs,
+      redisCommand: {
+        maxAttempts: config.jobs.redis.commandMaxAttempts,
+        backoffMs: config.jobs.redis.commandRetryBackoffMs
       }
     });
     queues.push(queue);
@@ -53,8 +59,16 @@ const main = async (): Promise<void> => {
     await createQueue("ping").ping();
     checks.push("redis:ping");
 
-    await runCoreQueueSmoke(createQueue("core"));
-    checks.push("core:enqueue-claim-complete-retry-idempotency-shutdown");
+    await runCoreQueueSmoke(createQueue("core"), config);
+    checks.push("core:enqueue-claim-complete-retry-idempotency-shutdown-recovery-retention");
+
+    const sharedWorkerQueueName = `${queuePrefix}-worker-shared`;
+    await runWorkerContentionSmoke(
+      createQueue("worker-a", sharedWorkerQueueName),
+      createQueue("worker-b", sharedWorkerQueueName),
+      redisUrl
+    );
+    checks.push("worker:multi-runtime-contention-single-claim");
 
     await runWorkerSmoke(createQueue("worker"), redisUrl);
     checks.push("worker:remediation-safety-metadata-only");
@@ -65,7 +79,7 @@ const main = async (): Promise<void> => {
     await runConnectorRunnerSmoke(createQueue("connector-runner"), redisUrl);
     checks.push("connector-runner:read-only-provider-sync");
 
-    log(`M32 live Redis/BullMQ smoke passed: ${checks.join(", ")}`);
+    log(`M36 live Redis/BullMQ smoke passed: ${checks.join(", ")}`);
   } finally {
     for (const queue of queues.reverse()) {
       try {
@@ -78,7 +92,10 @@ const main = async (): Promise<void> => {
   }
 };
 
-const runCoreQueueSmoke = async (queue: BullMqReadyJobQueueAdapter): Promise<void> => {
+const runCoreQueueSmoke = async (
+  queue: BullMqReadyJobQueueAdapter,
+  config: ReturnType<typeof smokeConfig>
+): Promise<void> => {
   let flakyCalls = 0;
   const runtime = new JobRuntime({
     registry: new JobRegistry()
@@ -102,6 +119,10 @@ const runCoreQueueSmoke = async (queue: BullMqReadyJobQueueAdapter): Promise<voi
           requestShutdown();
           return { stopped: true };
         }
+      })
+      .register<{ id: string }, { recovered: true }>({
+        name: "m36.recovery",
+        handler: () => ({ recovered: true })
       }),
     queue,
     defaultRetryBackoffMs: 0
@@ -147,6 +168,85 @@ const runCoreQueueSmoke = async (queue: BullMqReadyJobQueueAdapter): Promise<voi
   const shutdown = await runtime.runUntilIdle({ maxJobs: 10 });
   assert(shutdown.status === "shutdown_requested", "Redis-backed runtime did not honor graceful shutdown.");
   assert(shutdown.processedCount === 1, "Graceful shutdown should stop after the current job.");
+
+  const recoveryDispatch = await queue.enqueue({
+    name: "m36.recovery",
+    payload: { id: "stale-running" },
+    idempotencyKey: "m36-recovery",
+    maxAttempts: 2
+  });
+  const staleClaim = await queue.claimNext(["m36.recovery"]);
+  assert(staleClaim?.id === recoveryDispatch.job.id, "Recovery smoke did not claim the stale-running fixture.");
+
+  const recovered = await queue.recoverStaleRunningJobs({
+    runningJobStaleAfterMs: 0,
+    retryBackoffMs: 0,
+    now: new Date()
+  });
+  assert(recovered.retriedJobIds.includes(recoveryDispatch.job.id), "Stale running job was not retried.");
+  const reclaimed = await queue.claimNext(["m36.recovery"]);
+  assert(reclaimed?.id === recoveryDispatch.job.id, "Recovered stale job was not claimable again.");
+  await queue.complete(recoveryDispatch.job.id, { recovered: true });
+
+  const failedTerminal = await queue.enqueue({
+    name: "m36.failed-terminal",
+    payload: { id: "failed-terminal" },
+    idempotencyKey: "m36-failed-terminal",
+    maxAttempts: 1
+  });
+  const failedClaim = await queue.claimNext(["m36.failed-terminal"]);
+  assert(failedClaim?.id === failedTerminal.job.id, "Failed terminal fixture was not claimed.");
+  await queue.fail(failedTerminal.job.id, {
+    code: "m36_terminal_failure",
+    message: "Synthetic terminal failure for retention cleanup.",
+    retryable: false,
+    failedAt: new Date().toISOString()
+  });
+
+  const cleanup = await queue.cleanupTerminalJobs({
+    completedJobRetentionMs: 0,
+    failedJobRetentionMs: 0,
+    now: new Date(Date.now() + config.jobs.redis.failedJobRetentionMs)
+  });
+  assert(cleanup.removedCount >= 3, "Terminal retention cleanup did not remove completed and failed jobs.");
+  const remainingJobs = await queue.list();
+  assert(
+    remainingJobs.every((job) => job.status !== "succeeded" && job.status !== "failed"),
+    "Terminal retention cleanup left terminal jobs behind."
+  );
+};
+
+const runWorkerContentionSmoke = async (
+  queueA: BullMqReadyJobQueueAdapter,
+  queueB: BullMqReadyJobQueueAdapter,
+  redisUrl: string
+): Promise<void> => {
+  const workerA = createWorkerRuntime({
+    config: smokeConfig(redisUrl),
+    queue: queueA
+  });
+  const workerB = createWorkerRuntime({
+    config: smokeConfig(redisUrl),
+    queue: queueB
+  });
+  const safeJob = createRemediationActionExecutionJob(actionRunFixture("action_run_m36_contention"), {
+    queuedByUserId: "operator_m36",
+    queuedAt: "2026-05-02T10:10:00.000Z",
+    providerConnectionWriteEnabledChecked: false
+  });
+
+  const dispatch = await workerA.dispatchRemediationActionJob(safeJob);
+  const results = await Promise.all([workerA.runtime.runNext(), workerB.runtime.runNext()]);
+  const succeeded = results.filter((result) => result?.status === "succeeded");
+  const idle = results.filter((result) => result === null);
+
+  assert(dispatch.status === "enqueued", "Worker contention job was not enqueued.");
+  assert(succeeded.length === 1, "Exactly one worker runtime should process the shared job.");
+  assert(idle.length === 1, "The competing worker runtime should find no duplicate claim.");
+  assert(
+    succeeded[0]?.job.result?.providerWriteExecution === "disabled",
+    "Worker contention smoke must not enable provider write execution."
+  );
 };
 
 const runWorkerSmoke = async (queue: BullMqReadyJobQueueAdapter, redisUrl: string): Promise<void> => {
@@ -275,12 +375,18 @@ const smokeConfig = (redisUrl: string, env: NodeJS.ProcessEnv = {}) =>
       PURESOC_REDIS_URL: redisUrl,
       PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "2",
       PURESOC_JOB_RETRY_BACKOFF_MS: "0",
+      PURESOC_JOB_REDIS_COMMAND_MAX_ATTEMPTS: "2",
+      PURESOC_JOB_REDIS_COMMAND_RETRY_BACKOFF_MS: "0",
+      PURESOC_JOB_REDIS_CLAIM_LEASE_MS: "5000",
+      PURESOC_JOB_REDIS_STALE_RUNNING_RECOVERY_MS: "60000",
+      PURESOC_JOB_REDIS_COMPLETED_RETENTION_MS: "1000",
+      PURESOC_JOB_REDIS_FAILED_RETENTION_MS: "1000",
       PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES: "false"
     }
   });
 
-const actionRunFixture = (): ActionRun => ({
-  id: "action_run_m32_safe",
+const actionRunFixture = (id = "action_run_m32_safe"): ActionRun => ({
+  id,
   organizationId: "org_m32_worker",
   providerConnectionId: "provider_connection_m32_worker",
   controlId: "nis2.access-control.mfa",

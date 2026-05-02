@@ -69,6 +69,32 @@ export interface JobQueueAdapter {
   fail(jobId: string, failure: JobFailureMetadata, retry?: JobRetryMetadata): Promise<JobRecord>;
   get(jobId: string): Promise<JobRecord | null>;
   list(): Promise<JobRecord[]>;
+  cleanupTerminalJobs(options: JobQueueCleanupOptions): Promise<JobQueueCleanupResult>;
+  recoverStaleRunningJobs(options: JobQueueRecoveryOptions): Promise<JobQueueRecoveryResult>;
+}
+
+export interface JobQueueCleanupOptions {
+  completedJobRetentionMs: number;
+  failedJobRetentionMs: number;
+  now?: Date;
+}
+
+export interface JobQueueCleanupResult {
+  removedJobIds: string[];
+  removedCount: number;
+  retainedCount: number;
+}
+
+export interface JobQueueRecoveryOptions {
+  runningJobStaleAfterMs: number;
+  retryBackoffMs: number;
+  now?: Date;
+}
+
+export interface JobQueueRecoveryResult {
+  retriedJobIds: string[];
+  failedJobIds: string[];
+  inspectedCount: number;
 }
 
 export interface JobHandlerContext<Payload = unknown> {
@@ -217,7 +243,7 @@ export class InMemoryJobQueue implements JobQueueAdapter {
       queuedAt: timestamp,
       availableAt: input.runAfter ?? timestamp,
       idempotencyKey: input.idempotencyKey,
-      metadata: input.metadata ?? {}
+      metadata: sanitizeJobMetadata(input.metadata)
     };
 
     this.jobs.set(job.id, job as JobRecord);
@@ -314,6 +340,70 @@ export class InMemoryJobQueue implements JobQueueAdapter {
 
   async list(): Promise<JobRecord[]> {
     return this.order.map((id) => this.jobs.get(id)).filter((job): job is JobRecord => Boolean(job)).map(cloneJob);
+  }
+
+  async cleanupTerminalJobs(options: JobQueueCleanupOptions): Promise<JobQueueCleanupResult> {
+    const now = options.now ?? this.now();
+    const removedJobIds: string[] = [];
+
+    for (const jobId of [...this.order]) {
+      const job = this.jobs.get(jobId);
+      if (!job || !shouldCleanupTerminalJob(job, options, now)) {
+        continue;
+      }
+
+      this.jobs.delete(jobId);
+      removedJobIds.push(jobId);
+    }
+
+    if (removedJobIds.length > 0) {
+      const removed = new Set(removedJobIds);
+      for (let index = this.order.length - 1; index >= 0; index -= 1) {
+        const jobId = this.order[index];
+        if (jobId && removed.has(jobId)) {
+          this.order.splice(index, 1);
+        }
+      }
+
+      for (const [indexKey, jobId] of [...this.idempotencyIndex.entries()]) {
+        if (removed.has(jobId)) {
+          this.idempotencyIndex.delete(indexKey);
+        }
+      }
+    }
+
+    return {
+      removedJobIds,
+      removedCount: removedJobIds.length,
+      retainedCount: this.order.length
+    };
+  }
+
+  async recoverStaleRunningJobs(options: JobQueueRecoveryOptions): Promise<JobQueueRecoveryResult> {
+    const now = options.now ?? this.now();
+    const retriedJobIds: string[] = [];
+    const failedJobIds: string[] = [];
+    let inspectedCount = 0;
+
+    for (const job of this.jobs.values()) {
+      if (!isStaleRunningJob(job, options.runningJobStaleAfterMs, now)) {
+        continue;
+      }
+
+      inspectedCount += 1;
+      const recovery = recoverRunningJob(job, options, now);
+      if (recovery.status === "retry_scheduled") {
+        retriedJobIds.push(job.id);
+      } else {
+        failedJobIds.push(job.id);
+      }
+    }
+
+    return {
+      retriedJobIds,
+      failedJobIds,
+      inspectedCount
+    };
   }
 
   private requireJob(jobId: string): JobRecord {
@@ -457,7 +547,7 @@ export class JobRuntime {
         message: error.message,
         retryable: error.retryable,
         failedAt,
-        details: error.details
+        details: error.details ? sanitizeJobMetadata(error.details) : undefined
       };
     }
 
@@ -482,13 +572,36 @@ export interface BullMqReadyJobQueueOptions {
     backoffMs?: number;
     removeOnComplete?: boolean;
   };
+  claimLeaseMs?: number;
+  redisCommand?: RedisCommandRetryOptions;
+}
+
+export interface RedisCommandRetryOptions {
+  maxAttempts?: number;
+  backoffMs?: number;
+}
+
+export interface RedisQueueCommandClient {
+  ping(): Promise<string>;
+  getString(key: string): Promise<string | null>;
+  set(key: string, value: string): Promise<void>;
+  setIfNotExists(key: string, value: string, options?: { ttlMs?: number }): Promise<boolean>;
+  mget(keys: readonly string[]): Promise<Array<string | null>>;
+  zadd(key: string, score: number, member: string): Promise<number>;
+  zrange(key: string, start: number, stop: number): Promise<string[]>;
+  zrangeByScore(key: string, min: string | number, max: string | number): Promise<string[]>;
+  zrem(key: string, member: string): Promise<number>;
+  scanKeys(match: string): Promise<string[]>;
+  del(keys: readonly string[]): Promise<number>;
+  close(): Promise<void>;
 }
 
 export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
   readonly kind = "bullmq";
   readonly options: BullMqReadyJobQueueOptions;
-  private readonly redis: RedisCommandClient;
+  private readonly redis: RedisQueueCommandClient;
   private readonly keyPrefix: string;
+  private readonly claimLeaseMs: number;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
 
@@ -496,12 +609,13 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
     options: BullMqReadyJobQueueOptions & {
       now?: () => Date;
       idFactory?: () => string;
-      commandClient?: RedisCommandClient;
+      commandClient?: RedisQueueCommandClient;
     }
   ) {
     this.options = options;
-    this.redis = options.commandClient ?? new RedisCommandClient(options.redisUrl);
+    this.redis = options.commandClient ?? new RedisCommandClient(options.redisUrl, options.redisCommand);
     this.keyPrefix = `puresoc:jobs:${sanitizeRedisKeySegment(options.queueName)}`;
+    this.claimLeaseMs = options.claimLeaseMs ?? 30_000;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? randomUUID;
   }
@@ -536,7 +650,7 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
       availableAt: input.runAfter ?? timestamp,
       idempotencyKey: input.idempotencyKey,
       metadata: {
-        ...(input.metadata ?? {}),
+        ...sanitizeJobMetadata(input.metadata),
         queueProvider: "bullmq"
       }
     };
@@ -552,6 +666,31 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
             job: duplicate as JobRecord<Payload>,
             duplicateOfJobId: duplicate.id
           };
+        }
+
+        await this.redis.del([duplicateIndexKey]);
+        const reclaimed = await this.redis.setIfNotExists(duplicateIndexKey, job.id);
+        if (!reclaimed) {
+          const reclaimedDuplicateJobId = await this.redis.getString(duplicateIndexKey);
+          const reclaimedDuplicate = reclaimedDuplicateJobId ? await this.get(reclaimedDuplicateJobId) : null;
+          if (reclaimedDuplicate) {
+            return {
+              status: "duplicate",
+              job: reclaimedDuplicate as JobRecord<Payload>,
+              duplicateOfJobId: reclaimedDuplicate.id
+            };
+          }
+
+          throw new JobRuntimeError(
+            "job_idempotency_index_conflict",
+            "Redis queue idempotency index changed during enqueue and did not resolve to a readable job.",
+            {
+              retryable: true,
+              details: {
+                jobName: input.name
+              }
+            }
+          );
         }
       }
     }
@@ -581,30 +720,46 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
       })
       .sort((left, right) => right.priority - left.priority || left.queuedAt.localeCompare(right.queuedAt));
 
-    const job = claimable[0];
-    if (!job) {
-      return null;
+    for (const candidate of claimable) {
+      const locked = await this.redis.setIfNotExists(this.claimLockKey(candidate.id), randomUUID(), {
+        ttlMs: this.claimLeaseMs
+      });
+      if (!locked) {
+        continue;
+      }
+
+      const fresh = await this.get(candidate.id);
+      if (
+        !fresh ||
+        !registered.has(fresh.name) ||
+        (fresh.status !== "queued" && fresh.status !== "retry_scheduled") ||
+        Date.parse(fresh.availableAt) > now.getTime()
+      ) {
+        continue;
+      }
+
+      const timestamp = now.toISOString();
+      const running: JobRecord = {
+        ...fresh,
+        status: "running",
+        startedAt: timestamp,
+        attemptsMade: fresh.attemptsMade + 1,
+        failure: undefined,
+        retry: {
+          attempt: fresh.attemptsMade + 1,
+          maxAttempts: fresh.maxAttempts,
+          retryable: true,
+          backoffMs: 0
+        }
+      };
+
+      await this.saveJob(running);
+      await this.redis.zrem(this.availableKey(), running.id);
+
+      return cloneJob(running);
     }
 
-    const timestamp = now.toISOString();
-    const running: JobRecord = {
-      ...job,
-      status: "running",
-      startedAt: timestamp,
-      attemptsMade: job.attemptsMade + 1,
-      failure: undefined,
-      retry: {
-        attempt: job.attemptsMade + 1,
-        maxAttempts: job.maxAttempts,
-        retryable: true,
-        backoffMs: 0
-      }
-    };
-
-    await this.redis.zrem(this.availableKey(), running.id);
-    await this.saveJob(running);
-
-    return cloneJob(running);
+    return null;
   }
 
   async complete<Result>(jobId: string, result: Result): Promise<JobRecord<unknown, Result>> {
@@ -626,6 +781,7 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
 
     await this.redis.zrem(this.availableKey(), jobId);
     await this.saveJob(completed);
+    await this.redis.del([this.claimLockKey(jobId)]);
 
     return cloneJob(completed);
   }
@@ -655,6 +811,7 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
     }
 
     await this.saveJob(failed);
+    await this.redis.del([this.claimLockKey(jobId)]);
 
     return cloneJob(failed);
   }
@@ -672,6 +829,71 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
     const jobIds = await this.redis.zrange(this.jobsKey(), 0, -1);
     const jobs = await this.getMany(jobIds);
     return jobs.filter((job): job is JobRecord => Boolean(job)).map(cloneJob);
+  }
+
+  async cleanupTerminalJobs(options: JobQueueCleanupOptions): Promise<JobQueueCleanupResult> {
+    const now = options.now ?? this.now();
+    const jobs = await this.list();
+    const removedJobIds: string[] = [];
+
+    for (const job of jobs) {
+      if (!shouldCleanupTerminalJob(job, options, now)) {
+        continue;
+      }
+
+      await this.deleteJob(job);
+      removedJobIds.push(job.id);
+    }
+
+    return {
+      removedJobIds,
+      removedCount: removedJobIds.length,
+      retainedCount: jobs.length - removedJobIds.length
+    };
+  }
+
+  async recoverStaleRunningJobs(options: JobQueueRecoveryOptions): Promise<JobQueueRecoveryResult> {
+    const now = options.now ?? this.now();
+    const jobs = await this.list();
+    const retriedJobIds: string[] = [];
+    const failedJobIds: string[] = [];
+    let inspectedCount = 0;
+
+    for (const job of jobs) {
+      if (!isStaleRunningJob(job, options.runningJobStaleAfterMs, now)) {
+        continue;
+      }
+
+      inspectedCount += 1;
+      const locked = await this.redis.setIfNotExists(this.recoveryLockKey(job.id), randomUUID(), {
+        ttlMs: this.claimLeaseMs
+      });
+      if (!locked) {
+        continue;
+      }
+
+      const fresh = await this.get(job.id);
+      if (!fresh || !isStaleRunningJob(fresh, options.runningJobStaleAfterMs, now)) {
+        continue;
+      }
+
+      const recovery = recoverRunningJob(fresh, options, now);
+      await this.saveJob(fresh);
+      if (recovery.status === "retry_scheduled") {
+        await this.redis.zadd(this.availableKey(), Date.parse(fresh.availableAt), fresh.id);
+        retriedJobIds.push(fresh.id);
+      } else {
+        await this.redis.zrem(this.availableKey(), fresh.id);
+        failedJobIds.push(fresh.id);
+      }
+      await this.redis.del([this.claimLockKey(fresh.id), this.recoveryLockKey(fresh.id)]);
+    }
+
+    return {
+      retriedJobIds,
+      failedJobIds,
+      inspectedCount
+    };
   }
 
   async close(): Promise<void> {
@@ -713,8 +935,27 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
     await this.redis.set(this.jobKey(job.id), JSON.stringify(job));
   }
 
+  private async deleteJob(job: JobRecord): Promise<void> {
+    const keys = [this.jobKey(job.id), this.claimLockKey(job.id), this.recoveryLockKey(job.id)];
+    if (job.idempotencyKey) {
+      keys.push(this.idempotencyIndexKey(job.name, job.idempotencyKey));
+    }
+
+    await this.redis.del(keys);
+    await this.redis.zrem(this.jobsKey(), job.id);
+    await this.redis.zrem(this.availableKey(), job.id);
+  }
+
   private jobKey(jobId: string): string {
     return `${this.keyPrefix}:job:${jobId}`;
+  }
+
+  private claimLockKey(jobId: string): string {
+    return `${this.keyPrefix}:claim:${jobId}`;
+  }
+
+  private recoveryLockKey(jobId: string): string {
+    return `${this.keyPrefix}:recovery:${jobId}`;
   }
 
   private jobsKey(): string {
@@ -737,7 +978,16 @@ export class BullMqReadyJobQueueAdapter implements JobQueueAdapter {
 export const createBullMqReadyJobQueueAdapter = (options: BullMqReadyJobQueueOptions): BullMqReadyJobQueueAdapter =>
   new BullMqReadyJobQueueAdapter(options);
 
-type RedisReply = string | number | null | RedisReply[];
+export type RedisReply = string | number | null | RedisReply[];
+export type RedisCommandExecutor = (
+  connection: ParsedRedisUrl,
+  commands: Array<ReadonlyArray<string | number>>
+) => Promise<RedisReply>;
+
+export interface RedisCommandClientOptions extends RedisCommandRetryOptions {
+  executor?: RedisCommandExecutor;
+  sleep?: (milliseconds: number) => Promise<void>;
+}
 
 class RedisReplyError extends Error {
   constructor(message: string) {
@@ -746,7 +996,7 @@ class RedisReplyError extends Error {
   }
 }
 
-interface ParsedRedisUrl {
+export interface ParsedRedisUrl {
   host: string;
   port: number;
   username?: string;
@@ -754,12 +1004,20 @@ interface ParsedRedisUrl {
   database?: number;
 }
 
-export class RedisCommandClient {
+export class RedisCommandClient implements RedisQueueCommandClient {
   private readonly connection: ParsedRedisUrl;
+  private readonly executor: RedisCommandExecutor;
+  private readonly maxAttempts: number;
+  private readonly retryBackoffMs: number;
+  private readonly retrySleep: (milliseconds: number) => Promise<void>;
   private closed = false;
 
-  constructor(redisUrl: string) {
+  constructor(redisUrl: string, options: RedisCommandClientOptions = {}) {
     this.connection = parseRedisUrl(redisUrl);
+    this.executor = options.executor ?? executeRedisCommands;
+    this.maxAttempts = options.maxAttempts ?? 3;
+    this.retryBackoffMs = options.backoffMs ?? 100;
+    this.retrySleep = options.sleep ?? sleep;
   }
 
   async ping(): Promise<string> {
@@ -778,8 +1036,13 @@ export class RedisCommandClient {
     }
   }
 
-  async setIfNotExists(key: string, value: string): Promise<boolean> {
-    const result = await this.command(["SET", key, value, "NX"]);
+  async setIfNotExists(key: string, value: string, options: { ttlMs?: number } = {}): Promise<boolean> {
+    const command: Array<string | number> = ["SET", key, value, "NX"];
+    if (options.ttlMs !== undefined) {
+      command.push("PX", options.ttlMs);
+    }
+
+    const result = await this.command(command);
     return result === "OK";
   }
 
@@ -849,7 +1112,20 @@ export class RedisCommandClient {
     }
 
     const commands = this.connectionCommands(parts);
-    return executeRedisCommands(this.connection, commands);
+    let attempt = 0;
+
+    while (true) {
+      try {
+        return await this.executor(this.connection, commands);
+      } catch (error) {
+        attempt += 1;
+        if (attempt >= this.maxAttempts || !isRetryableRedisCommandError(error)) {
+          throw error;
+        }
+
+        await this.retrySleep(this.retryBackoffMs);
+      }
+    }
   }
 
   private connectionCommands(parts: ReadonlyArray<string | number>): Array<ReadonlyArray<string | number>> {
@@ -1095,6 +1371,125 @@ const assertRedisStringArray = (value: RedisReply): string[] => {
   }
 
   return value.map((item) => assertRedisString(item));
+};
+
+const isRetryableRedisCommandError = (error: unknown): boolean =>
+  !(error instanceof JobRuntimeError && error.retryable === false) && !(error instanceof RedisReplyError);
+
+const sensitiveJobMetadataKeyFragments = [
+  "password",
+  "token",
+  "oauthcode",
+  "codeverifier",
+  "access",
+  "refresh",
+  "cookie",
+  "authorization",
+  "secret",
+  "storageuri",
+  "credential",
+  "keymaterial"
+] as const;
+
+const normalizeMetadataKey = (key: string): string => key.toLowerCase().replace(/[^a-z0-9]/g, "");
+
+export const isSensitiveJobMetadataKey = (key: string): boolean => {
+  const normalized = normalizeMetadataKey(key);
+  return sensitiveJobMetadataKeyFragments.some((fragment) => normalized.includes(fragment));
+};
+
+export const redactSensitiveJobMetadataValue = (value: unknown): unknown => {
+  if (Array.isArray(value)) {
+    return value.map((entry) => redactSensitiveJobMetadataValue(entry));
+  }
+
+  if (value === null || typeof value !== "object") {
+    return value;
+  }
+
+  const redacted: Record<string, unknown> = {};
+  let removed = 0;
+
+  for (const [key, entry] of Object.entries(value)) {
+    if (isSensitiveJobMetadataKey(key)) {
+      removed += 1;
+      continue;
+    }
+
+    redacted[key] = redactSensitiveJobMetadataValue(entry);
+  }
+
+  if (removed > 0) {
+    redacted.redactedFieldCount = removed;
+  }
+
+  return redacted;
+};
+
+const sanitizeJobMetadata = (metadata: Record<string, unknown> | undefined): Record<string, unknown> => {
+  const redacted = redactSensitiveJobMetadataValue(metadata ?? {});
+  return redacted && typeof redacted === "object" && !Array.isArray(redacted)
+    ? (redacted as Record<string, unknown>)
+    : {};
+};
+
+const shouldCleanupTerminalJob = (job: JobRecord, options: JobQueueCleanupOptions, now: Date): boolean => {
+  if (job.status !== "succeeded" && job.status !== "failed") {
+    return false;
+  }
+
+  const completedAt = job.completedAt ?? job.failedAt;
+  if (!completedAt) {
+    return false;
+  }
+
+  const retentionMs = job.status === "succeeded" ? options.completedJobRetentionMs : options.failedJobRetentionMs;
+  return Date.parse(completedAt) <= now.getTime() - retentionMs;
+};
+
+const isStaleRunningJob = (job: JobRecord, staleAfterMs: number, now: Date): boolean => {
+  if (job.status !== "running" || !job.startedAt) {
+    return false;
+  }
+
+  return Date.parse(job.startedAt) <= now.getTime() - staleAfterMs;
+};
+
+const recoverRunningJob = (job: JobRecord, options: JobQueueRecoveryOptions, now: Date): JobRecord => {
+  const timestamp = now.toISOString();
+  const retryable = job.attemptsMade < job.maxAttempts;
+  const failure: JobFailureMetadata = {
+    code: "stale_running_job_recovered",
+    message: "A running job exceeded the configured stale-running threshold and was recovered.",
+    retryable,
+    failedAt: timestamp,
+    details: {
+      startedAt: job.startedAt,
+      runningJobStaleAfterMs: options.runningJobStaleAfterMs
+    }
+  };
+  const retry: JobRetryMetadata = {
+    attempt: job.attemptsMade,
+    maxAttempts: job.maxAttempts,
+    retryable,
+    backoffMs: retryable ? options.retryBackoffMs : 0,
+    nextAttemptAt: retryable ? new Date(now.getTime() + options.retryBackoffMs).toISOString() : undefined
+  };
+
+  job.failure = failure;
+  job.failedAt = timestamp;
+  job.retry = retry;
+
+  if (retryable && retry.nextAttemptAt) {
+    job.status = "retry_scheduled";
+    job.availableAt = retry.nextAttemptAt;
+    job.startedAt = undefined;
+    return job;
+  }
+
+  job.status = "failed";
+  job.completedAt = timestamp;
+  return job;
 };
 
 export const runJobRuntimeLoop = async (
