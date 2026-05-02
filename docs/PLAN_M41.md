@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M40: further narrow GAP-039 by preparing audit export/checkpoint operations for immutable or externally anchored deployments while keeping the current database-only guarantees honest.
 
-Status: staged for implementation after M40.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -105,32 +107,66 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
+
+Implementation approach:
+
+- Inspect the existing audit export/checkpoint contracts, API routes, Prisma metadata, config, and tests before changing behavior.
+- Add only deterministic local/database-only handoff metadata unless the existing code already has a safe test-only writer surface.
+- Preserve redacted exports, organization-scoped access, database-only checkpoint guarantees, and no live external service calls.
 
 Implementation results:
 
-- Pending.
+- Added `AuditExportHandoff` metadata to audit export segments and checkpoint records.
+- Handoff states now distinguish `database_only`, `worm_export_pending`, `externally_anchored`, and `external_anchor_failed` without changing non-WORM/non-notarized guarantees.
+- Checkpoint recording now preserves failed external-anchor attempts as checkpoints with generic secret-free failure metadata instead of returning provider error text.
+- API checkpoint recording validates handoff guarantees and includes handoff status in the audit event summary.
+- Prisma checkpoint repository reads compute handoff metadata from persisted checkpoint/provider/guarantee fields without adding a schema migration.
+- Documentation now explains operator-owned immutable export, real external signing/notarization, legal hold/deletion, retry, and verification alerting responsibilities.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/audit-export-checkpoints.test.ts`
+- `code/apps/api/src/audit/routes.ts`
+- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
+- `code/packages/audit/src/index.ts`
+- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M41.md`
+- `docs/PLAN_M42.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm`/sandbox-local `npm` were unavailable, so validation used host-node/npm equivalents through `flatpak-spawn --host`.
+- `npm run lint` passed.
+- `npm run test -- audit api rbac evidence health` passed: 27 files, 86 tests.
+- `npm run test -- audit` passed as a focused pre-check: 7 files, 28 tests.
+- `npm run test:e2e -- --grep @ui-smoke` passed and wrote deterministic HTML snapshots under `/tmp/puresoc-ui-smoke-*`.
+- Sandbox-local `docker` was unavailable, so Compose validation used the host Docker CLI through `flatpak-spawn --host`.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M41. The slice adds deterministic handoff/runbook state and failed-anchor handling while preserving redaction, organization scoping, database-only guarantees, and no-live-external-call behavior.
 
 Gaps updated:
 
-- Pending.
+- GAP-039 narrowed for explicit audit export handoff states, failed-anchor checkpoint preservation, and operator-owned immutable/export/signing responsibility metadata without claiming WORM storage, external notarization, legal certification, or database-admin-proof auditability.
+- GAP-007, GAP-028, GAP-029, GAP-030, GAP-032, GAP-040, and GAP-043 preserved.
 
 Prompt handoff:
 
-- Pending. M41 implementation must create `docs/PLAN_M42.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 40 / PLAN_M41 complete and stages Prompt 41 / PLAN_M42 for external integration smoke readiness matrix and guardrails.
+- `docs/PLAN_M42.md` was created from the staged M42 prompt.
 
 Residual risk:
 
-- Pending.
+- Audit checkpoints remain database/tamper-evident metadata only. There is still no WORM/object-storage audit export writer, real external signing/notarization provider, database-admin-proof auditability, legal certification, legal-hold/deletion workflow, or production verification alerting.
+- Persisted audit chain concurrency semantics remain release-hardening work.
+- Live Microsoft Graph, Stripe, OIDC provider, object-storage/scanner, KMS/secret-manager, public regulatory, and provider-write smokes remain deferred.

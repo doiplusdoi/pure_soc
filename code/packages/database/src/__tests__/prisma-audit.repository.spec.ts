@@ -173,6 +173,19 @@ describe("PrismaAuditSink", () => {
         externalCheckpoint: "fake_test_anchor_only",
         externalNotarization: false
       }),
+      handoff: expect.objectContaining({
+        status: "database_only",
+        externalAnchor: expect.objectContaining({
+          status: "fake_anchor_recorded",
+          providerKey: "fake-local",
+          reference: "fake-audit-anchor:abc123",
+          failureCode: null
+        }),
+        artifact: expect.objectContaining({
+          storagePointerReturnedToClient: false,
+          publicUrlReturnedToClient: false
+        })
+      }),
       retentionPolicy: expect.objectContaining({
         policyKey: "puresoc-audit-database-only-7y"
       })

@@ -6,6 +6,7 @@ import {
   FakeExternalAuditCheckpointProvider,
   InMemoryAuditCheckpointRepository,
   InMemoryAuditSink,
+  createAuditExportHandoff,
   createAuditRetentionExportPolicy,
   createAuditExportSegment,
   stringifyAuditCanonicalPayload,
@@ -207,6 +208,27 @@ describe("audit integrity", () => {
       externalNotarization: false,
       legalCertification: false
     });
+    expect(segment.handoff).toMatchObject({
+      status: "database_only",
+      exportId: segment.exportId,
+      checkpointId: null,
+      recordCount: 2,
+      terminalHash: segment.terminalHash,
+      exportHash: expect.stringMatching(/^[a-f0-9]{64}$/),
+      artifact: {
+        writer: "not_configured",
+        status: "not_written",
+        storagePointerReturnedToClient: false,
+        publicUrlReturnedToClient: false,
+        wormStorage: false
+      },
+      externalAnchor: {
+        providerKey: "none",
+        status: "not_configured",
+        reference: null,
+        failureCode: null
+      }
+    });
     expect(segment.retentionPolicy).toMatchObject({
       policyKey: "puresoc-audit-database-only-7y",
       auditLogRetentionDays: 2555,
@@ -235,6 +257,11 @@ describe("audit integrity", () => {
       externalCheckpointStatus: "not_configured",
       externalCheckpointProvider: "none",
       externalCheckpointRecordedAt: null,
+      handoff: expect.objectContaining({
+        status: "database_only",
+        checkpointId: checkpoint.id,
+        exportHash: checkpoint.exportHash
+      }),
       retentionPolicy: expect.objectContaining({
         policyKey: "puresoc-audit-database-only-7y"
       })
@@ -292,6 +319,17 @@ describe("audit integrity", () => {
       mode: "deterministic_fake",
       liveExternalService: false
     });
+    expect(segment.handoff).toMatchObject({
+      status: "worm_export_pending",
+      artifact: {
+        status: "operator_handoff_required",
+        storagePointerReturnedToClient: false
+      },
+      externalAnchor: {
+        providerKey: "fake-local",
+        status: "not_configured"
+      }
+    });
     expect(checkpoint).toMatchObject({
       externalCheckpointStatus: "fake_anchor_recorded",
       externalCheckpointProvider: "fake-local",
@@ -311,6 +349,22 @@ describe("audit integrity", () => {
         legalCertification: false
       }
     });
+    expect(checkpoint.handoff).toMatchObject({
+      status: "database_only",
+      checkpointId: checkpoint.id,
+      exportHash: checkpoint.exportHash,
+      externalAnchor: {
+        providerKey: "fake-local",
+        status: "fake_anchor_recorded",
+        reference: checkpoint.externalCheckpointReference,
+        failureCode: null
+      },
+      guarantees: {
+        externalCheckpoint: "fake_test_anchor_only",
+        externalNotarization: false,
+        legalCertification: false
+      }
+    });
     expect(checkpoint.externalCheckpointMetadata).toMatchObject({
       testOnly: true,
       liveExternalService: false,
@@ -318,6 +372,144 @@ describe("audit integrity", () => {
       legalCertification: false
     });
     expect(serializedCheckpoint).not.toContain("must-not-anchor");
+  });
+
+  it("records failed external-anchor handoff metadata without leaking provider errors", async () => {
+    let id = 0;
+    const sink = new InMemoryAuditSink();
+    const writer = new AuditWriter({
+      sink,
+      idFactory: () => `10101010-1010-4010-8010-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date(`2026-05-02T12:20:0${id}.000Z`)
+    });
+
+    await writer.write({
+      organizationId: "org-anchor-failed",
+      targetType: "audit",
+      action: "checkpoint_failure_test",
+      afterJson: {
+        status: "ready"
+      }
+    });
+
+    const repository = new InMemoryAuditCheckpointRepository(sink);
+    const service = new AuditCheckpointService({
+      repository,
+      idFactory: () => `failed-export-${++id}`,
+      now: fixedNow("2026-05-02T12:21:00.000Z"),
+      externalCheckpointProvider: {
+        describeStatus: () => ({
+          providerKey: "failing-test-anchor",
+          configured: true,
+          mode: "unsupported",
+          liveExternalService: false,
+          wormStorage: false,
+          externalNotarization: false,
+          legalCertification: false
+        }),
+        async recordCheckpoint() {
+          throw new Error("accessToken=must-not-leak storageUri=s3://internal/audit");
+        }
+      }
+    });
+
+    const { checkpoint, segment } = await service.recordCheckpoint({
+      organizationId: "org-anchor-failed",
+      createdByUserId: "user-anchor-failed"
+    });
+    const serializedCheckpoint = JSON.stringify(checkpoint);
+
+    expect(segment.handoff.status).toBe("worm_export_pending");
+    expect(checkpoint).toMatchObject({
+      externalCheckpointStatus: "external_anchor_failed",
+      externalCheckpointProvider: "failing-test-anchor",
+      externalCheckpointReference: null,
+      externalCheckpointPayloadHash: null,
+      guarantees: {
+        databaseHashChain: "tamper_evident_only",
+        databaseRowsAreWorm: false,
+        externalCheckpoint: "not_configured",
+        externalNotarization: false,
+        legalCertification: false
+      },
+      handoff: expect.objectContaining({
+        status: "external_anchor_failed",
+        artifact: expect.objectContaining({
+          status: "operator_handoff_required",
+          storagePointerReturnedToClient: false,
+          publicUrlReturnedToClient: false,
+          wormStorage: false
+        }),
+        externalAnchor: expect.objectContaining({
+          providerKey: "failing-test-anchor",
+          status: "external_anchor_failed",
+          failureCode: "external_checkpoint_provider_failed"
+        })
+      })
+    });
+    expect(checkpoint.externalCheckpointMetadata).toMatchObject({
+      failureCode: "external_checkpoint_provider_failed",
+      retryable: true,
+      liveExternalService: false,
+      externalNotarization: false,
+      legalCertification: false
+    });
+    expect(serializedCheckpoint).not.toContain("must-not-leak");
+    expect(serializedCheckpoint).not.toContain("s3://internal/audit");
+    await expect(repository.listAuditCheckpoints({ organizationId: "org-anchor-failed" })).resolves.toHaveLength(1);
+  });
+
+  it("can describe externally anchored handoff state without claiming WORM storage or notarization", () => {
+    const handoff = createAuditExportHandoff({
+      exportId: "export-externally-anchored",
+      checkpointId: "checkpoint-externally-anchored",
+      organizationId: "org-externally-anchored",
+      recordCount: 3,
+      terminalHash: "a".repeat(64),
+      exportHash: "b".repeat(64),
+      createdAt: "2026-05-02T12:30:00.000Z",
+      externalCheckpointStatus: "externally_recorded",
+      externalCheckpointReference: "external-anchor:reference",
+      externalCheckpointRecordedAt: "2026-05-02T12:31:00.000Z",
+      externalCheckpointPayloadHash: "c".repeat(64),
+      externalCheckpointProviderStatus: {
+        providerKey: "future-external-provider",
+        configured: true,
+        mode: "unsupported",
+        liveExternalService: false,
+        wormStorage: false,
+        externalNotarization: false,
+        legalCertification: false
+      },
+      guarantees: {
+        databaseHashChain: "tamper_evident_only",
+        databaseRowsAreWorm: false,
+        externalCheckpoint: "external_anchor_recorded",
+        externalNotarization: false,
+        legalCertification: false
+      }
+    });
+
+    expect(handoff).toMatchObject({
+      status: "externally_anchored",
+      artifact: {
+        status: "operator_handoff_required",
+        storagePointerReturnedToClient: false,
+        publicUrlReturnedToClient: false,
+        wormStorage: false
+      },
+      externalAnchor: {
+        providerKey: "future-external-provider",
+        status: "externally_recorded",
+        reference: "external-anchor:reference",
+        failureCode: null
+      },
+      guarantees: {
+        externalCheckpoint: "external_anchor_recorded",
+        externalNotarization: false,
+        legalCertification: false
+      }
+    });
   });
 
   it("verifies exported segments for missing rows, tampered payloads, broken links, and wrong terminal checkpoints", async () => {

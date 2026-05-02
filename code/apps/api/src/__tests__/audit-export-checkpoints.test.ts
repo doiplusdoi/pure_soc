@@ -115,6 +115,15 @@ describe("audit export and checkpoint API", () => {
         guarantees: { databaseRowsAreWorm: boolean; externalCheckpoint: string; externalNotarization: boolean };
         retentionPolicy: { policyKey: string; auditLogRetentionDays: number };
         externalCheckpointProviderStatus: { providerKey: string; configured: boolean; liveExternalService: boolean };
+        handoff: {
+          status: string;
+          artifact: {
+            status: string;
+            storagePointerReturnedToClient: boolean;
+            publicUrlReturnedToClient: boolean;
+          };
+          externalAnchor: { providerKey: string; status: string; failureCode: string | null };
+        };
       };
     };
 
@@ -133,6 +142,19 @@ describe("audit export and checkpoint API", () => {
       providerKey: "none",
       configured: false,
       liveExternalService: false
+    });
+    expect(exportBody.segment.handoff).toMatchObject({
+      status: "database_only",
+      artifact: {
+        status: "not_written",
+        storagePointerReturnedToClient: false,
+        publicUrlReturnedToClient: false
+      },
+      externalAnchor: {
+        providerKey: "none",
+        status: "not_configured",
+        failureCode: null
+      }
     });
     expect(exportText).not.toContain("must-not-leak");
     expect(exportText).not.toContain("s3://internal/audit-export");
@@ -156,6 +178,12 @@ describe("audit export and checkpoint API", () => {
         externalCheckpointRecordedAt: string | null;
         retentionPolicy: { policyKey: string };
         guarantees: { databaseRowsAreWorm: boolean; externalNotarization: boolean; legalCertification: boolean };
+        handoff: {
+          status: string;
+          checkpointId: string;
+          externalAnchor: { status: string; providerKey: string };
+          artifact: { storagePointerReturnedToClient: boolean; publicUrlReturnedToClient: boolean };
+        };
       };
       verification: { valid: boolean };
     }>(checkpointResponse);
@@ -174,6 +202,17 @@ describe("audit export and checkpoint API", () => {
         databaseRowsAreWorm: false,
         externalNotarization: false,
         legalCertification: false
+      },
+      handoff: {
+        status: "database_only",
+        externalAnchor: {
+          status: "not_configured",
+          providerKey: "none"
+        },
+        artifact: {
+          storagePointerReturnedToClient: false,
+          publicUrlReturnedToClient: false
+        }
       }
     });
     expect(checkpointBody.verification.valid).toBe(true);
@@ -228,6 +267,7 @@ describe("audit export and checkpoint API", () => {
         terminalHash: string;
         retentionPolicy: { policyKey: string; checkpointCadenceDays: number };
         externalCheckpointProviderStatus: { providerKey: string; configured: boolean; liveExternalService: boolean };
+        handoff: { status: string; artifact: { status: string } };
       };
     }>(exportResponse);
     expect(exportBody.segment.retentionPolicy).toMatchObject({
@@ -238,6 +278,12 @@ describe("audit export and checkpoint API", () => {
       providerKey: "fake-local",
       configured: true,
       liveExternalService: false
+    });
+    expect(exportBody.segment.handoff).toMatchObject({
+      status: "worm_export_pending",
+      artifact: {
+        status: "operator_handoff_required"
+      }
     });
 
     const checkpointResponse = await postJson(
@@ -259,6 +305,11 @@ describe("audit export and checkpoint API", () => {
         externalCheckpointMetadata: { testOnly: boolean; liveExternalService: boolean };
         retentionPolicy: { policyKey: string; auditLogRetentionDays: number };
         guarantees: { externalCheckpoint: string; externalNotarization: boolean; legalCertification: boolean };
+        handoff: {
+          status: string;
+          externalAnchor: { status: string; providerKey: string; reference: string; failureCode: string | null };
+          artifact: { storagePointerReturnedToClient: boolean; publicUrlReturnedToClient: boolean };
+        };
       };
     };
 
@@ -276,6 +327,19 @@ describe("audit export and checkpoint API", () => {
         externalCheckpoint: "fake_test_anchor_only",
         externalNotarization: false,
         legalCertification: false
+      },
+      handoff: {
+        status: "database_only",
+        externalAnchor: {
+          status: "fake_anchor_recorded",
+          providerKey: "fake-local",
+          reference: expect.stringMatching(/^fake-audit-anchor:[a-f0-9]{16}$/),
+          failureCode: null
+        },
+        artifact: {
+          storagePointerReturnedToClient: false,
+          publicUrlReturnedToClient: false
+        }
       }
     });
     expect(checkpointBody.checkpoint.externalCheckpointMetadata).toMatchObject({

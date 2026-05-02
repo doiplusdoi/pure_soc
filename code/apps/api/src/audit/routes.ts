@@ -79,9 +79,15 @@ export const recordAuditCheckpointRoute = async (
 
   if (
     !result.checkpoint.guarantees ||
+    !result.checkpoint.handoff?.guarantees ||
     result.checkpoint.guarantees.databaseRowsAreWorm !== false ||
+    result.checkpoint.handoff.guarantees.databaseRowsAreWorm !== false ||
+    result.checkpoint.handoff.artifact.storagePointerReturnedToClient !== false ||
+    result.checkpoint.handoff.artifact.publicUrlReturnedToClient !== false ||
     result.checkpoint.guarantees.externalNotarization !== false ||
-    result.checkpoint.guarantees.legalCertification !== false
+    result.checkpoint.handoff.guarantees.externalNotarization !== false ||
+    result.checkpoint.guarantees.legalCertification !== false ||
+    result.checkpoint.handoff.guarantees.legalCertification !== false
   ) {
     throw new AuditExportError(
       "invalid_audit_checkpoint_guarantees",
@@ -105,6 +111,8 @@ export const recordAuditCheckpointRoute = async (
       verificationStatus: result.checkpoint.verificationStatus,
       externalCheckpointStatus: result.checkpoint.externalCheckpointStatus,
       externalCheckpointProvider: result.checkpoint.externalCheckpointProvider,
+      handoffStatus: result.checkpoint.handoff.status,
+      handoffArtifactStatus: result.checkpoint.handoff.artifact.status,
       retentionPolicyKey: result.checkpoint.retentionPolicy.policyKey,
       databaseRowsAreWorm: false
     }

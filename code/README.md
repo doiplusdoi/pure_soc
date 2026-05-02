@@ -123,6 +123,15 @@ Checkpoint records are database-only terminal-hash records that can support late
 
 Operators still own append-only/WORM storage, retention deletion/legal-hold policy, checkpoint export to immutable storage, external signing/notarization, audit verification alerts, and concurrent multi-process append semantics before making production auditability claims.
 
+M41 adds an explicit audit export handoff contract to exported segments and checkpoint records. The handoff status can be:
+
+- `database_only`: the default database checkpoint/hash-chain state; useful for later export, but not WORM or externally anchored.
+- `worm_export_pending`: the export/checkpoint metadata needs an operator-owned immutable/WORM handoff before stronger auditability claims.
+- `externally_anchored`: reserved for a future approved provider that records an external checkpoint reference; it still does not imply legal certification or WORM storage by itself.
+- `external_anchor_failed`: the checkpoint was preserved but the anchor provider failed; retry through an operator runbook and do not claim external anchoring for that checkpoint.
+
+The current application does not write audit exports to object storage, WORM storage, timestamping services, signing services, KMS/HSMs, or external notarization providers. Handoff metadata always reports `storagePointerReturnedToClient=false`, `publicUrlReturnedToClient=false`, `wormStorage=false`, `externalNotarization=false`, and `legalCertification=false` unless a future implementation genuinely changes those guarantees and tests it. If an external checkpoint provider fails, the failure metadata is intentionally generic and secret-free; provider error strings are not returned to browser clients.
+
 Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
 
 ## API Middleware

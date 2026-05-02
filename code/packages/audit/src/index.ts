@@ -109,6 +109,7 @@ export interface AuditSink {
 
 export const auditExportSchemaVersion = "puresoc.audit.export.v1" as const;
 export const auditRetentionExportPolicySchemaVersion = "puresoc.audit.retention-export-policy.v1" as const;
+export const auditExportHandoffSchemaVersion = "puresoc.audit.export-handoff.v1" as const;
 
 export type AuditExportScopeType = "organization" | "global";
 
@@ -181,7 +182,7 @@ export interface AuditRetentionExportPolicy {
 export interface AuditExportGuarantees {
   databaseHashChain: "tamper_evident_only";
   databaseRowsAreWorm: false;
-  externalCheckpoint: "not_configured" | "fake_test_anchor_only";
+  externalCheckpoint: "not_configured" | "fake_test_anchor_only" | "external_anchor_recorded";
   externalNotarization: false;
   legalCertification: false;
 }
@@ -196,6 +197,45 @@ export interface AuditExternalCheckpointProviderStatus {
   wormStorage: false;
   externalNotarization: false;
   legalCertification: false;
+}
+
+export type AuditExportHandoffStatus =
+  | "database_only"
+  | "worm_export_pending"
+  | "externally_anchored"
+  | "external_anchor_failed";
+
+export interface AuditExportHandoffArtifact {
+  writer: "not_configured";
+  status: "not_written" | "operator_handoff_required";
+  storagePointerReturnedToClient: false;
+  publicUrlReturnedToClient: false;
+  wormStorage: false;
+}
+
+export interface AuditExportHandoffExternalAnchor {
+  providerKey: string;
+  status: AuditExternalCheckpointStatus;
+  reference: string | null;
+  recordedAt: string | null;
+  payloadHash: string | null;
+  failureCode: "external_checkpoint_provider_failed" | null;
+}
+
+export interface AuditExportHandoff {
+  schemaVersion: typeof auditExportHandoffSchemaVersion;
+  status: AuditExportHandoffStatus;
+  exportId: string;
+  checkpointId: string | null;
+  organizationId: string | null;
+  recordCount: number;
+  terminalHash: string | null;
+  exportHash: string | null;
+  createdAt: string;
+  artifact: AuditExportHandoffArtifact;
+  externalAnchor: AuditExportHandoffExternalAnchor;
+  operatorActions: string[];
+  guarantees: AuditExportGuarantees;
 }
 
 export interface AuditExportSegment {
@@ -213,6 +253,7 @@ export interface AuditExportSegment {
   hashAlgorithm: AuditHashAlgorithm;
   retentionPolicy: AuditRetentionExportPolicy;
   externalCheckpointProviderStatus: AuditExternalCheckpointProviderStatus;
+  handoff: AuditExportHandoff;
   records: AuditExportedRecord[];
   verification: AuditExportVerification;
   guarantees: AuditExportGuarantees;
@@ -227,7 +268,8 @@ export type AuditExternalCheckpointStatus =
   | "not_configured"
   | "pending_external_anchor"
   | "fake_anchor_recorded"
-  | "externally_recorded";
+  | "externally_recorded"
+  | "external_anchor_failed";
 
 export interface AuditCheckpointRecord {
   id: string;
@@ -255,6 +297,7 @@ export interface AuditCheckpointRecord {
   externalCheckpointMetadata: Record<string, unknown>;
   retentionPolicy: AuditRetentionExportPolicy;
   guarantees: AuditExportGuarantees;
+  handoff: AuditExportHandoff;
 }
 
 export interface AuditExternalCheckpointAnchorInput {
@@ -563,6 +606,122 @@ export const auditExportScopeForOrganization = (organizationId: string | null): 
   organizationId
 });
 
+const auditHandoffStatusFor = (input: {
+  externalCheckpointStatus: AuditExternalCheckpointStatus;
+  providerStatus: AuditExternalCheckpointProviderStatus;
+}): AuditExportHandoffStatus => {
+  if (input.externalCheckpointStatus === "external_anchor_failed") {
+    return "external_anchor_failed";
+  }
+
+  if (input.externalCheckpointStatus === "externally_recorded") {
+    return "externally_anchored";
+  }
+
+  if (
+    input.externalCheckpointStatus === "pending_external_anchor" ||
+    (input.providerStatus.configured && input.externalCheckpointStatus === "not_configured")
+  ) {
+    return "worm_export_pending";
+  }
+
+  return "database_only";
+};
+
+const auditHandoffArtifactFor = (status: AuditExportHandoffStatus): AuditExportHandoffArtifact => ({
+  writer: "not_configured",
+  status: status === "database_only" ? "not_written" : "operator_handoff_required",
+  storagePointerReturnedToClient: false,
+  publicUrlReturnedToClient: false,
+  wormStorage: false
+});
+
+const auditHandoffOperatorActionsFor = (input: {
+  status: AuditExportHandoffStatus;
+  providerStatus: AuditExternalCheckpointProviderStatus;
+}): string[] => {
+  switch (input.status) {
+    case "worm_export_pending":
+      return [
+        "Write the exported audit segment and checkpoint metadata to operator-controlled immutable storage before making WORM retention claims.",
+        "Record an approved external anchor only after the immutable export handoff succeeds."
+      ];
+    case "externally_anchored":
+      return [
+        "Verify the external anchor reference against the selected provider and keep retention verification alerts active.",
+        "Keep the exported segment in operator-controlled retention storage according to the configured policy."
+      ];
+    case "external_anchor_failed":
+      return [
+        "Preserve the database checkpoint and investigate the external anchor provider failure.",
+        "Retry external anchoring only after the exported segment has been handed off through an approved operator runbook."
+      ];
+    case "database_only":
+    default:
+      return input.providerStatus.configured
+        ? [
+            "Complete the operator-owned immutable export handoff before claiming WORM retention.",
+            "Use a production external anchor provider before claiming external anchoring."
+          ]
+        : [
+            "Configure operator-owned immutable storage and external anchoring before making WORM or notarization claims.",
+            "Keep database-only checkpoint exports available for later external anchoring."
+          ];
+  }
+};
+
+export const createAuditExportHandoff = (input: {
+  exportId: string;
+  checkpointId?: string | null;
+  organizationId: string | null;
+  recordCount: number;
+  terminalHash: string | null;
+  exportHash?: string | null;
+  createdAt: string;
+  externalCheckpointStatus?: AuditExternalCheckpointStatus;
+  externalCheckpointReference?: string | null;
+  externalCheckpointRecordedAt?: string | null;
+  externalCheckpointPayloadHash?: string | null;
+  externalCheckpointProviderStatus?: AuditExternalCheckpointProviderStatus;
+  externalCheckpointMetadata?: Record<string, unknown>;
+  guarantees?: AuditExportGuarantees;
+}): AuditExportHandoff => {
+  const providerStatus = input.externalCheckpointProviderStatus ?? noneExternalCheckpointProviderStatus();
+  const externalCheckpointStatus = input.externalCheckpointStatus ?? "not_configured";
+  const status = auditHandoffStatusFor({
+    externalCheckpointStatus,
+    providerStatus
+  });
+  const failureCode =
+    status === "external_anchor_failed" ? "external_checkpoint_provider_failed" : null;
+
+  return {
+    schemaVersion: auditExportHandoffSchemaVersion,
+    status,
+    exportId: input.exportId,
+    checkpointId: input.checkpointId ?? null,
+    organizationId: input.organizationId,
+    recordCount: input.recordCount,
+    terminalHash: input.terminalHash,
+    exportHash: input.exportHash ?? null,
+    createdAt: input.createdAt,
+    artifact: auditHandoffArtifactFor(status),
+    externalAnchor: {
+      providerKey: providerStatus.providerKey,
+      status: externalCheckpointStatus,
+      reference: input.externalCheckpointReference ?? null,
+      recordedAt: input.externalCheckpointRecordedAt ?? null,
+      payloadHash: input.externalCheckpointPayloadHash ?? null,
+      failureCode
+    },
+    operatorActions: auditHandoffOperatorActionsFor({
+      status,
+      providerStatus
+    }),
+    guarantees: input.guarantees ?? auditExportGuarantees()
+  };
+};
+
 const toIsoString = (value: Date | string): string => (value instanceof Date ? value.toISOString() : new Date(value).toISOString());
 
 export const toAuditExportedRecord = (record: AuditLogRecord): AuditExportedRecord => {
@@ -738,7 +897,7 @@ export const createAuditExportSegment = (
   const exportedRecords = records.map(toAuditExportedRecord);
   const firstRecord = exportedRecords[0] ?? null;
   const terminalRecord = exportedRecords[exportedRecords.length - 1] ?? null;
-  const baseSegment: Omit<AuditExportSegment, "verification"> = {
+  const baseSegment: Omit<AuditExportSegment, "verification" | "handoff"> = {
     schemaVersion: auditExportSchemaVersion,
     exportId: options.exportId ?? randomUUID(),
     scope: auditExportScopeForOrganization(options.organizationId),
@@ -758,6 +917,15 @@ export const createAuditExportSegment = (
   };
   const segment = {
     ...baseSegment,
+    handoff: createAuditExportHandoff({
+      exportId: baseSegment.exportId,
+      organizationId: baseSegment.scope.organizationId,
+      recordCount: baseSegment.recordCount,
+      terminalHash: baseSegment.terminalHash,
+      createdAt: baseSegment.exportedAt,
+      externalCheckpointProviderStatus: baseSegment.externalCheckpointProviderStatus,
+      guarantees: baseSegment.guarantees
+    }),
     verification: {
       status: "valid",
       valid: true,
@@ -770,16 +938,24 @@ export const createAuditExportSegment = (
     }
   } satisfies AuditExportSegment;
 
-  return {
+  const verifiedSegment = {
     ...segment,
     verification: verifyAuditExportSegment(segment, {
       expectedTerminalHash: options.expectedTerminalHash
     })
   };
+
+  return {
+    ...verifiedSegment,
+    handoff: {
+      ...verifiedSegment.handoff,
+      exportHash: hashAuditExportSegment(verifiedSegment)
+    }
+  };
 };
 
 export const hashAuditExportSegment = (segment: AuditExportSegment): string => {
-  const { verification: _verification, ...hashPayload } = segment;
+  const { handoff: _handoff, verification: _verification, ...hashPayload } = segment;
   return createHash(auditHashAlgorithm).update(stringifyStableJson(hashPayload)).digest("hex");
 };
 
@@ -799,33 +975,58 @@ export const buildAuditCheckpointFromExportSegment = (
     externalCheckpointGuarantee?: AuditExportGuarantees["externalCheckpoint"];
     retentionPolicy?: AuditRetentionExportPolicy;
   } = {}
-): AuditCheckpointRecord => ({
-  id: options.id ?? randomUUID(),
-  organizationId: segment.scope.organizationId,
-  scope: segment.scope,
-  exportId: segment.exportId,
-  exportedAt: segment.exportedAt,
-  createdAt: (options.createdAt ?? new Date()).toISOString(),
-  createdByUserId: options.createdByUserId ?? null,
-  recordCount: segment.recordCount,
-  firstRecordId: segment.firstRecordId,
-  terminalRecordId: segment.terminalRecordId,
-  initialPreviousHash: segment.initialPreviousHash,
-  terminalHash: segment.terminalHash,
-  exportHash: hashAuditExportSegment(segment),
-  hashAlgorithm: segment.hashAlgorithm,
-  verificationStatus: segment.verification.status,
-  verificationViolations: segment.verification.violations,
-  externalCheckpointStatus: options.externalCheckpointStatus ?? "not_configured",
-  externalCheckpointReference: options.externalCheckpointReference ?? null,
-  externalCheckpointProvider: options.externalCheckpointProvider ?? segment.externalCheckpointProviderStatus.providerKey,
-  externalCheckpointProviderStatus: options.externalCheckpointProviderStatus ?? segment.externalCheckpointProviderStatus,
-  externalCheckpointRecordedAt: options.externalCheckpointRecordedAt ?? null,
-  externalCheckpointPayloadHash: options.externalCheckpointPayloadHash ?? null,
-  externalCheckpointMetadata: options.externalCheckpointMetadata ?? {},
-  retentionPolicy: options.retentionPolicy ?? segment.retentionPolicy,
-  guarantees: auditExportGuarantees(options.externalCheckpointGuarantee)
-});
+): AuditCheckpointRecord => {
+  const id = options.id ?? randomUUID();
+  const createdAt = (options.createdAt ?? new Date()).toISOString();
+  const exportHash = hashAuditExportSegment(segment);
+  const externalCheckpointStatus = options.externalCheckpointStatus ?? "not_configured";
+  const externalCheckpointProviderStatus = options.externalCheckpointProviderStatus ?? segment.externalCheckpointProviderStatus;
+  const guarantees = auditExportGuarantees(options.externalCheckpointGuarantee);
+
+  return {
+    id,
+    organizationId: segment.scope.organizationId,
+    scope: segment.scope,
+    exportId: segment.exportId,
+    exportedAt: segment.exportedAt,
+    createdAt,
+    createdByUserId: options.createdByUserId ?? null,
+    recordCount: segment.recordCount,
+    firstRecordId: segment.firstRecordId,
+    terminalRecordId: segment.terminalRecordId,
+    initialPreviousHash: segment.initialPreviousHash,
+    terminalHash: segment.terminalHash,
+    exportHash,
+    hashAlgorithm: segment.hashAlgorithm,
+    verificationStatus: segment.verification.status,
+    verificationViolations: segment.verification.violations,
+    externalCheckpointStatus,
+    externalCheckpointReference: options.externalCheckpointReference ?? null,
+    externalCheckpointProvider: options.externalCheckpointProvider ?? externalCheckpointProviderStatus.providerKey,
+    externalCheckpointProviderStatus,
+    externalCheckpointRecordedAt: options.externalCheckpointRecordedAt ?? null,
+    externalCheckpointPayloadHash: options.externalCheckpointPayloadHash ?? null,
+    externalCheckpointMetadata: options.externalCheckpointMetadata ?? {},
+    retentionPolicy: options.retentionPolicy ?? segment.retentionPolicy,
+    guarantees,
+    handoff: createAuditExportHandoff({
+      exportId: segment.exportId,
+      checkpointId: id,
+      organizationId: segment.scope.organizationId,
+      recordCount: segment.recordCount,
+      terminalHash: segment.terminalHash,
+      exportHash,
+      createdAt,
+      externalCheckpointStatus,
+      externalCheckpointReference: options.externalCheckpointReference ?? null,
+      externalCheckpointRecordedAt: options.externalCheckpointRecordedAt ?? null,
+      externalCheckpointPayloadHash: options.externalCheckpointPayloadHash ?? null,
+      externalCheckpointProviderStatus,
+      externalCheckpointMetadata: options.externalCheckpointMetadata ?? {},
+      guarantees
+    })
+  };
+};
 
 const attachAuditIntegrity = (
   record: Omit<AuditLogRecord, "canonicalPayload" | "entryHash" | "hashAlgorithm" | "previousHash">,
@@ -1066,34 +1267,66 @@ export class AuditCheckpointService {
       );
     }
 
+    const externalCheckpointProviderStatus = this.externalCheckpointProvider.describeStatus();
     const checkpointWithoutExternalAnchor = buildAuditCheckpointFromExportSegment(segment, {
       id: this.idFactory(),
       createdAt: this.now(),
       createdByUserId: input.createdByUserId ?? null,
       retentionPolicy: this.retentionPolicy,
-      externalCheckpointProviderStatus: this.externalCheckpointProvider.describeStatus()
+      externalCheckpointProviderStatus
     });
-    const externalAnchor = await this.externalCheckpointProvider.recordCheckpoint({
+    const externalAnchor = await this.recordExternalCheckpoint({
       checkpoint: checkpointWithoutExternalAnchor,
       segment,
-      retentionPolicy: this.retentionPolicy
+      retentionPolicy: this.retentionPolicy,
+      providerStatus: externalCheckpointProviderStatus
     });
-    const checkpoint: AuditCheckpointRecord = {
-      ...checkpointWithoutExternalAnchor,
+    const checkpoint = buildAuditCheckpointFromExportSegment(segment, {
+      id: checkpointWithoutExternalAnchor.id,
+      createdAt: new Date(checkpointWithoutExternalAnchor.createdAt),
+      createdByUserId: input.createdByUserId ?? null,
+      retentionPolicy: this.retentionPolicy,
       externalCheckpointStatus: externalAnchor.status,
       externalCheckpointReference: externalAnchor.reference,
       externalCheckpointProvider: externalAnchor.providerKey,
+      externalCheckpointProviderStatus,
       externalCheckpointRecordedAt: externalAnchor.recordedAt,
       externalCheckpointPayloadHash: externalAnchor.payloadHash,
       externalCheckpointMetadata: externalAnchor.metadata,
-      guarantees: auditExportGuarantees(externalAnchor.guarantee)
-    };
+      externalCheckpointGuarantee: externalAnchor.guarantee
+    });
     await this.repository.saveAuditCheckpoint(checkpoint);
 
     return {
       checkpoint,
       segment
     };
+  }
+
+  private async recordExternalCheckpoint(input: AuditExternalCheckpointAnchorInput & {
+    providerStatus: AuditExternalCheckpointProviderStatus;
+  }): Promise<AuditExternalCheckpointAnchorResult> {
+    try {
+      return await this.externalCheckpointProvider.recordCheckpoint(input);
+    } catch {
+      return {
+        status: "external_anchor_failed",
+        providerKey: input.providerStatus.providerKey,
+        reference: null,
+        recordedAt: this.now().toISOString(),
+        payloadHash: null,
+        metadata: {
+          failureCode: "external_checkpoint_provider_failed",
+          providerKey: input.providerStatus.providerKey,
+          retryable: true,
+          liveExternalService: false,
+          wormStorage: false,
+          externalNotarization: false,
+          legalCertification: false
+        },
+        guarantee: "not_configured"
+      };
+    }
   }
 
   async listCheckpoints(input: AuditExportRepositoryScope): Promise<AuditCheckpointRecord[]> {

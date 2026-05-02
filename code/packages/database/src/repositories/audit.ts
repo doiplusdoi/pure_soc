@@ -2,7 +2,9 @@ import {
   buildAuditCanonicalPayload,
   type AuditCheckpointRecord,
   type AuditCheckpointRepository,
+  createAuditExportHandoff,
   createAuditRetentionExportPolicy,
+  type AuditExternalCheckpointStatus,
   noneExternalCheckpointProviderStatus,
   type AuditExternalCheckpointProviderStatus,
   type AuditExportGuarantees,
@@ -296,43 +298,66 @@ const toAuditLogRecord = (row: AuditLogExportRow): AuditLogRecord => {
   };
 };
 
-const toAuditCheckpointRecord = (row: AuditCheckpointRow): AuditCheckpointRecord => ({
-  id: row.id,
-  organizationId: row.organizationId ?? null,
-  scope: {
-    type: row.scopeType === "global" ? "global" : "organization",
-    organizationId: row.organizationId ?? null
-  },
-  exportId: row.exportId,
-  exportedAt: toDate(row.exportedAt).toISOString(),
-  createdAt: toDate(row.createdAt).toISOString(),
-  createdByUserId: row.createdByUserId ?? null,
-  recordCount: row.recordCount,
-  firstRecordId: row.firstRecordId ?? null,
-  terminalRecordId: row.terminalRecordId ?? null,
-  initialPreviousHash: row.initialPreviousHash ?? null,
-  terminalHash: row.terminalHash ?? null,
-  exportHash: row.exportHash,
-  hashAlgorithm: toAuditHashAlgorithm(row.hashAlgorithm),
-  verificationStatus: row.verificationStatus === "valid" ? "valid" : "invalid",
-  verificationViolations: toAuditExportViolations(row.verificationViolationsJson),
-  externalCheckpointStatus:
-    row.externalCheckpointStatus === "pending_external_anchor" ||
-    row.externalCheckpointStatus === "fake_anchor_recorded" ||
-    row.externalCheckpointStatus === "externally_recorded"
-      ? row.externalCheckpointStatus
-      : "not_configured",
-  externalCheckpointReference: row.externalCheckpointReference ?? null,
-  externalCheckpointProvider: row.externalCheckpointProvider ?? "none",
-  externalCheckpointProviderStatus: toAuditExternalCheckpointProviderStatus(row.externalCheckpointProviderStatusJson),
-  externalCheckpointRecordedAt: row.externalCheckpointRecordedAt
+const toAuditCheckpointRecord = (row: AuditCheckpointRow): AuditCheckpointRecord => {
+  const organizationId = row.organizationId ?? null;
+  const createdAt = toDate(row.createdAt).toISOString();
+  const externalCheckpointStatus = toAuditExternalCheckpointStatus(row.externalCheckpointStatus);
+  const externalCheckpointProviderStatus = toAuditExternalCheckpointProviderStatus(
+    row.externalCheckpointProviderStatusJson
+  );
+  const externalCheckpointRecordedAt = row.externalCheckpointRecordedAt
     ? toDate(row.externalCheckpointRecordedAt).toISOString()
-    : null,
-  externalCheckpointPayloadHash: row.externalCheckpointPayloadHash ?? null,
-  externalCheckpointMetadata: toRecord(row.externalCheckpointMetadataJson),
-  retentionPolicy: toAuditRetentionExportPolicy(row.retentionPolicyJson),
-  guarantees: toAuditExportGuarantees(row.guaranteesJson)
-});
+    : null;
+  const retentionPolicy = toAuditRetentionExportPolicy(row.retentionPolicyJson);
+  const guarantees = toAuditExportGuarantees(row.guaranteesJson);
+
+  return {
+    id: row.id,
+    organizationId,
+    scope: {
+      type: row.scopeType === "global" ? "global" : "organization",
+      organizationId
+    },
+    exportId: row.exportId,
+    exportedAt: toDate(row.exportedAt).toISOString(),
+    createdAt,
+    createdByUserId: row.createdByUserId ?? null,
+    recordCount: row.recordCount,
+    firstRecordId: row.firstRecordId ?? null,
+    terminalRecordId: row.terminalRecordId ?? null,
+    initialPreviousHash: row.initialPreviousHash ?? null,
+    terminalHash: row.terminalHash ?? null,
+    exportHash: row.exportHash,
+    hashAlgorithm: toAuditHashAlgorithm(row.hashAlgorithm),
+    verificationStatus: row.verificationStatus === "valid" ? "valid" : "invalid",
+    verificationViolations: toAuditExportViolations(row.verificationViolationsJson),
+    externalCheckpointStatus,
+    externalCheckpointReference: row.externalCheckpointReference ?? null,
+    externalCheckpointProvider: row.externalCheckpointProvider ?? "none",
+    externalCheckpointProviderStatus,
+    externalCheckpointRecordedAt,
+    externalCheckpointPayloadHash: row.externalCheckpointPayloadHash ?? null,
+    externalCheckpointMetadata: toRecord(row.externalCheckpointMetadataJson),
+    retentionPolicy,
+    guarantees,
+    handoff: createAuditExportHandoff({
+      exportId: row.exportId,
+      checkpointId: row.id,
+      organizationId,
+      recordCount: row.recordCount,
+      terminalHash: row.terminalHash ?? null,
+      exportHash: row.exportHash,
+      createdAt,
+      externalCheckpointStatus,
+      externalCheckpointReference: row.externalCheckpointReference ?? null,
+      externalCheckpointRecordedAt,
+      externalCheckpointPayloadHash: row.externalCheckpointPayloadHash ?? null,
+      externalCheckpointProviderStatus,
+      externalCheckpointMetadata: toRecord(row.externalCheckpointMetadataJson),
+      guarantees
+    })
+  };
+};
 
 const jsonOrNull = (value: unknown): unknown => (value === undefined ? null : value);
 
@@ -367,7 +392,11 @@ const toAuditExportGuarantees = (value: unknown): AuditExportGuarantees => {
       databaseHashChain: "tamper_evident_only",
       databaseRowsAreWorm: false,
       externalCheckpoint:
-        value.externalCheckpoint === "fake_test_anchor_only" ? "fake_test_anchor_only" : "not_configured",
+        value.externalCheckpoint === "fake_test_anchor_only"
+          ? "fake_test_anchor_only"
+          : value.externalCheckpoint === "external_anchor_recorded"
+            ? "external_anchor_recorded"
+            : "not_configured",
       externalNotarization: false,
       legalCertification: false
     };
@@ -381,6 +410,14 @@ const toAuditExportGuarantees = (value: unknown): AuditExportGuarantees => {
     legalCertification: false
   };
 };
+
+const toAuditExternalCheckpointStatus = (value: unknown): AuditExternalCheckpointStatus =>
+  value === "pending_external_anchor" ||
+  value === "fake_anchor_recorded" ||
+  value === "externally_recorded" ||
+  value === "external_anchor_failed"
+    ? value
+    : "not_configured";
 
 const toRecord = (value: unknown): Record<string, unknown> => (isRecord(value) ? value : {});
 
