@@ -120,6 +120,7 @@ PURESOC_EXTERNAL_SMOKE_OIDC_GOOGLE=true
 PURESOC_EXTERNAL_SMOKE_OIDC_GITHUB=true
 PURESOC_EXTERNAL_SMOKE_STORAGE=true
 PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS=true
+PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true
 ```
 
 The matrix reports these paths independently:
@@ -129,6 +130,30 @@ The matrix reports these paths independently:
 - Microsoft Entra, Google, and GitHub social-login callback prerequisites: provider enablement, client ID/secret, redirect URI, PKCE/nonce posture, and transient-state production safety.
 - Object-storage/scanner prerequisites: S3/MinIO metadata, bucket/access configuration, HTTP scanner metadata, and no-op scanner warnings.
 - Evidence/report runtime prerequisites: legal-caveat enforcement, generated-report evidence storage, export format, upload limits, and storage-pointer redaction.
+- Auth deployment smoke prerequisites: local/test/disposable API base URL, trusted browser Origin, secure-cookie posture, Origin/callback exemptions, rate-limit posture, and endpoint-class guardrails.
+
+### Auth Deployment Smoke
+
+M47 adds a deployed-auth guardrail smoke harness:
+
+```sh
+pnpm auth:smoke:deployment
+```
+
+The default command is a dry-run. It first evaluates the M42 readiness matrix for `auth_deployment_browser`, then prints planned registration, login, session, logout, cookie-attribute, trusted-Origin, untrusted-Origin, callback-exemption, forwarded-header, health, and RBAC/organization-scope checks without contacting any deployment. Output includes endpoint classes and configured/missing environment variable names only; it does not print endpoint URLs, passwords, session tokens, session cookies, authorization headers, provider endpoint URLs, live user emails, provider tokens, or secrets.
+
+Live/disposable execution is refused unless `auth_deployment_browser` is `ready_for_disposable_smoke` in `pnpm external-smoke:readiness` and all of these are true:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
+PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
+PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
+PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true
+PURESOC_AUTH_DEPLOYMENT_SMOKE_BASE_URL=http://127.0.0.1:3001
+PURESOC_AUTH_DEPLOYMENT_SMOKE_TRUSTED_ORIGIN=http://127.0.0.1:3000
+```
+
+Live targets must be local/test/ci/disposable. Non-TLS targets are accepted only for local loopback; non-local TLS targets require secure-cookie config. The harness rejects production, staging, customer, public unknown, and non-TLS non-local endpoint classes, and it does not call OIDC/OAuth providers, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/secret-manager/cloud APIs, public regulatory URLs, or provider write executors.
 
 ### OIDC/Social Callback Smoke
 

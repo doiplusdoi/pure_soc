@@ -2,6 +2,19 @@ export { getApiHealth, type ApiHealth } from "./health";
 export { startApiServer } from "./server";
 export { createApiServices, type ApiServices } from "./auth/services";
 export {
+  authDeploymentSmokeBaseUrlEnv,
+  authDeploymentSmokeCommand,
+  authDeploymentSmokeConfigFromEnv,
+  authDeploymentSmokeOptInEnv,
+  authDeploymentSmokeReadinessPreflightFromReport,
+  authDeploymentSmokeSchemaVersion,
+  authDeploymentSmokeTrustedOriginEnv,
+  runAuthDeploymentSmoke,
+  type AuthDeploymentSmokeConfig,
+  type AuthDeploymentSmokeReadinessPreflight,
+  type AuthDeploymentSmokeReport
+} from "./auth/deployment-smoke";
+export {
   oidcCallbackSmokeCommand,
   oidcCallbackSmokeConfigFromEnv,
   oidcCallbackSmokeProviderEnv,

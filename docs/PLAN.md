@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M46 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M47 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -55,8 +55,9 @@ As of 2026-05-02, M1-M46 are implemented at contract/runtime-baseline level.
 - M44 adds `pnpm evidence:smoke:runtime`, an object-storage/scanner/evidence/report runtime smoke harness that stays dry-run by default, reuses the M42 readiness preflight for both storage/scanner and evidence/report paths, refuses live execution unless both paths are ready with local/test/disposable target confirmation and opt-ins, exercises renderer/scanner/S3/evidence metadata/access-log behavior through deterministic fake-runtime tests, and keeps endpoint URLs, credentials, storage URIs, full object keys, uploaded bytes, and report bodies out of output. No approved live MinIO/S3, scanner, or report-renderer target was exercised in default validation.
 - M45 adds `pnpm microsoft365:smoke:read-only`, a Microsoft 365 read-only disposable tenant smoke harness that stays dry-run by default, reuses the M42 readiness preflight for `microsoft365_read_only_tenant`, refuses live execution unless readiness and disposable/test opt-ins are set, exercises app-only token, encrypted credential-envelope, provider-neutral storage, and read-only Graph module sync behavior through deterministic fake-client tests, and keeps client secrets, tokens, tenant IDs, raw tenant payloads, live user emails, endpoint URLs, and provider credential envelopes out of output. No approved live Microsoft 365 tenant was exercised in default validation.
 - M46 adds `pnpm oidc:smoke:callback`, an OIDC/social-login disposable callback smoke harness that stays dry-run by default, reuses the M42 readiness preflight for a selected provider (`microsoft_entra`, `google`, or `github`), refuses live-candidate execution unless readiness, provider enablement, and disposable/test opt-ins are set, exercises local callback/session/account-link/audit behavior through deterministic injected-provider tests, and keeps client secrets, authorization codes, ID/access/refresh tokens, raw state/nonce values, PKCE verifiers, session cookies, live profile payloads, user emails, and endpoint URLs out of output. No approved live Microsoft/Google/GitHub provider app was exercised in default validation.
-- Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M47.md`, focused on a deployed browser/TLS/proxy auth smoke guardrail slice.
+- M47 adds `pnpm auth:smoke:deployment`, a deployed-auth smoke harness that stays dry-run by default, adds an M42 `auth_deployment_browser` readiness check, refuses live-candidate execution unless local/test/ci/disposable target guardrails and `PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true` are set, and exercises local disposable API health, trusted/untrusted Origin, registration/login/session/logout cookies, callback exemptions, forwarded-IP rate limiting, and RBAC scoping through deterministic tests while keeping endpoint URLs, passwords, session tokens/cookies, authorization headers, user emails, and secrets out of output. No approved deployed TLS/reverse-proxy/browser target was exercised in default validation.
+- Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M48.md`, focused on provider-token custody deployment readiness and runbook hardening.
 
 ## Milestones
 
@@ -77,8 +78,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M46.md` record completed incremental milestones.
-- `docs/PLAN_M47.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M47.md` record completed incremental milestones.
+- `docs/PLAN_M48.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

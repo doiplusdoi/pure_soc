@@ -26,11 +26,24 @@ export type ExternalSmokeTargetKind =
   | "unknown";
 
 export type ExternalSmokeReadinessArea =
+  | "auth_deployment"
   | "microsoft365"
   | "stripe"
   | "oidc_social_login"
   | "object_storage_scanner"
   | "evidence_reports";
+
+export type ExternalSmokeDeploymentEndpointClass =
+  | "empty"
+  | "local_loopback"
+  | "local_name"
+  | "test_hint"
+  | "public_unknown"
+  | "production_like"
+  | "staging_like"
+  | "customer_like"
+  | "non_tls_non_local"
+  | "invalid";
 
 export interface ExternalSmokeEnvironmentRequirement {
   label: string;
@@ -141,6 +154,7 @@ export const createExternalSmokeReadinessReport = (
   const globalUnsafe = globalUnsafeReasons(input.config, targetKind);
 
   const checks = [
+    authDeploymentCheck(input.config, env, mode, targetReady, globalUnsafe),
     microsoft365Check(input.config, env, mode, targetReady, globalUnsafe, input.metadata?.microsoft365),
     stripeCheck(input.config, env, mode, targetReady, globalUnsafe),
     ...oidcChecks(input.config, env, mode, targetReady, globalUnsafe, startupValidationIssueCodes),
@@ -169,6 +183,98 @@ export const createExternalSmokeReadinessReport = (
     checks,
     nextOperatorActions: nextOperatorActions(checks, mode, targetKind, disposableConfirmation)
   };
+};
+
+const authDeploymentCheck = (
+  config: PureSocConfig,
+  env: NodeJS.ProcessEnv,
+  mode: ExternalSmokeReadinessMode,
+  targetReady: boolean,
+  globalUnsafe: string[]
+): ExternalSmokeReadinessCheck => {
+  const baseUrl = env.PURESOC_AUTH_DEPLOYMENT_SMOKE_BASE_URL ?? "";
+  const trustedOrigin = env.PURESOC_AUTH_DEPLOYMENT_SMOKE_TRUSTED_ORIGIN ?? "";
+  const baseUrlClass = classifyExternalSmokeDeploymentEndpoint(baseUrl);
+  const trustedOriginClass = classifyExternalSmokeDeploymentEndpoint(trustedOrigin);
+  const optInEnv = "PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT";
+  const requirements = [
+    requirement("Auth deployment smoke base URL", ["PURESOC_AUTH_DEPLOYMENT_SMOKE_BASE_URL"], env, false, "configuration"),
+    requirement(
+      "Auth deployment trusted browser Origin",
+      ["PURESOC_AUTH_DEPLOYMENT_SMOKE_TRUSTED_ORIGIN"],
+      env,
+      false,
+      "configuration"
+    )
+  ];
+  const configured =
+    requirements.some((entry) => entry.configured) || readBoolean(env[optInEnv]) || mode === "live_candidate";
+  const missing = configured
+    ? [
+        ...missingRequirementCodes(requirements),
+        ...(config.auth.localEnabled ? [] : ["auth_local_login_disabled"]),
+        ...(config.api.security.originProtection.enabled ? [] : ["origin_protection_disabled"]),
+        ...(config.api.rateLimits.enabled ? [] : ["api_rate_limits_disabled"]),
+        ...(config.api.security.originProtection.exemptRouteFamilies.includes("oidc_callback")
+          ? []
+          : ["oidc_callback_origin_exemption_missing"]),
+        ...(config.api.security.originProtection.exemptRouteFamilies.includes("provider_callback")
+          ? []
+          : ["provider_callback_origin_exemption_missing"])
+      ]
+    : [];
+  const endpointUnsafe = configured
+    ? [
+        ...deploymentEndpointUnsafeReasons("base_url", baseUrlClass),
+        ...deploymentEndpointUnsafeReasons("trusted_origin", trustedOriginClass),
+        ...(requiresSecureCookieForDeploymentEndpoint(baseUrl) && !config.auth.sessionCookieSecure
+          ? ["auth_deployment_secure_cookie_not_enabled_for_tls_target"]
+          : [])
+      ]
+    : [];
+  const unsafe = configured ? [...globalUnsafe, ...endpointUnsafe] : [];
+  const status = statusFor({
+    configured,
+    missing,
+    unsafe,
+    optInEnv,
+    mode,
+    targetReady,
+    optInReady: readBoolean(env[optInEnv])
+  });
+
+  return check({
+    id: "auth_deployment_browser",
+    area: "auth_deployment",
+    label: "Deployed browser/TLS/proxy auth smoke",
+    status,
+    configuredEnvironmentVariables: configuredEnvNames(requirements, env),
+    requiredEnvironment: requirements,
+    blockers: [...missing, ...unsafe],
+    guardrails: liveGuardrails(mode, targetReady, env, optInEnv, unsafe),
+    summary:
+      status === "not_configured"
+        ? "Auth deployment smoke target is not configured."
+        : "Reports deployed auth, cookie, Origin, callback-exemption, proxy-header, and RBAC smoke prerequisites without contacting a target by default.",
+    metadata: {
+      baseUrlClass,
+      trustedOriginClass,
+      localAuthEnabled: config.auth.localEnabled,
+      sessionCookieSecureConfigured: config.auth.sessionCookieSecure,
+      originProtectionEnabled: config.api.security.originProtection.enabled,
+      requireOriginOrReferer: config.api.security.originProtection.requireOriginOrReferer,
+      trustedOriginCount: config.api.security.trustedOrigins.length,
+      callbackExemptRouteFamilies: {
+        oidcCallback: config.api.security.originProtection.exemptRouteFamilies.includes("oidc_callback"),
+        providerCallback: config.api.security.originProtection.exemptRouteFamilies.includes("provider_callback"),
+        webhook: config.api.security.originProtection.exemptRouteFamilies.includes("webhook")
+      },
+      rateLimitEnabled: config.api.rateLimits.enabled,
+      rateLimitFamiliesConfigured: Object.keys(config.api.rateLimits.routeFamilies).sort(),
+      endpointValuesReturned: false,
+      sessionCookieValuesReturned: false
+    }
+  });
 };
 
 const microsoft365Check = (
@@ -635,6 +741,118 @@ const isSafeDisposableTarget = (targetKind: ExternalSmokeTargetKind): boolean =>
   targetKind === "test" ||
   targetKind === "ci" ||
   targetKind === "disposable";
+
+export const classifyExternalSmokeDeploymentEndpoint = (value: string): ExternalSmokeDeploymentEndpointClass => {
+  if (!nonEmpty(value)) {
+    return "empty";
+  }
+
+  try {
+    const url = new URL(value);
+    const host = url.hostname.toLowerCase();
+
+    if (url.username || url.password) {
+      return "invalid";
+    }
+
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return "invalid";
+    }
+
+    if (isLoopbackHost(host)) {
+      return "local_loopback";
+    }
+
+    if (url.protocol !== "https:") {
+      return "non_tls_non_local";
+    }
+
+    if (host.endsWith(".local")) {
+      return "local_name";
+    }
+
+    if (hasCustomerHint(host)) {
+      return "customer_like";
+    }
+
+    if (hasStagingHint(host)) {
+      return "staging_like";
+    }
+
+    if (hasProductionHint(host)) {
+      return "production_like";
+    }
+
+    if (hasTestHint(host)) {
+      return "test_hint";
+    }
+
+    return "public_unknown";
+  } catch {
+    return "invalid";
+  }
+};
+
+const deploymentEndpointUnsafeReasons = (
+  label: "base_url" | "trusted_origin",
+  endpointClass: ExternalSmokeDeploymentEndpointClass
+): string[] => {
+  if (endpointClass === "empty") {
+    return [];
+  }
+
+  if (endpointClass === "invalid") {
+    return [`auth_deployment_${label}_invalid`];
+  }
+
+  if (endpointClass === "non_tls_non_local") {
+    return [`auth_deployment_${label}_non_tls_non_local`];
+  }
+
+  if (
+    endpointClass === "public_unknown" ||
+    endpointClass === "production_like" ||
+    endpointClass === "staging_like" ||
+    endpointClass === "customer_like"
+  ) {
+    return [`auth_deployment_${label}_${endpointClass}`];
+  }
+
+  return [];
+};
+
+const requiresSecureCookieForDeploymentEndpoint = (value: string): boolean => {
+  if (!nonEmpty(value)) {
+    return false;
+  }
+
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && !isLoopbackHost(url.hostname.toLowerCase());
+  } catch {
+    return false;
+  }
+};
+
+const isLoopbackHost = (host: string): boolean =>
+  host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+
+const hasTestHint = (host: string): boolean =>
+  host === "example.test" ||
+  host.endsWith(".test") ||
+  host.includes("test") ||
+  host.includes("ci") ||
+  host.includes("disposable") ||
+  host.includes("smoke") ||
+  host.includes("dev");
+
+const hasProductionHint = (host: string): boolean =>
+  host.includes("prod") || host.includes("production") || host.includes("live");
+
+const hasStagingHint = (host: string): boolean => host.includes("stag") || host.includes("preprod");
+
+const hasCustomerHint = (host: string): boolean =>
+  host.includes("customer") || host.includes("tenant") || host.includes("client");
 
 const classifyEndpoint = (value: string): "empty" | "local" | "test_hint" | "external" | "invalid" => {
   if (!nonEmpty(value)) {

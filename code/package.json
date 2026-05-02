@@ -21,6 +21,7 @@
     "start:regulatory-importer": "jiti apps/regulatory-importer/src/cli.ts",
     "start:report-renderer": "jiti apps/report-renderer/src/server.ts",
     "external-smoke:readiness": "jiti scripts/external-smoke-readiness.ts",
+    "auth:smoke:deployment": "jiti scripts/auth-deployment-smoke.ts",
     "oidc:smoke:callback": "jiti scripts/oidc-callback-smoke.ts",
     "microsoft365:smoke:read-only": "jiti scripts/microsoft365-read-only-smoke.ts",
     "evidence:smoke:runtime": "jiti scripts/evidence-runtime-smoke.ts",

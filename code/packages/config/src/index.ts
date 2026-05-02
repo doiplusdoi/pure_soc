@@ -895,9 +895,11 @@ const valueAtPath = (config: PureSocConfig, path: string): unknown =>
 
 export {
   createExternalSmokeReadinessReport,
+  classifyExternalSmokeDeploymentEndpoint,
   externalSmokeReadinessSchemaVersion,
   externalSmokeReadinessStatuses,
   type CreateExternalSmokeReadinessReportInput,
+  type ExternalSmokeDeploymentEndpointClass,
   type ExternalSmokeEnvironmentRequirement,
   type ExternalSmokeGuardrail,
   type ExternalSmokeReadinessArea,
