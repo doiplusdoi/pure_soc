@@ -153,6 +153,14 @@ The matrix reports these paths independently:
 - Evidence/report runtime prerequisites: legal-caveat enforcement, generated-report evidence storage, export format, upload limits, and storage-pointer redaction.
 - Auth deployment smoke prerequisites: local/test/disposable API base URL, trusted browser Origin, secure-cookie posture, Origin/callback exemptions, rate-limit posture, and endpoint-class guardrails.
 
+M49 adds a selector over that readiness matrix:
+
+```sh
+pnpm external-smoke:select-target
+```
+
+The selector is also embedded as `targetSelection` in `pnpm external-smoke:readiness`. It ranks the available smoke paths, explains ready/blocked/unsafe/not-configured states with stable reason codes, and selects exactly one path only when the underlying readiness check is `ready_for_disposable_smoke`. It is metadata-only and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager APIs, external signing services, public regulatory URLs, deployments, or provider write executors. If no path is selected, keep every live smoke command in dry-run mode and configure exactly one approved local/test/ci/disposable target before retrying.
+
 ### Auth Deployment Smoke
 
 M47 adds a deployed-auth guardrail smoke harness:

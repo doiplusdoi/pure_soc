@@ -1,6 +1,7 @@
 import type { PureSocConfig, StartupConfigValidationIssue } from "./index";
 
 export const externalSmokeReadinessSchemaVersion = "puresoc.external_smoke_readiness.v1" as const;
+export const externalSmokeTargetSelectionSchemaVersion = "puresoc.external_smoke_target_selection.v1" as const;
 
 export const externalSmokeReadinessStatuses = [
   "not_configured",
@@ -33,6 +34,21 @@ export type ExternalSmokeReadinessArea =
   | "oidc_social_login"
   | "object_storage_scanner"
   | "evidence_reports";
+
+export type ExternalSmokeTargetSelectionPathId =
+  | "auth_deployment_browser"
+  | "microsoft365_read_only_tenant"
+  | "stripe_test_mode_billing"
+  | "oidc_microsoft_entra_callback"
+  | "oidc_google_callback"
+  | "oidc_github_callback"
+  | "evidence_runtime"
+  | "provider_token_custody_deployment";
+
+export type ExternalSmokeTargetSelectionOutcome =
+  | "ready_path_selected"
+  | "no_ready_path"
+  | "unsafe_target_blocked";
 
 export type ExternalSmokeDeploymentEndpointClass =
   | "empty"
@@ -129,7 +145,64 @@ export interface ExternalSmokeReadinessReport {
   startupValidationIssueCodes: string[];
   summary: Record<ExternalSmokeReadinessStatus, number>;
   checks: ExternalSmokeReadinessCheck[];
+  targetSelection: ExternalSmokeTargetSelection;
   nextOperatorActions: string[];
+}
+
+export interface ExternalSmokeTargetSelectionCandidate {
+  pathId: ExternalSmokeTargetSelectionPathId;
+  rank: number;
+  label: string;
+  command: string;
+  commandEnvironment: string[];
+  checkIds: string[];
+  areas: ExternalSmokeReadinessArea[];
+  status: ExternalSmokeReadinessStatus;
+  selected: boolean;
+  selectable: boolean;
+  liveExecutionRequiresDisposableApproval: true;
+  liveNetworkCallsByDefault: false;
+  providerWritesEnabled: false;
+  secretValuesReturned: false;
+  endpointValuesReturned: false;
+  configuredEnvironmentVariables: string[];
+  requiredEnvironmentVariables: string[];
+  blockerCodes: string[];
+  reasonCodes: string[];
+  guardrails: Array<{
+    checkId: string;
+    id: string;
+    status: ExternalSmokeGuardrail["status"];
+    env?: string[];
+  }>;
+  summary: string;
+}
+
+export interface ExternalSmokeTargetSelection {
+  schemaVersion: typeof externalSmokeTargetSelectionSchemaVersion;
+  mode: ExternalSmokeReadinessMode;
+  target: {
+    kind: ExternalSmokeTargetKind;
+    disposableConfirmation: boolean;
+    approvedForLiveCandidate: boolean;
+  };
+  outcome: ExternalSmokeTargetSelectionOutcome;
+  selectedPathId: ExternalSmokeTargetSelectionPathId | null;
+  selectedCommand: string | null;
+  selectedCommandEnvironment: string[];
+  selectedCheckIds: string[];
+  recommendation: string;
+  readyCandidateCount: number;
+  candidateCount: number;
+  rankedCandidates: ExternalSmokeTargetSelectionCandidate[];
+  guarantees: {
+    metadataOnly: true;
+    noLiveNetworkCallsByDefault: true;
+    providerWritesEnabled: false;
+    secretValuesReturned: false;
+    endpointValuesReturned: false;
+    exactlyOneReadyPathSelected: boolean;
+  };
 }
 
 export interface CreateExternalSmokeReadinessReportInput {
@@ -173,6 +246,12 @@ export const createExternalSmokeReadinessReport = (
     objectStorageScannerCheck(input.config, env, mode, targetReady, globalUnsafe),
     evidenceReportsCheck(input.config, env, mode, targetReady, globalUnsafe)
   ];
+  const targetSelection = createExternalSmokeTargetSelection({
+    checks,
+    mode,
+    targetKind,
+    disposableConfirmation
+  });
 
   return {
     schemaVersion: externalSmokeReadinessSchemaVersion,
@@ -193,7 +272,8 @@ export const createExternalSmokeReadinessReport = (
     startupValidationIssueCodes,
     summary: summarize(checks),
     checks,
-    nextOperatorActions: nextOperatorActions(checks, mode, targetKind, disposableConfirmation)
+    targetSelection,
+    nextOperatorActions: nextOperatorActions(checks, mode, targetKind, disposableConfirmation, targetSelection)
   };
 };
 
@@ -746,6 +826,277 @@ const evidenceReportsCheck = (
   });
 };
 
+interface CreateExternalSmokeTargetSelectionInput {
+  checks: ExternalSmokeReadinessCheck[];
+  mode: ExternalSmokeReadinessMode;
+  targetKind: ExternalSmokeTargetKind;
+  disposableConfirmation: boolean;
+}
+
+interface ExternalSmokeTargetSelectionDefinition {
+  pathId: ExternalSmokeTargetSelectionPathId;
+  priority: number;
+  label: string;
+  command: string;
+  commandEnvironment?: string[];
+  checkIds: string[];
+}
+
+const externalSmokeTargetSelectionDefinitions: ExternalSmokeTargetSelectionDefinition[] = [
+  {
+    pathId: "auth_deployment_browser",
+    priority: 10,
+    label: "Deployed browser/TLS/proxy auth smoke",
+    command: "pnpm auth:smoke:deployment",
+    checkIds: ["auth_deployment_browser"]
+  },
+  {
+    pathId: "microsoft365_read_only_tenant",
+    priority: 20,
+    label: "Microsoft 365 read-only tenant smoke",
+    command: "pnpm microsoft365:smoke:read-only",
+    checkIds: ["microsoft365_read_only_tenant"]
+  },
+  {
+    pathId: "stripe_test_mode_billing",
+    priority: 30,
+    label: "Stripe test-mode billing smoke",
+    command: "pnpm stripe:smoke:test-mode",
+    checkIds: ["stripe_test_mode_billing"]
+  },
+  {
+    pathId: "oidc_microsoft_entra_callback",
+    priority: 40,
+    label: "Microsoft Entra social-login callback smoke",
+    command: "pnpm oidc:smoke:callback",
+    commandEnvironment: ["PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=microsoft_entra"],
+    checkIds: ["oidc_microsoft_entra_callback"]
+  },
+  {
+    pathId: "oidc_google_callback",
+    priority: 41,
+    label: "Google social-login callback smoke",
+    command: "pnpm oidc:smoke:callback",
+    commandEnvironment: ["PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=google"],
+    checkIds: ["oidc_google_callback"]
+  },
+  {
+    pathId: "oidc_github_callback",
+    priority: 42,
+    label: "GitHub social-login callback smoke",
+    command: "pnpm oidc:smoke:callback",
+    commandEnvironment: ["PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=github"],
+    checkIds: ["oidc_github_callback"]
+  },
+  {
+    pathId: "evidence_runtime",
+    priority: 50,
+    label: "Object-storage/scanner and evidence/report runtime smoke",
+    command: "pnpm evidence:smoke:runtime",
+    checkIds: ["object_storage_scanner_runtime", "evidence_report_runtime"]
+  },
+  {
+    pathId: "provider_token_custody_deployment",
+    priority: 60,
+    label: "Provider-token custody deployment smoke",
+    command: "pnpm provider-token:smoke",
+    checkIds: ["provider_token_custody_deployment"]
+  }
+];
+
+const createExternalSmokeTargetSelection = (
+  input: CreateExternalSmokeTargetSelectionInput
+): ExternalSmokeTargetSelection => {
+  const checksById = new Map(input.checks.map((check) => [check.id, check]));
+  const candidates = externalSmokeTargetSelectionDefinitions.map((definition) =>
+    createTargetSelectionCandidate(definition, checksById)
+  );
+  const rankedCandidates = candidates
+    .sort((left, right) => candidateSortValue(left) - candidateSortValue(right))
+    .map((candidate, index) => ({
+      ...candidate,
+      rank: index + 1
+    }));
+  const selectedCandidate = rankedCandidates.find((candidate) => candidate.selectable) ?? null;
+  const selectedPathId = selectedCandidate?.pathId ?? null;
+  const finalizedCandidates = rankedCandidates.map((candidate) => ({
+    ...candidate,
+    selected: candidate.pathId === selectedPathId
+  }));
+  const approvedForLiveCandidate = input.mode === "live_candidate" && isSafeDisposableTarget(input.targetKind) && input.disposableConfirmation;
+  const unsafeCandidateCount = finalizedCandidates.filter((candidate) => candidate.status === "unsafe_production_target").length;
+  const readyCandidateCount = finalizedCandidates.filter((candidate) => candidate.status === "ready_for_disposable_smoke").length;
+  const outcome: ExternalSmokeTargetSelectionOutcome = selectedCandidate
+    ? "ready_path_selected"
+    : unsafeCandidateCount > 0
+      ? "unsafe_target_blocked"
+      : "no_ready_path";
+
+  return {
+    schemaVersion: externalSmokeTargetSelectionSchemaVersion,
+    mode: input.mode,
+    target: {
+      kind: input.targetKind,
+      disposableConfirmation: input.disposableConfirmation,
+      approvedForLiveCandidate
+    },
+    outcome,
+    selectedPathId,
+    selectedCommand: selectedCandidate?.command ?? null,
+    selectedCommandEnvironment: selectedCandidate?.commandEnvironment ?? [],
+    selectedCheckIds: selectedCandidate?.checkIds ?? [],
+    recommendation: targetSelectionRecommendation(outcome, selectedCandidate),
+    readyCandidateCount,
+    candidateCount: finalizedCandidates.length,
+    rankedCandidates: finalizedCandidates,
+    guarantees: {
+      metadataOnly: true,
+      noLiveNetworkCallsByDefault: true,
+      providerWritesEnabled: false,
+      secretValuesReturned: false,
+      endpointValuesReturned: false,
+      exactlyOneReadyPathSelected: selectedCandidate !== null && finalizedCandidates.filter((candidate) => candidate.selected).length === 1
+    }
+  };
+};
+
+const createTargetSelectionCandidate = (
+  definition: ExternalSmokeTargetSelectionDefinition,
+  checksById: Map<string, ExternalSmokeReadinessCheck>
+): ExternalSmokeTargetSelectionCandidate => {
+  const checks = definition.checkIds.map((checkId) => checksById.get(checkId)).filter(isReadinessCheck);
+  const missingChecks = definition.checkIds.filter((checkId) => !checksById.has(checkId));
+  const status = aggregateCandidateStatus(checks, missingChecks);
+  const checkStatusReasonCodes = checks.map((check) => `check_status:${check.id}:${check.status}`);
+  const checkNotReadyCodes = checks
+    .filter((check) => check.status !== "ready_for_disposable_smoke")
+    .map((check) => `check_not_ready:${check.id}:${check.status}`);
+  const blockerCodes = uniqueSorted([
+    ...missingChecks.map((checkId) => `readiness_check_missing:${checkId}`),
+    ...checks.flatMap((check) => check.blockers),
+    ...(status === "ready_for_disposable_smoke" ? [] : [`target_selection_not_ready:${definition.pathId}:${status}`])
+  ]);
+
+  return {
+    pathId: definition.pathId,
+    rank: definition.priority,
+    label: definition.label,
+    command: definition.command,
+    commandEnvironment: definition.commandEnvironment ?? [],
+    checkIds: definition.checkIds,
+    areas: uniqueSorted(checks.map((check) => check.area)),
+    status,
+    selected: false,
+    selectable: status === "ready_for_disposable_smoke",
+    liveExecutionRequiresDisposableApproval: true,
+    liveNetworkCallsByDefault: false,
+    providerWritesEnabled: false,
+    secretValuesReturned: false,
+    endpointValuesReturned: false,
+    configuredEnvironmentVariables: uniqueSorted(checks.flatMap((check) => check.configuredEnvironmentVariables)),
+    requiredEnvironmentVariables: uniqueSorted(checks.flatMap((check) => check.requiredEnvironment.flatMap((entry) => entry.env))),
+    blockerCodes,
+    reasonCodes: uniqueSorted([
+      `target_selection_status:${status}`,
+      ...checkStatusReasonCodes,
+      ...checkNotReadyCodes,
+      ...blockerCodes
+    ]),
+    guardrails: checks.flatMap((check) =>
+      check.guardrails.map((guardrail) => ({
+        checkId: check.id,
+        id: guardrail.id,
+        status: guardrail.status,
+        env: guardrail.env
+      }))
+    ),
+    summary: targetSelectionCandidateSummary(definition, status, checks)
+  };
+};
+
+const aggregateCandidateStatus = (
+  checks: ExternalSmokeReadinessCheck[],
+  missingChecks: string[]
+): ExternalSmokeReadinessStatus => {
+  if (missingChecks.length > 0 || checks.length === 0) {
+    return "blocked_missing_secret";
+  }
+
+  if (checks.some((check) => check.status === "unsafe_production_target")) {
+    return "unsafe_production_target";
+  }
+
+  if (checks.every((check) => check.status === "ready_for_disposable_smoke")) {
+    return "ready_for_disposable_smoke";
+  }
+
+  if (checks.some((check) => check.status === "blocked_missing_secret")) {
+    return "blocked_missing_secret";
+  }
+
+  if (checks.some((check) => check.status === "not_configured")) {
+    return "not_configured";
+  }
+
+  return "configured_dry_run_only";
+};
+
+const candidateSortValue = (candidate: ExternalSmokeTargetSelectionCandidate): number =>
+  selectionStatusSortOrder[candidate.status] * 1000 + externalSmokeTargetSelectionPriority(candidate.pathId);
+
+const selectionStatusSortOrder: Record<ExternalSmokeReadinessStatus, number> = {
+  ready_for_disposable_smoke: 0,
+  blocked_missing_secret: 1,
+  configured_dry_run_only: 2,
+  not_configured: 3,
+  unsafe_production_target: 4
+};
+
+const externalSmokeTargetSelectionPriority = (pathId: ExternalSmokeTargetSelectionPathId): number =>
+  externalSmokeTargetSelectionDefinitions.find((definition) => definition.pathId === pathId)?.priority ?? 999;
+
+const targetSelectionCandidateSummary = (
+  definition: ExternalSmokeTargetSelectionDefinition,
+  status: ExternalSmokeReadinessStatus,
+  checks: ExternalSmokeReadinessCheck[]
+): string => {
+  if (status === "ready_for_disposable_smoke") {
+    return `${definition.label} is the next eligible disposable/test smoke path; run only the listed command and keep all other live smokes disabled.`;
+  }
+
+  if (status === "unsafe_production_target") {
+    return `${definition.label} is blocked by unsafe production-like target or startup indicators.`;
+  }
+
+  if (status === "blocked_missing_secret") {
+    return `${definition.label} is configured enough to inspect but still has missing prerequisites or blockers.`;
+  }
+
+  if (status === "configured_dry_run_only") {
+    return `${definition.label} remains metadata-only because live-candidate target approval or path opt-in is absent.`;
+  }
+
+  const checkLabels = checks.map((check) => check.label).sort().join(", ");
+  return checkLabels
+    ? `${definition.label} is not configured for live smoke selection. Covered readiness checks: ${checkLabels}.`
+    : `${definition.label} is not configured for live smoke selection.`;
+};
+
+const targetSelectionRecommendation = (
+  outcome: ExternalSmokeTargetSelectionOutcome,
+  selectedCandidate: ExternalSmokeTargetSelectionCandidate | null
+): string => {
+  if (outcome === "ready_path_selected" && selectedCandidate) {
+    return `Run exactly one approved disposable/test smoke path: ${selectedCandidate.command}. Keep every other live smoke command in dry-run mode.`;
+  }
+
+  if (outcome === "unsafe_target_blocked") {
+    return "Do not run live smoke commands. Remove unsafe production/staging/customer indicators and re-run pnpm external-smoke:readiness.";
+  }
+
+  return "No live-smoke path is selected. Configure exactly one disposable/test path, set its opt-in guardrails, and re-run pnpm external-smoke:readiness before any live command.";
+};
+
 const check = (input: Omit<ExternalSmokeReadinessCheck, "liveNetworkCalls" | "secretValuesReturned">): ExternalSmokeReadinessCheck => ({
   ...input,
   liveNetworkCalls: false,
@@ -844,7 +1195,8 @@ const nextOperatorActions = (
   checks: ExternalSmokeReadinessCheck[],
   mode: ExternalSmokeReadinessMode,
   targetKind: ExternalSmokeTargetKind,
-  disposableConfirmation: boolean
+  disposableConfirmation: boolean,
+  targetSelection: ExternalSmokeTargetSelection
 ): string[] => {
   const actions = [
     "Review blockers before selecting one external smoke path.",
@@ -862,6 +1214,12 @@ const nextOperatorActions = (
   const readyChecks = checks.filter((check) => check.status === "ready_for_disposable_smoke");
   if (readyChecks.length > 0) {
     actions.push(`Ready paths: ${readyChecks.map((check) => check.id).sort().join(", ")}.`);
+  }
+
+  if (targetSelection.selectedPathId) {
+    actions.push(`Selected single next smoke path: ${targetSelection.selectedPathId}.`);
+  } else {
+    actions.push("No single live-smoke path is selected; keep all live smoke commands in dry-run mode.");
   }
 
   return actions;
@@ -1044,6 +1402,11 @@ const classifyEndpoint = (value: string): "empty" | "local" | "test_hint" | "ext
     return "invalid";
   }
 };
+
+const isReadinessCheck = (value: ExternalSmokeReadinessCheck | undefined): value is ExternalSmokeReadinessCheck =>
+  value !== undefined;
+
+const uniqueSorted = <T extends string>(values: T[]): T[] => [...new Set(values)].sort();
 
 const readBoolean = (value: string | undefined): boolean => value === "true";
 

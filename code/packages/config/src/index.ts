@@ -898,6 +898,7 @@ export {
   classifyExternalSmokeDeploymentEndpoint,
   externalSmokeReadinessSchemaVersion,
   externalSmokeReadinessStatuses,
+  externalSmokeTargetSelectionSchemaVersion,
   type CreateExternalSmokeReadinessReportInput,
   type ExternalSmokeDeploymentEndpointClass,
   type ExternalSmokeEnvironmentRequirement,
@@ -909,5 +910,9 @@ export {
   type ExternalSmokeReadinessReport,
   type ExternalSmokeReadinessStatus,
   type ExternalSmokeTargetKind,
+  type ExternalSmokeTargetSelection,
+  type ExternalSmokeTargetSelectionCandidate,
+  type ExternalSmokeTargetSelectionOutcome,
+  type ExternalSmokeTargetSelectionPathId,
   type Microsoft365ReadinessMetadata
 } from "./external-smoke-readiness";

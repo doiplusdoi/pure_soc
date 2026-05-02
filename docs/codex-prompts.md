@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M48, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M48.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 48 / `docs/PLAN_M49.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M49, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M49.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 49 / `docs/PLAN_M50.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -78,6 +78,7 @@ The repository currently contains:
 - PLAN_M46 OIDC/social-login disposable callback smoke harness: `pnpm oidc:smoke:callback` now defaults to dry-run, first evaluates the M42 readiness matrix for `oidc_microsoft_entra_callback`, `oidc_google_callback`, or `oidc_github_callback` based on `PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER`, reports planned authorization, callback, token/JWKS/profile/email lookup, account-link, session-cookie, audit, and callback-Origin-exemption operations without live provider calls, refuses live-candidate execution unless readiness and disposable/test opt-ins are ready, requires provider enablement, and keeps client secrets, authorization codes, ID/access/refresh tokens, raw state/nonce, PKCE verifiers, cookies, profile payloads, user emails, and endpoint URLs out of output. Deterministic tests exercise local callback/session/account-link behavior with an injected provider harness; no approved live Microsoft/Google/GitHub provider app was exercised.
 - PLAN_M47 deployed-auth smoke guardrail slice: `pnpm auth:smoke:deployment` now defaults to dry-run, first evaluates the M42 readiness matrix for `auth_deployment_browser`, reports planned registration/login/session/logout, cookie-attribute, trusted-Origin, untrusted-Origin, callback-exemption, forwarded-header, health, and RBAC checks without target calls, refuses live-candidate execution unless local/test/ci/disposable guardrails and `PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT=true` are set, and keeps endpoint URLs, passwords, session tokens/cookies, authorization headers, provider endpoint URLs, live user emails, and secrets out of output. Deterministic tests exercise a local disposable API target; no approved deployed TLS/reverse-proxy/browser target was exercised.
 - PLAN_M48 provider-token custody deployment readiness/runbook slice: `pnpm provider-token:smoke` now reports local, in-a-box, and SaaS provider-token custody deployment readiness; `pnpm external-smoke:readiness` includes a provider-token custody check with supported local key-ring metadata, previous-key window/backfill/retirement confirmation blockers, and SaaS external-custody deferral. Rotation runbook metadata separates smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key-retirement expectations, and deferred live KMS/HSM/secret-manager custody. The only real implemented custody provider remains `local-env-key-ring`; `fake-secret-manager-test` remains deterministic and test-only; no live KMS/HSM/secret-manager, Microsoft Graph, provider writes, or ciphertext backfill was executed.
+- PLAN_M49 external live-smoke target selection/readiness audit: `pnpm external-smoke:readiness` now embeds a `targetSelection` block, and `pnpm external-smoke:select-target` prints that selector alone. The selector ranks Microsoft 365 read-only tenant, Stripe test-mode, Microsoft/Google/GitHub OIDC callback, object-storage/scanner plus evidence/report runtime, deployed auth, and provider-token custody smoke paths; emits stable ready/blocked/unsafe/not-configured reason codes; and selects exactly one path only when readiness is `ready_for_disposable_smoke`. Default validation selected no live path and made no external calls.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -133,7 +134,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 45 / `docs/PLAN_M46.md` is completed.
 - Prompt 46 / `docs/PLAN_M47.md` is completed.
 - Prompt 47 / `docs/PLAN_M48.md` is completed.
-- Prompt 48 / `docs/PLAN_M49.md` is staged as the next active implementation prompt.
+- Prompt 48 / `docs/PLAN_M49.md` is completed.
+- Prompt 49 / `docs/PLAN_M50.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -148,12 +150,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 48 / `docs/PLAN_M49.md`: External Live-Smoke Target Selection And Readiness Audit Slice.
-2. Expected next handoff after M49: run exactly one approved disposable/test live-smoke follow-up, or keep all live paths blocked if no approved target exists.
+1. Prompt 49 / `docs/PLAN_M50.md`: Approved Single External Live-Smoke Follow-Up Or Blocker Review.
+2. Expected next handoff after M50: either record one approved disposable/test live smoke result, or keep GAP-044 open with explicit blockers.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M49 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors unless the selected prompt path has explicit local/test/disposable target approval and existing command guardrails are satisfied.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M50 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors unless `pnpm external-smoke:select-target` selects exactly one path, the user has explicitly approved that local/test/ci/disposable target, and the selected command's existing guardrails are satisfied.
 
-## Active Prompt 48 / PLAN_M49: External Live-Smoke Target Selection And Readiness Audit Slice
+## Active Prompt 49 / PLAN_M50: Approved Single External Live-Smoke Follow-Up Or Blocker Review
 
 Read:
 
@@ -163,10 +165,11 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M48.md`
+- `docs/PLAN_M49.md`
 - `docs/threat-model.md`
 - `code/packages/config/src/**`
 - `code/scripts/external-smoke-readiness.ts`
+- `code/scripts/external-smoke-target-selection.ts`
 - `code/scripts/*smoke*.ts`
 - `code/tests/**`
 - `code/package.json`
@@ -174,16 +177,15 @@ Read:
 
 Goal:
 
-Add a deterministic external live-smoke target-selection/readiness audit slice that helps operators choose exactly one next approved disposable/test smoke path from the existing readiness matrix without making live calls by default.
+Use the M49 selector to run exactly one approved disposable/test live-smoke follow-up only when the selector chooses one ready path and the user has explicitly approved that target. If no approved target exists, keep all live paths blocked and document the selector blockers rather than faking live coverage.
 
 Deliverables:
 
-- Add or refine a metadata-only selector over `pnpm external-smoke:readiness` that ranks currently configured paths and explains why each is ready, blocked, unsafe, or not configured.
-- The selector must cover at least Microsoft 365 read-only tenant, Stripe test-mode, OIDC/social callback, object-storage/scanner, evidence/report runtime, auth deployment, and provider-token custody paths.
-- Do not execute live smoke commands unless the user has provided an explicit approved local/test/ci/disposable target and the existing command guardrails are satisfied.
+- Run `pnpm external-smoke:readiness` and `pnpm external-smoke:select-target` first.
+- Execute at most one selected smoke command, and only if `targetSelection.selectedPathId` is non-null, exactly one candidate is selected, the selected command's readiness is `ready_for_disposable_smoke`, and the user has explicitly approved the local/test/ci/disposable target.
+- If the selector selects no path, do not call live services; record the top blockers and leave GAP-044 open.
 - Preserve all existing dry-run defaults, opt-in/disposable confirmations, secret redaction, endpoint redaction, provider-write disablement, and no-customer-impact posture.
-- If no approved target exists, record blockers and stage the next prompt around the most actionable approved path rather than faking live coverage.
-- Update docs/gaps/prompts and create `docs/PLAN_M50.md` from the next selected active prompt before final response.
+- Update docs/gaps/prompts and create `docs/PLAN_M51.md` from the next selected active prompt before final response.
 
 Expected files:
 
@@ -193,8 +195,8 @@ Expected files:
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M49.md`
 - `docs/PLAN_M50.md`
+- `docs/PLAN_M51.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -212,17 +214,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- external-smoke readiness smoke target selection config
 pnpm external-smoke:readiness
+pnpm external-smoke:select-target
+# Run exactly one selected smoke command only if explicit target approval exists.
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M49.md`. If no approved live target exists, preserve metadata-only behavior and document blockers instead of faking live execution.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M50.md`. If no approved live target exists, preserve metadata-only behavior and document blockers instead of faking live execution.
 
 Expected gap movement:
 
-- Narrow whichever live-smoke gap receives selector/readiness-audit improvements only for metadata and guardrail work actually implemented.
+- Narrow whichever live-smoke gap receives actual approved live/disposable execution.
+- Keep GAP-044 open if no approved target is selected or no approved target is provided.
 - Preserve GAP-030, GAP-039, GAP-040, and GAP-043 unless those areas are intentionally implemented and accepted.
 
 Final response must include:
@@ -231,10 +235,27 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M49` updated
-- `PLAN_M50` created
+- `PLAN_M50` updated
+- `PLAN_M51` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 48 / PLAN_M49: External Live-Smoke Target Selection And Readiness Audit Slice
+
+Completed on 2026-05-03.
+
+Summary:
+- Added `targetSelection` to `pnpm external-smoke:readiness`, with ranked candidates, stable reason/blocker codes, safe command metadata, and an exactly-one selected-path guarantee.
+- Added `pnpm external-smoke:select-target` to print the selector by itself.
+- Covered Microsoft 365 read-only tenant, Stripe test-mode, Microsoft/Google/GitHub OIDC callback, object-storage/scanner plus evidence/report runtime, auth deployment, and provider-token custody paths.
+- Default validation selected no live path, kept all live commands in dry-run posture, and made no Microsoft Graph, Stripe, OIDC, object-storage, scanner, browser/PDF, KMS/HSM/secret-manager, external signing, public regulatory URL, deployment, or provider write calls.
+
+Validated with host-node/npm equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- external-smoke readiness smoke target selection config`
+- `npm run external-smoke:readiness`
+- `npm run external-smoke:select-target`
+- Full acceptance results are recorded in `docs/PLAN_M49.md`.
 
 ## Completed Prompt 47 / PLAN_M48: Provider-Token Custody Deployment Readiness And Runbook Slice
 

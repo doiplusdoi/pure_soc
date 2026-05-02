@@ -458,6 +458,17 @@ Owner: Codex/DevOps
 Target phase: Phase K runtime orchestration
 Status: Open; created 2026-05-02 by PLAN_M32 after the bounded live Redis smoke resolved GAP-037; narrowed 2026-05-02 by PLAN_M36 for claim-lock contention safety, bounded command retry, explicit recovery/retention hooks, queue redaction, and disposable Redis smoke coverage without claiming deployed production orchestration readiness.
 
+### GAP-044: External Live-Smoke Target Approval And Execution Deferred
+
+Severity: Medium
+Area: External integration smoke operations
+Current state: PLAN_M49 adds a metadata-only external smoke target selector embedded in `pnpm external-smoke:readiness` and exposed as `pnpm external-smoke:select-target`. It ranks Microsoft 365 read-only tenant, Stripe test-mode, Microsoft/Google/GitHub OIDC callback, object-storage/scanner plus evidence/report runtime, auth deployment, and provider-token custody paths; reports stable ready/blocked/unsafe/not-configured reason codes; and selects exactly one path only when the underlying readiness is `ready_for_disposable_smoke`. Default validation selected no path and made no live calls.
+Impact: Operators can now audit which single disposable/test path is safe to run next without exposing secrets or endpoints, but this does not prove any live Microsoft Graph, Stripe, OIDC, object-storage/scanner, report-renderer, deployed-auth, KMS/HSM/secret-manager, external-anchor, or provider-write runtime behavior.
+Next action: Choose one approved local/test/ci/disposable target, set that path's existing guardrails until the selector chooses exactly one path, run only the corresponding smoke command, and keep all other live paths blocked. If no target is approved, preserve dry-run-only metadata.
+Owner: Codex/DevOps/Product
+Target phase: Phase K external-smoke operations
+Status: Open; created 2026-05-03 by PLAN_M49 for selector/readiness-audit metadata without live external calls or provider writes.
+
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 
 Severity: High
