@@ -314,7 +314,9 @@ const oidcChecks = (
       requirement(`${providerKey} redirect URI`, [`${prefix}_REDIRECT_URI`], env, false, "configuration")
     ];
     const configured = provider.enabled || requirements.some((entry) => entry.configured);
-    const missing = configured ? missingRequirementCodes(requirements) : [];
+    const missing = configured
+      ? [...(provider.enabled ? [] : [`oidc_provider_not_enabled:${providerKey}`]), ...missingRequirementCodes(requirements)]
+      : [];
     const unsafe = [
       ...globalUnsafe,
       ...(startupValidationIssueCodes.includes("oidc_transient_state_key_required")

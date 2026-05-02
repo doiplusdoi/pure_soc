@@ -130,6 +130,38 @@ The matrix reports these paths independently:
 - Object-storage/scanner prerequisites: S3/MinIO metadata, bucket/access configuration, HTTP scanner metadata, and no-op scanner warnings.
 - Evidence/report runtime prerequisites: legal-caveat enforcement, generated-report evidence storage, export format, upload limits, and storage-pointer redaction.
 
+### OIDC/Social Callback Smoke
+
+M46 adds an OIDC/social-login callback smoke harness:
+
+```sh
+pnpm oidc:smoke:callback
+```
+
+The default command is a dry-run. It first evaluates the M42 readiness matrix, then prints planned authorization, callback, token/JWKS/profile/email lookup, explicit account-link approval, session cookie, audit, and callback-Origin-exemption operations without contacting Microsoft, Google, GitHub, or any other external provider. Output includes selected-provider metadata, configured/missing environment variable names, endpoint classes, guardrail statuses, and non-secret booleans only. It does not print client secrets, authorization codes, ID/access/refresh tokens, raw `state` or `nonce` values, PKCE code verifiers, session cookies, live provider profile payloads, user emails, provider endpoint URLs, Stripe secrets, object-storage credentials, provider tokens, or key material.
+
+Select a provider for live-candidate readiness checks with:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=microsoft_entra|google|github
+```
+
+Live-candidate execution is refused unless the selected readiness path is `ready_for_disposable_smoke` in `pnpm external-smoke:readiness` and all of these are true:
+
+```sh
+PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
+PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
+PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
+PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=google
+PURESOC_EXTERNAL_SMOKE_OIDC_GOOGLE=true
+PURESOC_AUTH_GOOGLE_ENABLED=true
+PURESOC_AUTH_GOOGLE_CLIENT_ID=...
+PURESOC_AUTH_GOOGLE_CLIENT_SECRET=...
+PURESOC_AUTH_GOOGLE_REDIRECT_URI=...
+```
+
+Use the matching provider opt-in for Microsoft Entra or GitHub. The checked-in CLI still does not perform a real Microsoft/Google/GitHub interactive callback because doing so safely requires an approved disposable provider app plus an operator-owned browser/code-capture flow that does not expose raw `state`, `nonce`, PKCE verifier, code, tokens, or cookies. Contract tests exercise the local callback/session path through an injected disposable provider harness and explicitly report `realProviderAppExercised=false`.
+
 ### Microsoft 365 Read-Only Smoke
 
 M45 adds a Microsoft 365 read-only disposable tenant smoke harness:

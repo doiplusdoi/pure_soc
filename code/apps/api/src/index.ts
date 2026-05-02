@@ -1,6 +1,17 @@
 export { getApiHealth, type ApiHealth } from "./health";
 export { startApiServer } from "./server";
 export { createApiServices, type ApiServices } from "./auth/services";
+export {
+  oidcCallbackSmokeCommand,
+  oidcCallbackSmokeConfigFromEnv,
+  oidcCallbackSmokeProviderEnv,
+  oidcCallbackSmokeReadinessPreflightFromReport,
+  oidcCallbackSmokeSchemaVersion,
+  runOidcCallbackSmoke,
+  type OidcCallbackSmokeConfig,
+  type OidcCallbackSmokeReadinessPreflight,
+  type OidcCallbackSmokeReport
+} from "./auth/oidc-smoke";
 export { countryPackStatusRoute } from "./compliance/nis2/routes";
 export {
   roNis2ClassificationRoute,
