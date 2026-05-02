@@ -75,7 +75,10 @@ import {
   type ObjectStorageAdapter,
   type UploadScanningHook
 } from "@puresoc/evidence";
-import { createLocalMicrosoft365TokenCipher } from "@puresoc/provider-microsoft365";
+import {
+  createLocalMicrosoft365TokenCipher,
+  createLocalMicrosoft365TokenKeyProvider
+} from "@puresoc/provider-microsoft365";
 
 export interface ApiPersistenceRuntime {
   mode: PureSocConfig["app"]["persistenceMode"];
@@ -180,17 +183,19 @@ export const createApiServices = (
     store: providerStore,
     auditWriter,
     tokenCipher: createLocalMicrosoft365TokenCipher({
-      activeKeyId: config.connectors.providerTokenEncryptionKeyId,
-      keys: [
-        {
-          keyId: config.connectors.providerTokenEncryptionKeyId,
-          masterKey: config.connectors.providerTokenEncryptionKey
-        },
-        ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
-          keyId: key.id,
-          masterKey: key.key
-        }))
-      ]
+      keyProvider: createLocalMicrosoft365TokenKeyProvider({
+        activeKeyId: config.connectors.providerTokenEncryptionKeyId,
+        keys: [
+          {
+            keyId: config.connectors.providerTokenEncryptionKeyId,
+            masterKey: config.connectors.providerTokenEncryptionKey
+          },
+          ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
+            keyId: key.id,
+            masterKey: key.key
+          }))
+        ]
+      })
     }),
     now: options.now
   });

@@ -64,12 +64,23 @@ Startup validation fails fast for production-sensitive combinations such as inse
 Provider-token encryption supports a small local key-ring shape for Microsoft 365 credentials:
 
 ```sh
+PURESOC_PROVIDER_TOKEN_KEY_PROVIDER=local-env-key-ring
 PURESOC_PROVIDER_TOKEN_KEY_ID=current
 PURESOC_PROVIDER_TOKEN_KEY=replace-with-secret-material
 PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS=previous-a=old-secret,previous-b=older-secret
 ```
 
-New Microsoft 365 credential envelopes include the active key ID. Decryption can use the active key or configured previous keys so rotation can be staged deliberately. Production startup rejects the checked-in local-dev key, but live KMS/secret-manager custody and rotation smoke remain release hardening work.
+New Microsoft 365 credential envelopes include the active key ID. Decryption can use the active key or configured previous keys so rotation can be staged deliberately. `local-env-key-ring` means the API process can read the configured key material from environment or secret-mounted environment injection; it is suitable for local development, tests, and in-a-box deployments that inject a strong secret through an operator-controlled Docker secret or equivalent runtime secret source. It is not KMS, HSM custody, or external signing.
+
+M34 adds a bounded local rotation smoke:
+
+```sh
+pnpm provider-token:smoke
+```
+
+The smoke refuses production targets, uses only synthetic local key material and synthetic credential payloads, and proves active-key encrypt/decrypt, previous-key decrypt, bad-key failure, and production rejection of the checked-in local-dev active/previous provider-token keys. Smoke output contains only key IDs, check names, and non-live guarantees; it must not include plaintext provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads.
+
+For Docker Compose or in-a-box deployments, prefer injecting `PURESOC_PROVIDER_TOKEN_KEY` and any staged `PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS` through a secret manager or Docker-secret-to-env bridge owned by the deployment layer. Keep one previous key configured only while old ciphertext still needs to decrypt, then remove it after a verified re-encryption/backfill window. Production startup rejects the checked-in local-dev key and duplicate/reused key material, but live SaaS KMS/secret-manager custody, deployed rotation smoke, ciphertext backfill/re-encryption, and operator rollback runbooks remain release hardening work.
 
 OIDC/social-login callback state in Prisma mode stores state and nonce as hashes and stores the PKCE verifier in a local AES-GCM envelope. Configure the auth-owned envelope key with:
 

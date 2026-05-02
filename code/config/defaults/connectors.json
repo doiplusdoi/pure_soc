@@ -1,5 +1,6 @@
 {
   "readOnlyByDefault": true,
+  "providerTokenKeyProvider": "local-env-key-ring",
   "providerTokenEncryptionKeyId": "local-dev",
   "providerTokenEncryptionKey": "local-dev-provider-token-key-change-me",
   "providerTokenEncryptionPreviousKeys": [],

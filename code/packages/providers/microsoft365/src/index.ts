@@ -62,13 +62,24 @@ export {
 export { MicrosoftGraphClient, type MicrosoftGraphHttpClient, type MicrosoftGraphResponse } from "./graph-client";
 export {
   createLocalMicrosoft365TokenCipher,
+  createLocalMicrosoft365TokenKeyProvider,
   createMicrosoft365TokenCipherFromEnv,
+  describeMicrosoft365TokenKeyProvider,
   localDevMicrosoft365TokenKeyId,
   localDevMicrosoft365TokenMasterKey,
+  microsoft365LocalTokenKeyProviderKind,
   parseMicrosoft365TokenPreviousKeys,
   type Microsoft365TokenCipher,
-  type Microsoft365TokenCipherKey
+  type Microsoft365TokenCipherKey,
+  type Microsoft365TokenKeyCustodySummary,
+  type Microsoft365TokenKeyProvider,
+  type Microsoft365TokenKeyProviderKind
 } from "./crypto";
+export {
+  microsoft365ProviderTokenRotationSmokeSchemaVersion,
+  runMicrosoft365ProviderTokenRotationSmoke,
+  type Microsoft365ProviderTokenRotationSmokeResult
+} from "./rotation-smoke";
 
 export interface Microsoft365TokenResponse {
   accessToken: string;

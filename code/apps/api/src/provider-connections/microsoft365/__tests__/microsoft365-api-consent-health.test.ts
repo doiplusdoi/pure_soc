@@ -121,11 +121,13 @@ describe("microsoft365 API consent and health service", () => {
     expect(tokenCipher.decrypt<Microsoft365StoredCredential>(credentials[0]?.encryptedPayload ?? "").accessToken).toBe(
       accessToken
     );
+    expect(JSON.stringify(completed)).not.toContain(accessToken);
     expect(permissionBundles.find((bundle) => bundle.bundleKey === "m365_security_read")?.enabled).toBe(true);
     expect(completed.tenantProfileSync.modules[0]?.status).toBe("succeeded");
     expect(health.status).toBe("connected");
     expect(health.moduleStatuses.find((module) => module.moduleKey === "tenant-profile")?.status).toBe("succeeded");
     expect(auditSink.findByAction("provider_consent_completed")).toHaveLength(1);
     expect(JSON.stringify(auditSink.records)).not.toContain(accessToken);
+    expect(JSON.stringify(auditSink.records)).not.toContain("client-secret");
   });
 });

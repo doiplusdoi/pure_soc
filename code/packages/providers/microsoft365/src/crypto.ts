@@ -10,7 +10,37 @@ export interface Microsoft365TokenCipherKey {
   masterKey: string;
 }
 
+export const microsoft365LocalTokenKeyProviderKind = "local-env-key-ring" as const;
+
+export type Microsoft365TokenKeyProviderKind = typeof microsoft365LocalTokenKeyProviderKind;
+
+export interface Microsoft365TokenKeyCustodySummary {
+  providerKind: Microsoft365TokenKeyProviderKind;
+  custodyBoundary: "local-process-key-ring";
+  activeKeyId: string;
+  previousKeyIds: string[];
+  keyCount: number;
+  plaintextKeyMaterialAccessibleToProcess: true;
+  externalKmsBacked: false;
+  ciphertextBackfillSupported: false;
+}
+
+export interface Microsoft365TokenKeyProvider {
+  readonly providerKind: Microsoft365TokenKeyProviderKind;
+  activeKey(): Microsoft365TokenCipherKey;
+  decryptionKeysForEnvelope(keyId?: string): Microsoft365TokenCipherKey[];
+  describe(): Microsoft365TokenKeyCustodySummary;
+}
+
 export interface CreateLocalMicrosoft365TokenCipherOptions {
+  masterKey?: string;
+  keyId?: string;
+  activeKeyId?: string;
+  keys?: Microsoft365TokenCipherKey[];
+  keyProvider?: Microsoft365TokenKeyProvider;
+}
+
+export interface CreateLocalMicrosoft365TokenKeyProviderOptions {
   masterKey?: string;
   keyId?: string;
   activeKeyId?: string;
@@ -23,7 +53,7 @@ export const localDevMicrosoft365TokenMasterKey = "local-dev-provider-token-key-
 const keyFromMasterKey = (masterKey: string): Buffer => createHash("sha256").update(masterKey).digest();
 
 const normalizeCipherKeys = (
-  options: CreateLocalMicrosoft365TokenCipherOptions
+  options: CreateLocalMicrosoft365TokenKeyProviderOptions
 ): { activeKey: Microsoft365TokenCipherKey; keysById: Map<string, Microsoft365TokenCipherKey> } => {
   const keys =
     options.keys && options.keys.length > 0
@@ -57,10 +87,47 @@ const normalizeCipherKeys = (
   return { activeKey, keysById };
 };
 
+export const createLocalMicrosoft365TokenKeyProvider = (
+  options: CreateLocalMicrosoft365TokenKeyProviderOptions
+): Microsoft365TokenKeyProvider => {
+  const { activeKey, keysById } = normalizeCipherKeys(options);
+  const configuredKeys = [...keysById.values()];
+  const previousKeyIds = configuredKeys
+    .filter((key) => key.keyId !== activeKey.keyId)
+    .map((key) => key.keyId);
+
+  return {
+    providerKind: microsoft365LocalTokenKeyProviderKind,
+    activeKey: () => activeKey,
+    decryptionKeysForEnvelope: (keyId?: string): Microsoft365TokenCipherKey[] => {
+      if (keyId) {
+        const configuredKey = keysById.get(keyId);
+        return configuredKey ? [configuredKey] : [];
+      }
+
+      return [activeKey, ...configuredKeys.filter((key) => key.keyId !== activeKey.keyId)];
+    },
+    describe: () => ({
+      providerKind: microsoft365LocalTokenKeyProviderKind,
+      custodyBoundary: "local-process-key-ring",
+      activeKeyId: activeKey.keyId,
+      previousKeyIds,
+      keyCount: configuredKeys.length,
+      plaintextKeyMaterialAccessibleToProcess: true,
+      externalKmsBacked: false,
+      ciphertextBackfillSupported: false
+    })
+  };
+};
+
+export const describeMicrosoft365TokenKeyProvider = (
+  keyProvider: Microsoft365TokenKeyProvider
+): Microsoft365TokenKeyCustodySummary => keyProvider.describe();
+
 export const createLocalMicrosoft365TokenCipher = (
   options: CreateLocalMicrosoft365TokenCipherOptions
 ): Microsoft365TokenCipher => {
-  const { activeKey, keysById } = normalizeCipherKeys(options);
+  const keyProvider = options.keyProvider ?? createLocalMicrosoft365TokenKeyProvider(options);
 
   const decryptWithKey = <TPayload extends object>(
     envelope: {
@@ -86,6 +153,7 @@ export const createLocalMicrosoft365TokenCipher = (
 
   return {
     encrypt: (payload) => {
+      const activeKey = keyProvider.activeKey();
       const iv = randomBytes(12);
       const cipher = createCipheriv("aes-256-gcm", keyFromMasterKey(activeKey.masterKey), iv);
       const ciphertext = Buffer.concat([
@@ -116,9 +184,7 @@ export const createLocalMicrosoft365TokenCipher = (
         throw new Error("Unsupported Microsoft 365 credential envelope.");
       }
 
-      const candidateKeys = envelope.keyId
-        ? [keysById.get(envelope.keyId)].filter((key): key is Microsoft365TokenCipherKey => Boolean(key))
-        : [activeKey, ...[...keysById.values()].filter((key) => key.keyId !== activeKey.keyId)];
+      const candidateKeys = keyProvider.decryptionKeysForEnvelope(envelope.keyId);
 
       if (candidateKeys.length === 0) {
         throw new Error("Microsoft 365 credential key ID is not configured.");

@@ -4,10 +4,13 @@ import { describe, expect, it } from "vitest";
 
 import {
   createLocalMicrosoft365TokenCipher,
+  createLocalMicrosoft365TokenKeyProvider,
   createMicrosoft365TokenCipherFromEnv,
+  describeMicrosoft365TokenKeyProvider,
   localDevMicrosoft365TokenMasterKey,
   parseMicrosoft365TokenPreviousKeys
 } from "../crypto";
+import { runMicrosoft365ProviderTokenRotationSmoke } from "../rotation-smoke";
 
 const createLegacyEnvelope = (masterKey: string, payload: object): string => {
   const iv = randomBytes(12);
@@ -89,6 +92,72 @@ describe("Microsoft 365 token encryption", () => {
     });
   });
 
+  it("describes local key custody without exposing key material", () => {
+    const keyProvider = createLocalMicrosoft365TokenKeyProvider({
+      activeKeyId: "current",
+      keys: [
+        {
+          keyId: "current",
+          masterKey: "current-provider-token-key"
+        },
+        {
+          keyId: "previous",
+          masterKey: "previous-provider-token-key"
+        }
+      ]
+    });
+    const cipher = createLocalMicrosoft365TokenCipher({ keyProvider });
+    const summary = describeMicrosoft365TokenKeyProvider(keyProvider);
+    const serializedSummary = JSON.stringify(summary);
+
+    expect(summary).toEqual({
+      providerKind: "local-env-key-ring",
+      custodyBoundary: "local-process-key-ring",
+      activeKeyId: "current",
+      previousKeyIds: ["previous"],
+      keyCount: 2,
+      plaintextKeyMaterialAccessibleToProcess: true,
+      externalKmsBacked: false,
+      ciphertextBackfillSupported: false
+    });
+    expect(serializedSummary).not.toContain("current-provider-token-key");
+    expect(serializedSummary).not.toContain("previous-provider-token-key");
+    expect(JSON.parse(cipher.encrypt({ accessToken: "token-value" })).keyId).toBe("current");
+  });
+
+  it("fails previous-key decrypt when the configured key material is wrong", () => {
+    const previousCipher = createLocalMicrosoft365TokenCipher({
+      activeKeyId: "previous",
+      keys: [
+        {
+          keyId: "previous",
+          masterKey: "previous-provider-token-key"
+        }
+      ]
+    });
+    const encryptedWithPrevious = previousCipher.encrypt({
+      tenantId: "tenant-id",
+      accessToken: "old-token-value"
+    });
+    const currentCipher = createLocalMicrosoft365TokenCipher({
+      activeKeyId: "current",
+      keys: [
+        {
+          keyId: "current",
+          masterKey: "current-provider-token-key"
+        },
+        {
+          keyId: "previous",
+          masterKey: "wrong-previous-provider-token-key"
+        }
+      ]
+    });
+
+    expect(() => currentCipher.decrypt(encryptedWithPrevious)).toThrow(
+      "Microsoft 365 credential could not be decrypted with configured keys."
+    );
+  });
+
   it("decrypts legacy envelopes without key IDs by trying active and previous keys", () => {
     const legacyEnvelope = createLegacyEnvelope("legacy-provider-token-key", {
       tenantId: "tenant-id",
@@ -134,5 +203,38 @@ describe("Microsoft 365 token encryption", () => {
         PURESOC_PROVIDER_TOKEN_KEY: localDevMicrosoft365TokenMasterKey
       })
     ).toThrow("non-default provider token key");
+  });
+
+  it("refuses the local-dev provider token key as a production previous key", () => {
+    expect(() =>
+      createMicrosoft365TokenCipherFromEnv({
+        PURESOC_APP_ENV: "production",
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+        PURESOC_PROVIDER_TOKEN_KEY: "production-provider-token-key",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: `previous=${localDevMicrosoft365TokenMasterKey}`
+      })
+    ).toThrow("cannot include the local-dev key");
+  });
+
+  it("runs the bounded provider-token rotation smoke without plaintext secret output", () => {
+    const result = runMicrosoft365ProviderTokenRotationSmoke();
+    const serialized = JSON.stringify(result);
+
+    expect(result.checks).toEqual([
+      "active-key-encrypt",
+      "active-key-decrypt",
+      "previous-key-decrypt",
+      "bad-key-failure",
+      "secret-output-redaction"
+    ]);
+    expect(result.guarantees).toMatchObject({
+      liveMicrosoftGraphCalls: false,
+      externalKmsCalls: false,
+      providerWrites: false,
+      plaintextSecretOutput: false,
+      localDisposableOnly: true
+    });
+    expect(serialized).not.toContain("m34-smoke-access-token-secret");
+    expect(serialized).not.toContain("m34-smoke-current-provider-token-key-material");
   });
 });

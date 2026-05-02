@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M33, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M33.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 33 / `docs/PLAN_M34.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M34, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M34.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 34 / `docs/PLAN_M35.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -63,6 +63,7 @@ The repository currently contains:
 - PLAN_M31 live PostgreSQL migration and Prisma runtime smoke: `pnpm prisma:smoke:postgres` validates a disposable `DATABASE_URL`, applies checked-in migrations to PostgreSQL, regenerates Prisma Client, and performs representative real CRUD through Prisma repositories for identity/session/org/RBAC, audit, OIDC transient state, provider telemetry, compliance output, evidence, billing, regulatory sources, remediation metadata, notification drafts, and stored outputs. GAP-026 is resolved for disposable live PostgreSQL smoke.
 - PLAN_M32 live Redis/BullMQ job durability smoke: `@puresoc/jobs` now has an opt-in Redis-backed queue adapter under `PURESOC_JOB_QUEUE_PROVIDER=bullmq`; `pnpm jobs:smoke:redis` targets a local/disposable Redis URL and proves enqueue, duplicate idempotency, claim, complete, retry/failure metadata, graceful shutdown, worker remediation safety-validation metadata, scheduler regulatory monitor dispatch with a fake metadata client, and connector-runner read-only provider sync without live external services or provider writes. GAP-037 is resolved for the bounded live queue smoke, while GAP-043 tracks production multi-process queue hardening.
 - PLAN_M33 audit export/checkpoint contracts: `@puresoc/audit` now exports redacted audit chain segments with verification status, non-WORM/non-notarized guarantees, deterministic violation detection for missing rows, tampered payloads, broken links, and wrong terminal checkpoints; memory and Prisma checkpoint repositories persist database-only checkpoint metadata in `audit_checkpoints`; API routes expose organization-scoped audit export/checkpoint operations; GAP-039 is narrowed without claiming WORM storage or external notarization.
+- PLAN_M34 provider-token key custody and rotation smoke: `@puresoc/provider-microsoft365` now has an explicit `local-env-key-ring` key-provider/custody boundary around the local token cipher, redacted custody summaries, and a package-level rotation smoke helper; config validation rejects unsupported custody providers and duplicate/reused provider-token key material; `pnpm provider-token:smoke` proves active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production rejection of checked-in local-dev active/previous provider-token keys without live Microsoft Graph, external KMS, or provider writes. GAP-040 is narrowed without claiming KMS/secret-manager custody.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -103,7 +104,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 30 / `docs/PLAN_M31.md` is completed.
 - Prompt 31 / `docs/PLAN_M32.md` is completed.
 - Prompt 32 / `docs/PLAN_M33.md` is completed.
-- Prompt 33 / `docs/PLAN_M34.md` is staged as the next active implementation prompt.
+- Prompt 33 / `docs/PLAN_M34.md` is completed.
+- Prompt 34 / `docs/PLAN_M35.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -118,12 +120,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 33 / `docs/PLAN_M34.md`: Provider Token KMS And Rotation Smoke Planning Slice.
-2. Expected next handoff after M34: prioritize remediation worker/provider execution safety (GAP-030), production queue orchestration hardening (GAP-043), or audit WORM/external signing operations (GAP-039), depending on what the provider-token custody work uncovers.
+1. Prompt 34 / `docs/PLAN_M35.md`: Remediation Worker Provider Execution Safety Contract Slice.
+2. Expected next handoff after M35: prioritize production queue orchestration hardening (GAP-043), audit WORM/external signing operations (GAP-039), or live KMS/secret-manager custody (GAP-040), depending on what the remediation worker safety work uncovers.
 
-Do not implement provider write actions before the deferred M9/GAP-030 runtime safety work exists and passes.
+Do not enable live Microsoft Graph write/remediation actions by default. M35 may build safety/executor contracts with fake/mock provider actions only, but production provider writes must stay disabled until explicit acceptance criteria pass.
 
-## Active Prompt 33 / PLAN_M34: Provider Token KMS And Rotation Smoke Planning Slice
+## Active Prompt 34 / PLAN_M35: Remediation Worker Provider Execution Safety Contract Slice
 
 Read:
 
@@ -133,11 +135,19 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M33.md`
+- `docs/PLAN_M34.md`
 - `docs/threat-model.md`
+- `code/packages/recommendations/src/**`
+- `code/packages/jobs/src/**`
+- `code/packages/providers/core/src/**`
+- `code/packages/providers/mock/src/**`
 - `code/packages/providers/microsoft365/src/**`
+- `code/packages/database/src/**`
+- `code/packages/database/prisma/**`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
+- `code/apps/worker/src/**`
+- `code/apps/connector-runner/src/**`
 - `code/scripts/**`
 - `code/config/defaults/**`
 - `code/package.json`
@@ -146,46 +156,57 @@ Read:
 
 Goal:
 
-Narrow GAP-040 by adding a bounded provider-token key-custody and rotation smoke foundation for the existing Microsoft 365 credential envelope, without live Microsoft Graph calls, external KMS dependencies, or provider write execution.
+Narrow GAP-030 by adding a bounded remediation worker/provider execution safety contract around existing action-run metadata, using deterministic fake/mock provider action execution only, without enabling live Microsoft Graph writes or production provider remediation.
 
 Context:
 
-- M21 added provider-token key IDs, active/previous-key decrypt support, and production startup rejection for unsafe local-dev provider-token keys.
-- GAP-040 remains open because production key custody is still environment-variable based and there is no live KMS/secret-manager adapter, deployed rotation smoke, ciphertext backfill/re-encryption workflow, or operator runbook.
-- This milestone should build a bounded key-custody/rotation smoke foundation and should not broaden into provider writes, live Microsoft Graph, live Stripe, live OIDC providers, MinIO/S3, scanners, browser smoke, public regulatory fetches, or external KMS calls.
+- M9 added action templates/runs, preflight, approval, snapshots, verification, evidence metadata, audit events, API routes, and Prisma action metadata.
+- M14 added provider-connection snapshot binding checks.
+- M19 added worker job-runtime safety metadata validation, but provider write execution remains disabled and no safe executor boundary exists.
+- M32 added Redis/BullMQ smoke for queue durability, but GAP-043 still tracks production multi-process orchestration hardening.
+- This milestone should prove the remediation execution safety shape with deterministic fake/mock providers, persisted metadata where already available, idempotency checks, redacted audit/log payloads, and explicit write-disable defaults. It should not call live Microsoft Graph or enable customer-impacting provider writes.
 
 Deliverables:
 
-- Add or clarify a provider-token key-provider/custody boundary around the existing local Microsoft 365 token cipher.
-- Add a deterministic rotation smoke command or script proving active-key encrypt, previous-key decrypt, bad-key failure, and safe local/disposable execution without live providers.
-- Keep production startup validation for unsafe provider-token keys strict, and add tests if gaps are found.
-- Ensure smoke output, logs, audit payloads, and API responses do not expose plaintext provider tokens, OAuth codes, client secrets, key material, or decrypted credential payloads.
-- Document local env/Docker-secret guidance and clearly state what remains deferred for SaaS KMS/secret-manager custody, live rotation smoke, ciphertext backfill/re-encryption, and operator rollback.
-- Update docs/gaps/prompts and create `docs/PLAN_M35.md` from the next selected active prompt before final response.
+- Add or clarify a provider action executor boundary that is separate from read-only sync and keeps Microsoft-specific execution under the Microsoft provider package.
+- Add deterministic fake/mock provider action execution tests proving preflight, approval, snapshot, provider-connection write-enabled checks, idempotency, failure semantics, audit redaction, and verification metadata.
+- Wire the worker action-execution path to the safety boundary without enabling real Microsoft Graph writes.
+- Keep runtime startup validation strict: provider writes remain disabled unless this prompt explicitly introduces a bounded, test-only/fake-provider execution mode.
+- Ensure logs, audit payloads, job payloads, and API responses do not expose provider tokens, OAuth codes, client secrets, authorization headers, key material, or decrypted credential payloads.
+- Document what remains deferred for live Microsoft provider write execution, persisted BullMQ production orchestration, live rollback/verification, and customer-facing enablement.
+- Update docs/gaps/prompts and create `docs/PLAN_M36.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
+- `code/packages/recommendations/src/**`
+- `code/packages/jobs/src/**`
+- `code/packages/providers/core/src/**`
+- `code/packages/providers/mock/src/**`
 - `code/packages/providers/microsoft365/src/**`
+- `code/packages/database/src/**`
+- `code/packages/database/prisma/**`
 - `code/packages/config/src/**`
 - `code/apps/api/src/**`
+- `code/apps/worker/src/**`
+- `code/apps/connector-runner/src/**`
 - `code/config/defaults/**`
 - `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M34.md`
 - `docs/PLAN_M35.md`
+- `docs/PLAN_M36.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not enable provider write/remediation execution.
-- Do not call live Microsoft Graph or any live external KMS/secret-manager.
-- Do not print, log, return, or persist plaintext provider tokens, client secrets, OAuth codes, key material, or decrypted credential payloads in smoke output.
-- Do not claim env-var/local key-ring custody is production KMS, HSM custody, or equivalent to external signing.
-- Do not weaken existing startup validation for production provider-token keys, audit redaction, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, or provider-write disablement.
+- Do not call live Microsoft Graph or any external provider write endpoint.
+- Do not request or enable Microsoft write scopes by default.
+- Do not make remediation actions executable for production/customer provider connections without explicit write-enabled connection state, preflight, approval, snapshots, idempotency, verification, evidence, and audit coverage.
+- Do not weaken audit redaction, provider-token custody, organization scoping, auth/session safeguards, regulatory no-auto-activation rules, or provider-write startup disablement.
+- Do not broaden into Stripe, OIDC, browser UI, MinIO/S3, scanners, public regulatory fetches, KMS, or audit WORM/signing work.
 
 Tests and acceptance commands:
 
@@ -193,19 +214,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- config provider microsoft365 encryption api audit
-pnpm <new-provider-token-rotation-smoke-command>
+pnpm test -- actions worker jobs provider remediation api database audit
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M34.md`.
+If `pnpm` is not available, use host-node equivalents and record the substitution in `docs/PLAN_M35.md`.
 
 Expected gap movement:
 
-- Narrow GAP-040 for provider-token key-custody/rotation smoke.
-- Preserve GAP-030 unless remediation worker/provider execution safety is explicitly implemented and accepted in a later prompt.
+- Narrow GAP-030 for remediation worker/provider execution safety contracts and fake/mock execution coverage.
 - Preserve GAP-039 unless external audit signing/WORM storage is intentionally added.
+- Preserve GAP-040 unless live KMS/secret-manager custody is intentionally added.
 - Preserve GAP-043 unless production queue orchestration hardening is intentionally added.
 
 Final response must include:
@@ -214,10 +234,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M34` updated
-- `PLAN_M35` created
+- `PLAN_M35` updated
+- `PLAN_M36` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 33 / PLAN_M34: Provider Token KMS And Rotation Smoke Planning Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Added an explicit Microsoft 365 `local-env-key-ring` key-provider/custody boundary around the existing local AES-GCM token cipher, with redacted custody summaries and active/previous key selection through the boundary.
+- Added `pnpm provider-token:smoke`, backed by a local/disposable smoke helper, proving active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production rejection of checked-in local-dev active/previous provider-token keys.
+- Tightened config validation for unsupported provider-token custody providers and duplicate/reused provider-token key material.
+- Kept provider write execution disabled and did not call live Microsoft Graph, external KMS/secret-manager, Stripe, OIDC providers, object storage, scanners, browsers, or public regulatory URLs.
+- Documented local env/Docker-secret guidance and clearly kept SaaS KMS/secret-manager custody, deployed rotation smoke, ciphertext backfill/re-encryption, and operator rollback deferred under GAP-040.
+
+Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- config provider microsoft365 encryption api audit`
+- `npm run provider-token:smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-040 is narrowed for explicit local key-provider custody, deterministic local/disposable rotation smoke, and stricter key-ring validation. GAP-030, GAP-039, and GAP-043 remain preserved.
 
 ## Completed Prompt 32 / PLAN_M33: Audit WORM Export And External Checkpoint Planning Slice
 

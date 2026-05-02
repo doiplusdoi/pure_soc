@@ -63,6 +63,7 @@ export interface PureSocConfig {
   };
   connectors: {
     readOnlyByDefault: boolean;
+    providerTokenKeyProvider: string;
     providerTokenEncryptionKeyId: string;
     providerTokenEncryptionKey: string;
     providerTokenEncryptionPreviousKeys: ProviderTokenEncryptionKeyConfig[];
@@ -165,6 +166,7 @@ export class StartupConfigValidationError extends Error {
 }
 
 export const localDevProviderTokenKey = "local-dev-provider-token-key-change-me" as const;
+export const localProviderTokenKeyProvider = "local-env-key-ring" as const;
 export const localDevOidcTransientStateKey = "local-dev-oidc-transient-state-key-change-me" as const;
 
 const readJson = <T>(defaultsDir: string, name: string): T => {
@@ -349,6 +351,9 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     },
     connectors: {
       ...config.connectors,
+      providerTokenKeyProvider:
+        env.PURESOC_PROVIDER_TOKEN_KEY_PROVIDER ??
+        config.connectors.providerTokenKeyProvider,
       providerTokenEncryptionKeyId:
         env.PURESOC_PROVIDER_TOKEN_KEY_ID ??
         config.connectors.providerTokenEncryptionKeyId,
@@ -569,6 +574,15 @@ export const collectStartupConfigIssues = (
     });
   }
 
+  if (config.connectors.providerTokenKeyProvider !== localProviderTokenKeyProvider) {
+    issues.push({
+      code: "provider_token_key_provider_unsupported",
+      path: "connectors.providerTokenKeyProvider",
+      message:
+        "Provider token key custody currently supports only local-env-key-ring; external KMS/secret-manager adapters remain deferred."
+    });
+  }
+
   if (!nonEmpty(config.connectors.providerTokenEncryptionKeyId)) {
     issues.push({
       code: "provider_token_key_id_required",
@@ -600,6 +614,30 @@ export const collectStartupConfigIssues = (
       code: "provider_token_previous_key_invalid",
       path: "connectors.providerTokenEncryptionPreviousKeys",
       message: "Previous provider token keys must use id=key pairs."
+    });
+  }
+
+  const duplicatePreviousKeyValue = config.connectors.providerTokenEncryptionPreviousKeys.find(
+    (key, index, keys) => nonEmpty(key.key) && keys.findIndex((entry) => entry.key === key.key) !== index
+  );
+  if (duplicatePreviousKeyValue) {
+    issues.push({
+      code: "provider_token_previous_key_duplicate",
+      path: "connectors.providerTokenEncryptionPreviousKeys",
+      message: "Previous provider token keys must not reuse the same key material."
+    });
+  }
+
+  if (
+    nonEmpty(config.connectors.providerTokenEncryptionKey) &&
+    config.connectors.providerTokenEncryptionPreviousKeys.some(
+      (key) => key.key === config.connectors.providerTokenEncryptionKey
+    )
+  ) {
+    issues.push({
+      code: "provider_token_previous_key_reuses_active",
+      path: "connectors.providerTokenEncryptionPreviousKeys",
+      message: "Previous provider token keys must not reuse the active key material."
     });
   }
 

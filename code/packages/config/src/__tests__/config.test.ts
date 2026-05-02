@@ -49,6 +49,7 @@ describe("loadConfig", () => {
       "local-dev-oidc-transient-state-key-change-me"
     );
     expect(config.connectors.readOnlyByDefault).toBe(true);
+    expect(config.connectors.providerTokenKeyProvider).toBe("local-env-key-ring");
     expect(config.connectors.providerTokenEncryptionKeyId).toBe("local-dev");
     expect(config.connectors.providerTokenEncryptionKey).toBe("local-dev-provider-token-key-change-me");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([]);
@@ -105,6 +106,7 @@ describe("loadConfig", () => {
         PURESOC_AUTH_LOCAL_ENABLED: "false",
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "test-oidc-transient-state-key-with-enough-entropy",
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "local-env-key-ring",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
@@ -162,6 +164,7 @@ describe("loadConfig", () => {
     expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
       "test-oidc-transient-state-key-with-enough-entropy"
     );
+    expect(config.connectors.providerTokenKeyProvider).toBe("local-env-key-ring");
     expect(config.connectors.providerTokenEncryptionKeyId).toBe("current-test");
     expect(config.connectors.providerTokenEncryptionKey).toBe("test-provider-token-key-with-enough-entropy");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([
@@ -296,6 +299,15 @@ describe("loadConfig", () => {
   });
 
   it("rejects invalid provider token key-ring metadata", () => {
+    const unsupportedProviderConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "external-kms"
+      }
+    });
+    expect(collectStartupConfigIssues(unsupportedProviderConfig).map((issue) => issue.code)).toContain(
+      "provider_token_key_provider_unsupported"
+    );
+
     const duplicateKeyConfig = loadConfig({
       env: {
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
@@ -313,6 +325,26 @@ describe("loadConfig", () => {
     });
     expect(collectStartupConfigIssues(invalidPreviousKeyConfig).map((issue) => issue.code)).toContain(
       "provider_token_previous_key_invalid"
+    );
+
+    const reusedActiveKeyConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_KEY_ID: "current",
+        PURESOC_PROVIDER_TOKEN_KEY: "same-provider-token-key",
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous=same-provider-token-key"
+      }
+    });
+    expect(collectStartupConfigIssues(reusedActiveKeyConfig).map((issue) => issue.code)).toContain(
+      "provider_token_previous_key_reuses_active"
+    );
+
+    const duplicatePreviousKeyConfig = loadConfig({
+      env: {
+        PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=old-provider-token-key"
+      }
+    });
+    expect(collectStartupConfigIssues(duplicatePreviousKeyConfig).map((issue) => issue.code)).toContain(
+      "provider_token_previous_key_duplicate"
     );
   });
 

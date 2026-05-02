@@ -4,8 +4,10 @@
 
 Implement the next active prompt after M33: narrow GAP-040 by adding a bounded provider-token key-custody and rotation smoke foundation for the existing Microsoft 365 credential envelope, without adding live Microsoft Graph calls or enabling provider writes.
 
-Status: staged for implementation after M33.
+Status: completed.
 Created: 2026-05-02.
+Started: 2026-05-02.
+Completed: 2026-05-02.
 
 ## Source Inputs
 
@@ -101,32 +103,65 @@ If `pnpm` is not available, run equivalent host-node commands and record the sub
 
 ## Completion Log
 
-Not started.
+Started 2026-05-02.
 
 Implementation results:
 
-- Pending.
+- Added an explicit Microsoft 365 `local-env-key-ring` key-provider/custody boundary around the existing local AES-GCM token cipher. New credential encryption uses the active key through the boundary, and decryption resolves key-ID and legacy no-key-ID envelopes through configured active/previous keys.
+- Added redacted custody summaries that expose provider kind, active/previous key IDs, and non-KMS guarantees without exposing key material.
+- Added `pnpm provider-token:smoke`, backed by a local/disposable smoke helper, proving active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production rejection of checked-in local-dev active/previous provider-token keys.
+- Tightened config validation for unsupported provider-token custody providers plus duplicate/reused provider-token key material.
+- Added focused token-custody, smoke, config, and API/audit redaction assertions while preserving provider write disablement.
+- Documented local env/Docker-secret guidance and clearly kept SaaS KMS/secret-manager custody, deployed rotation smoke, ciphertext backfill/re-encryption, and operator rollback deferred.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/provider-connections/microsoft365/__tests__/microsoft365-api-consent-health.test.ts`
+- `code/config/defaults/connectors.json`
+- `code/package.json`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `code/packages/config/src/index.ts`
+- `code/packages/providers/microsoft365/src/__tests__/microsoft365-token-encryption.spec.ts`
+- `code/packages/providers/microsoft365/src/crypto.ts`
+- `code/packages/providers/microsoft365/src/index.ts`
+- `code/packages/providers/microsoft365/src/rotation-smoke.ts`
+- `code/scripts/provider-token-rotation-smoke.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M34.md`
+- `docs/PLAN_M35.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- `pnpm` and sandbox-local `npm` were unavailable. Validation used host-node equivalents through `flatpak-spawn --host` and `npm`.
+- `npm run lint` passed, including layout checks, schema drift checks for 29 models / 432 fields, generated Romania regulatory drift checks, and TypeScript.
+- `npm run test -- config provider microsoft365 encryption api audit` passed: 31 test files, 112 tests.
+- `npm run provider-token:smoke` passed with secret-free metadata output.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M34. The milestone adds a deterministic local key-custody/rotation smoke and stricter local key-ring validation without claiming external KMS/secret-manager custody or enabling provider writes.
 
 Gaps updated:
 
-- Pending.
+- GAP-040 narrowed for explicit local key-provider custody, deterministic local/disposable rotation smoke, and stricter key-ring validation.
+- GAP-030 preserved; no provider write/remediation execution was enabled.
+- GAP-039 preserved; no external audit signing/WORM storage was added.
+- GAP-043 preserved; no production queue orchestration hardening was added.
 
 Prompt handoff:
 
-- Pending. M34 implementation must create `docs/PLAN_M35.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 33 / PLAN_M34 complete and stages Prompt 34 / PLAN_M35.
+- `docs/PLAN_M35.md` was created for the remediation worker/provider execution safety contract slice.
 
 Residual risk:
 
-- Pending.
+- `local-env-key-ring` custody still leaves plaintext provider-token key material available to the API process; it is not KMS, HSM custody, or external signing.
+- No live KMS/secret-manager adapter, deployed rotation smoke, ciphertext backfill/re-encryption workflow, or operator rollback runbook exists yet.
+- Provider write execution remains disabled and open under GAP-030.

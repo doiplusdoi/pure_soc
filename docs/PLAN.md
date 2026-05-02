@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M33 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M34 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -42,8 +42,9 @@ As of 2026-05-02, M1-M33 are implemented at contract/runtime-baseline level.
 - M31 adds `pnpm prisma:smoke:postgres`, a disposable PostgreSQL migration/apply and Prisma-mode CRUD smoke that runs checked-in migrations and verifies representative repository writes/reads for the Prisma-backed runtime contexts.
 - M32 adds an opt-in Redis-backed queue adapter under `PURESOC_JOB_QUEUE_PROVIDER=bullmq` plus `pnpm jobs:smoke:redis`, a disposable live Redis smoke for enqueue, claim, complete, retry/failure metadata, idempotency, graceful shutdown, worker safety-validation metadata, scheduler regulatory monitor dispatch with fake metadata, and connector-runner read-only provider sync.
 - M33 adds audit export/checkpoint contracts, deterministic exported-segment verification, database-only `audit_checkpoints` persistence, and organization-scoped audit export/checkpoint API routes. It explicitly keeps audit checkpoints as tamper-evident database metadata only, not WORM storage, external notarization, legal certification, or protection against a database administrator rewriting all rows.
-- Runtime readiness is still partial. Persisted audit concurrency/retention/export hardening, production multi-process queue orchestration hardening, external audit signing/WORM export, live KMS/key-rotation smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M34.md`, the provider-token KMS and rotation smoke planning slice.
+- M34 adds an explicit Microsoft 365 provider-token `local-env-key-ring` key-provider/custody boundary, redacted custody summaries, stricter key-ring validation, and `pnpm provider-token:smoke` for local/disposable active-key encrypt/decrypt, previous-key decrypt, bad-key failure, secret-free output, and production local-dev-key rejection checks.
+- Runtime readiness is still partial. Persisted audit concurrency/retention/export hardening, production multi-process queue orchestration hardening, external audit signing/WORM export, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M35.md`, the remediation worker/provider execution safety contract slice.
 
 ## Milestones
 
@@ -64,8 +65,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M33.md` record completed incremental milestones.
-- `docs/PLAN_M34.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M34.md` record completed incremental milestones.
+- `docs/PLAN_M35.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow
