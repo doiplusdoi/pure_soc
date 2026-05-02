@@ -20,6 +20,11 @@ describe("loadConfig", () => {
       requireOriginOrReferer: false,
       exemptRouteFamilies: ["webhook", "oidc_callback", "provider_callback"]
     });
+    expect(config.api.security.proxy).toEqual({
+      trustForwardedHeaders: false,
+      trustedProxyIpAddresses: [],
+      trustedProxyHops: 1
+    });
     expect(config.api.security.trustedOrigins).toEqual([
       "http://127.0.0.1:3000",
       "http://127.0.0.1:3001",
@@ -28,6 +33,11 @@ describe("loadConfig", () => {
     ]);
     expect(config.api.rateLimits).toMatchObject({
       enabled: true,
+      store: {
+        provider: "memory",
+        redisUrl: "",
+        requireSharedStore: false
+      },
       default: {
         windowMs: 60_000,
         maxRequests: 120
@@ -114,10 +124,16 @@ describe("loadConfig", () => {
         PURESOC_STRIPE_WEBHOOK_MAX_RAW_BODY_BYTES: "2048",
         PURESOC_EVIDENCE_MAX_UPLOAD_BYTES: "512",
         PURESOC_API_TRUSTED_ORIGINS: "https://console.example.test, https://admin.example.test/path",
+        PURESOC_API_TRUST_FORWARDED_HEADERS: "true",
+        PURESOC_API_TRUSTED_PROXY_IPS: "127.0.0.1, ::1",
+        PURESOC_API_TRUSTED_PROXY_HOPS: "2",
         PURESOC_API_ORIGIN_PROTECTION_ENABLED: "false",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_API_ORIGIN_EXEMPT_ROUTE_FAMILIES: "webhook provider_callback",
         PURESOC_API_RATE_LIMIT_ENABLED: "false",
+        PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis",
+        PURESOC_API_RATE_LIMIT_REDIS_URL: "redis://rate-limit.example.test:6379/2",
+        PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE: "true",
         PURESOC_API_RATE_LIMIT_WINDOW_MS: "30000",
         PURESOC_API_RATE_LIMIT_MAX_REQUESTS: "33",
         PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "7",
@@ -176,12 +192,22 @@ describe("loadConfig", () => {
       "https://admin.example.test",
       "https://console.example.test"
     ]);
+    expect(config.api.security.proxy).toEqual({
+      trustForwardedHeaders: true,
+      trustedProxyIpAddresses: ["127.0.0.1", "::1"],
+      trustedProxyHops: 2
+    });
     expect(config.api.security.originProtection).toEqual({
       enabled: false,
       requireOriginOrReferer: true,
       exemptRouteFamilies: ["webhook", "provider_callback"]
     });
     expect(config.api.rateLimits.enabled).toBe(false);
+    expect(config.api.rateLimits.store).toEqual({
+      provider: "redis",
+      redisUrl: "redis://rate-limit.example.test:6379/2",
+      requireSharedStore: true
+    });
     expect(config.api.rateLimits.default).toEqual({
       windowMs: 30_000,
       maxRequests: 33
@@ -270,6 +296,7 @@ describe("loadConfig", () => {
         PURESOC_API_MAX_JSON_BODY_BYTES: "0",
         PURESOC_STRIPE_WEBHOOK_MAX_RAW_BODY_BYTES: "not-a-number",
         PURESOC_EVIDENCE_MAX_UPLOAD_BYTES: "-1",
+        PURESOC_API_TRUSTED_PROXY_HOPS: "0",
         PURESOC_UPLOAD_SCANNER_TIMEOUT_MS: "1.5",
         PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "0",
         PURESOC_JOB_RETRY_BACKOFF_MS: "soon",
@@ -294,6 +321,7 @@ describe("loadConfig", () => {
     expect(config.api.requestLimits.jsonBodyMaxBytes).toBe(15_728_640);
     expect(config.api.requestLimits.stripeWebhookRawBodyMaxBytes).toBe(1_048_576);
     expect(config.api.requestLimits.evidenceUploadMaxBytes).toBe(10_485_760);
+    expect(config.api.security.proxy.trustedProxyHops).toBe(1);
     expect(config.storage.uploadScanner.timeoutMs).toBe(10_000);
     expect(config.jobs.defaultMaxAttempts).toBe(3);
     expect(config.jobs.retryBackoffMs).toBe(1000);
@@ -337,6 +365,8 @@ describe("loadConfig", () => {
         PURESOC_APP_ENV: "production",
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "false",
+        PURESOC_API_ORIGIN_PROTECTION_ENABLED: "false",
+        PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "false",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_ENDPOINT: "",
@@ -349,6 +379,8 @@ describe("loadConfig", () => {
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         "production_secure_cookie_required",
+        "production_origin_protection_required",
+        "production_origin_or_referer_required",
         "oidc_transient_state_key_required",
         "provider_token_key_required",
         "stripe_secret_key_required",
@@ -372,6 +404,35 @@ describe("loadConfig", () => {
 
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining(["job_redis_url_required", "provider_job_writes_disabled"])
+    );
+  });
+
+  it("rejects ambiguous trusted-proxy and deferred shared rate-limit store settings", () => {
+    const proxyConfig = loadConfig({
+      env: {
+        PURESOC_API_TRUST_FORWARDED_HEADERS: "true"
+      }
+    });
+    expect(collectStartupConfigIssues(proxyConfig).map((issue) => issue.code)).toContain(
+      "trusted_proxy_ip_list_required"
+    );
+
+    const redisStoreConfig = loadConfig({
+      env: {
+        PURESOC_API_RATE_LIMIT_STORE_PROVIDER: "redis"
+      }
+    });
+    expect(collectStartupConfigIssues(redisStoreConfig).map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["api_rate_limit_redis_url_required", "api_rate_limit_redis_store_deferred"])
+    );
+
+    const sharedRequiredConfig = loadConfig({
+      env: {
+        PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE: "true"
+      }
+    });
+    expect(collectStartupConfigIssues(sharedRequiredConfig).map((issue) => issue.code)).toContain(
+      "api_rate_limit_shared_store_required"
     );
   });
 
@@ -478,6 +539,7 @@ describe("loadConfig", () => {
         PURESOC_APP_ENV: "production",
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "prod-oidc-transient-state-key-with-sufficient-entropy",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "prod-current",
         PURESOC_PROVIDER_TOKEN_KEY: "prod-provider-token-key-with-sufficient-entropy",

@@ -61,6 +61,37 @@ pnpm prisma:smoke:postgres
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
+## API Middleware Security
+
+The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.
+
+Client IPs come from the socket by default. `X-Forwarded-For` and `Forwarded` are ignored unless an operator configures an explicit trusted-proxy policy:
+
+```sh
+PURESOC_API_TRUST_FORWARDED_HEADERS=true
+PURESOC_API_TRUSTED_PROXY_IPS=127.0.0.1,::1
+PURESOC_API_TRUSTED_PROXY_HOPS=1
+```
+
+Do not enable forwarded-header trust for arbitrary networks. The remote socket address must match one of the configured proxy IPs before forwarded client IPs affect audit context or rate-limit keys.
+
+API rate limiting uses an injectable fixed-window store boundary. The default provider is process-local memory:
+
+```sh
+PURESOC_API_RATE_LIMIT_STORE_PROVIDER=memory
+```
+
+`redis` is reserved for the future shared-store adapter and currently fails startup validation with an explicit deferred-adapter issue. Deployments that require a shared API rate-limit store can set `PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE=true` so process-local memory is rejected instead of silently accepted.
+
+The near-term CSRF stance is strict Origin/Referer validation for production browser state-changing routes:
+
+```sh
+PURESOC_API_ORIGIN_PROTECTION_ENABLED=true
+PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true
+```
+
+Development keeps the historical optional-missing-header behavior unless configured otherwise, while still rejecting untrusted Origin/Referer values when present. A double-submit CSRF-token contract remains deferred until a served browser runtime can carry token issuance and header submission end to end.
+
 Provider-token encryption supports a small custody-provider shape for Microsoft 365 credentials. The default remains the local environment key ring:
 
 ```sh

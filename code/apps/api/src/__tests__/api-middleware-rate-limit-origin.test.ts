@@ -6,7 +6,11 @@ import type { BillingRuntimeConfig } from "@puresoc/billing-core";
 import { loadConfig } from "@puresoc/config";
 import { createApiServices } from "../auth/services";
 import { resolveRoutePolicy } from "../middleware";
-import { InMemoryFixedWindowRateLimiter } from "../rate-limit";
+import {
+  FixedWindowRateLimiter,
+  InMemoryFixedWindowRateLimiter,
+  type RateLimitStore
+} from "../rate-limit";
 import { startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
@@ -86,6 +90,29 @@ describe("api middleware rate limits and origin protection", () => {
     });
   });
 
+  it("keeps the rate-limit store boundary compatible with async shared stores", async () => {
+    const store: RateLimitStore = {
+      kind: "test-shared-store",
+      async consume(input) {
+        return {
+          allowed: true,
+          key: input.key,
+          remaining: input.maxRequests - 1,
+          resetAt: "2026-05-01T10:01:00.000Z",
+          retryAfterSeconds: 60
+        };
+      }
+    };
+    const limiter = new FixedWindowRateLimiter(store);
+
+    await expect(limiter.check({ key: "auth:ip:test", windowMs: 60_000, maxRequests: 10 })).resolves.toMatchObject({
+      allowed: true,
+      key: "auth:ip:test",
+      remaining: 9
+    });
+    expect(limiter.storeKind).toBe("test-shared-store");
+  });
+
   it("classifies high-risk route families for shared middleware policy", () => {
     expect(resolveRoutePolicy("POST", "/billing/stripe/webhook")).toMatchObject({
       routeFamily: "webhook",
@@ -136,6 +163,33 @@ describe("api middleware rate limits and origin protection", () => {
     expect(services.repository.evidenceArtifacts.size).toBe(0);
   });
 
+  it("rejects missing Origin or Referer when strict browser CSRF posture is configured", async () => {
+    boot({
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_API_MAX_JSON_BODY_BYTES: "16",
+      PURESOC_API_TRUSTED_ORIGINS: "https://app.example.test"
+    });
+
+    const response = await fetch(`${baseUrl}/organizations/org_origin/evidence/upload`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        title: "Oversized body that would fail parsing if middleware consumed it late",
+        content: "x".repeat(128)
+      })
+    });
+
+    expect(response.status).toBe(403);
+    const body = await readJson<{ error: { code: string; routeFamily: string } }>(response);
+    expect(body.error).toMatchObject({
+      code: "origin_required",
+      routeFamily: "evidence"
+    });
+    expect(services.repository.evidenceArtifacts.size).toBe(0);
+  });
+
   it("allows trusted same-origin state-changing requests", async () => {
     boot({
       PURESOC_API_TRUSTED_ORIGINS: "https://app.example.test"
@@ -150,6 +204,27 @@ describe("api middleware rate limits and origin protection", () => {
       },
       {
         origin: "https://app.example.test"
+      }
+    );
+
+    expect(response.status).toBe(201);
+  });
+
+  it("allows trusted Referer state-changing requests when strict Origin/Referer posture is configured", async () => {
+    boot({
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_API_TRUSTED_ORIGINS: "https://app.example.test"
+    });
+
+    const response = await postJson(
+      "/auth/register",
+      {
+        email: "trusted-referer@example.test",
+        password,
+        displayName: "Trusted Referer"
+      },
+      {
+        referer: "https://app.example.test/onboarding"
       }
     );
 
@@ -184,6 +259,92 @@ describe("api middleware rate limits and origin protection", () => {
     expect(services.auditSink.findByAction("local_account_created")).toHaveLength(1);
   });
 
+  it("ignores spoofed forwarded client IP headers by default", async () => {
+    boot({
+      PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "1"
+    });
+
+    const firstResponse = await postJson(
+      "/auth/register",
+      {
+        email: "untrusted-forwarded-one@example.test",
+        password,
+        displayName: "Forwarded One"
+      },
+      {
+        "x-forwarded-for": "198.51.100.10"
+      }
+    );
+    expect(firstResponse.status).toBe(201);
+
+    const secondResponse = await postJson(
+      "/auth/register",
+      {
+        email: "untrusted-forwarded-two@example.test",
+        password,
+        displayName: "Forwarded Two"
+      },
+      {
+        "x-forwarded-for": "198.51.100.11"
+      }
+    );
+
+    expect(secondResponse.status).toBe(429);
+    const serialized = await secondResponse.text();
+    expect(serialized).toContain("rate_limit_exceeded");
+    expect(serialized).not.toContain("198.51.100.10");
+    expect(serialized).not.toContain("198.51.100.11");
+    expect(serialized).not.toContain("x-forwarded-for");
+  });
+
+  it("uses forwarded client IPs only when the socket remote address matches explicit trusted proxies", async () => {
+    boot({
+      PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "1",
+      PURESOC_API_TRUST_FORWARDED_HEADERS: "true",
+      PURESOC_API_TRUSTED_PROXY_IPS: "127.0.0.1 ::1",
+      PURESOC_API_TRUSTED_PROXY_HOPS: "1"
+    });
+
+    const firstResponse = await postJson(
+      "/auth/register",
+      {
+        email: "trusted-forwarded-one@example.test",
+        password,
+        displayName: "Forwarded One"
+      },
+      {
+        "x-forwarded-for": "198.51.100.20, 203.0.113.9"
+      }
+    );
+    expect(firstResponse.status).toBe(201);
+
+    const secondResponse = await postJson(
+      "/auth/register",
+      {
+        email: "trusted-forwarded-two@example.test",
+        password,
+        displayName: "Forwarded Two"
+      },
+      {
+        "x-forwarded-for": "198.51.100.21, 203.0.113.9"
+      }
+    );
+    expect(secondResponse.status).toBe(201);
+
+    const thirdResponse = await postJson(
+      "/auth/register",
+      {
+        email: "trusted-forwarded-three@example.test",
+        password,
+        displayName: "Forwarded Three"
+      },
+      {
+        "x-forwarded-for": "198.51.100.20, 203.0.113.9"
+      }
+    );
+    expect(thirdResponse.status).toBe(429);
+  });
+
   it("preserves Stripe webhook raw-body verification while exempting webhook origins", async () => {
     boot(
       {
@@ -211,6 +372,25 @@ describe("api middleware rate limits and origin protection", () => {
       duplicate: false
     });
     expect(services.repository.billingEvents.size).toBe(1);
+  });
+
+  it("preserves OIDC callback Origin exemption under strict browser CSRF posture", async () => {
+    boot({
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_API_TRUSTED_ORIGINS: "https://app.example.test"
+    });
+
+    const response = await postJson(
+      "/auth/oidc/google/callback",
+      {},
+      {
+        origin: "https://evil.example.test"
+      }
+    );
+
+    expect(response.status).toBe(400);
+    const body = await readJson<{ error: { code: string } }>(response);
+    expect(body.error.code).toBe("invalid_request");
   });
 
   const boot = (env: NodeJS.ProcessEnv = {}, billingConfig: BillingRuntimeConfig | undefined = undefined) => {

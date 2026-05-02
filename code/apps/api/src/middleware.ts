@@ -3,7 +3,7 @@ import type { IncomingHttpHeaders, IncomingMessage } from "node:http";
 
 import type { PureSocConfig } from "@puresoc/config";
 import { parseCookies, readRequestContext, sessionCookieName, type JsonResult, type RequestContext } from "./http";
-import { InMemoryFixedWindowRateLimiter, type RateLimitRule } from "./rate-limit";
+import { InMemoryFixedWindowRateLimiter, type RateLimiter, type RateLimitRule } from "./rate-limit";
 
 export type ApiRouteFamily =
   | "auth"
@@ -54,7 +54,7 @@ export interface ApiMiddlewareOptions {
   sessionResolver: {
     getSession(sessionToken: string): Promise<SessionView>;
   };
-  rateLimiter?: InMemoryFixedWindowRateLimiter;
+  rateLimiter?: RateLimiter;
   now?: () => Date;
 }
 
@@ -72,7 +72,7 @@ export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
   return {
     async apply(request: IncomingMessage, url: URL): Promise<ApiMiddlewareDecision> {
       const policy = resolveRoutePolicy(request.method ?? "GET", url.pathname);
-      const baseContext = readRequestContext(request);
+      const baseContext = readRequestContext(request, options.config.security.proxy);
       const session = await resolveOptionalSession(request.headers.cookie, options.sessionResolver);
       const rateLimitKey = buildRateLimitKey(policy, baseContext, session);
       const context: ApiRequestContext = {
@@ -102,7 +102,7 @@ export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
 
       if (options.config.rateLimits.enabled) {
         const rule = rateLimitRuleFor(options.config, policy.rateLimitFamily);
-        const decision = rateLimiter.check({
+        const decision = await rateLimiter.check({
           key: rateLimitKey,
           windowMs: rule.windowMs,
           maxRequests: rule.maxRequests

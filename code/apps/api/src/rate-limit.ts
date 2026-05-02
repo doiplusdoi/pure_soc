@@ -15,12 +15,25 @@ export interface RateLimitDecision {
   retryAfterSeconds: number;
 }
 
+export interface RateLimitStore {
+  readonly kind: string;
+  consume(input: RateLimitCheckInput): RateLimitDecision | Promise<RateLimitDecision>;
+  reset?(key?: string): void | Promise<void>;
+}
+
+export interface RateLimiter {
+  readonly storeKind: string;
+  check(input: RateLimitCheckInput): RateLimitDecision | Promise<RateLimitDecision>;
+}
+
 interface RateLimitWindow {
   count: number;
   startedAtMs: number;
 }
 
-export class InMemoryFixedWindowRateLimiter {
+export class InMemoryFixedWindowRateLimitStore implements RateLimitStore {
+  readonly kind = "memory";
+
   private readonly windows = new Map<string, RateLimitWindow>();
   private readonly now: () => Date;
 
@@ -28,7 +41,7 @@ export class InMemoryFixedWindowRateLimiter {
     this.now = options.now ?? (() => new Date());
   }
 
-  check(input: RateLimitCheckInput): RateLimitDecision {
+  consume(input: RateLimitCheckInput): RateLimitDecision {
     assertRule(input);
 
     const nowMs = this.now().getTime();
@@ -73,6 +86,36 @@ export class InMemoryFixedWindowRateLimiter {
     }
 
     this.windows.clear();
+  }
+}
+
+export class FixedWindowRateLimiter implements RateLimiter {
+  readonly storeKind: string;
+
+  constructor(private readonly store: RateLimitStore) {
+    this.storeKind = store.kind;
+  }
+
+  check(input: RateLimitCheckInput): RateLimitDecision | Promise<RateLimitDecision> {
+    return this.store.consume(input);
+  }
+}
+
+export class InMemoryFixedWindowRateLimiter extends FixedWindowRateLimiter {
+  private readonly inMemoryStore: InMemoryFixedWindowRateLimitStore;
+
+  constructor(options: { now?: () => Date } = {}) {
+    const store = new InMemoryFixedWindowRateLimitStore(options);
+    super(store);
+    this.inMemoryStore = store;
+  }
+
+  override check(input: RateLimitCheckInput): RateLimitDecision {
+    return this.inMemoryStore.consume(input);
+  }
+
+  reset(key?: string): void {
+    this.inMemoryStore.reset(key);
   }
 }
 

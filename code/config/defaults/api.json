@@ -11,6 +11,11 @@
       "http://127.0.0.1:3000",
       "http://127.0.0.1:3001"
     ],
+    "proxy": {
+      "trustForwardedHeaders": false,
+      "trustedProxyIpAddresses": [],
+      "trustedProxyHops": 1
+    },
     "originProtection": {
       "enabled": true,
       "requireOriginOrReferer": false,
@@ -23,6 +28,11 @@
   },
   "rateLimits": {
     "enabled": true,
+    "store": {
+      "provider": "memory",
+      "redisUrl": "",
+      "requireSharedStore": false
+    },
     "default": {
       "windowMs": 60000,
       "maxRequests": 120

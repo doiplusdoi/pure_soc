@@ -124,7 +124,10 @@ describe("auth deployment smoke harness", () => {
   it("runs against an explicitly confirmed local disposable API target without leaking cookies, passwords, URLs, or emails", async () => {
     const serverConfig = loadConfig({
       env: {
-        PURESOC_API_TRUSTED_ORIGINS: trustedOrigin
+        PURESOC_API_TRUSTED_ORIGINS: trustedOrigin,
+        PURESOC_API_TRUST_FORWARDED_HEADERS: "true",
+        PURESOC_API_TRUSTED_PROXY_IPS: "127.0.0.1 ::1",
+        PURESOC_API_TRUSTED_PROXY_HOPS: "1"
       }
     });
     services = createApiServices({
@@ -141,7 +144,10 @@ describe("auth deployment smoke harness", () => {
       PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT: "true",
       PURESOC_AUTH_DEPLOYMENT_SMOKE_BASE_URL: baseUrl,
       PURESOC_AUTH_DEPLOYMENT_SMOKE_TRUSTED_ORIGIN: trustedOrigin,
-      PURESOC_API_TRUSTED_ORIGINS: trustedOrigin
+      PURESOC_API_TRUSTED_ORIGINS: trustedOrigin,
+      PURESOC_API_TRUST_FORWARDED_HEADERS: "true",
+      PURESOC_API_TRUSTED_PROXY_IPS: "127.0.0.1 ::1",
+      PURESOC_API_TRUSTED_PROXY_HOPS: "1"
     };
 
     const report = await runAuthDeploymentSmoke({
@@ -189,6 +195,8 @@ describe("auth deployment smoke harness", () => {
     expect(forwardedOperation?.metadata).toMatchObject({
       finalStatus: 429,
       forwardedForHonoredByRateLimit: true,
+      forwardedHeadersIgnoredWithoutTrustedProxy: false,
+      trustedProxyIpAddressCount: 2,
       cookieSecureDrivenByConfig: true
     });
 

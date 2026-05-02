@@ -356,12 +356,23 @@ const authDeploymentCheck = (
       originProtectionEnabled: config.api.security.originProtection.enabled,
       requireOriginOrReferer: config.api.security.originProtection.requireOriginOrReferer,
       trustedOriginCount: config.api.security.trustedOrigins.length,
+      trustedProxy: {
+        trustForwardedHeaders: config.api.security.proxy.trustForwardedHeaders,
+        trustedProxyIpAddressCount: config.api.security.proxy.trustedProxyIpAddresses.length,
+        trustedProxyHops: config.api.security.proxy.trustedProxyHops,
+        forwardedHeadersTrustedByDefault: false
+      },
       callbackExemptRouteFamilies: {
         oidcCallback: config.api.security.originProtection.exemptRouteFamilies.includes("oidc_callback"),
         providerCallback: config.api.security.originProtection.exemptRouteFamilies.includes("provider_callback"),
         webhook: config.api.security.originProtection.exemptRouteFamilies.includes("webhook")
       },
       rateLimitEnabled: config.api.rateLimits.enabled,
+      rateLimitStore: {
+        provider: config.api.rateLimits.store.provider,
+        scope: config.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external_deferred",
+        requireSharedStore: config.api.rateLimits.store.requireSharedStore
+      },
       rateLimitFamiliesConfigured: Object.keys(config.api.rateLimits.routeFamilies).sort(),
       endpointValuesReturned: false,
       sessionCookieValuesReturned: false

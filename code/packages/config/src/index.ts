@@ -20,6 +20,7 @@ export interface PureSocConfig {
     };
     security: {
       trustedOrigins: string[];
+      proxy: ApiTrustedProxyConfig;
       originProtection: {
         enabled: boolean;
         requireOriginOrReferer: boolean;
@@ -28,6 +29,7 @@ export interface PureSocConfig {
     };
     rateLimits: {
       enabled: boolean;
+      store: ApiRateLimitStoreConfig;
       default: ApiRateLimitRuleConfig;
       routeFamilies: Record<string, ApiRateLimitRuleConfig>;
     };
@@ -155,6 +157,18 @@ export interface ApiRateLimitRuleConfig {
   maxRequests: number;
 }
 
+export interface ApiRateLimitStoreConfig {
+  provider: "memory" | "redis";
+  redisUrl: string;
+  requireSharedStore: boolean;
+}
+
+export interface ApiTrustedProxyConfig {
+  trustForwardedHeaders: boolean;
+  trustedProxyIpAddresses: string[];
+  trustedProxyHops: number;
+}
+
 export interface ProviderTokenEncryptionKeyConfig {
   id: string;
   key: string;
@@ -265,6 +279,11 @@ const readJobQueueProvider = (
   fallback: PureSocConfig["jobs"]["queueProvider"]
 ): PureSocConfig["jobs"]["queueProvider"] => (value === "bullmq" ? "bullmq" : fallback);
 
+const readApiRateLimitStoreProvider = (
+  value: string | undefined,
+  fallback: ApiRateLimitStoreConfig["provider"]
+): ApiRateLimitStoreConfig["provider"] => (value === "redis" ? "redis" : fallback);
+
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   const env = options.env ?? process.env;
   const defaultsDir = options.defaultsDir ?? env.PURESOC_CONFIG_DIR ?? resolve(process.cwd(), "config/defaults");
@@ -316,6 +335,21 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
           env.PURESOC_PUBLIC_BASE_URL ?? config.app.publicBaseUrl,
           env.PURESOC_API_BASE_URL ?? config.app.apiBaseUrl
         ]),
+        proxy: {
+          ...config.api.security.proxy,
+          trustForwardedHeaders: readBoolean(
+            env.PURESOC_API_TRUST_FORWARDED_HEADERS,
+            config.api.security.proxy.trustForwardedHeaders
+          ),
+          trustedProxyIpAddresses: readStringList(
+            env.PURESOC_API_TRUSTED_PROXY_IPS,
+            config.api.security.proxy.trustedProxyIpAddresses
+          ),
+          trustedProxyHops: readPositiveInteger(
+            env.PURESOC_API_TRUSTED_PROXY_HOPS,
+            config.api.security.proxy.trustedProxyHops
+          )
+        },
         originProtection: {
           ...config.api.security.originProtection,
           enabled: readBoolean(
@@ -335,6 +369,22 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       rateLimits: {
         ...config.api.rateLimits,
         enabled: readBoolean(env.PURESOC_API_RATE_LIMIT_ENABLED, config.api.rateLimits.enabled),
+        store: {
+          ...config.api.rateLimits.store,
+          provider: readApiRateLimitStoreProvider(
+            env.PURESOC_API_RATE_LIMIT_STORE_PROVIDER,
+            config.api.rateLimits.store.provider
+          ),
+          redisUrl:
+            env.PURESOC_API_RATE_LIMIT_REDIS_URL ??
+            env.PURESOC_REDIS_URL ??
+            env.REDIS_URL ??
+            config.api.rateLimits.store.redisUrl,
+          requireSharedStore: readBoolean(
+            env.PURESOC_API_RATE_LIMIT_REQUIRE_SHARED_STORE,
+            config.api.rateLimits.store.requireSharedStore
+          )
+        },
         default: {
           windowMs: readPositiveInteger(
             env.PURESOC_API_RATE_LIMIT_WINDOW_MS,
@@ -585,6 +635,61 @@ export const collectStartupConfigIssues = (
       code: "production_secure_cookie_required",
       path: "auth.sessionCookieSecure",
       message: "Production startup requires PURESOC_AUTH_COOKIE_SECURE=true."
+    });
+  }
+
+  if (isProduction && !config.api.security.originProtection.enabled) {
+    issues.push({
+      code: "production_origin_protection_required",
+      path: "api.security.originProtection.enabled",
+      message: "Production startup requires browser Origin/Referer protection to remain enabled."
+    });
+  }
+
+  if (isProduction && !config.api.security.originProtection.requireOriginOrReferer) {
+    issues.push({
+      code: "production_origin_or_referer_required",
+      path: "api.security.originProtection.requireOriginOrReferer",
+      message:
+        "Production startup requires PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true for browser state-changing routes."
+    });
+  }
+
+  if (
+    config.api.security.proxy.trustForwardedHeaders &&
+    config.api.security.proxy.trustedProxyIpAddresses.length === 0
+  ) {
+    issues.push({
+      code: "trusted_proxy_ip_list_required",
+      path: "api.security.proxy.trustedProxyIpAddresses",
+      message:
+        "Forwarded client-IP headers are trusted only when PURESOC_API_TRUSTED_PROXY_IPS lists explicit proxy IP addresses."
+    });
+  }
+
+  if (config.api.rateLimits.store.provider === "redis" && !nonEmpty(config.api.rateLimits.store.redisUrl)) {
+    issues.push({
+      code: "api_rate_limit_redis_url_required",
+      path: "api.rateLimits.store.redisUrl",
+      message: "Redis-backed API rate limiting requires PURESOC_API_RATE_LIMIT_REDIS_URL or PURESOC_REDIS_URL."
+    });
+  }
+
+  if (config.api.rateLimits.store.provider === "redis") {
+    issues.push({
+      code: "api_rate_limit_redis_store_deferred",
+      path: "api.rateLimits.store.provider",
+      message:
+        "The API rate-limit store boundary exists, but the Redis/shared store adapter remains deferred; use memory until the adapter is implemented."
+    });
+  }
+
+  if (config.api.rateLimits.store.requireSharedStore && config.api.rateLimits.store.provider === "memory") {
+    issues.push({
+      code: "api_rate_limit_shared_store_required",
+      path: "api.rateLimits.store.provider",
+      message:
+        "This deployment requires a shared API rate-limit store, but the configured provider is process-local memory."
     });
   }
 

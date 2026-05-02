@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M50, reviewing the selector output, `docs/PLAN.md`, `docs/PLAN_M50.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 50 / `docs/PLAN_M51.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M51, reviewing `docs/PLAN.md`, `docs/PLAN_M51.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 51 / `docs/PLAN_M52.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -80,6 +80,7 @@ The repository currently contains:
 - PLAN_M48 provider-token custody deployment readiness/runbook slice: `pnpm provider-token:smoke` now reports local, in-a-box, and SaaS provider-token custody deployment readiness; `pnpm external-smoke:readiness` includes a provider-token custody check with supported local key-ring metadata, previous-key window/backfill/retirement confirmation blockers, and SaaS external-custody deferral. Rotation runbook metadata separates smoke verification, previous-key staging, ciphertext backfill planning, rollback expectations, key-retirement expectations, and deferred live KMS/HSM/secret-manager custody. The only real implemented custody provider remains `local-env-key-ring`; `fake-secret-manager-test` remains deterministic and test-only; no live KMS/HSM/secret-manager, Microsoft Graph, provider writes, or ciphertext backfill was executed.
 - PLAN_M49 external live-smoke target selection/readiness audit: `pnpm external-smoke:readiness` now embeds a `targetSelection` block, and `pnpm external-smoke:select-target` prints that selector alone. The selector ranks Microsoft 365 read-only tenant, Stripe test-mode, Microsoft/Google/GitHub OIDC callback, object-storage/scanner plus evidence/report runtime, deployed auth, and provider-token custody smoke paths; emits stable ready/blocked/unsafe/not-configured reason codes; and selects exactly one path only when readiness is `ready_for_disposable_smoke`. Default validation selected no live path and made no external calls.
 - PLAN_M50 approved single external live-smoke follow-up/blocker review: the M49 selector was run first through host-node/npm equivalents. Readiness stayed dry-run with unknown target kind, no disposable confirmation, `ready_for_disposable_smoke: 0`, and no live network calls. The selector returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`, so no live smoke command was run and GAP-044 remains open with explicit blockers.
+- PLAN_M51 API rate-limit store, trusted proxy, and CSRF decision slice: API rate limiting now has an injectable fixed-window store boundary while preserving process-local memory defaults; Redis/shared-store configuration is explicit and rejected until the adapter exists; request context ignores `X-Forwarded-For` and `Forwarded` unless an explicit trusted-proxy IP policy is configured; production startup requires strict Origin/Referer validation for browser state-changing routes; and deterministic tests cover trusted/untrusted forwarded headers, secret-free rate-limit errors, strict Origin/Referer behavior, and callback/webhook exemptions.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -137,7 +138,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 47 / `docs/PLAN_M48.md` is completed.
 - Prompt 48 / `docs/PLAN_M49.md` is completed.
 - Prompt 49 / `docs/PLAN_M50.md` is completed.
-- Prompt 50 / `docs/PLAN_M51.md` is staged as the next active implementation prompt.
+- Prompt 50 / `docs/PLAN_M51.md` is completed.
+- Prompt 51 / `docs/PLAN_M52.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -152,12 +154,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 50 / `docs/PLAN_M51.md`: API Rate-Limit Store, Trusted Proxy, And CSRF Decision Slice.
+1. Prompt 51 / `docs/PLAN_M52.md`: API Redis Rate-Limit Store Adapter Contract Slice.
 2. Keep GAP-044 open until an operator configures exactly one approved local/test/ci/disposable live-smoke target and the selector chooses it.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M51 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M52 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors. Any Redis runtime coverage must be local/test/ci/disposable only and guarded the same way as existing smoke commands.
 
-## Active Prompt 50 / PLAN_M51: API Rate-Limit Store, Trusted Proxy, And CSRF Decision Slice
+## Active Prompt 51 / PLAN_M52: API Redis Rate-Limit Store Adapter Contract Slice
 
 Read:
 
@@ -167,41 +169,43 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M50.md`
+- `docs/PLAN_M51.md`
 - `docs/threat-model.md`
 - `code/apps/api/src/server.ts`
 - `code/apps/api/src/http.ts`
 - `code/apps/api/src/middleware/**`
-- `code/apps/api/src/auth/**`
+- `code/apps/api/src/rate-limit.ts`
 - `code/packages/config/src/**`
 - `code/packages/jobs/src/**`
+- `code/scripts/*redis*`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Narrow GAP-038 by hardening the API middleware model around distributed-rate-limit readiness, proxy-aware client-IP trust, and a concrete CSRF-token decision for browser state-changing routes.
+Narrow GAP-038 further by implementing the shared-store side of the new API rate-limit store boundary without changing route-family semantics or trusting forwarded headers by default.
 
 Deliverables:
 
-- Add or refine a rate-limit store boundary that can support an external/shared store without changing current route-family semantics.
-- Preserve deterministic in-memory rate limiting for local tests and default development runs.
-- Add proxy-aware client-IP trust configuration so forwarded headers are ignored unless an explicit trusted-proxy policy is configured.
-- Record and implement the near-term CSRF stance for browser state-changing routes, either strict Origin/Referer only with explicit limitations or a double-submit token contract if the existing server shape can support it safely.
-- Add tests for trusted/untrusted forwarded headers, route-family rate-limit behavior, secret-free error responses, and CSRF/Origin behavior.
-- Update GAP-038 and docs; create `docs/PLAN_M52.md` from the next selected active prompt before final response.
+- Implement a Redis-backed API fixed-window rate-limit store adapter behind `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis`, or explicitly split the prompt if repository discovery shows the adapter needs a separate package first.
+- Preserve deterministic process-local memory rate limiting as the default development/test mode.
+- Keep route-family keys, authenticated user/org keys, webhook raw-body behavior, Origin exemptions, and trusted-proxy semantics unchanged.
+- Add deterministic tests for Redis-store command shape, key TTL/window behavior, retry/failure behavior, secret-free errors, and fallback refusal when Redis configuration is absent.
+- If adding a smoke command, keep it local/test/ci/disposable only, dry-run or fake-client by default, and do not contact production/staging/customer Redis targets.
+- Update GAP-038 and docs; create `docs/PLAN_M53.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/apps/api/src/**`
 - `code/packages/config/src/**`
+- `code/scripts/**`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M51.md`
 - `docs/PLAN_M52.md`
+- `docs/PLAN_M53.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -212,7 +216,8 @@ Negative constraints:
 - Do not introduce a broad trusted-proxy default that trusts arbitrary `X-Forwarded-For` or `Forwarded` headers.
 - Do not rate-limit Stripe webhook raw-body parsing in a way that consumes or mutates the raw body before signature verification.
 - Do not remove OIDC/provider/webhook callback Origin exemptions without replacement tests proving those flows still work.
-- Do not store or print session cookies, authorization headers, OAuth codes, provider tokens, client secrets, key material, live endpoint URLs, user emails, or object-storage keys.
+- Do not store or print session cookies, authorization headers, OAuth codes, provider tokens, client secrets, key material, Redis URLs containing credentials, live endpoint URLs, user emails, or object-storage keys.
+- Do not silently fall back from configured Redis/shared rate limiting to process-local memory in production-like modes.
 - Do not enable provider write execution or Microsoft Graph write/remediation scopes.
 
 Tests and acceptance commands:
@@ -221,19 +226,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- api middleware rate limit proxy csrf config
+pnpm test -- api middleware rate limit redis config
 pnpm external-smoke:readiness
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M51.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M52.md`.
 
 Expected gap movement:
 
-- Narrow GAP-038 for proxy-aware IP trust and whichever rate-limit/CSRF behavior is implemented.
+- Narrow GAP-038 for the shared API rate-limit store adapter if implemented.
 - Keep GAP-035 open for deployed browser/TLS/proxy smoke until an approved deployed target is exercised.
-- Keep GAP-043 open unless production multi-process queue/Redis operations are intentionally changed and validated.
+- Keep GAP-043 open unless production multi-process queue/Redis operations beyond API rate limiting are intentionally changed and validated.
 - Keep GAP-044 open unless an approved external live-smoke target is selected and exercised.
 
 Final response must include:
@@ -242,10 +247,26 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M51` updated
-- `PLAN_M52` created
+- `PLAN_M52` updated
+- `PLAN_M53` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 50 / PLAN_M51: API Rate-Limit Store, Trusted Proxy, And CSRF Decision Slice
+
+Completed on 2026-05-03.
+
+Summary:
+- Added an injectable fixed-window rate-limit store boundary while preserving deterministic process-local memory behavior.
+- Added explicit API rate-limit store config with memory defaults, deferred Redis/shared-store startup blockers, and a `requireSharedStore` refusal path.
+- Made API request context ignore `X-Forwarded-For` and `Forwarded` by default; forwarded client IPs are honored only when the socket peer matches configured trusted proxy IPs.
+- Kept webhook/OIDC/provider callback Origin exemptions and Stripe raw-body behavior intact.
+- Chose the near-term CSRF stance: production startup requires strict Origin/Referer validation; double-submit tokens remain deferred until the served browser runtime can carry the token contract safely.
+
+Validated with host-node/npm equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run test -- api middleware rate limit proxy csrf config`
+- `npm run test -- auth-deployment-smoke`
+- Full acceptance results are recorded in `docs/PLAN_M51.md`.
 
 ## Completed Prompt 49 / PLAN_M50: Approved Single External Live-Smoke Follow-Up Or Blocker Review
 

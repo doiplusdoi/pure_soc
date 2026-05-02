@@ -32,6 +32,11 @@ export interface AuthDeploymentSmokeConfig {
   oidcCallbackOriginExempt: boolean;
   providerCallbackOriginExempt: boolean;
   rateLimitsEnabled: boolean;
+  trustForwardedHeaders: boolean;
+  trustedProxyIpAddressCount: number;
+  trustedProxyHops: number;
+  rateLimitStoreProvider: string;
+  rateLimitStoreScope: "process_local" | "shared_external_deferred";
 }
 
 export interface AuthDeploymentSmokeReadinessPreflight {
@@ -102,7 +107,12 @@ export interface AuthDeploymentSmokeReport {
     oidcCallbackOriginExempt: boolean;
     providerCallbackOriginExempt: boolean;
     rateLimitsEnabled: boolean;
-    forwardedForUsedForRequestContext: true;
+    forwardedForUsedForRequestContext: boolean;
+    forwardedHeadersIgnoredWithoutTrustedProxy: boolean;
+    trustedProxyIpAddressCount: number;
+    trustedProxyHops: number;
+    rateLimitStoreProvider: string;
+    rateLimitStoreScope: "process_local" | "shared_external_deferred";
     cookieSecureDrivenByConfig: true;
     auditPayloadsRedacted: true;
     rbacOrganizationScopingPreserved: true;
@@ -146,7 +156,13 @@ export const authDeploymentSmokeConfigFromEnv = (
     requireOriginOrReferer: appConfig.api.security.originProtection.requireOriginOrReferer,
     oidcCallbackOriginExempt: appConfig.api.security.originProtection.exemptRouteFamilies.includes("oidc_callback"),
     providerCallbackOriginExempt: appConfig.api.security.originProtection.exemptRouteFamilies.includes("provider_callback"),
-    rateLimitsEnabled: appConfig.api.rateLimits.enabled
+    rateLimitsEnabled: appConfig.api.rateLimits.enabled,
+    trustForwardedHeaders: appConfig.api.security.proxy.trustForwardedHeaders,
+    trustedProxyIpAddressCount: appConfig.api.security.proxy.trustedProxyIpAddresses.length,
+    trustedProxyHops: appConfig.api.security.proxy.trustedProxyHops,
+    rateLimitStoreProvider: appConfig.api.rateLimits.store.provider,
+    rateLimitStoreScope:
+      appConfig.api.rateLimits.store.provider === "memory" ? "process_local" : "shared_external_deferred"
   };
 };
 
@@ -429,7 +445,10 @@ const runLiveAuthDeploymentSmoke = async (
     operations = markAuthDeploymentOperation(operations, "auth.forwarded_headers.rate_limit_ip", "passed", {
       finalStatus: forwardedRateLimitStatuses.at(-1),
       finalErrorCode: forwardedRateLimitCode,
-      forwardedForHonoredByRateLimit: true,
+      forwardedForHonoredByRateLimit: options.smokeConfig.trustForwardedHeaders,
+      forwardedHeadersIgnoredWithoutTrustedProxy: !options.smokeConfig.trustForwardedHeaders,
+      trustedProxyIpAddressCount: options.smokeConfig.trustedProxyIpAddressCount,
+      trustedProxyHops: options.smokeConfig.trustedProxyHops,
       forwardedProtoHeaderSent: true,
       forwardedHostHeaderSent: true,
       cookieSecureDrivenByConfig: true
@@ -534,7 +553,12 @@ const authDeploymentSmokeCommon = (
     oidcCallbackOriginExempt: options.smokeConfig.oidcCallbackOriginExempt,
     providerCallbackOriginExempt: options.smokeConfig.providerCallbackOriginExempt,
     rateLimitsEnabled: options.smokeConfig.rateLimitsEnabled,
-    forwardedForUsedForRequestContext: true,
+    forwardedForUsedForRequestContext: options.smokeConfig.trustForwardedHeaders,
+    forwardedHeadersIgnoredWithoutTrustedProxy: !options.smokeConfig.trustForwardedHeaders,
+    trustedProxyIpAddressCount: options.smokeConfig.trustedProxyIpAddressCount,
+    trustedProxyHops: options.smokeConfig.trustedProxyHops,
+    rateLimitStoreProvider: options.smokeConfig.rateLimitStoreProvider,
+    rateLimitStoreScope: options.smokeConfig.rateLimitStoreScope,
     cookieSecureDrivenByConfig: true,
     auditPayloadsRedacted: true,
     rbacOrganizationScopingPreserved: true,
@@ -751,13 +775,17 @@ const createPlannedAuthDeploymentSmokeOperations = (
   },
   {
     id: "auth.forwarded_headers.rate_limit_ip",
-    label: "Send forwarded headers and prove failed-login rate limiting uses the forwarded client IP.",
+    label: "Send forwarded headers and verify failed-login rate limiting uses forwarded client IP only when trusted-proxy policy is configured.",
     routeFamily: "auth",
     endpointClass: config.baseUrlClass,
     performsNetworkInLiveMode: true,
     status: "planned",
     metadata: {
       forwardedForHeaderValueReturnedToOutput: false,
+      forwardedForHonoredByRateLimit: config.trustForwardedHeaders,
+      forwardedHeadersIgnoredWithoutTrustedProxy: !config.trustForwardedHeaders,
+      trustedProxyIpAddressCount: config.trustedProxyIpAddressCount,
+      trustedProxyHops: config.trustedProxyHops,
       forwardedProtoHeaderSent: true,
       forwardedHostHeaderSent: true
     }

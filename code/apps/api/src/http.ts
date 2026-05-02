@@ -1,4 +1,4 @@
-import type { IncomingMessage, ServerResponse } from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 
 import { AuditExportError, assertNoSensitiveResponseFields } from "@puresoc/audit";
 import { AuthError } from "@puresoc/auth-core";
@@ -9,7 +9,15 @@ import { RemediationActionError } from "@puresoc/recommendations";
 
 export interface RequestContext {
   ipAddress: string | null;
+  clientIpSource?: "socket" | "x_forwarded_for" | "forwarded";
+  forwardedHeadersTrusted?: boolean;
   userAgent: string | null;
+}
+
+export interface TrustedProxyConfig {
+  trustForwardedHeaders: boolean;
+  trustedProxyIpAddresses: string[];
+  trustedProxyHops: number;
 }
 
 export interface JsonResult {
@@ -96,13 +104,95 @@ const parseContentLength = (contentLength: string | string[] | undefined): numbe
   return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
 };
 
-export const readRequestContext = (request: IncomingMessage): RequestContext => ({
-  ipAddress:
-    typeof request.headers["x-forwarded-for"] === "string"
-      ? request.headers["x-forwarded-for"].split(",")[0]?.trim() ?? null
-      : request.socket.remoteAddress ?? null,
-  userAgent: typeof request.headers["user-agent"] === "string" ? request.headers["user-agent"] : null
-});
+export const readRequestContext = (
+  request: IncomingMessage,
+  trustedProxy: TrustedProxyConfig = {
+    trustForwardedHeaders: false,
+    trustedProxyIpAddresses: [],
+    trustedProxyHops: 1
+  }
+): RequestContext => {
+  const socketAddress = normalizeIpAddress(request.socket.remoteAddress ?? null);
+  const forwardedTrusted = shouldTrustForwardedHeaders(socketAddress, trustedProxy);
+  const forwardedIp = forwardedTrusted ? readForwardedClientIp(request.headers, trustedProxy.trustedProxyHops) : null;
+
+  return {
+    ipAddress: forwardedIp?.ipAddress ?? socketAddress,
+    clientIpSource: forwardedIp?.source ?? "socket",
+    forwardedHeadersTrusted: forwardedTrusted,
+    userAgent: typeof request.headers["user-agent"] === "string" ? request.headers["user-agent"] : null
+  };
+};
+
+const shouldTrustForwardedHeaders = (remoteAddress: string | null, trustedProxy: TrustedProxyConfig): boolean => {
+  if (!trustedProxy.trustForwardedHeaders || !remoteAddress) {
+    return false;
+  }
+
+  const trustedAddresses = new Set(trustedProxy.trustedProxyIpAddresses.map((address) => normalizeIpAddress(address)));
+  return trustedAddresses.has(remoteAddress);
+};
+
+const readForwardedClientIp = (
+  headers: IncomingHttpHeaders,
+  trustedProxyHops: number
+): { ipAddress: string; source: RequestContext["clientIpSource"] } | null => {
+  const xForwardedFor = headerValue(headers["x-forwarded-for"]);
+  if (xForwardedFor) {
+    const chain = xForwardedFor
+      .split(",")
+      .map((entry) => normalizeIpAddress(entry))
+      .filter((entry): entry is string => entry !== null);
+    const ipAddress = selectForwardedClientIp(chain, trustedProxyHops);
+    return ipAddress ? { ipAddress, source: "x_forwarded_for" } : null;
+  }
+
+  const forwarded = headerValue(headers.forwarded);
+  if (!forwarded) {
+    return null;
+  }
+
+  const chain = forwarded
+    .split(",")
+    .map((entry) => forwardedForValue(entry))
+    .filter((entry): entry is string => entry !== null);
+  const ipAddress = selectForwardedClientIp(chain, trustedProxyHops);
+  return ipAddress ? { ipAddress, source: "forwarded" } : null;
+};
+
+const selectForwardedClientIp = (chain: string[], trustedProxyHops: number): string | null => {
+  if (chain.length === 0) {
+    return null;
+  }
+
+  const trustedHops = Number.isSafeInteger(trustedProxyHops) && trustedProxyHops > 0 ? trustedProxyHops : 1;
+  const clientIndex = Math.max(0, chain.length - trustedHops - 1);
+  return chain[clientIndex] ?? chain[0] ?? null;
+};
+
+const forwardedForValue = (entry: string): string | null => {
+  const match = entry.match(/(?:^|;)\s*for=(?:"?)([^";,]+)(?:"?)/i);
+  return match?.[1] ? normalizeIpAddress(match[1]) : null;
+};
+
+const headerValue = (value: string | string[] | undefined): string | null =>
+  Array.isArray(value) ? value[0] ?? null : value ?? null;
+
+const normalizeIpAddress = (value: string | null | undefined): string | null => {
+  if (!value) {
+    return null;
+  }
+
+  const trimmed = value.trim();
+  const withoutBrackets = trimmed.startsWith("[") && trimmed.includes("]")
+    ? trimmed.slice(1, trimmed.indexOf("]"))
+    : trimmed;
+  const withoutIpv4MappedPrefix = withoutBrackets.startsWith("::ffff:")
+    ? withoutBrackets.slice("::ffff:".length)
+    : withoutBrackets;
+
+  return withoutIpv4MappedPrefix.length > 0 ? withoutIpv4MappedPrefix : null;
+};
 
 export const parseCookies = (cookieHeader: string | undefined): Record<string, string> => {
   if (!cookieHeader) {

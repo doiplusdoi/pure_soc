@@ -4,8 +4,10 @@
 
 Narrow GAP-038 by hardening the API middleware model around distributed-rate-limit readiness, proxy-aware client-IP trust, and a concrete CSRF-token decision for browser state-changing routes.
 
-Status: staged for implementation after M50.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -48,6 +50,8 @@ Locked assumptions:
 - Webhook, OIDC callback, and provider callback exemptions must remain explicit and tested.
 - No live Redis, browser, provider, billing, object storage, scanner, KMS, or external network target is required for this milestone.
 - This slice must not weaken existing body-size limits, Stripe raw-body preservation, evidence upload limits, or callback exemptions.
+- The near-term CSRF decision is strict Origin/Referer validation for production startup and configurable local/development enforcement. A double-submit token is deferred until a served browser runtime can carry the token contract end to end.
+- Shared/distributed API rate limiting remains deferred at runtime; this milestone adds the store boundary and explicit configuration/readiness metadata while preserving process-local memory defaults.
 
 Expected files:
 
@@ -103,32 +107,66 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Added an explicit API rate-limit store boundary: `RateLimitStore`, `FixedWindowRateLimiter`, and an in-memory fixed-window store while keeping existing memory behavior deterministic.
+- Added API rate-limit store configuration with memory defaults, Redis/shared-store env names, startup blockers for deferred Redis adapter selection, and a `requireSharedStore` refusal path for deployments that must not use process-local memory.
+- Made request context proxy-aware. Socket IPs are used by default; `X-Forwarded-For` and `Forwarded` are honored only when `PURESOC_API_TRUST_FORWARDED_HEADERS=true` and the socket peer matches `PURESOC_API_TRUSTED_PROXY_IPS`.
+- Preserved route-family semantics, webhook raw-body handling, and OIDC/provider/webhook Origin exemptions.
+- Chose and documented the near-term CSRF stance: production startup requires Origin/Referer protection enabled and `PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true`; double-submit CSRF tokens remain deferred until a served browser runtime can carry the token contract safely.
+- Updated auth deployment readiness/smoke metadata so forwarded-header rate-limit checks distinguish configured trusted-proxy behavior from ignored forwarded headers.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
+- `code/apps/api/src/auth/deployment-smoke.ts`
+- `code/apps/api/src/http.ts`
+- `code/apps/api/src/middleware.ts`
+- `code/apps/api/src/rate-limit.ts`
+- `code/config/defaults/api.json`
+- `code/packages/config/src/__tests__/config.test.ts`
+- `code/packages/config/src/external-smoke-readiness.ts`
+- `code/packages/config/src/index.ts`
+- `code/tests/auth-deployment-smoke.spec.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M51.md`
+- `docs/PLAN_M52.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Failed first, expected: `pnpm test -- api middleware rate limit proxy csrf config` (`pnpm: command not found`).
+- Passed: `flatpak-spawn --host npm run test -- api middleware rate limit proxy csrf config` (25 files, 95 tests).
+- Passed: `flatpak-spawn --host npm run test -- auth-deployment-smoke` (1 file, 4 tests).
+- Failed first, expected: `pnpm lint` (`pnpm: command not found`).
+- Passed: `flatpak-spawn --host npm run lint`.
+- Failed first, expected: `pnpm external-smoke:readiness` (`pnpm: command not found`).
+- Passed: `flatpak-spawn --host npm run external-smoke:readiness` (dry-run metadata only, no live calls; startup validation issue codes empty).
+- Failed first, expected: `docker compose -f infra/compose/docker-compose.yml config` (`docker: command not found`).
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
 
 Acceptance status:
 
-- Pending.
+- Accepted for M51. The middleware now has a shared-store-compatible rate-limit boundary, proxy-aware client-IP trust defaults to socket-only, production strict Origin/Referer posture is enforced by startup validation, exemptions remain covered, and no live external services or provider writes were called.
 
 Gaps updated:
 
-- Pending.
+- GAP-038 remains open and was narrowed for rate-limit store boundary/config validation, proxy-aware client-IP trust, and production strict Origin/Referer startup validation.
+- GAP-035, GAP-043, and GAP-044 remain open.
 
 Prompt handoff:
 
-- Pending. M51 implementation must create `docs/PLAN_M52.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 50 / PLAN_M51 complete and stages Prompt 51 / PLAN_M52.
+- `docs/PLAN_M52.md` created as the next active milestone stub.
 
 Residual risk:
 
-- Pending.
+- API rate limiting is still process-local in the implemented runtime store; Redis/shared API rate-limit store execution is staged for M52.
+- Deployed TLS/proxy/browser behavior remains unproven until an approved local/test/ci/disposable target is exercised under GAP-035.
+- Double-submit CSRF tokens remain deferred until the served browser runtime can safely issue and submit token headers end to end.
