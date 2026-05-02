@@ -1,135 +1,368 @@
 import { createHash } from "node:crypto";
-import { mkdtempSync, readdirSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer as createHttpServer } from "node:http";
+import { createServer as createTcpServer } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
+import { inflateSync } from "node:zlib";
 
 const grepIndex = process.argv.indexOf("--grep");
 const grepPattern = grepIndex >= 0 ? process.argv[grepIndex + 1] : "@ui-smoke";
+const smokeMode = resolveSmokeMode(grepPattern);
 
-if (!grepPattern.includes("@ui-smoke")) {
+let artifactsDir = "";
+let checks = [];
+let servers = [];
+let runtimeModulesPromise = null;
+
+if (smokeMode === "ui") {
+  await runServedUiSmoke();
+} else if (smokeMode === "browser") {
+  await runBrowserSmoke();
+} else {
   console.log(
     JSON.stringify({
-      schema: "puresoc.ui_smoke.served_web.v1",
+      schema: "puresoc.ui_smoke.runner.v1",
       status: "skipped",
-      reason: "run-ui-smoke only owns the @ui-smoke served web/runtime smoke"
+      reason: "run-ui-smoke owns @ui-smoke and @browser-smoke only",
+      requestedGrep: grepPattern
     })
   );
-  process.exit(0);
 }
 
-const { createJiti } = await import(pathToFileURL(join(resolvePnpmPackageDir("jiti"), "lib", "jiti.mjs")).href);
-const jiti = createJiti(import.meta.url);
-const { loadConfig } = await jiti.import("../packages/config/src/index.ts");
-const { createApiServices } = await jiti.import("../apps/api/src/auth/services.ts");
-const { startApiServer } = await jiti.import("../apps/api/src/server.ts");
-const { startWebServer } = await jiti.import("../apps/web/src/server.ts");
+function resolveSmokeMode(pattern) {
+  if (pattern.includes("@browser-smoke")) {
+    return "browser";
+  }
 
-const artifactsDir = mkdtempSync(join(tmpdir(), "puresoc-ui-smoke-"));
-const checks = [];
-const servers = [];
+  if (pattern.includes("@ui-smoke")) {
+    return "ui";
+  }
 
-try {
-  const webServer = startWebServer(0);
-  servers.push(webServer);
-  await waitForListening(webServer);
-  const webBaseUrl = serverBaseUrl(webServer);
+  return "skip";
+}
 
-  const apiServer = await startApiSmokeServer({
-    webBaseUrl,
-    secureCookie: false
-  });
-  servers.push(apiServer.server);
-  const apiBaseUrl = apiServer.baseUrl;
+function initSmokeState(prefix) {
+  artifactsDir = mkdtempSync(join(tmpdir(), prefix));
+  checks = [];
+  servers = [];
+}
 
-  const consoleHtml = await fetchText(`${webBaseUrl}/`);
-  const loginHtml = await fetchText(`${webBaseUrl}/login`);
-  const health = await fetchJson(`${webBaseUrl}/health`);
-  record("web_health_contract", health.service === "puresoc-web" && health.status === "ok");
+async function loadRuntimeModules() {
+  if (!runtimeModulesPromise) {
+    runtimeModulesPromise = (async () => {
+      const { createJiti } = await import(pathToFileURL(join(resolvePnpmPackageDir("jiti"), "lib", "jiti.mjs")).href);
+      const jiti = createJiti(import.meta.url);
+      const { loadConfig } = await jiti.import("../packages/config/src/index.ts");
+      const { createApiServices } = await jiti.import("../apps/api/src/auth/services.ts");
+      const { startApiServer } = await jiti.import("../apps/api/src/server.ts");
+      const { startWebServer } = await jiti.import("../apps/web/src/server.ts");
 
-  const desktopSnapshot = writeViewportSnapshot({
-    name: "desktop",
-    width: 1440,
-    height: 900,
-    html: consoleHtml
-  });
-  const mobileSnapshot = writeViewportSnapshot({
-    name: "mobile",
-    width: 390,
-    height: 844,
-    html: consoleHtml
-  });
+      return {
+        loadConfig,
+        createApiServices,
+        startApiServer,
+        startWebServer
+      };
+    })();
+  }
 
-  assertOperationalConsole(consoleHtml, loginHtml);
-  assertResponsiveLayout(consoleHtml);
-  assertNoObviousOverlapRegression(consoleHtml);
-  await assertBrowserAuthMiddlewareSmoke({
-    apiBaseUrl,
-    webBaseUrl,
-    expectSecureCookie: false
-  });
+  return runtimeModulesPromise;
+}
 
-  await closeServer(apiServer.server);
+async function runServedUiSmoke() {
+  initSmokeState("puresoc-ui-smoke-");
 
-  const secureApiServer = await startApiSmokeServer({
-    webBaseUrl,
-    secureCookie: true
-  });
-  servers.push(secureApiServer.server);
-  await assertBrowserAuthMiddlewareSmoke({
-    apiBaseUrl: secureApiServer.baseUrl,
-    webBaseUrl,
-    expectSecureCookie: true,
-    emailSuffix: "secure"
-  });
+  try {
+    const { startWebServer } = await loadRuntimeModules();
+    const webServer = startWebServer(0);
+    servers.push(webServer);
+    await waitForListening(webServer);
+    const webBaseUrl = serverBaseUrl(webServer);
 
-  console.log(
-    JSON.stringify(
-      {
-        schema: "puresoc.ui_smoke.served_web.v1",
-        status: "passed",
-        smokeMode: "local_http_browser_substitute",
-        substitution:
-          "No bundled Playwright/browser binary is required; the smoke starts local web/API HTTP servers, fetches rendered HTML, writes deterministic viewport HTML snapshots, and checks browser-relevant cookie/origin behavior through fetch.",
-        artifacts: {
-          directory: artifactsDir,
-          desktopSnapshot,
-          mobileSnapshot
+    const apiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: false
+    });
+    servers.push(apiServer.server);
+    const apiBaseUrl = apiServer.baseUrl;
+
+    const consoleHtml = await fetchText(`${webBaseUrl}/`);
+    const loginHtml = await fetchText(`${webBaseUrl}/login`);
+    const health = await fetchJson(`${webBaseUrl}/health`);
+    record("web_health_contract", health.service === "puresoc-web" && health.status === "ok");
+
+    const desktopSnapshot = writeViewportSnapshot({
+      name: "desktop",
+      width: 1440,
+      height: 900,
+      html: consoleHtml
+    });
+    const mobileSnapshot = writeViewportSnapshot({
+      name: "mobile",
+      width: 390,
+      height: 844,
+      html: consoleHtml
+    });
+
+    assertOperationalConsole(consoleHtml, loginHtml);
+    assertResponsiveLayout(consoleHtml);
+    assertNoObviousOverlapRegression(consoleHtml);
+    await assertBrowserAuthMiddlewareSmoke({
+      apiBaseUrl,
+      webBaseUrl,
+      expectSecureCookie: false
+    });
+
+    await closeServer(apiServer.server);
+
+    const secureApiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: true
+    });
+    servers.push(secureApiServer.server);
+    await assertBrowserAuthMiddlewareSmoke({
+      apiBaseUrl: secureApiServer.baseUrl,
+      webBaseUrl,
+      expectSecureCookie: true,
+      emailSuffix: "secure"
+    });
+
+    console.log(
+      JSON.stringify(
+        {
+          schema: "puresoc.ui_smoke.served_web.v1",
+          status: "passed",
+          smokeMode: "local_http_browser_substitute",
+          substitution:
+            "No bundled Playwright/browser binary is required; the smoke starts local web/API HTTP servers, fetches rendered HTML, writes deterministic viewport HTML snapshots, and checks browser-relevant cookie/origin behavior through fetch.",
+          artifacts: {
+            directory: artifactsDir,
+            desktopSnapshot,
+            mobileSnapshot
+          },
+          checks: checkNames(),
+          nonLiveGuarantees: nonLiveGuarantees()
         },
-        checks: checkNames(),
-        nonLiveGuarantees: [
-          "no Microsoft Graph calls",
-          "no Stripe API calls",
-          "no OIDC provider calls",
-          "no object-storage or scanner calls",
-          "no KMS/secret-manager calls",
-          "no public regulatory fetches",
-          "no provider write execution"
-        ]
-      },
-      null,
-      2
-    )
-  );
-} catch (error) {
-  console.error(
-    JSON.stringify(
-      {
-        schema: "puresoc.ui_smoke.served_web.v1",
-        status: "failed",
-        error: error instanceof Error ? error.message : String(error),
-        checks: checkNames(),
-        artifacts: {
-          directory: artifactsDir
-        }
-      },
-      null,
-      2
-    )
-  );
-  process.exitCode = 1;
-} finally {
-  await Promise.allSettled(servers.map((server) => closeServer(server)));
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify(
+        {
+          schema: "puresoc.ui_smoke.served_web.v1",
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+          checks: checkNames(),
+          artifacts: {
+            directory: artifactsDir
+          }
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+  } finally {
+    await closeAllServers();
+  }
+}
+
+async function runBrowserSmoke() {
+  initSmokeState("puresoc-browser-smoke-");
+  let browser = null;
+
+  try {
+    const firefoxPath = resolveFirefoxExecutable();
+    if (!firefoxPath || typeof WebSocket === "undefined") {
+      console.log(
+        JSON.stringify(
+          {
+            schema: "puresoc.ui_smoke.browser.v1",
+            status: "blocked",
+            blocker: !firefoxPath ? "firefox_not_found" : "node_websocket_unavailable",
+            fallback:
+              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth coverage is not claimed when this blocker is present.",
+            artifacts: {
+              directory: artifactsDir
+            },
+            nonLiveGuarantees: nonLiveGuarantees()
+          },
+          null,
+          2
+        )
+      );
+      return;
+    }
+
+    const { startWebServer } = await loadRuntimeModules();
+    const webServer = startWebServer(0);
+    servers.push(webServer);
+    await waitForListening(webServer);
+    const webBaseUrl = serverBaseUrl(webServer);
+
+    const apiPort = await getFreePort();
+    const proxyPort = await getFreePort();
+    const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
+    const browserAuthBaseUrl = `http://127.0.0.1:${proxyPort}`;
+    const browserAuthProxy = await startBrowserAuthProxy({
+      apiBaseUrl,
+      port: proxyPort
+    });
+    servers.push(browserAuthProxy.server);
+    const apiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: false,
+      extraTrustedOrigins: [apiBaseUrl, browserAuthBaseUrl],
+      requireOriginOrReferer: true,
+      port: apiPort
+    });
+    servers.push(apiServer.server);
+
+    browser = await startFirefoxBidiBrowser(firefoxPath);
+    const context = await createBrowserContext(browser);
+    const screenshots = [];
+
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "dashboard-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        expectedText: ["Overall internal readiness", "not a legal opinion"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "dashboard-mobile",
+        url: `${webBaseUrl}/`,
+        width: 390,
+        height: 844,
+        expectedText: ["Overall internal readiness", "Country pack"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "login-mobile",
+        url: `${webBaseUrl}/login`,
+        width: 390,
+        height: 844,
+        expectedText: ["Sign in", "PureSOC internal readiness console"],
+        expectOperationalConsole: false
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "evidence-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        scrollTarget: "#evidence",
+        expectedText: ["Evidence And Reports", "Internal readiness report"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "approvals-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        scrollTarget: "#approvals",
+        expectedText: ["Approval Queue", "Provider write execution remains disabled"],
+        expectOperationalConsole: true
+      })
+    );
+
+    const browserAuth = await assertBrowserAuthSessionSmoke(browser, context, browserAuthBaseUrl);
+    await assertOriginExemptionHttpSmoke({ apiBaseUrl });
+
+    const secureApiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: true,
+      extraTrustedOrigins: [webBaseUrl],
+      emailPrefix: "m40-secure",
+      port: await getFreePort()
+    });
+    servers.push(secureApiServer.server);
+    await assertBrowserAuthMiddlewareSmoke({
+      apiBaseUrl: secureApiServer.baseUrl,
+      webBaseUrl,
+      expectSecureCookie: true,
+      emailSuffix: "browser-secure"
+    });
+
+    console.log(
+      JSON.stringify(
+        {
+          schema: "puresoc.ui_smoke.browser.v1",
+          status: "passed",
+          smokeMode: "firefox_webdriver_bidi",
+          browser: {
+            executable: firefoxPath,
+            name: browser.capabilities.browserName,
+            version: browser.capabilities.browserVersion,
+            headless: browser.capabilities["moz:headless"] === true
+          },
+          artifacts: {
+            directory: artifactsDir,
+            screenshots
+          },
+          browserAuth,
+          checks: checkNames(),
+          fallbackPreserved: "pnpm test:e2e -- --grep @ui-smoke remains the deterministic M39 HTTP fallback.",
+          nonLiveGuarantees: nonLiveGuarantees()
+        },
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify(
+        {
+          schema: "puresoc.ui_smoke.browser.v1",
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+          browserStderrTail: browser?.stderrTail?.(),
+          checks: checkNames(),
+          artifacts: {
+            directory: artifactsDir
+          }
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+  } finally {
+    await browser?.close();
+    await closeAllServers();
+  }
+}
+
+function nonLiveGuarantees() {
+  return [
+    "no Microsoft Graph calls",
+    "no Stripe API calls",
+    "no OIDC provider calls",
+    "no object-storage or scanner calls",
+    "no KMS/secret-manager calls",
+    "no public regulatory fetches",
+    "no provider write execution"
+  ];
 }
 
 function record(name, condition, detail = "") {
@@ -144,14 +377,23 @@ function checkNames() {
   return [...new Set(checks.map((check) => check.name))];
 }
 
-async function startApiSmokeServer({ webBaseUrl, secureCookie }) {
+async function startApiSmokeServer({
+  webBaseUrl,
+  secureCookie,
+  extraTrustedOrigins = [],
+  requireOriginOrReferer = false,
+  port = 0
+}) {
+  const { loadConfig, createApiServices, startApiServer } = await loadRuntimeModules();
+  const trustedOrigins = [...new Set([webBaseUrl, ...extraTrustedOrigins].filter(Boolean))].join(",");
   const config = loadConfig({
     env: {
       ...process.env,
       PURESOC_APP_ENV: "development",
       PURESOC_PERSISTENCE_MODE: "memory",
       PURESOC_AUTH_COOKIE_SECURE: secureCookie ? "true" : "false",
-      PURESOC_API_TRUSTED_ORIGINS: webBaseUrl,
+      PURESOC_API_TRUSTED_ORIGINS: trustedOrigins,
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: requireOriginOrReferer ? "true" : "false",
       PURESOC_API_RATE_LIMIT_ENABLED: "true",
       PURESOC_API_RATE_LIMIT_MAX_REQUESTS: "500",
       PURESOC_BILLING_PROVIDER: "none"
@@ -161,7 +403,7 @@ async function startApiSmokeServer({ webBaseUrl, secureCookie }) {
     config,
     now: () => new Date("2026-05-02T10:00:00.000Z")
   });
-  const server = startApiServer(0, services);
+  const server = startApiServer(port, services);
   await waitForListening(server);
 
   return {
@@ -169,6 +411,89 @@ async function startApiSmokeServer({ webBaseUrl, secureCookie }) {
     services,
     baseUrl: serverBaseUrl(server)
   };
+}
+
+async function startBrowserAuthProxy({ apiBaseUrl, port }) {
+  const browserAuthBaseUrl = `http://127.0.0.1:${port}`;
+  const server = createHttpServer(async (request, response) => {
+    const url = new URL(request.url ?? "/", browserAuthBaseUrl);
+
+    if (request.method === "GET" && url.pathname === "/browser-auth") {
+      response.setHeader("content-type", "text/html; charset=utf-8");
+      response.end(
+        [
+          "<!doctype html>",
+          '<html lang="en">',
+          "<head><meta charset=\"utf-8\"><title>PureSOC browser auth smoke</title></head>",
+          "<body><main><h1>PureSOC browser auth smoke</h1><p>Local browser cookie harness.</p></main></body>",
+          "</html>"
+        ].join("")
+      );
+      return;
+    }
+
+    if (
+      url.pathname.startsWith("/auth/") ||
+      /^\/organizations\/[^/]+\/provider-connections\/[^/]+\/consent\/callback$/.test(url.pathname)
+    ) {
+      const upstream = await proxyBrowserAuthRequest({
+        request,
+        apiBaseUrl,
+        browserAuthBaseUrl,
+        pathnameWithSearch: `${url.pathname}${url.search}`
+      });
+      response.statusCode = upstream.status;
+      const contentType = upstream.headers.get("content-type");
+      const setCookie = upstream.headers.get("set-cookie");
+      if (contentType) {
+        response.setHeader("content-type", contentType);
+      }
+      if (setCookie) {
+        response.setHeader("set-cookie", setCookie);
+      }
+      response.end(await upstream.text());
+      return;
+    }
+
+    response.statusCode = 404;
+    response.setHeader("content-type", "application/json");
+    response.end(JSON.stringify({ error: { code: "not_found" } }));
+  });
+
+  server.listen(port, "127.0.0.1");
+  await waitForListening(server);
+
+  return {
+    server,
+    baseUrl: browserAuthBaseUrl
+  };
+}
+
+async function proxyBrowserAuthRequest({ request, apiBaseUrl, browserAuthBaseUrl, pathnameWithSearch }) {
+  const body = request.method === "POST" ? await readTextBody(request) : undefined;
+  const headers = {
+    "content-type": typeof request.headers["content-type"] === "string" ? request.headers["content-type"] : "application/json",
+    origin: typeof request.headers.origin === "string" ? request.headers.origin : browserAuthBaseUrl,
+    referer: typeof request.headers.referer === "string" ? request.headers.referer : `${browserAuthBaseUrl}/browser-auth`
+  };
+  if (typeof request.headers.cookie === "string") {
+    headers.cookie = request.headers.cookie;
+  }
+
+  return fetch(`${apiBaseUrl}${pathnameWithSearch}`, {
+    method: request.method,
+    headers,
+    body
+  });
+}
+
+async function readTextBody(request) {
+  const chunks = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function assertBrowserAuthMiddlewareSmoke({ apiBaseUrl, webBaseUrl, expectSecureCookie, emailSuffix = "default" }) {
@@ -248,6 +573,483 @@ async function assertBrowserAuthMiddlewareSmoke({ apiBaseUrl, webBaseUrl, expect
   );
   const providerBody = await providerCallback.json();
   record("provider_callback_origin_exemption_reaches_route", providerBody.error?.code !== "origin_not_allowed");
+}
+
+async function assertOriginExemptionHttpSmoke({ apiBaseUrl }) {
+  const password = "CorrectHorseBatteryStaple42!";
+  const blockedOrigin = await postJson(
+    `${apiBaseUrl}/auth/register`,
+    {
+      email: "m40-blocked-origin@example.test",
+      password,
+      displayName: "Blocked Origin"
+    },
+    {
+      origin: "https://evil.example.test"
+    }
+  );
+  record("browser_smoke_http_fallback_rejects_untrusted_origin", blockedOrigin.status === 403);
+  const blockedBody = await blockedOrigin.json();
+  record("browser_smoke_http_fallback_origin_error_is_stable", blockedBody.error?.code === "origin_not_allowed");
+
+  const oidcCallback = await postJson(
+    `${apiBaseUrl}/auth/oidc/google/callback`,
+    {
+      state: "missing",
+      code: "missing"
+    },
+    {
+      origin: "https://evil.example.test"
+    }
+  );
+  const oidcBody = await oidcCallback.json();
+  record("browser_smoke_http_fallback_oidc_callback_exemption", oidcBody.error?.code !== "origin_not_allowed");
+
+  const providerCallback = await postJson(
+    `${apiBaseUrl}/organizations/org_m40/provider-connections/microsoft365/consent/callback`,
+    {
+      state: "missing",
+      code: "missing"
+    },
+    {
+      origin: "https://evil.example.test"
+    }
+  );
+  const providerBody = await providerCallback.json();
+  record("browser_smoke_http_fallback_provider_callback_exemption", providerBody.error?.code !== "origin_not_allowed");
+}
+
+function resolveFirefoxExecutable() {
+  const explicitPath = process.env.PURESOC_BROWSER_SMOKE_FIREFOX_BIN ?? process.env.FIREFOX_BIN;
+  if (explicitPath && existsSync(explicitPath)) {
+    return explicitPath;
+  }
+
+  const which = spawnSync("which", ["firefox"], {
+    encoding: "utf8"
+  });
+  const candidate = which.status === 0 ? which.stdout.trim().split("\n")[0] : "";
+
+  return candidate && existsSync(candidate) ? candidate : null;
+}
+
+async function startFirefoxBidiBrowser(firefoxPath) {
+  const port = await getFreePort();
+  const profileDir = mkdtempSync(join(tmpdir(), "puresoc-firefox-bidi-"));
+  const stderrChunks = [];
+  const firefoxProcess = spawn(
+    firefoxPath,
+    [
+      "--headless",
+      "--new-instance",
+      "--profile",
+      profileDir,
+      `--remote-debugging-port=${port}`,
+      "about:blank"
+    ],
+    {
+      stdio: ["ignore", "ignore", "pipe"],
+      env: {
+        ...process.env,
+        MOZ_HEADLESS: "1"
+      }
+    }
+  );
+
+  firefoxProcess.stderr.on("data", (chunk) => {
+    stderrChunks.push(String(chunk));
+    if (stderrChunks.join("").length > 12_000) {
+      stderrChunks.splice(0, stderrChunks.length - 4);
+    }
+  });
+
+  const websocket = await connectWebSocketWithRetry(`ws://127.0.0.1:${port}/session`, 10_000);
+  let commandId = 0;
+  const pending = new Map();
+
+  websocket.addEventListener("message", (event) => {
+    const message = JSON.parse(String(event.data));
+    if (!message.id || !pending.has(message.id)) {
+      return;
+    }
+
+    const deferred = pending.get(message.id);
+    pending.delete(message.id);
+    clearTimeout(deferred.timer);
+
+    if (message.type === "error") {
+      deferred.reject(new Error(`${message.error}: ${message.message}`));
+      return;
+    }
+
+    deferred.resolve(message.result);
+  });
+
+  websocket.addEventListener("close", () => {
+    for (const [id, deferred] of pending) {
+      clearTimeout(deferred.timer);
+      deferred.reject(new Error(`Firefox BiDi connection closed before command ${id} completed.`));
+    }
+    pending.clear();
+  });
+
+  const command = (method, params = {}, timeoutMs = 15_000) =>
+    new Promise((resolve, reject) => {
+      const id = ++commandId;
+      const timer = setTimeout(() => {
+        pending.delete(id);
+        reject(new Error(`Firefox BiDi command timed out: ${method}`));
+      }, timeoutMs);
+      pending.set(id, { resolve, reject, timer });
+      websocket.send(
+        JSON.stringify({
+          id,
+          method,
+          params
+        })
+      );
+    });
+
+  const session = await command("session.new", {
+    capabilities: {
+      alwaysMatch: {}
+    }
+  });
+
+  return {
+    capabilities: session.capabilities ?? {},
+    command,
+    stderrTail: () => redactSmokeText(stderrChunks.join("").slice(-2_000)),
+    async close() {
+      try {
+        await command("session.end", {}, 5_000);
+      } catch {
+        // The browser may already have exited; cleanup below is still required.
+      }
+
+      try {
+        websocket.close();
+      } catch {
+        // Ignore close races during smoke cleanup.
+      }
+
+      if (!firefoxProcess.killed) {
+        firefoxProcess.kill("SIGTERM");
+      }
+
+      await waitForProcessExit(firefoxProcess, 3_000);
+      rmSync(profileDir, { recursive: true, force: true });
+    }
+  };
+}
+
+async function createBrowserContext(browser) {
+  const created = await browser.command("browsingContext.create", {
+    type: "tab"
+  });
+
+  return created.context;
+}
+
+async function captureBrowserPage(browser, input) {
+  await browser.command("browsingContext.setViewport", {
+    context: input.context,
+    viewport: {
+      width: input.width,
+      height: input.height
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command(
+    "browsingContext.navigate",
+    {
+      context: input.context,
+      url: input.url,
+      wait: "complete"
+    },
+    20_000
+  );
+
+  if (input.scrollTarget) {
+    await evaluateBrowserJson(
+      browser,
+      input.context,
+      `(() => {
+        const target = document.querySelector(${JSON.stringify(input.scrollTarget)});
+        if (target) target.scrollIntoView({ block: "start", inline: "nearest" });
+        return JSON.stringify({ found: Boolean(target), scrollY: window.scrollY });
+      })()`
+    );
+  }
+
+  await waitForBrowserPaint(browser, input.context);
+  const layout = await readBrowserLayout(browser, input.context);
+  assertBrowserLayout(input.name, layout, input);
+
+  const screenshot = await browser.command(
+    "browsingContext.captureScreenshot",
+    {
+      context: input.context
+    },
+    20_000
+  );
+  const filePath = join(artifactsDir, `${input.name}-${input.width}x${input.height}.png`);
+  writeFileSync(filePath, Buffer.from(screenshot.data, "base64"));
+  const analysis = analyzePngScreenshot(filePath);
+
+  record(`${input.name}_browser_png_dimensions`, analysis.width === input.width && analysis.height === input.height, `${analysis.width}x${analysis.height}`);
+  record(`${input.name}_browser_png_nonblank`, analysis.uniqueSampledColors >= 24 && analysis.nonLightRatio > 0.01, JSON.stringify(analysis));
+
+  return {
+    name: input.name,
+    filePath,
+    width: analysis.width,
+    height: analysis.height,
+    uniqueSampledColors: analysis.uniqueSampledColors,
+    nonLightRatio: analysis.nonLightRatio
+  };
+}
+
+async function waitForBrowserPaint(browser, context) {
+  await browser.command("script.evaluate", {
+    expression:
+      "new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve('painted'))))",
+    target: {
+      context
+    },
+    awaitPromise: true
+  });
+}
+
+async function readBrowserLayout(browser, context) {
+  return evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      const isVisible = (element) => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+      };
+      const overlapArea = (a, b) => {
+        const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+        const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        return width * height;
+      };
+      let overlapCount = 0;
+      for (const group of document.querySelectorAll(".ps-topbar__actions,.ps-command-row,.ps-chip-row,.ps-nav,.ps-form")) {
+        const rects = [...group.children].filter(isVisible).map((element) => element.getBoundingClientRect());
+        for (let left = 0; left < rects.length; left += 1) {
+          for (let right = left + 1; right < rects.length; right += 1) {
+            if (overlapArea(rects[left], rects[right]) > 3) overlapCount += 1;
+          }
+        }
+      }
+      const overflowingControls = [...document.querySelectorAll("button,input,.ps-nav__link")]
+        .filter(isVisible)
+        .filter((element) => element.scrollWidth > element.clientWidth + 3)
+        .map((element) => element.textContent.trim() || element.getAttribute("aria-label") || element.id || element.tagName);
+      const zeroSizedControls = [...document.querySelectorAll("button,input,a[href],[tabindex]")]
+        .filter((element) => getComputedStyle(element).display !== "none")
+        .filter((element) => {
+          const rect = element.getBoundingClientRect();
+          return rect.width <= 0 || rect.height <= 0;
+        })
+        .map((element) => element.textContent.trim() || element.getAttribute("aria-label") || element.id || element.tagName);
+      return JSON.stringify({
+        url: location.href,
+        title: document.title,
+        text: document.body.innerText,
+        innerWidth: window.innerWidth,
+        innerHeight: window.innerHeight,
+        scrollY: window.scrollY,
+        documentScrollWidth: document.documentElement.scrollWidth,
+        hasOperationalConsole: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+        hasSkipLink: Boolean(document.querySelector('a[href="#content"]')),
+        overlapCount,
+        overflowingControls,
+        zeroSizedControls,
+        approvalFactsNested: Boolean(document.querySelector(".ps-panel .ps-panel .ps-fact")),
+        certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(document.body.innerText)
+      });
+    })()`
+  );
+}
+
+function assertBrowserLayout(name, layout, input) {
+  record(`${name}_browser_viewport_width`, layout.innerWidth === input.width, `${layout.innerWidth}`);
+  record(`${name}_browser_viewport_height`, layout.innerHeight === input.height, `${layout.innerHeight}`);
+  const minimumReadableTextLength = input.expectOperationalConsole ? 100 : 40;
+  record(`${name}_browser_has_readable_text`, layout.text.length > minimumReadableTextLength, `${layout.text.length}`);
+  record(`${name}_browser_has_no_certification_claims`, layout.certificationClaim === false);
+  record(`${name}_browser_has_no_document_horizontal_overflow`, layout.documentScrollWidth <= input.width + 2, `${layout.documentScrollWidth}`);
+  record(`${name}_browser_has_no_obvious_group_overlap`, layout.overlapCount === 0, String(layout.overlapCount));
+  record(`${name}_browser_controls_do_not_overflow`, layout.overflowingControls.length === 0, layout.overflowingControls.join(", "));
+  record(`${name}_browser_controls_are_measurable`, layout.zeroSizedControls.length === 0, layout.zeroSizedControls.join(", "));
+  record(`${name}_browser_approval_facts_not_nested`, layout.approvalFactsNested === false);
+
+  if (input.expectOperationalConsole) {
+    record(`${name}_browser_operational_console_marker`, layout.hasOperationalConsole === true);
+    record(`${name}_browser_skip_link_present`, layout.hasSkipLink === true);
+  } else {
+    record(`${name}_browser_login_without_console_marker`, layout.hasOperationalConsole === false);
+  }
+
+  for (const expected of input.expectedText ?? []) {
+    record(`${name}_browser_text_${slug(expected)}`, layout.text.includes(expected), expected);
+  }
+
+  if (input.scrollTarget) {
+    record(`${name}_browser_anchor_scroll_applied`, layout.scrollY > 0, `${layout.scrollY}`);
+  }
+}
+
+async function assertBrowserAuthSessionSmoke(browser, context, browserAuthBaseUrl) {
+  await browser.command("browsingContext.setViewport", {
+    context,
+    viewport: {
+      width: 900,
+      height: 700
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command("browsingContext.navigate", {
+    context,
+    url: `${browserAuthBaseUrl}/browser-auth`,
+    wait: "complete"
+  });
+
+  const credentials = {
+    email: "m40-browser@example.test",
+    password: "CorrectHorseBatteryStaple42!"
+  };
+  const loginResult = await evaluateBrowserJson(
+    browser,
+    context,
+    `((async () => {
+      const postJson = async (path, body) => {
+        const response = await fetch(path, {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "content-type": "application/json"
+          },
+          body: JSON.stringify(body)
+        });
+        const text = await response.text();
+        return {
+          status: response.status,
+          text,
+          containsSessionToken: text.includes("sessionToken")
+        };
+      };
+      const register = await postJson("/auth/register", {
+        email: ${JSON.stringify(credentials.email)},
+        password: ${JSON.stringify(credentials.password)},
+        displayName: "M40 Browser Smoke"
+      });
+      const login = await postJson("/auth/login", {
+        email: ${JSON.stringify(credentials.email)},
+        password: ${JSON.stringify(credentials.password)}
+      });
+      return JSON.stringify({
+        registerStatus: register.status,
+        loginStatus: login.status,
+        loginBodyContainsSessionToken: login.containsSessionToken,
+        documentCookieAfterLogin: document.cookie
+      });
+    })())`
+  );
+
+  record("browser_register_accepts_trusted_same_origin", loginResult.registerStatus === 201, JSON.stringify(loginResult));
+  record("browser_login_accepts_trusted_same_origin", loginResult.loginStatus === 200, JSON.stringify(loginResult));
+  record("browser_login_body_keeps_session_token_secret", loginResult.loginBodyContainsSessionToken === false);
+  record("browser_document_cookie_cannot_read_http_only_session", !loginResult.documentCookieAfterLogin.includes("puresoc_session"), loginResult.documentCookieAfterLogin);
+
+  const cookiesAfterLogin = await getBrowserCookies(browser, context);
+  const sessionCookie = cookiesAfterLogin.find((cookie) => cookie.name === "puresoc_session");
+  record("browser_storage_session_cookie_present_after_login", Boolean(sessionCookie), JSON.stringify(cookiesAfterLogin));
+  record("browser_storage_session_cookie_http_only", sessionCookie?.httpOnly === true, JSON.stringify(sessionCookie));
+  record("browser_storage_session_cookie_samesite_lax", String(sessionCookie?.sameSite ?? "").toLowerCase() === "lax", JSON.stringify(sessionCookie));
+  record("browser_storage_session_cookie_not_secure_in_local_http_mode", sessionCookie?.secure === false, JSON.stringify(sessionCookie));
+
+  const sessionResult = await evaluateBrowserJson(
+    browser,
+    context,
+    `((async () => {
+      const sessionBefore = await fetch("/auth/session", { credentials: "include" });
+      const sessionBeforeText = await sessionBefore.text();
+      const logout = await fetch("/auth/logout", {
+        method: "POST",
+        credentials: "include"
+      });
+      const logoutText = await logout.text();
+      const sessionAfter = await fetch("/auth/session", { credentials: "include" });
+      const sessionAfterText = await sessionAfter.text();
+      return JSON.stringify({
+        sessionBeforeStatus: sessionBefore.status,
+        sessionBeforeHasEmail: sessionBeforeText.includes(${JSON.stringify(credentials.email)}),
+        logoutStatus: logout.status,
+        logoutBodyMentionsRevoked: logoutText.includes("revoked"),
+        sessionAfterStatus: sessionAfter.status,
+        sessionAfterBody: sessionAfterText.slice(0, 240),
+        documentCookieAfterLogout: document.cookie
+      });
+    })())`
+  );
+  record("browser_session_cookie_authenticates_fetch", sessionResult.sessionBeforeStatus === 200, JSON.stringify(sessionResult));
+  record("browser_session_body_matches_browser_user", sessionResult.sessionBeforeHasEmail === true, JSON.stringify(sessionResult));
+  record("browser_logout_accepts_trusted_same_origin", sessionResult.logoutStatus === 200, JSON.stringify(sessionResult));
+  record("browser_logout_body_reports_revoked_session", sessionResult.logoutBodyMentionsRevoked === true, JSON.stringify(sessionResult));
+  record("browser_logout_clears_session_for_subsequent_navigation", sessionResult.sessionAfterStatus !== 200, JSON.stringify(sessionResult));
+  record("browser_document_cookie_remains_unreadable_after_logout", !sessionResult.documentCookieAfterLogout.includes("puresoc_session"), sessionResult.documentCookieAfterLogout);
+
+  const cookiesAfterLogout = await getBrowserCookies(browser, context);
+  record(
+    "browser_storage_session_cookie_removed_after_logout",
+    !cookiesAfterLogout.some((cookie) => cookie.name === "puresoc_session"),
+    JSON.stringify(cookiesAfterLogout)
+  );
+
+  return {
+    registerStatus: loginResult.registerStatus,
+    loginStatus: loginResult.loginStatus,
+    sessionBeforeStatus: sessionResult.sessionBeforeStatus,
+    logoutStatus: sessionResult.logoutStatus,
+    sessionAfterStatus: sessionResult.sessionAfterStatus,
+    cookieAttributes: {
+      httpOnly: sessionCookie?.httpOnly,
+      secure: sessionCookie?.secure,
+      sameSite: sessionCookie?.sameSite
+    }
+  };
+}
+
+async function getBrowserCookies(browser, context) {
+  const result = await browser.command("storage.getCookies", {
+    partition: {
+      type: "context",
+      context
+    }
+  });
+
+  return result.cookies ?? [];
+}
+
+async function evaluateBrowserJson(browser, context, expression) {
+  const result = await browser.command("script.evaluate", {
+    expression,
+    target: {
+      context
+    },
+    awaitPromise: true
+  });
+
+  if (result.type !== "success" || result.result?.type !== "string") {
+    throw new Error(`Expected browser script to return a JSON string: ${JSON.stringify(result)}`);
+  }
+
+  return JSON.parse(result.result.value);
 }
 
 function assertOperationalConsole(consoleHtml, loginHtml) {
@@ -349,6 +1151,194 @@ function duplicateIds(html) {
   return [...duplicates];
 }
 
+function analyzePngScreenshot(filePath) {
+  const png = readFileSync(filePath);
+  const signature = "89504e470d0a1a0a";
+  if (png.subarray(0, 8).toString("hex") !== signature) {
+    throw new Error(`Screenshot is not a PNG: ${filePath}`);
+  }
+
+  let offset = 8;
+  let width = 0;
+  let height = 0;
+  let bitDepth = 0;
+  let colorType = 0;
+  let interlaceMethod = 0;
+  const idatChunks = [];
+
+  while (offset < png.length) {
+    const length = png.readUInt32BE(offset);
+    const type = png.toString("ascii", offset + 4, offset + 8);
+    const dataStart = offset + 8;
+    const dataEnd = dataStart + length;
+
+    if (type === "IHDR") {
+      width = png.readUInt32BE(dataStart);
+      height = png.readUInt32BE(dataStart + 4);
+      bitDepth = png[dataStart + 8];
+      colorType = png[dataStart + 9];
+      interlaceMethod = png[dataStart + 12];
+    } else if (type === "IDAT") {
+      idatChunks.push(png.subarray(dataStart, dataEnd));
+    } else if (type === "IEND") {
+      break;
+    }
+
+    offset = dataEnd + 4;
+  }
+
+  if (bitDepth !== 8 || ![2, 6].includes(colorType) || interlaceMethod !== 0) {
+    throw new Error(`Unsupported PNG format for screenshot analysis: bitDepth=${bitDepth} colorType=${colorType} interlace=${interlaceMethod}`);
+  }
+
+  const bytesPerPixel = colorType === 6 ? 4 : 3;
+  const scanlineLength = width * bytesPerPixel;
+  const inflated = inflateSync(Buffer.concat(idatChunks));
+  const pixels = Buffer.alloc(scanlineLength * height);
+  let inputOffset = 0;
+  let outputOffset = 0;
+  let previousLine = Buffer.alloc(scanlineLength);
+
+  for (let y = 0; y < height; y += 1) {
+    const filterType = inflated[inputOffset];
+    inputOffset += 1;
+    const rawLine = inflated.subarray(inputOffset, inputOffset + scanlineLength);
+    inputOffset += scanlineLength;
+    const line = Buffer.alloc(scanlineLength);
+
+    for (let x = 0; x < scanlineLength; x += 1) {
+      const left = x >= bytesPerPixel ? line[x - bytesPerPixel] : 0;
+      const up = previousLine[x] ?? 0;
+      const upLeft = x >= bytesPerPixel ? previousLine[x - bytesPerPixel] ?? 0 : 0;
+      const raw = rawLine[x] ?? 0;
+      line[x] = (raw + pngFilterPrediction(filterType, left, up, upLeft)) & 0xff;
+    }
+
+    line.copy(pixels, outputOffset);
+    outputOffset += scanlineLength;
+    previousLine = line;
+  }
+
+  const sampleStride = Math.max(1, Math.floor((width * height) / 6_000));
+  const uniqueColors = new Set();
+  let nonLightSamples = 0;
+  let samples = 0;
+
+  for (let pixelIndex = 0; pixelIndex < width * height; pixelIndex += sampleStride) {
+    const offsetForPixel = pixelIndex * bytesPerPixel;
+    const red = pixels[offsetForPixel] ?? 0;
+    const green = pixels[offsetForPixel + 1] ?? 0;
+    const blue = pixels[offsetForPixel + 2] ?? 0;
+    const alpha = colorType === 6 ? pixels[offsetForPixel + 3] ?? 255 : 255;
+    if (alpha < 16) {
+      continue;
+    }
+
+    uniqueColors.add(`${red >> 4}-${green >> 4}-${blue >> 4}`);
+    const lightness = (red + green + blue) / 3;
+    if (lightness < 238) {
+      nonLightSamples += 1;
+    }
+    samples += 1;
+  }
+
+  return {
+    width,
+    height,
+    uniqueSampledColors: uniqueColors.size,
+    nonLightRatio: samples > 0 ? Number((nonLightSamples / samples).toFixed(4)) : 0
+  };
+}
+
+function pngFilterPrediction(filterType, left, up, upLeft) {
+  if (filterType === 0) {
+    return 0;
+  }
+
+  if (filterType === 1) {
+    return left;
+  }
+
+  if (filterType === 2) {
+    return up;
+  }
+
+  if (filterType === 3) {
+    return Math.floor((left + up) / 2);
+  }
+
+  if (filterType === 4) {
+    const predictor = left + up - upLeft;
+    const leftDistance = Math.abs(predictor - left);
+    const upDistance = Math.abs(predictor - up);
+    const upLeftDistance = Math.abs(predictor - upLeft);
+
+    if (leftDistance <= upDistance && leftDistance <= upLeftDistance) {
+      return left;
+    }
+
+    return upDistance <= upLeftDistance ? up : upLeft;
+  }
+
+  throw new Error(`Unsupported PNG filter type: ${filterType}`);
+}
+
+async function connectWebSocketWithRetry(url, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      return await openWebSocket(url, 1_500);
+    } catch (error) {
+      lastError = error;
+      await delay(150);
+    }
+  }
+
+  throw new Error(`Unable to connect to Firefox BiDi at ${url}: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+}
+
+function openWebSocket(url, timeoutMs) {
+  return new Promise((resolve, reject) => {
+    const websocket = new WebSocket(url);
+    const timer = setTimeout(() => {
+      try {
+        websocket.close();
+      } catch {
+        // Ignore close races while probing startup.
+      }
+      reject(new Error("WebSocket connection timed out."));
+    }, timeoutMs);
+
+    websocket.addEventListener("open", () => {
+      clearTimeout(timer);
+      resolve(websocket);
+    });
+    websocket.addEventListener("error", () => {
+      clearTimeout(timer);
+      reject(new Error("WebSocket connection failed."));
+    });
+  });
+}
+
+function getFreePort() {
+  return new Promise((resolve, reject) => {
+    const probe = createTcpServer();
+    probe.listen(0, "127.0.0.1", () => {
+      const address = probe.address();
+      if (!address || typeof address === "string") {
+        probe.close(() => reject(new Error("Expected a TCP port from the probe server.")));
+        return;
+      }
+
+      const port = address.port;
+      probe.close((error) => (error ? reject(error) : resolve(port)));
+    });
+    probe.once("error", reject);
+  });
+}
+
 function serverBaseUrl(server) {
   const address = server.address();
   if (!address || typeof address === "string") {
@@ -377,6 +1367,42 @@ function closeServer(server) {
   return new Promise((resolve, reject) => {
     server.close((error) => (error ? reject(error) : resolve()));
   });
+}
+
+async function closeAllServers() {
+  await Promise.allSettled(servers.map((server) => closeServer(server)));
+  servers = [];
+}
+
+function waitForProcessExit(processToWaitFor, timeoutMs) {
+  if (processToWaitFor.exitCode !== null || processToWaitFor.signalCode !== null) {
+    return Promise.resolve();
+  }
+
+  return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      if (!processToWaitFor.killed) {
+        processToWaitFor.kill("SIGKILL");
+      }
+      resolve();
+    }, timeoutMs);
+
+    processToWaitFor.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+  });
+}
+
+function slug(value) {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 48) || "text";
+}
+
+function redactSmokeText(value) {
+  return String(value)
+    .replace(/puresoc_session=[^;\s"]+/gi, "puresoc_session=[redacted]")
+    .replace(/"sessionToken"\s*:\s*"[^"]+"/gi, '"sessionToken":"[redacted]"')
+    .replace(/(token|secret|password|authorization|cookie)=([^;\s"]+)/gi, "$1=[redacted]");
 }
 
 function resolvePnpmPackageDir(packageName) {

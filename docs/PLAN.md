@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-02, M1-M39 are implemented at contract/runtime-baseline level.
+As of 2026-05-02, M1-M40 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -48,8 +48,9 @@ As of 2026-05-02, M1-M39 are implemented at contract/runtime-baseline level.
 - M37 adds audit retention/export policy metadata, explicit `none` and deterministic test-only `fake-local` external checkpoint provider contracts, persisted checkpoint provider/status/local-anchor metadata, API exposure, config defaults/env overrides, and redaction/scoping tests. It still does not claim WORM storage, real external notarization, legal certification, or database-admin-proof auditability.
 - M38 adds Microsoft 365 provider-token custody capability/status metadata, deterministic test-only `fake-secret-manager-test` behavior, API/runtime config selection for the custody provider, rotation/backfill runbook metadata, expanded secret-free provider-token custody smoke, and production rejection of the fake provider. It still does not call live KMS/HSM/secret-manager APIs, perform ciphertext backfill, retire keys, or claim production custody.
 - M39 replaces the static-only `@ui-smoke` wrapper with a served local web/API smoke that starts real HTTP surfaces in memory mode, fetches the operational console and login routes, writes deterministic desktop/mobile HTML viewport snapshots, checks responsive/no-obvious-overlap UI invariants, and verifies local browser-relevant auth cookies, trusted-Origin rejection/acceptance, and callback Origin exemptions without live external integrations or provider writes.
-- Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, real browser Playwright/Chromium screenshots, deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M40.md`, selected from live external provider/runtime smoke, audit WORM/external signing operations, or production provider-token custody deployment follow-up.
+- M40 adds `@browser-smoke` using host Firefox WebDriver BiDi when available. It captures browser-generated PNG screenshots for dashboard desktop/mobile, login mobile, evidence desktop, and approvals desktop; checks browser DOM/layout invariants; verifies real browser register/login/session/logout cookie-jar behavior through a same-origin local auth proxy; and preserves the M39 HTTP fallback without live external integrations or provider writes.
+- Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M41.md`, focused on audit WORM export and external checkpoint operations prep.
 
 ## Milestones
 
@@ -70,8 +71,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M39.md` record completed incremental milestones.
-- `docs/PLAN_M40.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M40.md` record completed incremental milestones.
+- `docs/PLAN_M41.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

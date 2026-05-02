@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M39, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M39.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 39 / `docs/PLAN_M40.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-02 after completing PLAN_M40, reviewing the implemented code, `docs/PLAN.md`, `docs/PLAN_M40.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 40 / `docs/PLAN_M41.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -69,6 +69,7 @@ The repository currently contains:
 - PLAN_M37 audit export retention/external checkpoint contracts: `@puresoc/audit` now exposes retention/export policy metadata, `none` and deterministic test-only `fake-local` external checkpoint providers, non-WORM/non-notarized guarantees, and fake-anchor metadata; Prisma checkpoint persistence stores provider/status/local-anchor metadata; API routes expose org-scoped policy/provider metadata while preserving redaction; config defaults/env overrides cover audit retention/checkpoint provider settings.
 - PLAN_M38 provider-token secret-manager custody contracts: `@puresoc/provider-microsoft365` now exposes secret-free custody capability/status metadata, keeps `local-env-key-ring` as the default, adds deterministic test-only `fake-secret-manager-test` behavior, models key-version/rotation-readiness metadata, exposes rotation/backfill runbook contracts, wires API config selection, expands `pnpm provider-token:smoke`, and rejects fake/unsupported custody providers in production/startup validation without live KMS/secret-manager calls or provider writes.
 - PLAN_M39 served web runtime and browser auth/middleware smoke: `pnpm test:e2e -- --grep @ui-smoke` now starts local web/API HTTP surfaces in memory mode, fetches the operational console and login pages, writes deterministic desktop/mobile HTML viewport snapshots, checks responsive/no-obvious-overlap UI invariants, and verifies local `HttpOnly`/`SameSite=Lax`/secure-cookie config behavior plus trusted-Origin, untrusted-Origin, and OIDC/Microsoft provider callback Origin exemption behavior without live external integrations or provider writes.
+- PLAN_M40 browser-grade local smoke: `pnpm test:e2e -- --grep @browser-smoke` now uses host Firefox WebDriver BiDi when available, captures browser-generated PNG screenshots for dashboard desktop/mobile, login mobile, evidence desktop, and approvals desktop, checks browser DOM/layout invariants, and verifies real browser cookie-jar register/login/session/logout behavior through a same-origin local auth proxy while preserving the M39 `@ui-smoke` fallback and avoiding live external integrations.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
 
@@ -115,7 +116,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 36 / `docs/PLAN_M37.md` is completed.
 - Prompt 37 / `docs/PLAN_M38.md` is completed.
 - Prompt 38 / `docs/PLAN_M39.md` is completed.
-- Prompt 39 / `docs/PLAN_M40.md` is staged as the next active implementation prompt.
+- Prompt 39 / `docs/PLAN_M40.md` is completed.
+- Prompt 40 / `docs/PLAN_M41.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -130,12 +132,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 39 / `docs/PLAN_M40.md`: Browser-Grade Playwright Screenshot And Browser Auth Smoke Slice.
-2. Expected next handoff after M40: prioritize live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), audit WORM/external signing operations (GAP-039), or production provider-token custody deployment (GAP-040), depending on what browser runtime work uncovers.
+1. Prompt 40 / `docs/PLAN_M41.md`: Audit WORM Export And External Checkpoint Operations Prep Slice.
+2. Expected next handoff after M41: prioritize live external provider smoke (GAP-007/GAP-028/GAP-029/GAP-032), production provider-token custody deployment (GAP-040), or deployed browser/TLS/proxy smoke (GAP-035), depending on audit runtime findings.
 
-Do not enable live Microsoft Graph write/remediation actions by default. M40 may install/configure a local browser harness only with explicit approval when downloads are required, start local served app/API processes, and run browser smoke against local routes, but live Microsoft Graph, Stripe, OIDC provider, object-storage, scanner, public regulatory, KMS/secret-manager, and provider-write calls must stay explicit and disabled unless the prompt acceptance criteria prove them.
+Do not enable live Microsoft Graph write/remediation actions by default. M41 must not claim WORM storage, external notarization, legal certification, or database-admin-proof auditability unless the implementation actually writes to an immutable/external anchor under explicit configuration and tests. Live Microsoft Graph, Stripe, OIDC provider, object-storage, scanner, public regulatory, KMS/secret-manager, and provider-write calls must stay explicit and disabled unless the prompt acceptance criteria prove them.
 
-## Active Prompt 39 / PLAN_M40: Browser-Grade Playwright Screenshot And Browser Auth Smoke Slice
+## Active Prompt 40 / PLAN_M41: Audit WORM Export And External Checkpoint Operations Prep Slice
 
 Read:
 
@@ -145,54 +147,59 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M39.md`
+- `docs/PLAN_M40.md`
 - `docs/threat-model.md`
-- `code/apps/web/src/**`
-- `code/packages/ui/src/**`
-- `code/apps/api/src/**`
+- `code/packages/audit/src/**`
+- `code/apps/api/src/audit/**`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/http.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/evidence/src/**`
 - `code/packages/config/src/**`
-- `code/scripts/run-ui-smoke.mjs`
 - `code/tests/**`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Further narrow GAP-031 and GAP-035 by adding real local browser screenshot/navigation coverage for the served PureSOC web/API runtime when Playwright or equivalent browser binaries are available, while preserving the deterministic M39 HTTP fallback.
+Further narrow GAP-039 by preparing audit export/checkpoint operations for immutable/external anchoring without overstating the current database-only guarantees. The slice should make audit export handoff, retention metadata, external-anchor provider status, and operator-owned WORM/notarization responsibilities more explicit and testable while preserving redaction and organization scoping.
 
 Deliverables:
 
-- Preserve the existing PureSOC operational-console design direction, `@puresoc/ui` semantics, and M39 served HTTP smoke fallback.
-- Add or harden a browser harness that starts local web/API processes, captures desktop and mobile PNG screenshots for the operational console/login surfaces, and asserts the first screen is nonblank, readable, responsive, and free of obvious text/control overlap.
-- Exercise real local browser auth/session-cookie behavior enough to prove `HttpOnly`, `SameSite`, secure-cookie config behavior, Origin/Referer protections, logout clearing, and middleware exemptions for OIDC/provider callbacks remain intact.
-- Keep the smoke deterministic and local-only: use in-memory repositories, mock/static contract data, and no live Microsoft Graph, Stripe, OIDC, object-storage, scanner, KMS/secret-manager, public regulatory, or provider-write calls.
-- If browser dependencies or binaries are unavailable and require network access, request explicit approval, keep the M39 fallback passing, and document the exact blocker rather than faking screenshot coverage.
-- Document browser smoke commands, screenshots/artifacts, host-node or Playwright substitutions, and remaining production browser/CORS/proxy/TLS work.
-- Update docs/gaps/prompts and create `docs/PLAN_M41.md` from the next selected active prompt before final response.
+- Preserve existing audit hash-chain, checkpoint, export, redaction, and organization-scoping behavior.
+- Add a local/deterministic audit export handoff contract that can describe database-only, WORM-pending, externally anchored, and failed-anchor states without claiming unsupported immutability.
+- If adding an export artifact writer, keep it local/test-only by default and ensure internal storage pointers or secrets are not returned to browser clients.
+- Add or harden tests for exported-segment verification, checkpoint provider metadata, retention policy metadata, redaction, cross-organization rejection, and failure behavior.
+- Document operator responsibilities for real WORM/object-storage exports, external signing/notarization, checkpoint retention, legal hold/deletion, and verification alerting.
+- Update docs/gaps/prompts and create `docs/PLAN_M42.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/package.json`
-- `code/apps/web/src/**`
-- `code/packages/ui/src/**`
-- `code/apps/api/src/**`
+- `code/packages/audit/src/**`
+- `code/apps/api/src/audit/**`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/http.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/evidence/src/**`
 - `code/packages/config/src/**`
-- `code/scripts/**`
 - `code/tests/**`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M40.md`
 - `docs/PLAN_M41.md`
+- `docs/PLAN_M42.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 
 Negative constraints:
 
-- Do not replace the operational app with a marketing landing page.
-- Do not call live Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, or public regulatory URLs.
+- Do not claim WORM storage, external notarization, legal certification, or database-admin-proof auditability unless the code and tests actually provide it.
+- Do not call live Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, or public regulatory URLs.
 - Do not enable live provider write/remediation actions, Microsoft write scopes, or provider-token production custody claims.
-- Do not weaken audit redaction, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, evidence storage-pointer redaction, or legal caveat enforcement.
-- Do not make brittle screenshots depend on live time, public network assets, machine-specific fonts, or non-deterministic data.
+- Do not weaken audit redaction, hash-chain verification, organization scoping, auth/session safeguards, origin/rate-limit middleware, regulatory no-auto-activation rules, evidence storage-pointer redaction, or legal caveat enforcement.
+- Do not introduce destructive retention/deletion behavior or irreversible local file writes outside `/tmp` without explicit approval.
 
 Tests and acceptance commands:
 
@@ -200,21 +207,19 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui api middleware auth health
+pnpm test -- audit api rbac evidence health
 pnpm test:e2e -- --grep @ui-smoke
-pnpm test:e2e -- --grep @browser-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm`, Playwright, or bundled browsers are not available, use host-node/browser equivalents and record the substitution in `docs/PLAN_M40.md`. If a browser cannot be installed or launched safely, preserve the M39 fallback and document the blocker instead of faking PNG screenshot coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M41.md`. If external immutable storage or signing services are unavailable, preserve database-only guarantees and document the blocker instead of faking WORM/external-anchor coverage.
 
 Expected gap movement:
 
-- Narrow or resolve the local-browser portion of GAP-031 for browser-generated desktop/mobile screenshots and layout assertions.
-- Narrow GAP-035 for real local browser auth/cookie/navigation smoke.
+- Narrow GAP-039 for explicit audit export/checkpoint operational metadata, export handoff contracts, and non-WORM/non-notarized guarantees.
 - Preserve GAP-007/GAP-028/GAP-029/GAP-032 unless live external provider/runtime smoke is intentionally implemented and accepted.
-- Preserve GAP-030, GAP-039, GAP-040, and GAP-043 unless those production hardening areas are intentionally implemented and accepted.
+- Preserve GAP-030, GAP-040, and GAP-043 unless those production hardening areas are intentionally implemented and accepted.
 
 Final response must include:
 
@@ -222,10 +227,32 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M40` updated
-- `PLAN_M41` created
+- `PLAN_M41` updated
+- `PLAN_M42` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 39 / PLAN_M40: Browser-Grade Playwright Screenshot And Browser Auth Smoke Slice
+
+Completed on 2026-05-02.
+
+Summary:
+- Preserved the M39 `@ui-smoke` served HTTP fallback and added `@browser-smoke` to the existing local smoke runner.
+- Used host Firefox WebDriver BiDi as the local browser harness without downloading Playwright or browser binaries.
+- Captured browser-generated PNG screenshots for dashboard desktop/mobile, login mobile, evidence desktop, and approvals desktop under `/tmp/puresoc-browser-smoke-*`.
+- Added browser DOM/layout assertions for viewport size, nonblank/readable surfaces, no obvious grouped-control overlap, no document horizontal overflow, legal caveat and source/copy signals, and no certification claims.
+- Added real browser register/login/session/logout coverage through a same-origin local auth proxy, including `HttpOnly` invisibility to `document.cookie`, WebDriver storage checks for `HttpOnly`, `SameSite=lax`, local HTTP `secure=false`, and logout cookie removal.
+- Kept untrusted-Origin rejection and OIDC/Microsoft provider callback exemption checks in the deterministic local HTTP fallback because the API intentionally does not enable broad browser CORS.
+
+Validated with host-node equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run lint`
+- `npm run test -- web ui api middleware auth health`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `npm run test:e2e -- --grep @browser-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+
+GAP-031 is narrowed for Firefox browser PNG screenshots and browser DOM layout assertions. GAP-035 is narrowed for Firefox browser cookie-jar/session/logout coverage with local HTTP fallback for untrusted-Origin and callback-exemption checks. GAP-007, GAP-028, GAP-029, GAP-030, GAP-032, GAP-039, GAP-040, and GAP-043 remain preserved.
 
 ## Completed Prompt 38 / PLAN_M39: Served Web Runtime And Browser Auth/Middleware Smoke Slice
 
@@ -235,7 +262,7 @@ Summary:
 - Exported the web server startup path so the operational console can be served and tested through local HTTP without breaking `npm run start:web`.
 - Hardened the operational UI CSS for compact/mobile wrapping, added a non-card fact block for approval metadata, preserved source/legal-caveat indicators, and kept provider write execution unavailable.
 - Replaced the static-only `@ui-smoke` runner with a deterministic served web/API smoke. The smoke starts local HTTP surfaces in memory mode, fetches the console/login/health routes, writes desktop and mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, checks responsive/no-obvious-overlap invariants, and validates local auth cookies plus trusted-Origin/untrusted-Origin/callback-exemption middleware behavior.
-- Documented that no Playwright/browser binary is currently bundled; M39 uses HTTP-rendered viewport snapshots and fetch assertions as a local browser-smoke substitute, while M40 stages real browser PNG screenshot/navigation coverage.
+- Documented that no Playwright/browser binary was bundled during M39; M39 uses HTTP-rendered viewport snapshots and fetch assertions as a local browser-smoke substitute, and M40 later added real Firefox browser PNG screenshot/navigation coverage.
 
 Validated with host-node equivalents because sandbox-local `node`/`pnpm` were unavailable:
 - `npm run test:e2e -- --grep @ui-smoke`

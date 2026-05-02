@@ -30,6 +30,7 @@ Keep entries short, specific, and actionable.
 - `fake-secret-manager-test` is a Microsoft 365 provider-token custody contract fixture only. It models key-version metadata, active/previous lookup, missing-key failure, and rotation/backfill runbook summaries without live secret-manager/KMS calls; production startup must reject it.
 - Remediation worker provider execution is still fake/mock only. The M35 worker path requires persisted preflight, approval, pre-state snapshot, provider write-enabled state, and a test-injected fake executor; Microsoft 365 exports only a disabled action executor until live write contracts are explicitly implemented.
 - M39 `pnpm test:e2e -- --grep @ui-smoke` is a served local web/API smoke, not a static-only vitest wrapper. It writes deterministic desktop/mobile HTML viewport snapshots and validates local auth cookie/origin behavior without Playwright/browser binaries, live external providers, object storage, scanners, KMS/secret-manager calls, public regulatory fetches, or provider writes.
+- M40 `pnpm test:e2e -- --grep @browser-smoke` uses host Firefox WebDriver BiDi when available. It writes real PNG screenshots under `/tmp/puresoc-browser-smoke-*`, checks browser DOM/layout invariants, and verifies the browser cookie jar for local auth/session/logout through a same-origin local proxy; untrusted-Origin rejection and callback exemptions still use deterministic local HTTP fallback because the API does not enable broad browser CORS.
 
 ## How To Add Learnings
 

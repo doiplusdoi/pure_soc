@@ -209,4 +209,12 @@ pnpm test:e2e -- --grep "@ui-smoke"
 
 The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config behavior, trusted-Origin acceptance, untrusted-Origin rejection, and OIDC/Microsoft provider callback Origin exemptions without calling Microsoft Graph, Stripe APIs, OIDC providers, object storage, scanners, KMS/secret-manager backends, public regulatory URLs, or provider write executors.
 
-This workspace does not currently bundle Playwright or browser binaries. The M39 smoke therefore records deterministic HTTP-rendered HTML viewport snapshots and browser-relevant fetch assertions instead of PNG screenshots. Browser-grade Playwright/Chromium screenshots, deployed TLS/CORS/proxy behavior, and real browser cookie traversal remain release-hardening work.
+`pnpm test:e2e -- --grep "@browser-smoke"` runs the M40 browser-grade local smoke when a compatible browser is available. The harness uses host Firefox WebDriver BiDi when present, starts local web/API surfaces plus a same-origin local auth proxy in memory mode, captures deterministic PNG screenshots under `/tmp/puresoc-browser-smoke-*`, and verifies browser DOM/layout invariants:
+
+```sh
+pnpm test:e2e -- --grep "@browser-smoke"
+```
+
+The browser smoke captures dashboard desktop/mobile, login mobile, evidence desktop, and approval desktop screenshots. It asserts viewport dimensions, nonblank PNG pixels, readable text, no obvious grouped-control overlap, no document horizontal overflow, legal caveat presence, and no certification claims. It also verifies a real browser cookie jar can register, log in, authenticate `/auth/session`, hide the `HttpOnly` session token from `document.cookie`, inspect `SameSite=lax`/`HttpOnly`/local `secure=false` attributes through WebDriver storage, and remove the session on logout. Untrusted-Origin rejection and callback exemptions remain covered through the deterministic local HTTP fallback because the API intentionally does not expose permissive browser CORS.
+
+If Firefox/WebDriver BiDi is unavailable, the command reports a `blocked` status and does not claim PNG or browser-auth coverage; keep the M39 `@ui-smoke` fallback passing in that environment. Deployed TLS/CORS/reverse-proxy browser smoke and live OIDC callback cookies remain release-hardening work.
