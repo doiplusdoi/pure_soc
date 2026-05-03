@@ -212,6 +212,31 @@ describe("api evidence reports dashboards exports", () => {
     expect(dashboardBody.snapshot.source).toBe("stored_analysis");
     expect(dashboardBody.snapshot.sourceRecordCounts.controlResults).toBeGreaterThan(0);
     expect(dashboardBody.snapshot.sourceRecordCounts.evidenceArtifacts).toBe(1);
+
+    const latestDashboardResponse = await fetch(
+      `${baseUrl}/organizations/${organization.id}/dashboards/snapshots/latest`,
+      {
+        headers: {
+          cookie: owner.cookie
+        }
+      }
+    );
+    expect(latestDashboardResponse.status).toBe(200);
+    const latestDashboardBody = await readJson<{
+      snapshot: { source: string; sourceRecordCounts: { controlResults: number } };
+    }>(latestDashboardResponse);
+    expect(latestDashboardBody.snapshot.source).toBe("stored_analysis");
+    expect(latestDashboardBody.snapshot.sourceRecordCounts.controlResults).toBeGreaterThan(0);
+
+    const rejectedLatestDashboardResponse = await fetch(
+      `${baseUrl}/organizations/${organization.id}/dashboards/snapshots/latest`,
+      {
+        headers: {
+          cookie: other.cookie
+        }
+      }
+    );
+    expect(rejectedLatestDashboardResponse.status).toBe(403);
   });
 
   it("exports Romania notification drafts with source-mapped fields and the legal caveat", async () => {

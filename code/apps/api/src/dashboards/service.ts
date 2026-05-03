@@ -8,14 +8,15 @@ import type { OutputRecordRepository } from "@puresoc/database";
 import type { DashboardSnapshotRecord } from "../output-records";
 
 export type DashboardRepository = Pick<OutputRecordRepository, "findStoredAnalysis" | "saveDashboardSnapshot">;
+export type DashboardReadRepository = Pick<OutputRecordRepository, "findLatestDashboardSnapshot">;
 
 export interface DashboardApiServiceOptions {
-  repository: DashboardRepository;
+  repository: DashboardRepository & DashboardReadRepository;
   now?: () => Date;
 }
 
 export class DashboardApiService {
-  private readonly repository: DashboardRepository;
+  private readonly repository: DashboardRepository & DashboardReadRepository;
   private readonly now: () => Date;
 
   constructor(options: DashboardApiServiceOptions) {
@@ -56,6 +57,21 @@ export class DashboardApiService {
     return {
       record,
       snapshot
+    };
+  }
+
+  async getLatestReadinessSnapshot(input: {
+    organizationId: string;
+    assessmentId?: string;
+  }): Promise<{ record: DashboardSnapshotRecord; snapshot: DashboardSnapshotContract }> {
+    const record = await this.repository.findLatestDashboardSnapshot(input.organizationId, input.assessmentId);
+    if (!record) {
+      throw new Error("Dashboard snapshot was not found for this organization.");
+    }
+
+    return {
+      record,
+      snapshot: record.snapshot
     };
   }
 }

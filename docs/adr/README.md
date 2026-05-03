@@ -19,6 +19,8 @@ Use this folder for durable architecture decisions. Keep ADRs short and link to 
 - ADR-013: Auth, OIDC Social Login, And Managed-Provider Consent Boundaries
 - ADR-014: Operational UI Design System
 - ADR-015: Internal Readiness Scoring Calibration
+- ADR-016: i18n And Country-Pack Notification Drafts
+- ADR-017: Runtime Stack Deviations
 
 ## Template
 

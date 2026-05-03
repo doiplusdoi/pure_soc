@@ -78,22 +78,49 @@ async function runServedUiSmoke() {
 
   try {
     const { startWebServer } = await loadRuntimeModules();
-    const webServer = startWebServer(0);
-    servers.push(webServer);
-    await waitForListening(webServer);
-    const webBaseUrl = serverBaseUrl(webServer);
-
+    const webPort = await getFreePort();
+    const webBaseUrl = `http://127.0.0.1:${webPort}`;
     const apiServer = await startApiSmokeServer({
       webBaseUrl,
       secureCookie: false
     });
     servers.push(apiServer.server);
     const apiBaseUrl = apiServer.baseUrl;
+    const apiBackedDashboard = await seedApiBackedWebDashboard({
+      apiBaseUrl,
+      webBaseUrl,
+      emailPrefix: "m53-ui"
+    });
 
-    const consoleHtml = await fetchText(`${webBaseUrl}/`);
+    const webServer = startWebServer(webPort, {
+      apiBaseUrl,
+      publicBaseUrl: webBaseUrl
+    });
+    servers.push(webServer);
+    await waitForListening(webServer);
+
+    const unauthenticatedHtml = await fetchText(`${webBaseUrl}/`);
     const loginHtml = await fetchText(`${webBaseUrl}/login`);
     const health = await fetchJson(`${webBaseUrl}/health`);
     record("web_health_contract", health.service === "puresoc-web" && health.status === "ok");
+    record("web_health_is_api_backed", health.apiBacked === true);
+
+    const webLogin = await loginThroughWeb({
+      webBaseUrl,
+      ...apiBackedDashboard
+    });
+    const webSession = await fetchJson(`${webBaseUrl}/auth/session`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record("web_session_proxy_returns_active_organization", webSession.session?.activeOrganizationId === apiBackedDashboard.organizationId);
+    const consoleHtml = await fetchText(`${webBaseUrl}/`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    assertApiBackedDashboardHtml(consoleHtml, apiBackedDashboard);
 
     const desktopSnapshot = writeViewportSnapshot({
       name: "desktop",
@@ -108,6 +135,7 @@ async function runServedUiSmoke() {
       html: consoleHtml
     });
 
+    record("unauthenticated_root_prompts_for_login", htmlText(unauthenticatedHtml).includes("Sign in to open the operational console"));
     assertOperationalConsole(consoleHtml, loginHtml);
     assertResponsiveLayout(consoleHtml);
     assertNoObviousOverlapRegression(consoleHtml);
@@ -201,11 +229,8 @@ async function runBrowserSmoke() {
     }
 
     const { startWebServer } = await loadRuntimeModules();
-    const webServer = startWebServer(0);
-    servers.push(webServer);
-    await waitForListening(webServer);
-    const webBaseUrl = serverBaseUrl(webServer);
-
+    const webPort = await getFreePort();
+    const webBaseUrl = `http://127.0.0.1:${webPort}`;
     const apiPort = await getFreePort();
     const proxyPort = await getFreePort();
     const apiBaseUrl = `http://127.0.0.1:${apiPort}`;
@@ -223,9 +248,21 @@ async function runBrowserSmoke() {
       port: apiPort
     });
     servers.push(apiServer.server);
+    const apiBackedDashboard = await seedApiBackedWebDashboard({
+      apiBaseUrl,
+      webBaseUrl,
+      emailPrefix: "m53-browser"
+    });
+    const webServer = startWebServer(webPort, {
+      apiBaseUrl,
+      publicBaseUrl: webBaseUrl
+    });
+    servers.push(webServer);
+    await waitForListening(webServer);
 
     browser = await startFirefoxBidiBrowser(firefoxPath);
     const context = await createBrowserContext(browser);
+    await assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, apiBackedDashboard);
     const screenshots = [];
 
     screenshots.push(
@@ -411,6 +448,143 @@ async function startApiSmokeServer({
     services,
     baseUrl: serverBaseUrl(server)
   };
+}
+
+async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }) {
+  const credentials = {
+    email: `${emailPrefix}-${Date.now()}@example.test`,
+    password: "CorrectHorseBatteryStaple42!"
+  };
+  const requestHeaders = {
+    origin: webBaseUrl
+  };
+  const register = await postJson(
+    `${apiBaseUrl}/auth/register`,
+    {
+      email: credentials.email,
+      password: credentials.password,
+      displayName: "M53 Web Runtime"
+    },
+    requestHeaders
+  );
+  record("web_runtime_api_register_status_created", register.status === 201, String(register.status));
+
+  const login = await postJson(
+    `${apiBaseUrl}/auth/login`,
+    {
+      email: credentials.email,
+      password: credentials.password
+    },
+    requestHeaders
+  );
+  record("web_runtime_api_seed_login_status_ok", login.status === 200, String(login.status));
+  const seedCookie = login.headers.get("set-cookie") ?? "";
+  record("web_runtime_api_seed_cookie_present", seedCookie.includes("puresoc_session"));
+
+  const organization = await postJson(
+    `${apiBaseUrl}/organizations`,
+    {
+      name: "M53 API Backed Workspace",
+      primaryCountryCode: "RO"
+    },
+    {
+      ...requestHeaders,
+      cookie: seedCookie
+    }
+  );
+  record("web_runtime_api_create_organization_status_created", organization.status === 201, String(organization.status));
+  const organizationBody = await organization.json();
+  const organizationId = organizationBody.organization?.id;
+  record("web_runtime_api_organization_id_present", typeof organizationId === "string" && organizationId.length > 0);
+
+  const assessmentId = `${organizationId}:m53-web-runtime`;
+  const evaluation = await postJson(
+    `${apiBaseUrl}/organizations/${organizationId}/compliance/evaluate`,
+    {
+      assessmentId,
+      jurisdiction: "EU",
+      countryPack: {
+        countryCode: "RO",
+        completeness: "planned_full_pack",
+        warnings: ["M53 served web runtime smoke"]
+      },
+      providerFindings: [
+        {
+          id: "finding_m53_mfa",
+          providerKey: "microsoft365",
+          signalKey: "entra.admin_mfa_gap",
+          severity: "high",
+          summary: "Synthetic read-only MFA finding for local web runtime smoke."
+        }
+      ],
+      evidenceArtifacts: [
+        {
+          id: "evidence_m53_dashboard",
+          title: "M53 dashboard source evidence",
+          scanStatus: "clean",
+          sourceType: "generated_report"
+        }
+      ]
+    },
+    {
+      ...requestHeaders,
+      cookie: seedCookie
+    }
+  );
+  record("web_runtime_api_evaluate_status_ok", evaluation.status === 200, String(evaluation.status));
+
+  const dashboard = await postJson(
+    `${apiBaseUrl}/organizations/${organizationId}/dashboards/snapshots`,
+    {
+      assessmentId,
+      countryPackCompleteness: 77
+    },
+    {
+      ...requestHeaders,
+      cookie: seedCookie
+    }
+  );
+  record("web_runtime_api_dashboard_snapshot_status_created", dashboard.status === 201, String(dashboard.status));
+  const dashboardBody = await dashboard.json();
+  record("web_runtime_api_dashboard_source_is_stored_analysis", dashboardBody.snapshot?.source === "stored_analysis");
+
+  return {
+    ...credentials,
+    organizationId,
+    assessmentId,
+    expectedDashboardText: "Open gaps"
+  };
+}
+
+async function loginThroughWeb({ webBaseUrl, email, password, organizationId }) {
+  const response = await fetch(`${webBaseUrl}/auth/login`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      email,
+      password,
+      activeOrganizationId: organizationId
+    })
+  });
+
+  record("web_login_proxy_redirects_after_api_login", response.status === 303, String(response.status));
+  record("web_login_proxy_redirect_location_dashboard", response.headers.get("location") === "/");
+  const cookie = response.headers.get("set-cookie") ?? "";
+  record("web_login_proxy_sets_api_session_cookie", cookie.includes("puresoc_session"));
+  return {
+    cookie
+  };
+}
+
+function assertApiBackedDashboardHtml(html, seeded) {
+  const text = htmlText(html);
+  record("web_dashboard_uses_api_latest_snapshot_route", text.includes("GET /organizations/:orgId/dashboards/snapshots/latest"));
+  record("web_dashboard_contains_seeded_api_widget", text.includes(seeded.expectedDashboardText));
+  record("web_dashboard_contains_active_workspace_marker", text.includes(`Workspace ${seeded.organizationId.slice(0, 8)}`));
+  record("web_dashboard_contains_api_session_user", text.includes("M53 Web Runtime"));
 }
 
 async function startBrowserAuthProxy({ apiBaseUrl, port }) {
@@ -904,6 +1078,60 @@ function assertBrowserLayout(name, layout, input) {
   }
 }
 
+async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded) {
+  await browser.command("browsingContext.setViewport", {
+    context,
+    viewport: {
+      width: 900,
+      height: 700
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command("browsingContext.navigate", {
+    context,
+    url: `${webBaseUrl}/login`,
+    wait: "complete"
+  });
+
+  const result = await evaluateBrowserJson(
+    browser,
+    context,
+    `((async () => {
+      const response = await fetch("/auth/login", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded"
+        },
+        body: new URLSearchParams({
+          email: ${JSON.stringify(seeded.email)},
+          password: ${JSON.stringify(seeded.password)},
+          activeOrganizationId: ${JSON.stringify(seeded.organizationId)}
+        })
+      });
+      const loginText = await response.text();
+      const session = await fetch("/auth/session", {
+        credentials: "include"
+      });
+      const sessionText = await session.text();
+      return JSON.stringify({
+        loginStatus: response.status,
+        loginUrl: response.url,
+        loginRenderedDashboard: loginText.includes("Overall internal readiness") && loginText.includes(${JSON.stringify(seeded.expectedDashboardText)}),
+        sessionStatus: session.status,
+        sessionHasActiveOrganization: sessionText.includes(${JSON.stringify(seeded.organizationId)}),
+        documentCookieAfterLogin: document.cookie
+      });
+    })())`
+  );
+
+  record("browser_web_login_proxy_renders_dashboard", result.loginStatus === 200 && result.loginRenderedDashboard === true, JSON.stringify(result));
+  record("browser_web_login_lands_on_dashboard_url", result.loginUrl.endsWith("/"), JSON.stringify(result));
+  record("browser_web_session_proxy_status_ok", result.sessionStatus === 200, JSON.stringify(result));
+  record("browser_web_session_contains_active_organization", result.sessionHasActiveOrganization === true, JSON.stringify(result));
+  record("browser_web_document_cookie_cannot_read_http_only_session", !result.documentCookieAfterLogin.includes("puresoc_session"), result.documentCookieAfterLogin);
+}
+
 async function assertBrowserAuthSessionSmoke(browser, context, browserAuthBaseUrl) {
   await browser.command("browsingContext.setViewport", {
     context,
@@ -1103,14 +1331,14 @@ function writeViewportSnapshot({ name, width, height, html }) {
   return filePath;
 }
 
-async function fetchText(url) {
-  const response = await fetch(url);
+async function fetchText(url, options = {}) {
+  const response = await fetch(url, options);
   record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200);
   return response.text();
 }
 
-async function fetchJson(url) {
-  const response = await fetch(url);
+async function fetchJson(url, options = {}) {
+  const response = await fetch(url, options);
   record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200);
   return response.json();
 }

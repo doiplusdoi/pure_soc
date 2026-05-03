@@ -34,3 +34,44 @@ export const createDashboardSnapshotRoute = async (
     })
   };
 };
+
+export const getLatestDashboardSnapshotRoute = async (
+  organizationId: string,
+  query: URLSearchParams,
+  cookieHeader: string | undefined,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "auditor"]
+  });
+
+  const assessmentId = query.get("assessmentId") ?? undefined;
+
+  try {
+    return {
+      statusCode: 200,
+      body: await services.dashboards.getLatestReadinessSnapshot({
+        organizationId,
+        assessmentId
+      })
+    };
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("Dashboard snapshot was not found")) {
+      return {
+        statusCode: 404,
+        body: {
+          error: {
+            code: "dashboard_snapshot_not_found",
+            message: "Dashboard snapshot was not found for this organization."
+          }
+        }
+      };
+    }
+
+    throw error;
+  }
+};

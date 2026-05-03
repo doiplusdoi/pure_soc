@@ -23,6 +23,7 @@ export interface PureSocCommandButtonInput {
   tone?: "primary" | "secondary" | "danger";
   disabled?: boolean;
   icon?: string;
+  type?: "button" | "submit";
 }
 
 export interface PureSocTableColumn<T> {
@@ -602,14 +603,15 @@ export const renderCommandButton = ({
   ariaLabel,
   tone = "secondary",
   disabled = false,
-  icon
+  icon,
+  type = "button"
 }: PureSocCommandButtonInput): string => {
   const classes = ["ps-command", tone !== "secondary" ? `ps-command--${tone}` : ""].filter(Boolean).join(" ");
   const disabledAttributes = disabled ? ' disabled aria-disabled="true"' : "";
   const accessibleLabel = ariaLabel ? ` aria-label="${escapeHtml(ariaLabel)}"` : "";
   const iconMarkup = icon ? `<span aria-hidden="true">${escapeHtml(icon)}</span>` : "";
 
-  return `<button type="button" class="${classes}"${accessibleLabel}${disabledAttributes}>${iconMarkup}<span>${escapeHtml(label)}</span></button>`;
+  return `<button type="${type}" class="${classes}"${accessibleLabel}${disabledAttributes}>${iconMarkup}<span>${escapeHtml(label)}</span></button>`;
 };
 
 export const renderLegalCaveat = (caveat: string): string =>

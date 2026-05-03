@@ -28,6 +28,21 @@ export interface RenderOperationalConsoleOptions {
   includeDocumentShell?: boolean;
 }
 
+export interface RenderLoginScreenOptions {
+  productName?: string;
+  errorMessage?: string;
+  activeOrganizationId?: string | null;
+}
+
+export interface RuntimeMessageScreenInput {
+  title: string;
+  summary: string;
+  statusLabel: string;
+  statusTone?: PureSocUiTone;
+  actionHref?: string;
+  actionLabel?: string;
+}
+
 export const renderOperationalConsole = (
   model: OperationalConsoleModel,
   options: RenderOperationalConsoleOptions = {}
@@ -70,8 +85,11 @@ export const renderOperationalConsole = (
   ].join("");
 };
 
-export const renderLoginScreen = (productName = "PureSOC"): string =>
-  [
+export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {}): string => {
+  const normalized = typeof options === "string" ? { productName: options } : options;
+  const productName = normalized.productName ?? "PureSOC";
+
+  return [
     "<!doctype html>",
     '<html lang="en">',
     "<head>",
@@ -85,13 +103,49 @@ export const renderLoginScreen = (productName = "PureSOC"): string =>
     '<section class="ps-section" aria-labelledby="login-title">',
     '<div class="ps-section__header">',
     '<div><h1 class="ps-section__title" id="login-title">Sign in</h1><p class="ps-muted">PureSOC internal readiness console</p></div>',
+    renderStatusPill({ label: "API session", tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
+    normalized.errorMessage
+      ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(normalized.errorMessage)}</p>`
+      : "",
     '<form class="ps-form" action="/auth/login" method="post">',
     '<div class="ps-field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>',
     '<div class="ps-field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>',
-    renderCommandButton({ label: "Sign in", ariaLabel: "Sign in to PureSOC", tone: "primary" }),
+    normalized.activeOrganizationId
+      ? `<input type="hidden" name="activeOrganizationId" value="${escapeHtml(normalized.activeOrganizationId)}">`
+      : "",
+    renderCommandButton({ label: "Sign in", ariaLabel: "Sign in to PureSOC", tone: "primary", type: "submit" }),
     "</form>",
+    "</div>",
+    "</section>",
+    "</main>",
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): string =>
+  [
+    "<!doctype html>",
+    '<html lang="en">',
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${escapeHtml(input.title)} | PureSOC</title>`,
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    '<main class="ps-content" id="content" tabindex="-1">',
+    '<section class="ps-section" aria-labelledby="runtime-message-title">',
+    '<div class="ps-section__header">',
+    `<div><h1 class="ps-section__title" id="runtime-message-title">${escapeHtml(input.title)}</h1><p class="ps-muted">${escapeHtml(input.summary)}</p></div>`,
+    renderStatusPill({ label: input.statusLabel, tone: input.statusTone ?? "info" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    input.actionHref && input.actionLabel
+      ? `<p><a class="ps-command ps-command--primary" href="${escapeHtml(input.actionHref)}">${escapeHtml(input.actionLabel)}</a></p>`
+      : "",
     "</div>",
     "</section>",
     "</main>",
@@ -130,6 +184,7 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     `<div><p class="ps-topbar__title">${escapeHtml(model.organization.name)}</p><span class="ps-muted">${escapeHtml(model.user.displayName)} | ${escapeHtml(model.user.role)}</span></div>`,
     '<div class="ps-topbar__actions">',
     renderStatusPill({ label: `Plan: ${model.organization.subscriptionStatus}`, tone: "info" }),
+    model.runtimeSource ? renderSourceChip(model.runtimeSource) : "",
     renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
     "</div>",
     "</header>"

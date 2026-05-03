@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M52, reviewing `docs/PLAN.md`, `docs/PLAN_M52.md`, `docs/prompt-tests.md`, `docs/implementation-gaps.md`, and staging Prompt 52 / `docs/PLAN_M53.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M53, reviewing `docs/claude_rec4.md`, re-sequencing the next steps, and staging Prompt 53 / `docs/PLAN_M54.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -82,8 +82,9 @@ The repository currently contains:
 - PLAN_M50 approved single external live-smoke follow-up/blocker review: the M49 selector was run first through host-node/npm equivalents. Readiness stayed dry-run with unknown target kind, no disposable confirmation, `ready_for_disposable_smoke: 0`, and no live network calls. The selector returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`, so no live smoke command was run and GAP-044 remains open with explicit blockers.
 - PLAN_M51 API rate-limit store, trusted proxy, and CSRF decision slice: API rate limiting now has an injectable fixed-window store boundary while preserving process-local memory defaults; Redis/shared-store configuration is explicit and rejected until the adapter exists; request context ignores `X-Forwarded-For` and `Forwarded` unless an explicit trusted-proxy IP policy is configured; production startup requires strict Origin/Referer validation for browser state-changing routes; and deterministic tests cover trusted/untrusted forwarded headers, secret-free rate-limit errors, strict Origin/Referer behavior, and callback/webhook exemptions.
 - PLAN_M52 API Redis rate-limit store adapter: `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` now selects an implemented Redis fixed-window store when a Redis URL is configured; Redis keys hash route-family/user/IP/org material before storage; the Redis command path uses an EVAL script through the shared Redis command client with configurable retry/backoff; middleware returns secret-free 503 responses for store failures; and startup validation rejects missing/invalid Redis URLs without silently falling back to memory.
+- PLAN_M53 served web runtime baseline: after reading `docs/claude_rec4.md`, M53 was re-sequenced away from another external-smoke blocker review and implemented an authenticated web/API path. ADR-017 records current runtime stack deviations; API now exposes `GET /organizations/:orgId/dashboards/snapshots/latest`; `apps/web` proxies login/logout/session to the API, preserves API session cookies, and renders the operational console from the latest organization dashboard snapshot; `@ui-smoke` seeds a local API organization/evaluation/dashboard snapshot and proves the web dashboard came from that API response without live external calls.
 
-Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, and `docs/claude_rec2.md`.
+Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
 ## Incremental Milestone Plan Rule
 
@@ -141,7 +142,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 49 / `docs/PLAN_M50.md` is completed.
 - Prompt 50 / `docs/PLAN_M51.md` is completed.
 - Prompt 51 / `docs/PLAN_M52.md` is completed.
-- Prompt 52 / `docs/PLAN_M53.md` is staged as the next active implementation prompt.
+- Prompt 52 / `docs/PLAN_M53.md` is completed.
+- Prompt 53 / `docs/PLAN_M54.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -156,12 +158,15 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 52 / `docs/PLAN_M53.md`: External Live-Smoke Target Approval Follow-Up Or Blocker Review.
-2. Keep GAP-044 open until an operator configures exactly one approved local/test/ci/disposable live-smoke target and the selector chooses it.
+1. Prompt 53 / `docs/PLAN_M54.md`: External Live-Smoke Target Approval Follow-Up Or Blocker Review.
+2. Prompt 54 / `docs/PLAN_M55.md`: Action-Run Idempotency.
+3. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
+4. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
+5. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M53 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, Redis targets, or provider write executors unless the existing readiness selector chooses exactly one approved local/test/ci/disposable path and that prompt explicitly authorizes running only that selected command.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M54 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, Redis targets, or provider write executors unless the existing readiness selector chooses exactly one approved local/test/ci/disposable path and that prompt explicitly authorizes running only that selected command.
 
-## Active Prompt 52 / PLAN_M53: External Live-Smoke Target Approval Follow-Up Or Blocker Review
+## Active Prompt 53 / PLAN_M54: External Live-Smoke Target Approval Follow-Up Or Blocker Review
 
 Read:
 
@@ -171,8 +176,9 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M52.md`
+- `docs/PLAN_M53.md`
 - `docs/threat-model.md`
+- `docs/claude_rec4.md`
 - `code/packages/config/src/external-smoke-readiness.ts`
 - `code/scripts/external-smoke-readiness.ts`
 - `code/scripts/external-smoke-target-selection.ts`
@@ -192,7 +198,7 @@ Deliverables:
 - If exactly one path is selected and the operator has configured that path's existing guardrails, run only the selected command and keep every other live path blocked.
 - Preserve secret-free output: no endpoint values, credentials, tokens, cookies, authorization headers, Redis URLs containing credentials, object keys, provider payloads, or customer/user emails.
 - Update GAP-044 and docs with the selected/no-selected target result.
-- Create `docs/PLAN_M54.md` from the next selected active prompt before final response.
+- Create `docs/PLAN_M55.md` from the next selected active prompt before final response.
 
 Expected files:
 
@@ -201,8 +207,8 @@ Expected files:
 - `code/package.json`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M53.md`
 - `docs/PLAN_M54.md`
+- `docs/PLAN_M55.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -227,7 +233,7 @@ docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M53.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M54.md`.
 
 Expected gap movement:
 
@@ -241,10 +247,29 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M53` updated
-- `PLAN_M54` created
+- `PLAN_M54` updated
+- `PLAN_M55` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 52 / PLAN_M53: Served Web Runtime Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Read `docs/claude_rec4.md` and re-sequenced M53 from another external-smoke blocker review to the served web runtime baseline recommended by REC-201 and REC-206.
+- Added ADR-017 documenting current stack deviations from the master plan: `node:http` API/web runtime, custom Redis job adapter, and Firefox/HTTP UI smoke in place of immediate NestJS/Next.js/BullMQ/Playwright migration.
+- Added API `GET /organizations/:orgId/dashboards/snapshots/latest` with RBAC and organization scoping.
+- Updated `apps/web` so login/logout/session are proxied to the API, the API session cookie is preserved through the web server, unauthenticated/no-active-workspace states are explicit, and the console renders from the latest API dashboard snapshot.
+- Extended `@ui-smoke` to seed a local API user, organization, compliance evaluation, and dashboard snapshot, then log in through the web server and assert dashboard source metadata came from the API route.
+- No live external services, provider writes, Redis targets, public regulatory URLs, object storage, scanners, KMS/HSM/secret-manager, or browser/PDF services were called.
+
+Validated with host-node/npm equivalents because sandbox-local `node`/`pnpm` were unavailable:
+- `npm run test -- web dashboard auth session api`
+- `npm run test:e2e -- --grep @ui-smoke`
+- Additional M53 acceptance command results are recorded in `docs/PLAN_M53.md`.
+
+GAP-031 is narrowed for an authenticated served web/API auth/session/dashboard path while full Next.js/React and cross-browser Playwright parity remain deferred. GAP-035 is narrowed for local web login/session proxy behavior only. GAP-044 remains open and is moved to M54.
 
 ## Completed Prompt 51 / PLAN_M52: API Redis Rate-Limit Store Adapter Contract Slice
 

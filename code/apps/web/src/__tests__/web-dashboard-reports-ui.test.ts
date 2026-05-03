@@ -2,7 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 
-import { createOperationalConsoleDemoModel, renderLoginScreen, renderOperationalConsole } from "../index";
+import {
+  createOperationalConsoleDemoModel,
+  createOperationalConsoleRuntimeModel,
+  renderLoginScreen,
+  renderOperationalConsole
+} from "../index";
 
 describe("web dashboard reports operational UI", () => {
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
@@ -51,10 +56,47 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain('<label for="email">Email</label>');
     expect(login).toContain('<label for="password">Password</label>');
     expect(login).toContain('autocomplete="current-password"');
+    expect(login).toContain('type="submit"');
 
     const buttonLabels = [...html.matchAll(/<button[^>]*>\s*(?:<span[^>]*>[^<]*<\/span>)?<span>([^<]+)<\/span>/g)].map(
       (match) => match[1] ?? ""
     );
     expect(buttonLabels.every((label) => label.length <= 32)).toBe(true);
+  });
+
+  it("can render the console from an API session and dashboard snapshot contract", () => {
+    const demo = createOperationalConsoleDemoModel();
+    const html = renderOperationalConsole(
+      createOperationalConsoleRuntimeModel({
+        session: {
+          user: {
+            id: "user_runtime",
+            email: "runtime@example.test",
+            displayName: "Runtime User"
+          },
+          session: {
+            activeOrganizationId: "org_runtime"
+          }
+        },
+        dashboard: {
+          ...demo.dashboard,
+          widgets: [
+            {
+              key: "widget_api_runtime",
+              title: "API dashboard snapshot",
+              value: "ready",
+              severity: "low",
+              sourceQuery: "GET /organizations/:orgId/dashboards/snapshots/latest"
+            }
+          ]
+        }
+      })
+    );
+
+    expect(html).toContain("Runtime User");
+    expect(html).toContain("API dashboard snapshot");
+    expect(html).toContain("GET /organizations/:orgId/dashboards/snapshots/latest");
+    expect(html).toContain("stored_analysis");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 });

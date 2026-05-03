@@ -33,6 +33,21 @@ export interface OperationalConsoleModel {
   reports: ReportSurface[];
   actionRuns: ActionRun[];
   legalCaveat: string;
+  runtimeSource?: {
+    label: string;
+    detail: string;
+  };
+}
+
+export interface RuntimeSessionSurface {
+  user: {
+    id: string;
+    email: string;
+    displayName?: string | null;
+  };
+  session: {
+    activeOrganizationId?: string | null;
+  };
 }
 
 export interface OnboardingSurface {
@@ -403,6 +418,47 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
     ],
     actionRuns: [createMfaActionRun(organizationId, generatedAt, [euArticle21])],
     legalCaveat: readinessReport.legalCaveat
+  };
+};
+
+export const createOperationalConsoleRuntimeModel = (input: {
+  session: RuntimeSessionSurface;
+  dashboard: DashboardSnapshotContract;
+  organization?: {
+    id: string;
+    name?: string | null;
+    primaryCountryCode?: string | null;
+    subscriptionStatus?: string | null;
+  };
+}): OperationalConsoleModel => {
+  const base = createOperationalConsoleDemoModel();
+  const organizationId = input.session.session.activeOrganizationId ?? input.organization?.id ?? "unknown";
+  const organizationName =
+    input.organization?.name ?? (organizationId === "unknown" ? "PureSOC workspace" : `Workspace ${organizationId.slice(0, 8)}`);
+
+  return {
+    ...base,
+    organization: {
+      name: organizationName,
+      primaryCountryCode: input.organization?.primaryCountryCode ?? base.organization.primaryCountryCode,
+      subscriptionStatus: input.organization?.subscriptionStatus ?? "api"
+    },
+    user: {
+      displayName: input.session.user.displayName ?? input.session.user.email,
+      role: "Authenticated user"
+    },
+    dashboard: input.dashboard,
+    runtimeSource: {
+      label: "API snapshot",
+      detail: "GET /organizations/:orgId/dashboards/snapshots/latest"
+    },
+    onboarding: {
+      ...base.onboarding,
+      eu: {
+        ...base.onboarding.eu,
+        summary: "Dashboard shell is authenticated through the API; complete EU onboarding details remain a follow-up flow."
+      }
+    }
   };
 };
 

@@ -61,6 +61,32 @@ pnpm prisma:smoke:postgres
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
+## Served Web Runtime
+
+The current web runtime is the lightweight `node:http` server documented in ADR-017, not a Next.js runtime yet. It is API-backed:
+
+```sh
+PURESOC_WEB_API_BASE_URL=http://127.0.0.1:3001 pnpm start:web
+```
+
+If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. `PURESOC_WEB_PUBLIC_BASE_URL` can be set when the web server needs a stable Origin value for proxied browser state-changing API calls.
+
+Implemented web paths:
+
+- `GET /login`: renders the local email/password sign-in form.
+- `POST /auth/login`: forwards form credentials to API `/auth/login`, preserves the API-issued `puresoc_session` cookie, and redirects to `/`.
+- `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
+- `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
+- `GET /`: resolves the API session and active organization, then renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
+
+The local UI smoke seeds a synthetic in-memory API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server:
+
+```sh
+pnpm test:e2e -- --grep @ui-smoke
+```
+
+This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, Romania onboarding screens, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
+
 ## API Middleware Security
 
 The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.

@@ -51,7 +51,7 @@ import {
   buildInternalReadinessReportRoute,
   buildRomaniaNotificationDraftReportRoute
 } from "./reports/routes";
-import { createDashboardSnapshotRoute } from "./dashboards/routes";
+import { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute } from "./dashboards/routes";
 import {
   createBillingCheckoutSessionRoute,
   createBillingPortalSessionRoute,
@@ -434,6 +434,22 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
           await createDashboardSnapshotRoute(
             dashboardSnapshotRouteMatch[1] ?? "",
             body,
+            request.headers.cookie,
+            services
+          )
+        );
+        return;
+      }
+
+      const latestDashboardSnapshotRouteMatch = url.pathname.match(
+        /^\/organizations\/([^/]+)\/dashboards\/snapshots\/latest$/
+      );
+      if (latestDashboardSnapshotRouteMatch && request.method === "GET") {
+        sendJson(
+          response,
+          await getLatestDashboardSnapshotRoute(
+            latestDashboardSnapshotRouteMatch[1] ?? "",
+            url.searchParams,
             request.headers.cookie,
             services
           )
