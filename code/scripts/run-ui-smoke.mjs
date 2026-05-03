@@ -20,6 +20,8 @@ let runtimeModulesPromise = null;
 
 const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1";
 const VISUAL_THRESHOLD_VERSION = "m65-lightweight-thresholds.v1";
+const ANCHOR_SECTION_CAPTURE_SCHEMA = "puresoc.ui_smoke.anchor_section_capture.v1";
+const EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT = 10;
 const DEFAULT_VISUAL_THRESHOLDS = {
   minPngBytes: 6_000,
   minUniqueSampledColors: 24,
@@ -424,6 +426,7 @@ async function runBrowserSmoke() {
         url: `${webBaseUrl}/`,
         width: 1440,
         height: 900,
+        anchorActivation: operationalConsoleAnchorById("dashboard"),
         expectedText: ["Overall internal readiness", "not a legal opinion"],
         expectOperationalConsole: true
       })
@@ -454,11 +457,47 @@ async function runBrowserSmoke() {
     screenshots.push(
       await captureBrowserPage(browser, {
         context,
+        name: "onboarding-section-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        anchorActivation: operationalConsoleAnchorById("onboarding"),
+        expectedText: ["Onboarding And Country Packs", "Country pack status"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "microsoft365-section-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        anchorActivation: operationalConsoleAnchorById("microsoft365"),
+        expectedText: ["Microsoft 365 Connection Health", "Microsoft module health"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "gaps-section-desktop",
+        url: `${webBaseUrl}/`,
+        width: 1440,
+        height: 900,
+        anchorActivation: operationalConsoleAnchorById("gaps"),
+        expectedText: ["Gaps And Recommendations", "Recommendation backlog"],
+        expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
         name: "evidence-desktop",
         url: `${webBaseUrl}/`,
         width: 1440,
         height: 900,
-        scrollTarget: "#evidence",
+        anchorActivation: operationalConsoleAnchorById("evidence"),
         expectedText: ["Evidence And Reports", "Internal readiness report"],
         expectOperationalConsole: true
       })
@@ -470,7 +509,7 @@ async function runBrowserSmoke() {
         url: `${webBaseUrl}/`,
         width: 1440,
         height: 900,
-        scrollTarget: "#approvals",
+        anchorActivation: operationalConsoleAnchorById("approvals"),
         expectedText: ["Approval Queue", "Provider write execution remains disabled"],
         expectOperationalConsole: true
       })
@@ -1212,6 +1251,16 @@ async function captureBrowserPage(browser, input) {
     20_000
   );
 
+  let anchorActivation = null;
+  if (input.anchorActivation) {
+    anchorActivation = await activateOperationalConsoleSectionForScreenshot(
+      browser,
+      input.context,
+      input.anchorActivation,
+      input.name
+    );
+  }
+
   if (input.scrollTarget) {
     await evaluateBrowserJson(
       browser,
@@ -1242,7 +1291,8 @@ async function captureBrowserPage(browser, input) {
     input,
     layout,
     filePath,
-    analysis
+    analysis,
+    anchorActivation
   });
   assertVisualThresholds(input.name, visualMetrics);
 
@@ -1266,11 +1316,12 @@ async function captureBrowserPage(browser, input) {
     nonLightRatio: analysis.nonLightRatio,
     edgeRatio: analysis.edgeRatio,
     luminanceStdDev: analysis.luminanceStdDev,
+    anchorActivation,
     visualMetrics
   };
 }
 
-function createVisualMetrics({ input, layout, filePath, analysis }) {
+function createVisualMetrics({ input, layout, filePath, analysis, anchorActivation }) {
   const expectedRouteId = expectedRouteIdForCapture(input);
   const thresholds = visualThresholdsForCapture(input.name);
   const routePath = safeRoutePath(layout.url);
@@ -1378,6 +1429,7 @@ function createVisualMetrics({ input, layout, filePath, analysis }) {
       luminanceStdDev: analysis.luminanceStdDev
     },
     thresholds,
+    ...(anchorActivation ? { anchorActivation } : {}),
     result: {
       status: checks.every((check) => check.passed) ? "passed" : "failed",
       checks
@@ -1437,7 +1489,7 @@ function writeVisualMetricsManifest(screenshots) {
 
   writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
   record("browser_visual_metrics_manifest_written", true);
-  record("browser_visual_metrics_manifest_capture_count", captures.length === 7, String(captures.length));
+  record("browser_visual_metrics_manifest_capture_count", captures.length === EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT, String(captures.length));
   record("browser_visual_metrics_all_thresholds_passed", manifest.status === "passed", manifest.status);
 
   return manifestPath;
@@ -1452,6 +1504,7 @@ function formatScreenshotArtifact(screenshot) {
     pngBytes: screenshot.pngBytes,
     routeId: screenshot.routeId,
     thresholdStatus: screenshot.thresholdStatus,
+    ...(screenshot.anchorActivation ? { anchorActivation: screenshot.anchorActivation } : {}),
     metrics: {
       uniqueSampledColors: screenshot.uniqueSampledColors,
       nonLightRatio: screenshot.nonLightRatio,
@@ -1742,6 +1795,15 @@ function operationalAnchorSelector(anchor) {
   return `[data-ui-action="${anchor.action}"]`;
 }
 
+function operationalConsoleAnchorById(id) {
+  const anchor = OPERATIONAL_CONSOLE_ANCHORS.find((candidate) => candidate.id === id);
+  if (!anchor) {
+    throw new Error(`Unknown operational-console anchor: ${id}`);
+  }
+
+  return anchor;
+}
+
 async function waitForOperationalConsoleAnchorState(browser, context, anchor, inputMode) {
   return waitForBrowserState(
     browser,
@@ -1776,6 +1838,7 @@ function operationalConsoleAnchorStateExpression(anchor) {
       sectionMarker: section?.getAttribute("data-ui-section") ?? "",
       sectionTitle: title,
       sectionText,
+      sectionTextSample: sectionText.replace(/\\s+/g, " ").trim().slice(0, 240),
       sectionTextLength: sectionText.length,
       sectionVisible: Boolean(rect && rect.bottom > 12 && rect.top < window.innerHeight - 12),
       sectionTop: rect ? Math.round(rect.top) : null,
@@ -1805,6 +1868,80 @@ function assertOperationalConsoleAnchorState(inputMode, anchor, state) {
   if (anchor.id !== "dashboard") {
     record(`${prefix}_scroll_position_changed`, state.scrollY > 0, JSON.stringify(state));
   }
+}
+
+async function activateOperationalConsoleSectionForScreenshot(browser, context, anchor, captureName) {
+  const label = `section_screenshot_${anchor.id}_${captureName}_anchor`;
+  const target = await clickBrowserElement(browser, context, operationalAnchorSelector(anchor), label, {
+    ensureInViewport: false
+  });
+  record(
+    `browser_section_screenshot_${anchor.id}_anchor_clicked_for_${captureName}`,
+    target.dataAction === anchor.action && target.href.endsWith(anchor.href),
+    JSON.stringify(target)
+  );
+  record(
+    `browser_section_screenshot_${anchor.id}_anchor_used_visible_control_without_script_scroll`,
+    target.scrolledIntoView === false,
+    JSON.stringify(target)
+  );
+
+  const state = await waitForOperationalConsoleAnchorState(browser, context, anchor, "section_screenshot");
+  assertOperationalConsoleAnchorState("section_screenshot", anchor, state);
+
+  const metadata = {
+    schema: ANCHOR_SECTION_CAPTURE_SCHEMA,
+    captureId: captureName,
+    inputMode: "pointer",
+    anchor: {
+      id: anchor.id,
+      action: target.dataAction,
+      href: anchor.href,
+      selector: operationalAnchorSelector(anchor),
+      targetBounds: target.bounds,
+      usedVisibleControl: true,
+      scriptScrolledControl: target.scrolledIntoView
+    },
+    route: {
+      routeId: state.routeId,
+      path: state.path,
+      hash: state.hash,
+      scrollY: state.scrollY,
+      viewport: {
+        width: state.innerWidth,
+        height: state.innerHeight
+      }
+    },
+    section: {
+      id: state.sectionId,
+      marker: state.sectionMarker,
+      title: state.sectionTitle,
+      textLength: state.sectionTextLength,
+      textSample: redactSmokeText(state.sectionTextSample),
+      expectedTextMatched: anchor.expectedText,
+      viewportBounds: {
+        top: state.sectionTop,
+        bottom: state.sectionBottom
+      }
+    },
+    assertions: {
+      sectionVisible: state.sectionVisible,
+      noHorizontalOverflow: state.documentScrollWidth <= state.innerWidth + 2,
+      noCertificationClaims: state.certificationClaim === false
+    }
+  };
+  const serialized = JSON.stringify(metadata);
+
+  record(`browser_section_screenshot_${anchor.id}_metadata_records_anchor_action`, metadata.anchor.action === anchor.action, serialized);
+  record(`browser_section_screenshot_${anchor.id}_metadata_records_section_title`, metadata.section.title.length > 0, serialized);
+  record(`browser_section_screenshot_${anchor.id}_metadata_records_readable_text`, metadata.section.textLength > 80, serialized);
+  record(
+    `browser_section_screenshot_${anchor.id}_metadata_secret_free`,
+    !/puresoc_session=|"sessionToken"\s*:|"password"\s*:|"authorization"\s*:|"cookie"\s*:/i.test(serialized),
+    redactSmokeText(serialized)
+  );
+
+  return metadata;
 }
 
 async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl) {

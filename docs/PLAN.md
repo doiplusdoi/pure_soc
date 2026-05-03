@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M66 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M67 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -75,8 +75,9 @@ As of 2026-05-03, M1-M66 are implemented at contract/runtime-baseline level.
 - M64 adds visible served workspace selection after login. The API exposes current-session organization membership listing plus an active-organization session selection route guarded by active membership checks, the web runtime serves `/workspaces` and `/workspaces/select`, `@ui-smoke` seeds two organizations and proves the selected dashboard snapshot, and `@browser-smoke` clicks a visible workspace selector when Firefox WebDriver BiDi is available.
 - M65 adds lightweight Firefox screenshot visual thresholding to `@browser-smoke`. The smoke now emits `/tmp/puresoc-browser-smoke-*/visual-metrics-manifest.json` for the dashboard desktop/mobile, login mobile, evidence desktop, approvals desktop, and Romania desktop/mobile PNG captures with route id, viewport/PNG size, color-diversity, non-light, edge, luminance, dominant-color, and threshold result metadata. It catches blank, wrong-size, missing-route, and severe visual-collapse failures without Playwright, committed golden images, pixel-perfect diffs, or external calls.
 - M66 broadens the Firefox `@browser-smoke` workflow across operational-console section anchors after local login and workspace selection. Stable visible nav actions now cover dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue anchors; the smoke activates them through keyboard focus/Enter and visible pointer clicks, records hash/scroll state, target bounds, readable section text, no-overflow/no-certification checks, and preserves the visual manifest plus no-live-call guarantees.
+- M67 makes the Firefox section screenshot artifacts anchor-driven. The browser smoke now captures dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue PNGs only after visible anchor activation, extends the visual metrics manifest to 10 captures, and records secret-free anchor action, hash/scroll, section id/title, readable text, bounds, route marker, and no-live-call metadata.
 - Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, committed golden-image/pixel-diff review, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M67.md`, focused on anchor-driven browser screenshot artifacts for operational-console sections without introducing Playwright, golden images, or external calls.
+- Next planned milestone: `docs/PLAN_M68.md`, focused on a secret-free browser-smoke artifact index for the local Firefox/HTTP fallback outputs without introducing Playwright, golden images, or external calls.
 
 ## Milestones
 
@@ -97,8 +98,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M66.md` record completed incremental milestones.
-- `docs/PLAN_M67.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M67.md` record completed incremental milestones.
+- `docs/PLAN_M68.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

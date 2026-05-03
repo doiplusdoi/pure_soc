@@ -91,6 +91,7 @@ describe("web dashboard reports operational UI", () => {
 
     expect(smokeScript).toContain('const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1"');
     expect(smokeScript).toContain('"visual-metrics-manifest.json"');
+    expect(smokeScript).toContain("EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT = 10");
     expect(smokeScript).toContain("createVisualMetrics");
     expect(smokeScript).toContain("assertVisualThresholds");
     expect(smokeScript).toContain("edgeRatio");
@@ -99,6 +100,9 @@ describe("web dashboard reports operational UI", () => {
     expect(smokeScript).toContain("dashboard-desktop");
     expect(smokeScript).toContain("dashboard-mobile");
     expect(smokeScript).toContain("login-mobile");
+    expect(smokeScript).toContain("onboarding-section-desktop");
+    expect(smokeScript).toContain("microsoft365-section-desktop");
+    expect(smokeScript).toContain("gaps-section-desktop");
     expect(smokeScript).toContain("evidence-desktop");
     expect(smokeScript).toContain("approvals-desktop");
     expect(smokeScript).toContain("romania-route-desktop");
@@ -121,6 +125,27 @@ describe("web dashboard reports operational UI", () => {
     expect(smokeScript).toContain("section_enters_view");
     expect(smokeScript).toContain("click_used_visible_control_without_script_scroll");
     expect(smokeScript).toContain("anchorNavigation");
+  });
+
+  it("wires anchor-driven browser section screenshot metadata without direct section scroll captures", () => {
+    const smokeScript = readFileSync(new URL("../../../../scripts/run-ui-smoke.mjs", import.meta.url), "utf8");
+
+    expect(smokeScript).toContain('const ANCHOR_SECTION_CAPTURE_SCHEMA = "puresoc.ui_smoke.anchor_section_capture.v1"');
+    expect(smokeScript).toContain("activateOperationalConsoleSectionForScreenshot");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"dashboard\")");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"onboarding\")");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"microsoft365\")");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"gaps\")");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"evidence\")");
+    expect(smokeScript).toContain("anchorActivation: operationalConsoleAnchorById(\"approvals\")");
+    expect(smokeScript).toContain("browser_section_screenshot_");
+    expect(smokeScript).toContain("metadata_records_anchor_action");
+    expect(smokeScript).toContain("metadata_records_section_title");
+    expect(smokeScript).toContain("metadata_records_readable_text");
+    expect(smokeScript).toContain("metadata_secret_free");
+    expect(smokeScript).toContain("expectedTextMatched");
+    expect(smokeScript).not.toContain('scrollTarget: "#evidence"');
+    expect(smokeScript).not.toContain('scrollTarget: "#approvals"');
   });
 
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {

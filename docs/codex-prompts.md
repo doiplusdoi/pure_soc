@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M66, narrowing Firefox operational-console anchor workflow coverage, and staging Prompt 66 / `docs/PLAN_M67.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M67, narrowing Firefox anchor-driven section screenshot coverage, and staging Prompt 67 / `docs/PLAN_M68.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -96,6 +96,7 @@ The repository currently contains:
 - PLAN_M64 browser organization selection baseline: the API now lists current-session organizations and changes the session active organization only after active membership checks; `apps/web` serves `/workspaces` and `/workspaces/select`; `@ui-smoke` seeds two organizations and proves selected dashboard snapshot rendering; and `@browser-smoke` clicks a visible workspace selector before asserting selected session/dashboard state when Firefox WebDriver BiDi is available.
 - PLAN_M65 browser screenshot visual threshold baseline: `@browser-smoke` now emits `/tmp/puresoc-browser-smoke-*/visual-metrics-manifest.json` when Firefox captures the dashboard desktop/mobile, login mobile, evidence desktop, approvals desktop, and Romania desktop/mobile PNGs. The manifest records route id, viewport/PNG size, color-diversity, non-light, edge, luminance, dominant-color, and threshold result metadata, and the smoke fails blank, wrong-size, missing-route, and severe visual-collapse captures without Playwright, committed golden PNGs, pixel-perfect comparisons, external calls, or framework migration.
 - PLAN_M66 browser operational console anchor workflow baseline: operational-console sidebar anchors now have stable visible `data-ui-action` markers for dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue sections; `@browser-smoke` activates those anchors with keyboard focus/Enter and visible pointer clicks after local login/workspace selection, records hash/scroll state, target bounds, readable section text, no-overflow/no-certification checks, and preserves the M65 visual metrics manifest plus no-live-call posture without Playwright, cross-browser parity, external calls, or framework migration.
+- PLAN_M67 browser anchor-driven section screenshot baseline: `@browser-smoke` captures dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue PNGs only after visible anchor activation; the visual metrics manifest now records 10 captures with secret-free anchor action, hash/scroll, section id/title, readable text, route marker, and bounds metadata without direct section `scrollIntoView`, Playwright, golden images, cross-browser parity, external calls, or framework migration.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -169,7 +170,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 63 / `docs/PLAN_M64.md` is completed.
 - Prompt 64 / `docs/PLAN_M65.md` is completed.
 - Prompt 65 / `docs/PLAN_M66.md` is completed.
-- Prompt 66 / `docs/PLAN_M67.md` is staged as the next active implementation prompt.
+- Prompt 66 / `docs/PLAN_M67.md` is completed.
+- Prompt 67 / `docs/PLAN_M68.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -184,11 +186,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 66 / `docs/PLAN_M67.md`: Browser Anchor-Driven Section Screenshot Baseline.
+1. Prompt 67 / `docs/PLAN_M68.md`: Browser Smoke Artifact Index Baseline.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M67 must stay fully in-repo: make operational-console section screenshot captures rely on visible anchor workflow state using in-memory API/web surfaces only, without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, golden-image workflows, or a frontend framework/router migration.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M68 must stay fully in-repo: persist a secret-free browser-smoke artifact index for the existing local HTTP/Firefox smoke outputs without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, golden-image workflows, or a frontend framework/router migration.
 
-## Active Prompt 66 / PLAN_M67: Browser Anchor-Driven Section Screenshot Baseline
+## Active Prompt 67 / PLAN_M68: Browser Smoke Artifact Index Baseline
 
 Read:
 
@@ -198,7 +200,7 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M66.md`
+- `docs/PLAN_M67.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
 - `code/scripts/run-ui-smoke.mjs`
@@ -209,26 +211,25 @@ Read:
 
 Goal:
 
-Extend the Firefox browser smoke so operational-console section screenshots for dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approvals are captured from anchor-activated browser state rather than direct scripted scroll targets, while preserving M66 keyboard/pointer workflow coverage.
+Persist a secret-free browser-smoke artifact index beside the existing visual metrics manifest so a reviewer can inspect the local Firefox/HTTP smoke outputs, anchor-driven section screenshots, route traversal, workspace selection, and no-live-call posture from files rather than only stdout.
 
 Deliverables:
 
-- Reuse the M66 visible anchor selectors and browser helpers to prepare section-specific screenshot state through real anchor activation instead of direct `scrollIntoView` calls for operational-console section captures.
-- Extend `@browser-smoke`, when Firefox WebDriver BiDi is available, to capture and visual-threshold-check dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue PNGs with route id, hash/scroll state, section id/title, and anchor activation metadata in the visual metrics manifest or adjacent secret-free artifact metadata.
-- Keep M66 keyboard/pointer anchor workflow assertions, M65 visual metrics manifest/threshold checks, M64 workspace selection, M63 Romania pointer traversal, M62 Romania keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture intact.
+- Add a `browser-smoke-artifact-index.json` file under `/tmp/puresoc-browser-smoke-*` when Firefox WebDriver BiDi is available, with schema/version, artifact directory, screenshot summaries, visual metrics manifest path, M67 anchor-driven section capture summaries, M66 anchor workflow summaries, route traversal summaries, browser/auth/cookie smoke summaries, check count/status, and non-live guarantees.
+- Keep the index secret-free: do not include session cookies, passwords, session tokens, authorization headers, client secrets, provider tokens, endpoint secrets, raw provider payloads, object-storage URIs, or full user emails.
+- Keep M67 section screenshots anchor-driven and preserve M66 keyboard/pointer anchor workflow coverage, M65 visual thresholds, M64 workspace selection, M63 Romania pointer traversal, M62 Romania keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
 - Preserve the existing lightweight `node:http` web runtime and route-table API style; do not introduce Next.js/React, Playwright, Chromium/WebKit matrix setup, committed golden PNG files, or router/layout migrations in this slice.
-- Update GAP-031 and handoff docs to distinguish Firefox anchor-driven section screenshot artifacts from cross-browser Playwright parity or golden-image review.
-- Create `docs/PLAN_M68.md` from the next selected active prompt before final response.
+- Update GAP-031 and handoff docs to distinguish the Firefox artifact index from cross-browser Playwright parity, committed golden images, or production browser smoke.
+- Create `docs/PLAN_M69.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/scripts/run-ui-smoke.mjs`
-- `code/apps/web/src/operational-console.ts`
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M67.md`
 - `docs/PLAN_M68.md`
+- `docs/PLAN_M69.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -240,7 +241,7 @@ Negative constraints:
 - Do not hardcode workbook-derived regulatory rules in UI conditionals; use country-pack/onboarding data contracts.
 - Do not introduce a broad frontend framework, router migration, Playwright dependency, Chromium/WebKit setup, committed golden PNG baseline set, or layout rewrite.
 - Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
-- Do not weaken existing screenshot visual thresholds, browser workspace selection, session cookie, RBAC/organization scoping, Romania route, or no-live-call assertions.
+- Do not weaken existing screenshot visual thresholds, anchor-driven section screenshots, browser workspace selection, session cookie, RBAC/organization scoping, Romania route, or no-live-call assertions.
 
 Tests and acceptance commands:
 
@@ -248,18 +249,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui-smoke browser anchor screenshot visual dashboard gaps evidence approvals microsoft onboarding romania
+pnpm test -- web ui-smoke browser artifact index screenshot visual dashboard gaps evidence approvals microsoft onboarding romania
 pnpm test:e2e -- --grep @ui-smoke
 pnpm test:e2e -- --grep @browser-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M67.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof without claiming browser anchor-driven screenshot coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M68.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof without claiming browser artifact-index coverage.
 
 Expected gap movement:
 
-- Narrow GAP-031 for Firefox anchor-driven section screenshot artifacts when browser support is available, or preserve the browser blocker explicitly if not.
+- Narrow GAP-031 for a persisted Firefox browser-smoke artifact index when browser support is available, or preserve the browser blocker explicitly if not.
 - Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands or live external targets.
 
@@ -269,10 +270,23 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M67` updated
-- `PLAN_M68` created
+- `PLAN_M68` updated
+- `PLAN_M69` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 66 / PLAN_M67: Browser Anchor-Driven Section Screenshot Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Extended `pnpm test:e2e -- --grep @browser-smoke` so dashboard, onboarding/country-pack, Microsoft 365, gaps, evidence/reports, and approval queue section PNGs are captured only after visible sidebar anchor activation.
+- Added a secret-free anchor-section capture schema embedded in the visual metrics manifest and screenshot artifacts, recording anchor action, target bounds, hash/scroll state, section id/title, readable text sample, route marker, and no-overflow/no-certification assertions.
+- Increased the Firefox visual metrics manifest from 7 to 10 captures while preserving dashboard mobile, login mobile, Romania desktop/mobile screenshots, visual thresholds, workspace selection, route traversal, auth/cookie/Origin checks, and no-live-call posture.
+- Removed direct evidence/approval `scrollTarget` section captures from the browser smoke; generic scroll support remains available for non-section future use.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+GAP-031 is narrowed for Firefox anchor-driven operational-console section screenshot artifacts and manifest metadata. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 65 / PLAN_M66: Browser Operational Console Anchor Workflow Baseline
 
