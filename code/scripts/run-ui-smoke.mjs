@@ -233,7 +233,7 @@ async function runBrowserSmoke() {
             status: "blocked",
             blocker: !firefoxPath ? "firefox_not_found" : "node_websocket_unavailable",
             fallback:
-              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth and keyboard/navigation coverage, including Romania route coverage, is not claimed when this blocker is present.",
+              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth plus keyboard and pointer navigation coverage, including Romania route coverage, is not claimed when this blocker is present.",
             artifacts: {
               directory: artifactsDir
             },
@@ -281,7 +281,12 @@ async function runBrowserSmoke() {
     browser = await startFirefoxBidiBrowser(firefoxPath);
     const context = await createBrowserContext(browser);
     await assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, apiBackedDashboard);
-    const routeNavigation = await assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl);
+    const keyboardNavigation = await assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl);
+    const pointerNavigation = await assertBrowserRoutePointerNavigation(browser, context, webBaseUrl);
+    const routeNavigation = {
+      keyboard: keyboardNavigation,
+      pointer: pointerNavigation
+    };
     const screenshots = [];
 
     screenshots.push(
@@ -1354,6 +1359,131 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
   };
 }
 
+async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl) {
+  await browser.command("browsingContext.setViewport", {
+    context,
+    viewport: {
+      width: 1024,
+      height: 760
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command("browsingContext.navigate", {
+    context,
+    url: `${webBaseUrl}/`,
+    wait: "complete"
+  });
+  await waitForBrowserPaint(browser, context);
+
+  const dashboardLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("pointer_dashboard_start", dashboardLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Overall internal readiness", "Romania onboarding"],
+    expectOperationalConsole: true
+  });
+
+  const romaniaNavTarget = await clickBrowserElement(browser, context, '[data-ui-action="open-romania-onboarding"]', "dashboard_romania_nav_link");
+  record(
+    "browser_pointer_dashboard_romania_nav_link_clicked",
+    romaniaNavTarget.text.includes("Romania onboarding") && romaniaNavTarget.href.endsWith("/onboarding/romania?locale=ro-RO"),
+    JSON.stringify(romaniaNavTarget)
+  );
+  const romaniaLanding = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const text = document.body.innerText;
+      return JSON.stringify({
+        path: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
+        hasSourceMap: text.includes("Source Map Sample"),
+        hasNoDnscNotice: text.includes("PureSOC does not submit this draft to DNSC."),
+        hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
+        hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
+      });
+    })()`,
+    (candidate) =>
+      candidate.path === "/onboarding/romania" &&
+      candidate.search === "?locale=ro-RO" &&
+      candidate.routeMarker === true &&
+      candidate.hasSourceMap === true,
+    "dashboard to Romania onboarding pointer navigation",
+    5_000
+  );
+  record("browser_pointer_dashboard_to_romania_url_changed", romaniaLanding.path === "/onboarding/romania", JSON.stringify(romaniaLanding));
+  record("browser_pointer_dashboard_to_romania_route_marker", romaniaLanding.routeMarker === true, JSON.stringify(romaniaLanding));
+  record("browser_pointer_dashboard_to_romania_keeps_no_dnsc_notice", romaniaLanding.hasNoDnscNotice === true, JSON.stringify(romaniaLanding));
+  record("browser_pointer_dashboard_to_romania_no_certification_claims", romaniaLanding.hasCertificationClaim === false, JSON.stringify(romaniaLanding));
+  record("browser_pointer_dashboard_to_romania_no_direct_dnsc_submit_command", romaniaLanding.hasDirectDnscSubmitCommand === false, JSON.stringify(romaniaLanding));
+
+  await waitForBrowserPaint(browser, context);
+  const romaniaLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("pointer_romania_route", romaniaLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Romania NIS2 Onboarding", "missing_translation", "PureSOC does not submit this draft to DNSC."],
+    expectRomaniaRoute: true
+  });
+
+  const backLinkTarget = await clickBrowserElement(browser, context, '[data-ui-action="back-to-dashboard"]', "romania_back_link");
+  record(
+    "browser_pointer_romania_back_link_clicked",
+    backLinkTarget.text.includes("Back to dashboard") && backLinkTarget.href.endsWith("/"),
+    JSON.stringify(backLinkTarget)
+  );
+  const dashboardReturn = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const text = document.body.innerText;
+      return JSON.stringify({
+        path: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        dashboardMarker: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+        hasDashboardText: text.includes("Overall internal readiness"),
+        hasRomaniaMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
+        hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text)
+      });
+    })()`,
+    (candidate) => candidate.path === "/" && candidate.dashboardMarker === true && candidate.hasDashboardText === true,
+    "Romania back to dashboard pointer navigation",
+    5_000
+  );
+  record("browser_pointer_romania_back_link_returns_to_dashboard_url", dashboardReturn.path === "/", JSON.stringify(dashboardReturn));
+  record("browser_pointer_romania_back_link_returns_to_dashboard_marker", dashboardReturn.dashboardMarker === true, JSON.stringify(dashboardReturn));
+  record("browser_pointer_romania_back_link_no_certification_claims", dashboardReturn.hasCertificationClaim === false, JSON.stringify(dashboardReturn));
+
+  await waitForBrowserPaint(browser, context);
+  const returnedDashboardLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("pointer_dashboard_return", returnedDashboardLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Overall internal readiness", "Romania onboarding"],
+    expectOperationalConsole: true
+  });
+  record("browser_pointer_navigation_preserves_no_live_call_posture", true);
+
+  return {
+    dashboardToRomania: {
+      clickedAction: romaniaNavTarget.dataAction,
+      href: romaniaNavTarget.href,
+      path: romaniaLanding.path,
+      search: romaniaLanding.search,
+      targetBounds: romaniaNavTarget.bounds
+    },
+    romaniaBackToDashboard: {
+      clickedAction: backLinkTarget.dataAction,
+      href: backLinkTarget.href,
+      path: dashboardReturn.path,
+      targetBounds: backLinkTarget.bounds
+    }
+  };
+}
+
 async function resetBrowserFocus(browser, context) {
   await evaluateBrowserJson(
     browser,
@@ -1365,6 +1495,113 @@ async function resetBrowserFocus(browser, context) {
       }
       return JSON.stringify({
         activeTag: document.activeElement?.tagName ?? "",
+        path: location.pathname
+      });
+    })()`
+  );
+}
+
+async function clickBrowserElement(browser, context, selector, label) {
+  const target = await readBrowserPointerTarget(browser, context, selector);
+  record(`browser_pointer_${label}_target_found`, target.found === true, JSON.stringify(target));
+  record(`browser_pointer_${label}_target_visible`, target.visible === true, JSON.stringify(target));
+  record(`browser_pointer_${label}_target_has_bounds`, target.bounds.width > 0 && target.bounds.height > 0, JSON.stringify(target));
+  record(
+    `browser_pointer_${label}_target_center_in_viewport`,
+    target.center.x >= 0 &&
+      target.center.x <= target.viewport.width &&
+      target.center.y >= 0 &&
+      target.center.y <= target.viewport.height,
+    JSON.stringify(target)
+  );
+
+  await browser.command("input.performActions", {
+    context,
+    actions: [
+      {
+        type: "pointer",
+        id: `pointer-${slug(label)}`,
+        parameters: {
+          pointerType: "mouse"
+        },
+        actions: [
+          {
+            type: "pointerMove",
+            x: target.center.x,
+            y: target.center.y,
+            origin: "viewport",
+            duration: 0
+          },
+          {
+            type: "pointerDown",
+            button: 0
+          },
+          {
+            type: "pointerUp",
+            button: 0
+          }
+        ]
+      }
+    ]
+  });
+  record(`browser_pointer_${label}_click_performed`, true);
+
+  return target;
+}
+
+async function readBrowserPointerTarget(browser, context, selector) {
+  return evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element) {
+        return JSON.stringify({
+          found: false,
+          selector: ${JSON.stringify(selector)},
+          visible: false,
+          bounds: { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 },
+          center: { x: -1, y: -1 },
+          viewport: { width: window.innerWidth, height: window.innerHeight }
+        });
+      }
+      element.scrollIntoView({ block: "center", inline: "center" });
+      const style = getComputedStyle(element);
+      const rect = element.getBoundingClientRect();
+      const center = {
+        x: Math.round(rect.left + rect.width / 2),
+        y: Math.round(rect.top + rect.height / 2)
+      };
+      const visible =
+        style.display !== "none" &&
+        style.visibility !== "hidden" &&
+        rect.width > 0 &&
+        rect.height > 0 &&
+        center.x >= 0 &&
+        center.x <= window.innerWidth &&
+        center.y >= 0 &&
+        center.y <= window.innerHeight;
+      return JSON.stringify({
+        found: true,
+        selector: ${JSON.stringify(selector)},
+        tag: element.tagName,
+        text: element.textContent?.trim() ?? "",
+        dataAction: element.getAttribute("data-ui-action") ?? "",
+        href: element instanceof HTMLAnchorElement ? element.href : "",
+        visible,
+        bounds: {
+          top: Math.round(rect.top),
+          right: Math.round(rect.right),
+          bottom: Math.round(rect.bottom),
+          left: Math.round(rect.left),
+          width: Math.round(rect.width),
+          height: Math.round(rect.height)
+        },
+        center,
+        viewport: {
+          width: window.innerWidth,
+          height: window.innerHeight
+        },
         path: location.pathname
       });
     })()`

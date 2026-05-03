@@ -71,6 +71,18 @@ describe("web dashboard reports operational UI", () => {
     expect(buttonLabels.every((label) => label.length <= 32)).toBe(true);
   });
 
+  it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {
+    const dashboardHtml = renderOperationalConsole(createOperationalConsoleDemoModel());
+    const romaniaHtml = renderRomaniaOnboardingRoute(createRomaniaOnboardingRouteModel({ locale: "ro-RO" }));
+
+    expect(dashboardHtml).toContain(
+      '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
+    );
+    expect(dashboardHtml).not.toContain('onclick="');
+    expect(romaniaHtml).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
+    expect(romaniaHtml).not.toContain('onclick="');
+  });
+
   it("can render the console from an API session and dashboard snapshot contract", () => {
     const demo = createOperationalConsoleDemoModel();
     const html = renderOperationalConsole(
