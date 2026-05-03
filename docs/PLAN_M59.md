@@ -4,8 +4,10 @@
 
 Add a small served Romania onboarding route that consumes existing Romania country-pack/onboarding contracts and M58 message-catalog behavior without introducing a full frontend framework or live integrations.
 
-Status: staged for implementation after M58.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -41,11 +43,23 @@ Expected implementation areas:
 - Add tests proving the route renders source/caveat/fallback metadata, does not claim legal approval or DNSC submission, and remains compatible with `@ui-smoke`.
 - Update GAP-031 and preserve GAP-042/GAP-044 blockers.
 
+Expected files and ownership:
+
+- `code/apps/web/src/server.ts`: add the served `GET /onboarding/romania` route only.
+- `code/apps/web/src/operational-console.ts`: add the compact Romania route renderer and operational-console navigation link.
+- `code/apps/web/src/app-data.ts`: add any small route model helpers backed by existing contracts.
+- `code/apps/web/src/index.ts`: export any new renderer/helper needed by tests.
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`: cover the route, metadata, caveats, fallback, and forbidden claims.
+- `code/apps/web/package.json`: declare any new workspace dependency needed for country-pack contracts.
+- `code/README.md`: document the served Romania route.
+- `docs/PLAN.md`, `docs/PLAN_M59.md`, `docs/PLAN_M60.md`, `docs/codex-prompts.md`, `docs/implementation-gaps.md`, `docs/LEARNINGS.md`: update handoff and gap status.
+
 Locked assumptions:
 
 - This milestone is a served-runtime route slice, not a full Next.js/React migration.
 - Romania legal-caveat and regulatory notification copy remain English fallback until product/legal approval exists.
 - No live external services or external-smoke commands should run.
+- The served route may render demo/runtime contract data from in-repo Romania onboarding and notification-draft helpers; it must not fetch DNSC, Microsoft, Stripe, object storage, or public regulatory URLs.
 
 ## Negative Constraints
 
@@ -84,32 +98,60 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03 and completed 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Added a served `GET /onboarding/romania` route to the lightweight `apps/web` server.
+- Added a compact Romania onboarding/readiness route model backed by `@puresoc/country-pack-ro` onboarding schema, classification, notification draft, source-map, and M58 message-catalog fallback contracts.
+- Rendered source version, services workbook source range, classification, step coverage, notification draft metadata, source-map samples, legal caveat, fallback metadata, unsupported-state signals, and explicit no-DNSC-submission status.
+- Linked the operational console navigation to `/onboarding/romania?locale=ro-RO`.
+- Added renderer and served-route tests proving source/caveat/fallback/no-DNSC metadata and rejecting legal/certification claims.
+- Updated package metadata/lockfile for the web package dependency on `@puresoc/country-pack-ro`.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/web/package.json`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/apps/web/src/app-data.ts`
+- `code/apps/web/src/index.ts`
+- `code/apps/web/src/operational-console.ts`
+- `code/apps/web/src/server.ts`
+- `code/pnpm-lock.yaml`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M59.md`
+- `docs/PLAN_M60.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Passed: `flatpak-spawn --host npm run lint`.
+- Passed after adding the web workspace dependency and making the services source-map range visible on the route: `flatpak-spawn --host npm run test -- web ro onboarding i18n` (25 files, 110 tests).
+- Passed: `flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke`.
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
+- Used host npm equivalents because sandbox-local `pnpm` and `node` are unavailable in this environment. The local workspace `node_modules` symlink for `@puresoc/country-pack-ro` was refreshed manually for validation because host `pnpm` is not installed.
 
 Acceptance status:
 
-- Pending.
+- Accepted. The served route renders locally from in-repo Romania country-pack contracts, shows source/caveat/fallback/unsupported/no-submission metadata, preserves the existing `@ui-smoke` path, and does not call external services or provider write paths.
 
 Gaps updated:
 
-- Pending.
+- GAP-031 narrowed for a served Romania onboarding/readiness route and operational-console navigation link.
+- GAP-042 preserved for product/legal-approved Romanian legal/regulatory copy.
+- GAP-044 preserved; no external-smoke commands or live external calls were run.
 
 Prompt handoff:
 
-- Pending. M59 implementation must create `docs/PLAN_M60.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 58 / PLAN_M59 complete and stages Prompt 59 / PLAN_M60 for served Romania route UI smoke coverage.
+- `docs/PLAN_M60.md` created.
 
 Residual risk:
 
-- Pending.
+- The route is a compact server-rendered readiness view, not a persistent Romania onboarding wizard or full React/Next.js runtime.
+- The route has unit and served-route tests, and remains compatible with `@ui-smoke`; route-specific `@ui-smoke` viewport snapshots and browser traversal are staged for M60.
+- Romanian legal caveat and regulatory/workbook labels still fall back to English/source-mapped copy until product/legal-approved Romanian text exists.

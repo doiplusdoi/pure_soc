@@ -1,10 +1,25 @@
 import { aggregateDashboardFromStoredAnalysis, type DashboardSnapshotContract } from "@puresoc/dashboards";
+import {
+  buildRoNis2NotificationDraft,
+  buildRoNis2OnboardingProgress,
+  classifyRoNis2Entity,
+  roNis2OnboardingSchema,
+  romaniaCountryPackStatus,
+  toRoNis2ClassificationInput,
+  type Nis2Classification,
+  type RoNis2NotificationDraftJson,
+  type RoNis2OnboardingProgress,
+  type RoNis2OnboardingStepSchema,
+  type RoNis2SourceMapLink
+} from "@puresoc/country-pack-ro";
 import type { ActionRun } from "@puresoc/recommendations";
 import type { InternalReadinessReport, ReportEvidenceSummary, ReportSourceReference } from "@puresoc/reports";
 import {
   LEGAL_CAVEAT_MESSAGE_KEY,
   PURESOC_LEGAL_CAVEAT,
+  resolvePureSocLocale,
   type ActionableSeverity,
+  type PureSocLocale,
   type SourceReference
 } from "@puresoc/shared";
 
@@ -120,6 +135,24 @@ export interface ReportSurface {
   sourceReferences: ReportSourceReference[];
 }
 
+export interface RomaniaOnboardingUnsupportedSignal {
+  detail: string;
+  label: string;
+  tone: "warning" | "info";
+}
+
+export interface RomaniaOnboardingRouteModel {
+  classification: Nis2Classification;
+  countryPack: typeof romaniaCountryPackStatus;
+  notificationDraft: RoNis2NotificationDraftJson;
+  progress: RoNis2OnboardingProgress;
+  requestedLocale?: string;
+  resolvedLocale: PureSocLocale;
+  sourceMapLinks: readonly RoNis2SourceMapLink[];
+  steps: readonly RoNis2OnboardingStepSchema[];
+  unsupportedSignals: readonly RomaniaOnboardingUnsupportedSignal[];
+}
+
 const euArticle21: ReportSourceReference = {
   sourceRecordId: "eu-nis2-art-21",
   title: "NIS2 Article 21",
@@ -135,6 +168,8 @@ const roWorkbookSource: ReportSourceReference = {
   sourceLocation: "Notification form!B4",
   sourceVersion: "nis2ro-tool-v-2-1"
 };
+
+const romaniaRouteGeneratedAt = "2026-05-03T09:00:00.000Z";
 
 export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => {
   const organizationId = "org_operational_ui";
@@ -462,6 +497,108 @@ export const createOperationalConsoleRuntimeModel = (input: {
   };
 };
 
+export const createRomaniaOnboardingRouteModel = (input: { locale?: string | null } = {}): RomaniaOnboardingRouteModel => {
+  const requestedLocale = input.locale ?? "ro-RO";
+  const resolvedLocale = resolvePureSocLocale(requestedLocale);
+  const answers = {
+    activity: {
+      mainNaceCode: "6201"
+    },
+    address: {
+      city: "Bucuresti",
+      country: "Romania",
+      county: "Bucuresti",
+      street: "Strada Exemplu"
+    },
+    contact: {
+      email: "security@example.test"
+    },
+    entity: {
+      cui: "RO12345678",
+      legalName: "Example Manufacturing SRL",
+      nationalRegistrationNumber: "J40/1234/2026"
+    },
+    network: {
+      systemsDescription: "Microsoft 365, identity, collaboration, and production support systems."
+    },
+    relationship: {
+      criticalEntityInRomaniaLaw294: false,
+      establishedInRomania: true,
+      mainOfficeInRomania: true,
+      providesServicesInAnotherEuMemberState: false,
+      providesServicesInRomania: true,
+      publicAdministrationEstablishedByRomania: false
+    },
+    selectedServiceTypeCodes: ["108004"],
+    size: {
+      employeeCount: 85,
+      sizeCategory: "medium" as const
+    }
+  };
+  const progress = buildRoNis2OnboardingProgress({
+    answers,
+    completedSteps: [
+      "organization_identity",
+      "entity_address_contact",
+      "activity_nace",
+      "entity_size",
+      "services",
+      "relationship_with_romania",
+      "network_system_data",
+      "law294"
+    ],
+    currentStep: "cybersecurity_responsible",
+    savedAt: romaniaRouteGeneratedAt,
+    status: "in_progress"
+  });
+  const classification = classifyRoNis2Entity(toRoNis2ClassificationInput(answers));
+  const notificationDraft = buildRoNis2NotificationDraft({
+    answers,
+    classification,
+    generatedAt: romaniaRouteGeneratedAt,
+    locale: requestedLocale,
+    status: "draft"
+  });
+
+  return {
+    classification,
+    countryPack: romaniaCountryPackStatus,
+    notificationDraft,
+    progress,
+    requestedLocale: resolvedLocale.requestedLocale,
+    resolvedLocale: resolvedLocale.locale,
+    sourceMapLinks: dedupeSourceMapLinks([...progress.sourceMapLinks, ...classification.sourceMapLinks, ...notificationDraft.sourceMapLinks]),
+    steps: roNis2OnboardingSchema,
+    unsupportedSignals: [
+      {
+        label: "Direct DNSC submission",
+        detail: notificationDraft.submission.submittedToDnsc
+          ? "Unexpected submitted state."
+          : "Not performed by PureSOC. The route prepares an internal draft only.",
+        tone: "warning"
+      },
+      {
+        label: "Legal activation",
+        detail: "Workbook-derived Romania logic stays review-required until source validation and legal/product review are complete.",
+        tone: "warning"
+      },
+      {
+        label: "Romanian regulatory copy",
+        detail:
+          notificationDraft.legalCaveatFallbackUsed || notificationDraft.fields.some((field) => field.labelFallbackUsed)
+            ? "Requested Romanian legal/regulatory text falls back to English/source-mapped labels with missing-translation metadata."
+            : "Requested copy resolved without fallback.",
+        tone: "info"
+      },
+      {
+        label: "Frontend runtime",
+        detail: "This is a small served route, not a full React or Next.js onboarding wizard.",
+        tone: "info"
+      }
+    ]
+  };
+};
+
 const createMfaActionRun = (organizationId: string, now: string, sourceReferences: SourceReference[]): ActionRun => ({
   id: "action_mfa_admin_policy",
   organizationId,
@@ -533,3 +670,12 @@ const createMfaActionRun = (organizationId: string, now: string, sourceReference
   createdAt: now,
   updatedAt: now
 });
+
+const dedupeSourceMapLinks = (links: readonly RoNis2SourceMapLink[]): RoNis2SourceMapLink[] => {
+  const byId = new Map<string, RoNis2SourceMapLink>();
+  for (const link of links) {
+    byId.set(link.sourceMapId, link);
+  }
+
+  return [...byId.values()];
+};

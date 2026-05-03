@@ -59,6 +59,7 @@ Keep entries short, specific, and actionable.
 - ADR-017 records the current runtime stack deviations. The repo currently uses `node:http` for API and web, a custom Redis job adapter, deterministic HTTP UI snapshots, and host Firefox WebDriver BiDi where available; do not describe the current runtime as NestJS, Next.js, BullMQ-package, or Playwright-backed unless those migrations happen.
 - `apps/web` now proxies local login/logout/session to the API. The server preserves the API-issued `puresoc_session` cookie and renders `/` from `GET /organizations/:orgId/dashboards/snapshots/latest` when the API session has an active organization.
 - `pnpm test:e2e -- --grep @ui-smoke` now seeds a local API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server. It still makes no live external calls and must not print session cookies or user emails in smoke output.
+- `apps/web` also serves `GET /onboarding/romania` as a small contract-backed route, not a full wizard. It should keep using `@puresoc/country-pack-ro` onboarding schema, classification, notification-draft, source-map, and message-catalog metadata; it must keep no-DNSC-submission and legal-caveat fallback signals visible until product/legal-approved Romanian regulatory copy exists.
 
 ## How To Add Learnings
 

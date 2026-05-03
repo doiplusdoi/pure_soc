@@ -1,3 +1,5 @@
+import { once } from "node:events";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -5,9 +7,12 @@ import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import {
   createOperationalConsoleDemoModel,
   createOperationalConsoleRuntimeModel,
+  createRomaniaOnboardingRouteModel,
   renderLoginScreen,
-  renderOperationalConsole
+  renderOperationalConsole,
+  renderRomaniaOnboardingRoute
 } from "../index";
+import { startWebServer } from "../server";
 
 describe("web dashboard reports operational UI", () => {
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
@@ -112,11 +117,60 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Tablou de bord");
     expect(html).toContain("Dovezi si rapoarte");
     expect(html).toContain("Coada de aprobari");
+    expect(html).toContain('href="/onboarding/romania?locale=ro-RO"');
     expect(html).toContain(PURESOC_LEGAL_CAVEAT);
     expect(login).toContain('<html lang="ro">');
     expect(login).toContain("Autentificare");
     expect(login).toContain("Sesiune API");
     expect(login).toContain('<label for="password">Parola</label>');
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("renders the Romania onboarding route from country-pack contracts with fallback and no-submission metadata", () => {
+    const model = createRomaniaOnboardingRouteModel({
+      locale: "ro-RO"
+    });
+    const html = renderRomaniaOnboardingRoute(model);
+
+    expect(html).toContain('data-ui-smoke="romania-onboarding-route"');
+    expect(html).toContain('<html lang="ro">');
+    expect(html).toContain("Romania NIS2 Onboarding");
+    expect(html).toContain("roNis2OnboardingSchema");
+    expect(html).toContain("ro-nis2-entity_fields-entity_field_12_name_of_the_entity");
+    expect(html).toContain("Entity assessment!D66:D142");
+    expect(html).toContain("missing_translation");
+    expect(html).toContain("requested ro-RO");
+    expect(html).toContain(PURESOC_LEGAL_CAVEAT);
+    expect(html).toContain("not a legal opinion");
+    expect(html).toContain("Direct DNSC submission");
+    expect(html).toContain("Not performed by PureSOC");
+    expect(html).toContain("Submitted to DNSC");
+    expect(html).toContain("false");
+    expect(html).toContain("PureSOC does not submit this draft to DNSC.");
+    expect(html).toContain("not a full React or Next.js onboarding wizard");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+    expect(html).not.toContain("Submitted to DNSC true");
+  });
+
+  it("serves GET /onboarding/romania without requiring live API or external integrations", async () => {
+    const server = startWebServer(0, {
+      apiBaseUrl: "http://127.0.0.1:1",
+      publicBaseUrl: "http://127.0.0.1"
+    });
+    await once(server, "listening");
+    const address = server.address() as AddressInfo;
+
+    try {
+      const response = await fetch(`http://127.0.0.1:${address.port}/onboarding/romania?locale=ro-RO`);
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(html).toContain("Romania NIS2 Onboarding");
+      expect(html).toContain("missing_translation");
+      expect(html).toContain("no DNSC submission");
+      expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+    } finally {
+      await new Promise<void>((resolve) => server.close(() => resolve()));
+    }
   });
 });

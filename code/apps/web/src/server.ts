@@ -2,8 +2,13 @@ import { createServer } from "node:http";
 
 import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
-import { createOperationalConsoleRuntimeModel, type RuntimeSessionSurface } from "./app-data";
-import { renderLoginScreen, renderOperationalConsole, renderRuntimeMessageScreen } from "./operational-console";
+import { createOperationalConsoleRuntimeModel, createRomaniaOnboardingRouteModel, type RuntimeSessionSurface } from "./app-data";
+import {
+  renderLoginScreen,
+  renderOperationalConsole,
+  renderRomaniaOnboardingRoute,
+  renderRuntimeMessageScreen
+} from "./operational-console";
 
 export interface WebServerOptions {
   apiBaseUrl?: string;
@@ -45,6 +50,18 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         renderLoginScreen({
           activeOrganizationId: url.searchParams.get("organizationId")
         })
+      );
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/onboarding/romania") {
+      sendHtml(
+        response,
+        renderRomaniaOnboardingRoute(
+          createRomaniaOnboardingRouteModel({
+            locale: url.searchParams.get("locale")
+          })
+        )
       );
       return;
     }

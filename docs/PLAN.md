@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M58 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M59 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -67,8 +67,9 @@ As of 2026-05-03, M1-M58 are implemented at contract/runtime-baseline level.
 - M56 hardens persisted audit append ordering. Prisma audit writes now run inside a transaction-scoped PostgreSQL advisory lock per audit scope, store `scopeKey`/`chainSequence` metadata behind a unique `(scopeKey, chainSequence)` index, and use the sequence for latest-anchor reads and exports so concurrent same-scope writes cannot fork the chain in the deterministic repository contract. Memory mode remains process-local deterministic behavior, not multi-process persistence.
 - M57 splits the memory-mode API repository god-object into per-context identity/org/RBAC, evidence, and billing adapters exposed through `services.memoryRepositories`, and replaces the long API regex dispatcher with `apiRouteTable` method/pattern/route-family/handler entries. Stripe raw-body handling, JSON request limits, middleware route-family behavior, callbacks, cookies, authorization, and response contracts remain unchanged.
 - M58 adds shared `en`/`ro` message-catalog resolution with requested/resolved locale, fallback reason, message key, message kind, and review status metadata. Reports, generic country-pack envelopes, Romania notification draft generation, and selected served-web labels now consume the resolver. Romanian legal-caveat and regulatory/workbook notification labels remain English fallback with explicit `missing_translation` metadata until product/legal-approved copy exists.
+- M59 adds a served `GET /onboarding/romania` route to the lightweight web runtime, linked from the operational console. The route renders a compact Romania onboarding/readiness view from existing country-pack onboarding schema, classification, notification draft, source-map, and message-catalog fallback contracts. It shows source, caveat, fallback, unsupported-state, and no-DNSC-submission metadata without live external calls, direct DNSC submission, or legal/certification claims.
 - Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M59.md`, focused on a served Romania onboarding route baseline.
+- Next planned milestone: `docs/PLAN_M60.md`, focused on route-specific served UI smoke coverage for the Romania onboarding route.
 
 ## Milestones
 
@@ -89,8 +90,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M58.md` record completed incremental milestones.
-- `docs/PLAN_M59.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M59.md` record completed incremental milestones.
+- `docs/PLAN_M60.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

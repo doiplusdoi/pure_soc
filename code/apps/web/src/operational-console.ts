@@ -26,6 +26,7 @@ import type {
   OnboardingSurface,
   OperationalConsoleModel,
   OperationalStatus,
+  RomaniaOnboardingRouteModel,
   RecommendationSurface,
   ReportSurface
 } from "./app-data";
@@ -50,6 +51,10 @@ export interface RuntimeMessageScreenInput {
   statusTone?: PureSocUiTone;
   summary: string;
   title: string;
+}
+
+export interface RenderRomaniaOnboardingRouteOptions {
+  includeDocumentShell?: boolean;
 }
 
 interface OperationalConsoleCopy {
@@ -183,6 +188,202 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     ].join("");
   };
 
+export const renderRomaniaOnboardingRoute = (
+  model: RomaniaOnboardingRouteModel,
+  options: RenderRomaniaOnboardingRouteOptions = {}
+): string => {
+  const completedSteps = new Set(model.progress.completedSteps);
+  const requiredFieldCount = model.steps.reduce((total, step) => total + step.requiredFieldPaths.length, 0);
+  const completedRequiredFieldCount = requiredFieldCount - model.progress.missingRequiredFields.length;
+  const labelFallbackCount = model.notificationDraft.fields.filter((field) => field.labelFallbackUsed).length;
+  const servicesSourceMap = model.sourceMapLinks.find((link) => link.targetCollection === "service_options");
+  const content = [
+    '<a class="ps-skip-link" href="#content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
+    renderSection({
+      id: "romania-onboarding",
+      title: "Romania NIS2 Onboarding",
+      eyebrow: renderStatusPill({ label: model.countryPack.countryPackStatus.replaceAll("_", " "), tone: "warning" }),
+      body: [
+        '<div class="ps-grid">',
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Workbook-backed progress</h3>',
+        `<p>${escapeHtml(model.progress.completedSteps.length)} of ${escapeHtml(model.steps.length)} steps have contract data on this served route.</p>`,
+        renderMeter({
+          label: "Required field coverage",
+          value: Math.round((completedRequiredFieldCount / requiredFieldCount) * 100),
+          source: "roNis2OnboardingSchema"
+        }),
+        renderSourceChip({ label: "Source version", detail: model.progress.sourceVersion }),
+        servicesSourceMap
+          ? renderSourceChip({ label: "Services source", detail: servicesSourceMap.workbookRange ?? servicesSourceMap.sourceMapId })
+          : "",
+        "</article>",
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Preliminary classification</h3>',
+        renderStatusPill({ label: model.classification.result.replaceAll("_", " "), tone: "warning" }),
+        `<p>${escapeHtml(model.classification.reasons[0] ?? "Classification awaits more source-mapped answers.")}</p>`,
+        renderSourceChip({ label: "Matched rules", detail: `${model.classification.matchedRules.length}` }),
+        "</article>",
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Locale and fallback</h3>',
+        renderStatusPill({ label: `requested ${model.requestedLocale ?? model.resolvedLocale}`, tone: "info" }),
+        renderStatusPill({ label: `caveat ${model.notificationDraft.legalCaveatLocale}`, tone: "warning" }),
+        renderStatusPill({
+          label: model.notificationDraft.legalCaveatFallbackReason ?? "no caveat fallback",
+          tone: model.notificationDraft.legalCaveatFallbackUsed ? "warning" : "success"
+        }),
+        `<p class="ps-muted">${escapeHtml(labelFallbackCount)} notification labels currently use fallback metadata for this locale.</p>`,
+        "</article>",
+        "</div>"
+      ].join("")
+    }),
+    renderSection({
+      id: "romania-unsupported",
+      title: "Boundaries And Unsupported States",
+      eyebrow: renderStatusPill({ label: "internal readiness only", tone: "accent" }),
+      body: [
+        '<div class="ps-grid">',
+        ...model.unsupportedSignals.map(
+          (signal) =>
+            `<article class="ps-panel"><h3 class="ps-panel__title">${escapeHtml(signal.label)}</h3>${renderStatusPill({
+              label: signal.tone === "warning" ? "unsupported" : "documented",
+              tone: signal.tone
+            })}<p>${escapeHtml(signal.detail)}</p></article>`
+        ),
+        "</div>",
+        renderLegalCaveat(model.notificationDraft.legalCaveat)
+      ].join("")
+    }),
+    renderSection({
+      id: "romania-steps",
+      title: "Onboarding Contract Steps",
+      eyebrow: renderSourceChip({ label: "Schema", detail: "roNis2OnboardingSchema" }),
+      body: renderDataTable(
+        "Romania onboarding steps",
+        [
+          {
+            header: "Step",
+            render: (step) => `<strong>${escapeHtml(formatKeyLabel(step.key))}</strong><br><span class="ps-muted">${escapeHtml(step.key)}</span>`
+          },
+          {
+            header: "Status",
+            render: (step) =>
+              renderStatusPill({
+                label: completedSteps.has(step.key) ? "source-mapped" : step.key === model.progress.currentStep ? "current" : "pending",
+                tone: completedSteps.has(step.key) ? "success" : step.key === model.progress.currentStep ? "info" : "neutral"
+              })
+          },
+          {
+            header: "Required fields",
+            render: (step) =>
+              step.requiredFieldPaths.length === 0
+                ? '<span class="ps-muted">None in current contract</span>'
+                : step.requiredFieldPaths.map((field) => escapeHtml(field)).join("<br>")
+          },
+          {
+            header: "Source maps",
+            render: (step) => escapeHtml(`${step.sourceMapIds.length} source map ids`)
+          }
+        ],
+        model.steps
+      )
+    }),
+    renderSection({
+      id: "romania-draft",
+      title: "Notification Draft Metadata",
+      eyebrow: renderStatusPill({ label: "no DNSC submission", tone: "warning" }),
+      body: [
+        '<div class="ps-grid">',
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Draft envelope</h3>',
+        renderStatusPill({ label: model.notificationDraft.status, tone: "info" }),
+        renderSourceChip({ label: "Payload schema", detail: model.notificationDraft.payloadSchemaKey }),
+        renderSourceChip({ label: "Submitted to DNSC", detail: String(model.notificationDraft.submission.submittedToDnsc) }),
+        "</article>",
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Submission notice</h3>',
+        `<p>${escapeHtml(model.notificationDraft.submission.notice)}</p>`,
+        renderStatusPill({
+          label: model.notificationDraft.submission.noticeFallbackReason ?? "source approved",
+          tone: model.notificationDraft.submission.noticeFallbackUsed ? "warning" : "success"
+        }),
+        "</article>",
+        "</div>",
+        renderDataTable(
+          "First source-mapped draft fields",
+          [
+            {
+              header: "Field",
+              render: (field) => `<strong>${escapeHtml(field.label)}</strong><br><span class="ps-muted">${escapeHtml(field.key)}</span>`
+            },
+            {
+              header: "Locale",
+              render: (field) =>
+                [
+                  renderStatusPill({ label: field.labelLocale, tone: field.labelFallbackUsed ? "warning" : "success" }),
+                  field.labelFallbackReason ? renderStatusPill({ label: field.labelFallbackReason, tone: "warning" }) : ""
+                ].join(" ")
+            },
+            {
+              header: "Source",
+              render: (field) =>
+                `${renderSourceChip({ label: field.sourceMapId, detail: `Notification form!${field.targetCell}` })}<br>${escapeHtml(
+                  formatRoSourceReferences(field.sourceReferences)
+                )}`
+            }
+          ],
+          model.notificationDraft.fields.slice(0, 6)
+        )
+      ].join("")
+    }),
+    renderSection({
+      id: "romania-source-map",
+      title: "Source Map Sample",
+      eyebrow: renderSourceChip({ label: "Workbook-derived mappings", detail: `${model.sourceMapLinks.length} unique ids` }),
+      body: renderDataTable(
+        "Source map links",
+        [
+          {
+            header: "Target",
+            render: (link) => `<strong>${escapeHtml(link.targetCollection)}</strong><br><span class="ps-muted">${escapeHtml(link.targetKey)}</span>`
+          },
+          {
+            header: "Workbook range",
+            render: (link) => escapeHtml(link.workbookRange ?? formatRoSourceReferences(link.sourceReferences))
+          },
+          {
+            header: "Source map id",
+            render: (link) => escapeHtml(link.sourceMapId)
+          }
+        ],
+        model.sourceMapLinks.slice(0, 8)
+      )
+    }),
+    '<p><a class="ps-command" href="/">Back to dashboard</a></p>',
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${model.resolvedLocale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Romania NIS2 onboarding | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
 const resolveOperationalConsoleCopy = (locale?: string | null): OperationalConsoleCopy => {
   const resolvedLocale = resolvePureSocLocale(locale).locale;
   const text = (messageKey: string): string => resolvePureSocMessage({ locale, messageKey }).text;
@@ -207,6 +408,7 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
   const items = [
     [copy.dashboard, "#dashboard"],
     ["Onboarding", "#onboarding"],
+    ["Romania onboarding", "/onboarding/romania?locale=ro-RO"],
     ["Microsoft 365", "#microsoft365"],
     ["Gaps", "#gaps"],
     [copy.evidenceReports, "#evidence"],
@@ -590,6 +792,15 @@ const renderSources = (sources: readonly ReportSourceReference[]): string =>
           })
         )
         .join("")}</div>`;
+
+const formatKeyLabel = (key: string): string =>
+  key
+    .split("_")
+    .map((part) => (part.length === 0 ? part : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`))
+    .join(" ");
+
+const formatRoSourceReferences = (references: readonly { cell?: string; range?: string; sheet: string }[]): string =>
+  references.map((reference) => [reference.sheet, reference.cell ?? reference.range].filter(Boolean).join("!")).join(", ");
 
 const toneForStatus = (status: OperationalStatus): PureSocUiTone => {
   if (status === "ready") {

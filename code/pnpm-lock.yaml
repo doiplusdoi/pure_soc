@@ -176,6 +176,9 @@ importers:
 
   apps/web:
     dependencies:
+      '@puresoc/country-pack-ro':
+        specifier: workspace:*
+        version: link:../../packages/compliance/nis2/country-packs/ro
       '@puresoc/dashboards':
         specifier: workspace:*
         version: link:../../packages/dashboards

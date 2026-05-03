@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "dependencies": {
+    "@puresoc/country-pack-ro": "workspace:*",
     "@puresoc/dashboards": "workspace:*",
     "@puresoc/recommendations": "workspace:*",
     "@puresoc/reports": "workspace:*",

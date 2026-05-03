@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M58, narrowing Romanian message-catalog runtime risk, and staging Prompt 58 / `docs/PLAN_M59.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M59, narrowing served Romania onboarding route risk, and staging Prompt 59 / `docs/PLAN_M60.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -88,6 +88,7 @@ The repository currently contains:
 - PLAN_M56 audit-chain append concurrency: Prisma audit writes now use a transaction-scoped PostgreSQL advisory lock per audit scope, persisted `scopeKey`/`chainSequence` ordering metadata, and a unique `(scopeKey, chainSequence)` index so same-scope concurrent appends produce one deterministic chain. In-memory audit writes serialize only within one process for tests/local mode and remain non-persistent/non-multi-process.
 - PLAN_M57 memory repository split and API route table: memory-mode API repositories now expose separate identity/org/RBAC, evidence, and billing adapters through `services.memoryRepositories`; the old `InMemoryPureSocRepository` god-object was removed; `apps/api/src/server.ts` dispatches through `apiRouteTable` method/pattern/route-family/handler metadata while preserving raw Stripe body handling, JSON limits, callbacks, cookies, middleware ordering, authorization, and response contracts.
 - PLAN_M58 Romanian message catalog runtime: `@puresoc/shared` now exposes shared `en`/`ro` message-catalog resolution with requested/resolved locale, fallback reason, message key, message kind, and review status metadata. Reports, generic country-pack envelopes, Romania notification drafts, and selected served-web labels consume the resolver. Romanian legal-caveat and regulatory/workbook notification labels remain English fallback with explicit `missing_translation` metadata until product/legal-approved copy exists.
+- PLAN_M59 served Romania onboarding route baseline: `apps/web` now serves `GET /onboarding/romania` from existing Romania onboarding schema, classification, notification-draft, source-map, and message-catalog fallback contracts. The operational console links to the route, and tests cover source/caveat/fallback/no-DNSC metadata without legal/certification claims or live external calls.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -153,7 +154,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 55 / `docs/PLAN_M56.md` is completed.
 - Prompt 56 / `docs/PLAN_M57.md` is completed.
 - Prompt 57 / `docs/PLAN_M58.md` is completed.
-- Prompt 58 / `docs/PLAN_M59.md` is staged as the next active implementation prompt.
+- Prompt 58 / `docs/PLAN_M59.md` is completed.
+- Prompt 59 / `docs/PLAN_M60.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -168,11 +170,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 58 / `docs/PLAN_M59.md`: Served Romania Onboarding Route Baseline.
+1. Prompt 59 / `docs/PLAN_M60.md`: Served Romania Route UI Smoke Coverage.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M59 must stay fully in-repo: add a small served Romania onboarding route baseline without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M60 must stay fully in-repo: extend local served UI smoke coverage for the Romania onboarding route without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 58 / PLAN_M59: Served Romania Onboarding Route Baseline
+## Active Prompt 59 / PLAN_M60: Served Romania Route UI Smoke Coverage
 
 Read:
 
@@ -182,44 +184,42 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M58.md`
+- `docs/PLAN_M59.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
+- `code/scripts/run-ui-smoke.mjs`
 - `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
 - `code/apps/web/src/app-data.ts`
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/onboarding.schema.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Add a small served Romania onboarding route that consumes existing Romania country-pack/onboarding contracts and M58 message-catalog behavior without introducing a full frontend framework or live integrations.
+Extend the local served UI smoke so the new Romania onboarding route is exercised as a rendered route, not only as a unit/server test, while preserving the current lightweight `node:http` runtime and no-live-call posture.
 
 Deliverables:
 
-- Add a served `GET /onboarding/romania` or equivalent Romania onboarding route in `apps/web`.
-- Render a compact Romania onboarding/readiness view from existing country-pack schema/source-map metadata and M58 catalog/caveat metadata.
-- Link to the route from the operational console without changing dashboard layout or adding a broad frontend/i18n framework.
-- Show source, caveat, fallback, unsupported-state, and no-DNSC-submission signals honestly.
-- Add tests proving the route renders source/caveat/fallback metadata, avoids legal/certification claims, and remains compatible with `@ui-smoke`.
-- Update GAP-031 and handoff docs with exactly what is now served versus still blocked on full React/Next.js/browser-matrix work.
-- Create `docs/PLAN_M60.md` from the next selected active prompt before final response.
+- Update `@ui-smoke` to fetch `GET /onboarding/romania?locale=ro-RO` from the local served web runtime.
+- Write deterministic desktop/mobile HTML viewport snapshots for the Romania route, or record explicit route snapshot metadata in the existing artifact directory.
+- Add smoke assertions for source-map, caveat, fallback, unsupported-state, no-DNSC-submission, responsive/focus, and forbidden legal/certification claims.
+- Keep the operational-console dashboard, login/session proxy, cookie, Origin, and callback exemption checks intact.
+- Add focused tests for the smoke assertion helpers if they are factored.
+- Update GAP-031 and handoff docs to distinguish route existence from route-specific smoke/browser coverage.
+- Create `docs/PLAN_M61.md` from the next selected active prompt before final response.
 
 Expected files:
 
+- `code/scripts/run-ui-smoke.mjs`
 - `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
 - `code/apps/web/src/app-data.ts`
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/onboarding.schema.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M59.md`
 - `docs/PLAN_M60.md`
+- `docs/PLAN_M61.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -238,17 +238,17 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ro onboarding i18n
+pnpm test -- web ui-smoke romania onboarding
 pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M59.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M60.md`.
 
 Expected gap movement:
 
-- Narrow GAP-031 for a served Romania onboarding route and operational-console navigation.
+- Narrow GAP-031 for local served UI smoke coverage of the Romania onboarding route.
 - Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands.
 
@@ -258,10 +258,32 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M59` updated
-- `PLAN_M60` created
+- `PLAN_M60` updated
+- `PLAN_M61` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 58 / PLAN_M59: Served Romania Onboarding Route Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Added `GET /onboarding/romania` to the lightweight `apps/web` server.
+- Added a compact Romania onboarding/readiness route model and renderer using `@puresoc/country-pack-ro` onboarding schema, classification, notification draft, source-map, and M58 message-catalog fallback metadata.
+- Linked the operational console navigation to `/onboarding/romania?locale=ro-RO`.
+- Rendered visible source, caveat, fallback, unsupported-state, and no-DNSC-submission signals without direct DNSC submission, unapproved Romanian legal/regulatory translations, broad frontend framework changes, or certification/legal approval claims.
+- Added focused renderer and served-route tests, and documented the route in `code/README.md`.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+Validated with host npm equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run lint`
+- `npm run test -- web ro onboarding i18n`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M59 acceptance command results are recorded in `docs/PLAN_M59.md`.
+
+GAP-031 is narrowed for the served Romania onboarding route and operational-console navigation. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 57 / PLAN_M58: Romanian Message Catalog Runtime
 

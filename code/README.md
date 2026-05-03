@@ -90,6 +90,7 @@ Implemented web paths:
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
 - `GET /`: resolves the API session and active organization, then renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
+- `GET /onboarding/romania`: renders a compact Romania NIS2 onboarding/readiness route from the checked-in Romania country-pack onboarding schema, classification helper, notification draft metadata, source-map links, and message-catalog fallback metadata. The route is an internal readiness view only; it prepares no DNSC submission, makes no live external calls, and does not claim legal certification.
 
 The local UI smoke seeds a synthetic in-memory API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server:
 
@@ -97,7 +98,7 @@ The local UI smoke seeds a synthetic in-memory API user, organization, complianc
 pnpm test:e2e -- --grep @ui-smoke
 ```
 
-This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, Romania onboarding screens, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
+This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, a persistent Romania onboarding wizard, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
 ### Message Catalog Runtime
 
