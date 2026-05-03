@@ -51,8 +51,16 @@ model Example {
 
     expect(formatPrismaContractDriftResult(result)).toContain("Prisma schema/contract drift check passed");
     expect(result.valid).toBe(true);
-    expect(result.checkedModels).toBeGreaterThanOrEqual(18);
-    expect(result.checkedFields).toBeGreaterThan(180);
+    expect(result.checkedModels).toBeGreaterThanOrEqual(32);
+    expect(result.checkedFields).toBeGreaterThan(460);
+  });
+
+  it("includes selected output metadata surfaces in schema drift coverage", () => {
+    const coveredModels = defaultPrismaDriftExpectations.map((expectation) => expectation.modelName);
+
+    expect(coveredModels).toEqual(
+      expect.arrayContaining(["EvidenceLink", "ReportExport", "DashboardWidget"])
+    );
   });
 
   it("fails schema drift checks on intentional missing and mismatched fixture fields", () => {

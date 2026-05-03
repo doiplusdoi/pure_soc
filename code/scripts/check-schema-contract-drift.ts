@@ -491,6 +491,20 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "EvidenceLink",
+    modelName: "EvidenceLink",
+    tableName: "evidence_links",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("evidenceArtifactId", "String", "evidence_artifact_id"),
+      s("targetType", "String", "target_type"),
+      s("targetId", "String", "target_id"),
+      f("relation", "String"),
+      s("createdAt", "DateTime", "created_at")
+    ]
+  },
+  {
     contractName: "EvidenceAccessLogEntry",
     modelName: "EvidenceAccessLog",
     tableName: "evidence_access_logs",
@@ -673,6 +687,22 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "ReportExportMetadata",
+    modelName: "ReportExport",
+    tableName: "report_exports",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("generatedReportId", "String", "generated_report_id"),
+      s("exportFormat", "String", "export_format"),
+      f("status", "ExportStatus"),
+      s("storageUri", "String", "storage_uri", { isOptional: true }),
+      s("contentHashSha256", "String", "content_hash_sha256", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("expiresAt", "DateTime", "expires_at", { isOptional: true })
+    ]
+  },
+  {
     contractName: "DashboardSnapshotRecord",
     modelName: "DashboardSnapshot",
     tableName: "dashboard_snapshots",
@@ -684,6 +714,20 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       f("source", "String"),
       s("snapshotJson", "Json", "snapshot_json"),
       s("createdAt", "DateTime", "created_at")
+    ]
+  },
+  {
+    contractName: "DashboardWidgetContract",
+    modelName: "DashboardWidget",
+    tableName: "dashboard_widgets",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("dashboardSnapshotId", "String", "dashboard_snapshot_id"),
+      s("widgetKey", "String", "widget_key"),
+      f("title", "String"),
+      s("valueJson", "Json", "value_json"),
+      s("sourceQuery", "String", "source_query")
     ]
   },
   {

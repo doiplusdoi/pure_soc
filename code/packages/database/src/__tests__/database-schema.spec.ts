@@ -111,6 +111,15 @@ describe("database schema groups", () => {
     );
   });
 
+  it("models selected evidence/report/dashboard output metadata surfaces", () => {
+    expect(fieldLine("evidence_links", "evidenceArtifactId")).toContain('@map("evidence_artifact_id")');
+    expect(fieldLine("evidence_links", "targetType")).toContain('@map("target_type")');
+    expect(fieldLine("report_exports", "generatedReportId")).toContain('@map("generated_report_id")');
+    expect(fieldLine("report_exports", "status")).toContain("ExportStatus");
+    expect(fieldLine("dashboard_widgets", "dashboardSnapshotId")).toContain('@map("dashboard_snapshot_id")');
+    expect(fieldLine("dashboard_widgets", "valueJson")).toContain("Json");
+  });
+
   it("models remediation action safety gates before provider execution", () => {
     expect(enumBlocks.get("ProviderActionRunStatus")).toContain("preflight_passed");
     expect(enumBlocks.get("ProviderActionRunStatus")).toContain("approval_requested");

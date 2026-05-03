@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M69, narrowing served UI smoke artifact reviewability, and staging Prompt 69 / `docs/PLAN_M70.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing PLAN_M70, narrowing selected output metadata schema drift coverage, and staging Prompt 70 / `docs/PLAN_M71.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -99,6 +99,7 @@ The repository currently contains:
 - PLAN_M67 browser anchor-driven section screenshot baseline: `@browser-smoke` captures dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue PNGs only after visible anchor activation; the visual metrics manifest now records 10 captures with secret-free anchor action, hash/scroll, section id/title, readable text, route marker, and bounds metadata without direct section `scrollIntoView`, Playwright, golden images, cross-browser parity, external calls, or framework migration.
 - PLAN_M68 browser smoke artifact index baseline: `@browser-smoke` writes `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` when Firefox WebDriver BiDi is available, summarizing screenshot filenames, visual metrics, M67 anchor-driven section captures, M66 keyboard/pointer anchor workflows, route traversal, browser auth/session status, checks, and no-live-call guarantees without embedding PNG bytes, raw session values, secrets, endpoint URLs, provider payloads, storage URIs, or full user emails.
 - PLAN_M69 served UI smoke artifact index baseline: `@ui-smoke` writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` beside deterministic HTML snapshots, summarizing dashboard/workspace/Romania snapshot filenames and hashes, route/source metadata, API-backed dashboard proof, auth/cookie/Origin/callback-exemption checks, check status, and no-live-call guarantees without embedding HTML bodies, session cookies, raw emails, local port-bearing URLs, secrets, provider payloads, storage URIs, external URLs, direct DNSC submission, or certification claims.
+- PLAN_M70 selected output drift coverage expansion: `pnpm lint` now checks selected Prisma field/type/map expectations for `EvidenceLink`, `ReportExport`, and `DashboardWidget` output metadata, raising the schema drift check to 32 selected models and 464 fields without changing Prisma schema, migrations, runtime repositories, UI, live databases, external services, or provider writes.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -175,7 +176,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 66 / `docs/PLAN_M67.md` is completed.
 - Prompt 67 / `docs/PLAN_M68.md` is completed.
 - Prompt 68 / `docs/PLAN_M69.md` is completed.
-- Prompt 69 / `docs/PLAN_M70.md` is staged as the next active implementation prompt.
+- Prompt 69 / `docs/PLAN_M70.md` is completed.
+- Prompt 70 / `docs/PLAN_M71.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -190,11 +192,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 69 / `docs/PLAN_M70.md`: Selected Output Drift Coverage Expansion.
+1. Prompt 70 / `docs/PLAN_M71.md`: Romania Import Report Drift Posture.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M70 must stay fully in-repo: expand selected schema drift coverage for already-modeled evidence/report/dashboard output tables without invoking live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, provider write executors, or Prisma migrations.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M71 must stay fully in-repo: decide and implement or explicitly document the deterministic drift posture for the generated Romania workbook import report artifact without invoking live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, provider write executors, or Prisma migrations.
 
-## Active Prompt 69 / PLAN_M70: Selected Output Drift Coverage Expansion
+## Active Prompt 70 / PLAN_M71: Romania Import Report Drift Posture
 
 Read:
 
@@ -204,46 +206,49 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M69.md`
+- `docs/PLAN_M70.md`
 - `docs/threat-model.md`
-- `code/scripts/check-schema-contract-drift.ts`
-- `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/src/repositories/output.ts`
-- `code/packages/database/src/repositories/evidence.ts`
-- `code/packages/database/src/__tests__/schema-contract.test.ts`
+- `code/scripts/check-generated-regulatory-drift.ts`
+- `code/apps/regulatory-importer/src/ro`
+- `code/data/regulatory/countries/ro/ro-nis2-import-report.generated.json`
+- `code/data/regulatory/countries/ro/ro-nis2.seed.generated.json`
+- `code/data/regulatory/countries/ro/ro-nis2-source-map.generated.json`
+- `code/tests/drift-checks.spec.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Narrow GAP-041 by expanding deterministic schema drift coverage to selected evidence/report/dashboard output surfaces that already exist in the Prisma schema and repository contracts, so persisted output metadata cannot drift silently from TypeScript expectations.
+Narrow GAP-041 by deciding whether the generated Romania workbook import report should be lint-gated like the seed/source-map artifacts or remain an explicitly diagnostic artifact, then encode that posture in deterministic checks and docs.
 
 Deliverables:
 
-- Extend `code/scripts/check-schema-contract-drift.ts` with selected field expectations for evidence/report/dashboard output tables that are currently called out as excluded under GAP-041, prioritizing `EvidenceLink`, `ReportExport`, and `DashboardWidget` if those Prisma models are present.
-- Add or update deterministic drift tests/documentation so `pnpm lint` fails when the selected fields disappear, rename, or change type in the Prisma schema.
-- Keep this as a schema/contract guard only; do not add new migrations, live database access, generated Prisma client changes, runtime repository rewrites, UI changes, or external smoke calls.
-- Update GAP-041 and handoff docs to distinguish this selected drift expansion from exhaustive schema coverage, live PostgreSQL smoke, or customer data migration.
-- Create `docs/PLAN_M71.md` from the next selected active prompt before final response.
+- Inspect the current Romania importer output path and determine if `ro-nis2-import-report.generated.json` is deterministic enough to become part of `pnpm drift:regulatory`.
+- If deterministic, extend `code/scripts/check-generated-regulatory-drift.ts` and tests so the import report artifact is compared without public URL fetches or legal activation.
+- If not deterministic or intentionally diagnostic, add an explicit documented exclusion and a focused regression test that prevents accidental silent claims of lint coverage.
+- Update GAP-041 and handoff docs with the chosen posture.
+- Create `docs/PLAN_M72.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/scripts/check-schema-contract-drift.ts`
-- `code/packages/database/src/__tests__/schema-contract.test.ts`
+- `code/scripts/check-generated-regulatory-drift.ts`
+- `code/tests/drift-checks.spec.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M70.md`
 - `docs/PLAN_M71.md`
+- `docs/PLAN_M72.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not change the Prisma schema or generate a migration unless the drift script proves a documented field expectation is wrong and the fix is explicitly a docs/test correction.
-- Do not broaden drift coverage to every remaining model; keep the slice to the named output/evidence/report/dashboard surfaces.
+- Do not change workbook-derived legal logic, Romania classifier behavior, country-pack activation status, or source-map semantics.
+- Do not fetch public regulatory URLs or treat generated Romania legal logic as active.
+- Do not add new migrations, live database access, generated Prisma client changes, runtime repository rewrites, UI changes, or external smoke calls.
+- Do not broaden generated-data drift coverage beyond the Romania import report posture decision.
 - Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
-- Do not weaken existing M31 live PostgreSQL smoke, M68/M69 artifact index behavior, evidence/report/dashboard runtime persistence tests, organization scoping, legal caveats, or no-live-call assertions.
+- Do not weaken existing Romania seed/source-map drift checks, generated source maps, legal caveats, review-required activation posture, or no-live-call assertions.
 
 Tests and acceptance commands:
 
@@ -251,17 +256,17 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- schema drift evidence reports dashboards output
+pnpm test -- regulatory drift ro import report
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M70.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M71.md`.
 
 Expected gap movement:
 
-- Narrow GAP-041 for selected evidence/report/dashboard output drift coverage.
-- Preserve GAP-031, GAP-042, and GAP-044; this prompt must not change UI smoke/browser behavior, legal/regulatory copy, or external live-smoke posture.
+- Narrow GAP-041 for the generated Romania import report artifact posture.
+- Preserve GAP-006, GAP-031, GAP-042, and GAP-044; this prompt must not change legal activation/reviewer policy, UI smoke/browser behavior, legal/regulatory copy, or external live-smoke posture.
 
 Final response must include:
 
@@ -269,10 +274,23 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M70` updated
-- `PLAN_M71` created
+- `PLAN_M71` updated
+- `PLAN_M72` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 69 / PLAN_M70: Selected Output Drift Coverage Expansion
+
+Completed on 2026-05-04.
+
+Summary:
+- Added selected Prisma schema drift expectations for `EvidenceLink`, `ReportExport`, and `DashboardWidget`.
+- Raised the deterministic schema drift check to 32 selected models and 464 fields.
+- Added focused drift and database-schema tests proving the selected output metadata surfaces remain covered.
+- Documented that this is selected drift coverage only, not exhaustive schema validation.
+- No Prisma schema changes, migrations, generated client changes, live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, UI changes, or provider write executors were used.
+
+GAP-041 is narrowed for selected evidence-link/report-export/dashboard-widget output metadata drift coverage. GAP-031, GAP-042, and GAP-044 are unchanged.
 
 ## Completed Prompt 68 / PLAN_M69: Served UI Smoke Artifact Index Baseline
 
