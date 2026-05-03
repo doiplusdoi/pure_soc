@@ -134,7 +134,7 @@ describe("api evidence reports dashboards exports", () => {
     expect(JSON.stringify(downloadBody.artifact)).not.toContain("storageUri");
     expect(JSON.stringify(downloadBody.artifact)).not.toContain("object://");
     expect(downloadBody.auditEntry.action).toBe("download");
-    expect(services.repository.evidenceAccessLogs).toHaveLength(1);
+    expect(services.memoryRepositories.evidenceRepository.accessLogs).toHaveLength(1);
     expect(services.auditSink.findByAction("evidence_downloaded")).toHaveLength(1);
 
     const listResponse = await fetch(`${baseUrl}/organizations/${organization.id}/evidence`, {
@@ -178,7 +178,9 @@ describe("api evidence reports dashboards exports", () => {
     expect(reportBody.exportJson).toContain('"schemaVersion": "puresoc.report.internal_readiness.v1"');
     expect(reportBody.exportJson).not.toContain("publicUrl");
     expect(reportBody.report.evidenceArtifactId).toBeDefined();
-    const reportArtifact = services.repository.evidenceArtifacts.get(reportBody.report.evidenceArtifactId ?? "");
+    const reportArtifact = services.memoryRepositories.evidenceRepository.artifacts.get(
+      reportBody.report.evidenceArtifactId ?? ""
+    );
     expect(reportArtifact).toMatchObject({
       sourceType: "generated_report",
       sourceProvider: "puresoc-report-renderer",
@@ -292,8 +294,8 @@ describe("api evidence reports dashboards exports", () => {
       fieldKey: "entityName"
     });
     expect(body.report.evidenceArtifactId).toBeDefined();
-    expect(services.repository.evidenceArtifacts.get(body.report.evidenceArtifactId ?? "")?.sourceType).toBe(
-      "generated_report"
-    );
+    expect(
+      services.memoryRepositories.evidenceRepository.artifacts.get(body.report.evidenceArtifactId ?? "")?.sourceType
+    ).toBe("generated_report");
   });
 });

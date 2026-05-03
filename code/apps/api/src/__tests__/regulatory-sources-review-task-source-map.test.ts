@@ -115,7 +115,7 @@ describe("regulatory source review task API", () => {
     );
     expect(forbiddenActivation.status).toBe(403);
 
-    await services.repository.addRoleBindingForTest({
+    await services.memoryRepositories.identityRepository.addRoleBindingForTest({
       organizationId,
       userId,
       roleKey: "regulatory_admin"
@@ -203,7 +203,7 @@ describe("regulatory source review task API", () => {
   it("does not let a regulatory admin in one organization mutate or read another organization's review task", async () => {
     const victimOrganizationId = "org_regulatory_victim";
     const attacker = await registerLoginAndCreateOrganization();
-    await services.repository.addRoleBindingForTest({
+    await services.memoryRepositories.identityRepository.addRoleBindingForTest({
       organizationId: attacker.organizationId,
       userId: attacker.userId,
       roleKey: "regulatory_admin"

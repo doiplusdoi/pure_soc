@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M56, narrowing persisted audit-chain append concurrency risk, and staging Prompt 56 / `docs/PLAN_M57.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M57, narrowing memory-repository and API dispatcher maintainability risk, and staging Prompt 57 / `docs/PLAN_M58.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -86,6 +86,7 @@ The repository currently contains:
 - PLAN_M54 external-smoke blocker review: `external-smoke:readiness` stayed metadata-only in dry-run mode with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, and `ready_for_disposable_smoke: 0`; `external-smoke:select-target` returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`. No live smoke command was run, and GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
 - PLAN_M55 action-run idempotency: action-run creation now accepts a normalized organization-scoped `Idempotency-Key`, rejects empty/oversized/malformed keys, returns existing same-org runs for retries, stores the optional key in memory and Prisma repositories with unique `(organizationId, idempotencyKey)` schema coverage, keeps raw keys out of API responses, and preserves provider-write disablement.
 - PLAN_M56 audit-chain append concurrency: Prisma audit writes now use a transaction-scoped PostgreSQL advisory lock per audit scope, persisted `scopeKey`/`chainSequence` ordering metadata, and a unique `(scopeKey, chainSequence)` index so same-scope concurrent appends produce one deterministic chain. In-memory audit writes serialize only within one process for tests/local mode and remain non-persistent/non-multi-process.
+- PLAN_M57 memory repository split and API route table: memory-mode API repositories now expose separate identity/org/RBAC, evidence, and billing adapters through `services.memoryRepositories`; the old `InMemoryPureSocRepository` god-object was removed; `apps/api/src/server.ts` dispatches through `apiRouteTable` method/pattern/route-family/handler metadata while preserving raw Stripe body handling, JSON limits, callbacks, cookies, middleware ordering, authorization, and response contracts.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -149,7 +150,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 53 / `docs/PLAN_M54.md` is completed.
 - Prompt 54 / `docs/PLAN_M55.md` is completed.
 - Prompt 55 / `docs/PLAN_M56.md` is completed.
-- Prompt 56 / `docs/PLAN_M57.md` is staged as the next active implementation prompt.
+- Prompt 56 / `docs/PLAN_M57.md` is completed.
+- Prompt 57 / `docs/PLAN_M58.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -164,12 +166,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
-2. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
+1. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M57 must stay fully in-repo: split memory repositories and reduce API dispatcher boilerplate without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M58 must stay fully in-repo: wire Romanian message-catalog runtime behavior and fallback metadata without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 56 / PLAN_M57: Memory Repository Split And API Route Table
+## Active Prompt 57 / PLAN_M58: Romanian Message Catalog Runtime
 
 Read:
 
@@ -179,59 +180,59 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M56.md`
+- `docs/PLAN_M57.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
-- `code/apps/api/src/auth/services.ts`
-- `code/apps/api/src/auth/memory-repository.ts`
-- `code/apps/api/src/server.ts`
-- `code/apps/api/src/middleware.ts`
-- `code/apps/api/src/__tests__/auth-organization-rbac-audit-session.test.ts`
-- `code/apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts`
-- `code/apps/api/src/__tests__/billing-stripe-entitlement-webhook-audit.test.ts`
-- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
+- `code/packages/shared/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-i18n-notification-model.spec.ts`
+- `code/packages/reports/src/builders.ts`
+- `code/packages/reports/src/__tests__/report-builders.spec.ts`
+- `code/apps/web/src/operational-console.ts`
+- `code/apps/web/src/__tests__/operational-console.test.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Reduce two internal maintainability hotspots before they grow further: split the default memory repository into per-context repositories, and replace the long linear regex dispatcher in `apps/api/src/server.ts` with a small route table/dispatcher loop.
+Implement the next Romanian message-catalog runtime slice so locale-aware product/report/notification surfaces resolve approved or fallback copy through one contract instead of hardcoded English-only caveat behavior.
 
 Deliverables:
 
-- Extract memory-mode auth/identity/org/RBAC, evidence, and billing repository ownership so `InMemoryPureSocRepository` no longer extends billing behavior or owns unrelated contexts through one god-object.
-- Keep memory-mode behavior equivalent for local auth, OIDC identity lookup, organization/RBAC, evidence metadata/access logs, billing, reports, dashboards, notification drafts, and remediation action tests.
-- Mirror the existing `createRuntimeRepositories` per-context shape in memory mode; do not change Prisma repository wiring.
-- Add a tiny route table inside `apps/api/src/server.ts` with route entries for method, pattern, route family, and handler, while preserving middleware ordering, raw Stripe body handling, callback exemptions, request limits, cookies, and existing response shapes.
-- Keep this as an internal refactor: no new API framework, no broad route migration beyond the current dispatcher table, and no customer-facing behavior changes.
-- Add regression tests or extend existing API tests so auth/org/RBAC, evidence/report/dashboard, billing, and middleware route-family behavior still pass through memory mode.
-- Update docs with the narrowed REC-203/REC-204 risk.
-- Create `docs/PLAN_M58.md` from the next selected active prompt before final response.
+- Add or refine a shared message-catalog resolver for supported PureSOC locales (`en`, `ro`) with stable message keys, fallback metadata, and no silent claim that Romanian legal copy is approved if it is not.
+- Keep the legal caveat legally safe: if Romanian legal-caveat copy is not product/legal-approved in the repo, preserve English fallback and expose fallback metadata clearly.
+- Wire report builders and Romania notification envelope generation through the shared resolver so message keys, resolved locale, requested locale, and fallback status are deterministic.
+- Add a small Romanian operational-copy catalog for non-legal demo-safe labels/statuses only where copy can be safely translated without legal approval; keep unresolved legal/regulatory copy in fallback state.
+- Update the served operational console only if it can consume the catalog without introducing a broad frontend/i18n framework or changing layout behavior.
+- Add regression tests for English and Romanian locale resolution, legal-caveat fallback behavior, Romania notification label metadata, and report builder locale metadata.
+- Update GAP-042 and handoff docs with exactly what is now runtime-wired versus still blocked on product/legal-approved Romanian legal copy.
+- Create `docs/PLAN_M59.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/apps/api/src/auth/memory-repository.ts`
-- `code/apps/api/src/auth/services.ts`
-- `code/apps/api/src/server.ts`
-- `code/apps/api/src/__tests__/auth-organization-rbac-audit-session.test.ts`
-- `code/apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts`
-- `code/apps/api/src/__tests__/billing-stripe-entitlement-webhook-audit.test.ts`
-- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
+- `code/packages/shared/src/index.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-i18n-notification-model.spec.ts`
+- `code/packages/reports/src/builders.ts`
+- `code/packages/reports/src/__tests__/report-builders.spec.ts`
+- `code/apps/web/src/operational-console.ts`
+- `code/apps/web/src/__tests__/operational-console.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M57.md`
 - `docs/PLAN_M58.md`
+- `docs/PLAN_M59.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not change API response contracts, route authorization, request-size limits, middleware ordering, cookie behavior, Stripe raw-body handling, OIDC/provider callback exemptions, or rate-limit route-family semantics.
-- Do not introduce NestJS, Hono, Express, or another API framework in this prompt.
-- Do not move package boundaries or add broad shared abstractions beyond the minimal memory repository split and route table.
-- Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, or provider write executors.
-- If the memory repository split touches more than ten files or becomes behavior-changing, finish the repository split first and restage the route-table work as the next prompt.
+- Do not add unapproved Romanian legal-caveat text or imply legal/certification approval.
+- Do not put Romania-specific copy into EU baseline modules except through country-pack/message-key data.
+- Do not hardcode regulatory facts in UI conditionals.
+- Do not introduce a broad i18n framework or frontend rewrite in this prompt.
+- Do not change report/notification payload schema keys unless tests and migration posture are updated.
+- Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
 
 Tests and acceptance commands:
 
@@ -239,17 +240,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- api auth evidence billing
+pnpm test -- i18n ro notification reports web
 pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M57.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M58.md`.
 
 Expected gap movement:
 
-- Narrow the `docs/claude_rec4.md` REC-203/REC-204 architecture risks in the implementation handoff docs.
+- Narrow GAP-042 for runtime message-catalog wiring and explicit fallback metadata.
+- Preserve the product/legal blocker for Romanian legal-caveat approval if no approved wording exists.
 - Preserve GAP-044; this prompt must not run external smoke commands.
 
 Final response must include:
@@ -258,10 +260,32 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M57` updated
-- `PLAN_M58` created
+- `PLAN_M58` updated
+- `PLAN_M59` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 56 / PLAN_M57: Memory Repository Split And API Route Table
+
+Completed on 2026-05-03.
+
+Summary:
+- Split memory-mode API runtime repositories into separate identity/org/RBAC, evidence, and billing adapters exposed through `services.memoryRepositories`.
+- Removed the old `InMemoryPureSocRepository` god-object and billing inheritance shape while preserving memory-mode auth, organization/RBAC, evidence, billing, reports, dashboards, notification drafts, and remediation behavior.
+- Replaced the long linear API regex dispatcher with `apiRouteTable` method/pattern/route-family/handler entries and shared operation handlers.
+- Preserved middleware ordering, Stripe raw-body handling, JSON request limits, OIDC/provider callback exemptions, cookies, authorization checks, route URLs/methods, and response contracts.
+- Added route-table metadata regression coverage for webhook, OIDC callback, and evidence route families.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+Validated with host npm equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run lint`
+- `npm run test -- api auth evidence billing`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M57 acceptance command results are recorded in `docs/PLAN_M57.md`.
+
+GAP-045 records the narrowed REC-203/REC-204 maintainability risk for per-context memory repositories and route-table dispatch. GAP-044 is unchanged.
 
 ## Completed Prompt 55 / PLAN_M56: Multi-Process Audit-Chain Append Concurrency
 

@@ -57,6 +57,8 @@ pnpm prisma:smoke:postgres
 
 `PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.
 
+Memory mode mirrors Prisma mode's per-context repository shape. API services expose separate in-memory adapters under `services.memoryRepositories` for identity/session/organization/RBAC, evidence metadata/access logs, and billing records/events/entitlements. The old shared `services.repository` test harness has been removed so changes in one bounded context do not implicitly own another.
+
 `PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, OIDC transient authorization state, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary.
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
@@ -100,6 +102,8 @@ This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers
 ## API Middleware Security
 
 The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.
+
+The API server still uses the focused `node:http` runtime from ADR-017, but route dispatch now goes through `apiRouteTable` entries with method, path pattern, route family metadata, and a handler. The dispatcher matches the route before body parsing only to preserve raw-body routes such as Stripe webhooks; normal POST requests still pass through the configured JSON body limit before handler execution, including unknown POST routes.
 
 ## Remediation Action Idempotency
 

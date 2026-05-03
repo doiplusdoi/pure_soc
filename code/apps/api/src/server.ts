@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingMessage } from "node:http";
 
 import { validateConfigForStartup } from "@puresoc/config";
 import { getApiHealth } from "./health";
@@ -19,8 +19,8 @@ import {
   roNis2OnboardingSchemaRoute
 } from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
-import { parseJsonBody, parseRawBody, sendJson, toJsonResultError } from "./http";
-import { createApiMiddleware } from "./middleware";
+import { parseJsonBody, parseRawBody, sendJson, toJsonResultError, type JsonResult } from "./http";
+import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
 import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
 import {
   createMockProviderConnectionRoute,
@@ -76,6 +76,287 @@ import {
   recordAuditCheckpointRoute
 } from "./audit/routes";
 
+type ApiRouteMethod = "GET" | "POST";
+
+interface ApiRouteDispatchInput {
+  request: IncomingMessage;
+  url: URL;
+  body: Record<string, unknown>;
+  rawBody?: Buffer;
+  context: ApiRequestContext;
+  services: ApiServices;
+  params: string[];
+}
+
+interface ApiRouteEntry {
+  methods: readonly ApiRouteMethod[];
+  pattern: RegExp;
+  routeFamily: ApiRouteFamily;
+  rawBody?: boolean;
+  handler: (input: ApiRouteDispatchInput) => Promise<JsonResult>;
+}
+
+const route = (
+  methods: ApiRouteMethod | readonly ApiRouteMethod[],
+  pattern: RegExp,
+  routeFamily: ApiRouteFamily,
+  handler: ApiRouteEntry["handler"],
+  options: Pick<ApiRouteEntry, "rawBody"> = {}
+): ApiRouteEntry => ({
+  methods: Array.isArray(methods) ? methods : [methods],
+  pattern,
+  routeFamily,
+  handler,
+  ...options
+});
+
+export const apiRouteTable: readonly ApiRouteEntry[] = [
+  route("POST", /^\/billing\/stripe\/webhook$/, "webhook", ({ rawBody, request, context, services }) =>
+    stripeBillingWebhookRoute(rawBody ?? Buffer.alloc(0), request.headers["stripe-signature"], context, services), {
+      rawBody: true
+    }),
+  route("POST", /^\/auth\/register$/, "auth", ({ body, context, services }) => registerRoute(body, context, services)),
+  route("POST", /^\/auth\/login$/, "auth", ({ body, context, services }) => loginRoute(body, context, services)),
+  route("POST", /^\/auth\/logout$/, "auth", ({ request, context, services }) =>
+    logoutRoute(request.headers.cookie, context, services)),
+  route("GET", /^\/auth\/session$/, "auth", ({ request, services }) => sessionRoute(request.headers.cookie, services)),
+  route("POST", /^\/auth\/oidc\/([^/]+)\/begin$/, "oidc_begin", ({ params, services }) =>
+    beginOidcAuthorizationRoute(params[0] ?? "", services)),
+  route(["GET", "POST"], /^\/auth\/oidc\/([^/]+)\/callback$/, "oidc_callback", ({ request, url, body, params, context, services }) => {
+    const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+    return completeOidcCallbackRoute(params[0] ?? "", callbackInput, request.headers.cookie, context, services);
+  }),
+  route("GET", /^\/compliance\/nis2\/country-packs\/status$/, "public_read", () => countryPackStatusRoute()),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/evaluate$/, "compliance", ({ params, body, request, context, services }) =>
+    evaluateComplianceAssessmentRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/recommendations\/generate$/, "compliance", ({ params, body, request, context, services }) =>
+    generateRecommendationsRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/, "compliance", ({ params, url, request, services }) =>
+    listNotificationDraftsRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/, "compliance", ({ params, body, request, context, services }) =>
+    createNotificationDraftRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts\/([^/]+)$/, "compliance", ({ params, request, services }) =>
+    getNotificationDraftRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/actions\/runs$/, "actions", ({ params, body, request, services }) =>
+    createActionRunRoute(params[0] ?? "", body, request.headers.cookie, request.headers["idempotency-key"], services)),
+  route(
+    "POST",
+    /^\/organizations\/([^/]+)\/actions\/runs\/([^/]+)\/(preflight|request-approval|approve|snapshot|queue|fail|verify|close)$/,
+    "actions",
+    handleActionRunOperationRoute
+  ),
+  route("GET", /^\/organizations\/([^/]+)\/audit\/export$/, "unknown", ({ params, request, services }) =>
+    exportAuditSegmentRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/audit\/checkpoints$/, "unknown", ({ params, request, services }) =>
+    listAuditCheckpointsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/audit\/checkpoints$/, "unknown", ({ params, body, request, context, services }) =>
+    recordAuditCheckpointRoute(
+      params[0] ?? "",
+      assertAuditCheckpointRequestBody(body),
+      request.headers.cookie,
+      context,
+      services
+    )),
+  route("GET", /^\/organizations\/([^/]+)\/evidence$/, "evidence", ({ params, request, services }) =>
+    listEvidenceRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/evidence\/upload$/, "evidence", ({ params, body, request, context, services }) =>
+    uploadEvidenceRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/evidence\/([^/]+)\/download$/, "evidence", ({ params, request, context, services }) =>
+    downloadEvidenceRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness$/, "compliance", ({ params, body, request, context, services }) =>
+    buildInternalReadinessReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/, "compliance", ({ params, body, request, context, services }) =>
+    buildRomaniaNotificationDraftReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/dashboards\/snapshots$/, "compliance", ({ params, body, request, services }) =>
+    createDashboardSnapshotRoute(params[0] ?? "", body, request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/dashboards\/snapshots\/latest$/, "compliance", ({ params, url, request, services }) =>
+    getLatestDashboardSnapshotRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/billing\/entitlements$/, "billing", ({ params, request, services }) =>
+    listBillingEntitlementsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/checkout$/, "billing", ({ params, body, request, context, services }) =>
+    createBillingCheckoutSessionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/portal$/, "billing", ({ params, body, request, context, services }) =>
+    createBillingPortalSessionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks$/, "regulatory", ({ params, url, request, services }) =>
+    listRegulatoryReviewTasksRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route(
+    "POST",
+    /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks\/([^/]+)\/(review|reject|activate)$/,
+    "regulatory",
+    handleRegulatoryReviewTaskActionRoute
+  ),
+  route("GET", /^\/organizations\/([^/]+)\/regulatory-sources\/source-versions\/([^/]+)\/source-map$/, "regulatory", ({ params, request, services }) =>
+    readRegulatorySourceMapTraceabilityRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/compliance\/nis2\/ro\/onboarding\/schema$/, "public_compliance", () => roNis2OnboardingSchemaRoute()),
+  route("POST", /^\/compliance\/nis2\/ro\/onboarding\/progress$/, "public_compliance", ({ body }) =>
+    roNis2OnboardingProgressRoute(body)),
+  route("POST", /^\/compliance\/nis2\/ro\/classification$/, "public_compliance", ({ body }) =>
+    roNis2ClassificationRoute(body)),
+  route("POST", /^\/compliance\/nis2\/ro\/notification-draft$/, "public_compliance", ({ body }) =>
+    roNis2NotificationDraftRoute(body)),
+  route("POST", /^\/organizations$/, "organization", ({ body, request, context, services }) =>
+    createOrganizationRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/provider-connections$/, "provider", ({ params, request, services }) =>
+    listProviderConnectionsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/provider-connections$/, "provider", ({ params, body, request, context, services }) =>
+    createMockProviderConnectionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/begin$/, "provider", ({ params, body, request, context, services }) =>
+    beginMicrosoft365ConsentRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/callback$/, "provider_callback", ({ request, url, body, params, context, services }) => {
+    const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+    return completeMicrosoft365ConsentRoute(params[0] ?? "", callbackInput, request.headers.cookie, context, services);
+  }),
+  route("POST", /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/sync$/, "provider", ({ params, body, request, context, services }) =>
+    runProviderSyncRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/microsoft365\/sync$/, "provider", ({ params, body, request, context, services }) =>
+    runMicrosoft365SyncRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/health$/, "provider", ({ params, request, services }) =>
+    getMicrosoft365ConnectionHealthRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/members$/, "tenant_read", ({ params, request, services }) =>
+    listOrganizationMembersRoute(params[0] ?? "", request.headers.cookie, services))
+];
+
+function handleActionRunOperationRoute(input: ApiRouteDispatchInput): Promise<JsonResult> {
+  const organizationId = input.params[0] ?? "";
+  const actionRunId = input.params[1] ?? "";
+  const action = input.params[2];
+
+  if (action === "preflight") {
+    return recordActionPreflightRoute(
+      organizationId,
+      actionRunId,
+      input.body,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "request-approval") {
+    return requestActionApprovalRoute(
+      organizationId,
+      actionRunId,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "approve") {
+    return approveActionRunRoute(
+      organizationId,
+      actionRunId,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "snapshot") {
+    return attachActionSnapshotRoute(
+      organizationId,
+      actionRunId,
+      input.body,
+      input.request.headers.cookie,
+      input.services
+    );
+  }
+
+  if (action === "queue") {
+    return queueActionRunRoute(
+      organizationId,
+      actionRunId,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "fail") {
+    return failActionRunRoute(
+      organizationId,
+      actionRunId,
+      input.body,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "verify") {
+    return verifyActionRunRoute(
+      organizationId,
+      actionRunId,
+      input.body,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  return closeActionRunRoute(organizationId, actionRunId, input.request.headers.cookie, input.context, input.services);
+}
+
+function handleRegulatoryReviewTaskActionRoute(input: ApiRouteDispatchInput): Promise<JsonResult> {
+  const organizationId = input.params[0] ?? "";
+  const taskId = input.params[1] ?? "";
+  const action = input.params[2];
+
+  if (action === "review") {
+    return markRegulatoryReviewTaskReviewedRoute(
+      organizationId,
+      taskId,
+      input.body,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  if (action === "reject") {
+    return rejectRegulatoryReviewTaskRoute(
+      organizationId,
+      taskId,
+      input.body,
+      input.request.headers.cookie,
+      input.context,
+      input.services
+    );
+  }
+
+  return activateRegulatorySourceVersionRoute(
+    organizationId,
+    taskId,
+    input.body,
+    input.request.headers.cookie,
+    input.context,
+    input.services
+  );
+}
+
+const findApiRoute = (
+  method: string | undefined,
+  pathname: string
+): { route: ApiRouteEntry; params: string[] } | null => {
+  const requestMethod = method ?? "GET";
+
+  for (const candidate of apiRouteTable) {
+    if (!candidate.methods.includes(requestMethod as ApiRouteMethod)) {
+      continue;
+    }
+
+    const match = pathname.match(candidate.pattern);
+    if (match) {
+      return {
+        route: candidate,
+        params: match.slice(1)
+      };
+    }
+  }
+
+  return null;
+};
+
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   validateConfigForStartup(services.config, { serviceName: "api" });
   const middleware = createApiMiddleware({
@@ -101,13 +382,23 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       }
 
       const requestLimits = services.config.api.requestLimits;
-      if (request.method === "POST" && url.pathname === "/billing/stripe/webhook") {
+      const routeMatch = findApiRoute(request.method, url.pathname);
+
+      if (routeMatch?.route.rawBody) {
         const rawBody = await parseRawBody(request, {
           maxBytes: requestLimits.stripeWebhookRawBodyMaxBytes
         });
         sendJson(
           response,
-          await stripeBillingWebhookRoute(rawBody, request.headers["stripe-signature"], context, services)
+          await routeMatch.route.handler({
+            request,
+            url,
+            body: {},
+            rawBody,
+            context,
+            services,
+            params: routeMatch.params
+          })
         );
         return;
       }
@@ -119,612 +410,18 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             })
           : {};
 
-      if (request.method === "POST" && url.pathname === "/auth/register") {
-        sendJson(response, await registerRoute(body, context, services));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/auth/login") {
-        sendJson(response, await loginRoute(body, context, services));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/auth/logout") {
-        sendJson(response, await logoutRoute(request.headers.cookie, context, services));
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/auth/session") {
-        sendJson(response, await sessionRoute(request.headers.cookie, services));
-        return;
-      }
-
-      const oidcBeginRouteMatch = url.pathname.match(/^\/auth\/oidc\/([^/]+)\/begin$/);
-      if (oidcBeginRouteMatch && request.method === "POST") {
-        sendJson(response, await beginOidcAuthorizationRoute(oidcBeginRouteMatch[1] ?? "", services));
-        return;
-      }
-
-      const oidcCallbackRouteMatch = url.pathname.match(/^\/auth\/oidc\/([^/]+)\/callback$/);
-      if (oidcCallbackRouteMatch && (request.method === "GET" || request.method === "POST")) {
-        const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+      if (routeMatch) {
         sendJson(
           response,
-          await completeOidcCallbackRoute(
-            oidcCallbackRouteMatch[1] ?? "",
-            callbackInput,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/compliance/nis2/country-packs/status") {
-        sendJson(response, await countryPackStatusRoute());
-        return;
-      }
-
-      const complianceEvaluateRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/compliance\/evaluate$/);
-      if (complianceEvaluateRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await evaluateComplianceAssessmentRoute(
-            complianceEvaluateRouteMatch[1] ?? "",
+          await routeMatch.route.handler({
+            request,
+            url,
             body,
-            request.headers.cookie,
             context,
-            services
-          )
+            services,
+            params: routeMatch.params
+          })
         );
-        return;
-      }
-
-      const recommendationRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/recommendations\/generate$/);
-      if (recommendationRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await generateRecommendationsRoute(
-            recommendationRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const notificationDraftsCollectionRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/
-      );
-      if (notificationDraftsCollectionRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listNotificationDraftsRoute(
-            notificationDraftsCollectionRouteMatch[1] ?? "",
-            url.searchParams,
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      if (notificationDraftsCollectionRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createNotificationDraftRoute(
-            notificationDraftsCollectionRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const notificationDraftRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts\/([^/]+)$/
-      );
-      if (notificationDraftRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await getNotificationDraftRoute(
-            notificationDraftRouteMatch[1] ?? "",
-            notificationDraftRouteMatch[2] ?? "",
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      const actionRunsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/actions\/runs$/);
-      if (actionRunsRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createActionRunRoute(
-            actionRunsRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            request.headers["idempotency-key"],
-            services
-          )
-        );
-        return;
-      }
-
-      const actionRunOperationRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/actions\/runs\/([^/]+)\/(preflight|request-approval|approve|snapshot|queue|fail|verify|close)$/
-      );
-      if (actionRunOperationRouteMatch && request.method === "POST") {
-        const organizationId = actionRunOperationRouteMatch[1] ?? "";
-        const actionRunId = actionRunOperationRouteMatch[2] ?? "";
-        const action = actionRunOperationRouteMatch[3];
-
-        if (action === "preflight") {
-          sendJson(
-            response,
-            await recordActionPreflightRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        if (action === "request-approval") {
-          sendJson(
-            response,
-            await requestActionApprovalRoute(organizationId, actionRunId, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        if (action === "approve") {
-          sendJson(
-            response,
-            await approveActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        if (action === "snapshot") {
-          sendJson(
-            response,
-            await attachActionSnapshotRoute(organizationId, actionRunId, body, request.headers.cookie, services)
-          );
-          return;
-        }
-
-        if (action === "queue") {
-          sendJson(
-            response,
-            await queueActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        if (action === "fail") {
-          sendJson(
-            response,
-            await failActionRunRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        if (action === "verify") {
-          sendJson(
-            response,
-            await verifyActionRunRoute(organizationId, actionRunId, body, request.headers.cookie, context, services)
-          );
-          return;
-        }
-
-        sendJson(
-          response,
-          await closeActionRunRoute(organizationId, actionRunId, request.headers.cookie, context, services)
-        );
-        return;
-      }
-
-      const auditExportRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/audit\/export$/);
-      if (auditExportRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await exportAuditSegmentRoute(auditExportRouteMatch[1] ?? "", request.headers.cookie, services)
-        );
-        return;
-      }
-
-      const auditCheckpointsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/audit\/checkpoints$/);
-      if (auditCheckpointsRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listAuditCheckpointsRoute(auditCheckpointsRouteMatch[1] ?? "", request.headers.cookie, services)
-        );
-        return;
-      }
-
-      if (auditCheckpointsRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await recordAuditCheckpointRoute(
-            auditCheckpointsRouteMatch[1] ?? "",
-            assertAuditCheckpointRequestBody(body),
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const evidenceCollectionRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence$/);
-      if (evidenceCollectionRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listEvidenceRoute(evidenceCollectionRouteMatch[1] ?? "", request.headers.cookie, services)
-        );
-        return;
-      }
-
-      const evidenceUploadRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence\/upload$/);
-      if (evidenceUploadRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await uploadEvidenceRoute(
-            evidenceUploadRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const evidenceDownloadRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/evidence\/([^/]+)\/download$/);
-      if (evidenceDownloadRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await downloadEvidenceRoute(
-            evidenceDownloadRouteMatch[1] ?? "",
-            evidenceDownloadRouteMatch[2] ?? "",
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const internalReadinessReportRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/reports\/internal-readiness$/
-      );
-      if (internalReadinessReportRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await buildInternalReadinessReportRoute(
-            internalReadinessReportRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const romaniaNotificationReportRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/
-      );
-      if (romaniaNotificationReportRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await buildRomaniaNotificationDraftReportRoute(
-            romaniaNotificationReportRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const dashboardSnapshotRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/dashboards\/snapshots$/);
-      if (dashboardSnapshotRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createDashboardSnapshotRoute(
-            dashboardSnapshotRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      const latestDashboardSnapshotRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/dashboards\/snapshots\/latest$/
-      );
-      if (latestDashboardSnapshotRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await getLatestDashboardSnapshotRoute(
-            latestDashboardSnapshotRouteMatch[1] ?? "",
-            url.searchParams,
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      const billingEntitlementsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/entitlements$/);
-      if (billingEntitlementsRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listBillingEntitlementsRoute(billingEntitlementsRouteMatch[1] ?? "", request.headers.cookie, services)
-        );
-        return;
-      }
-
-      const billingCheckoutRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/stripe\/checkout$/);
-      if (billingCheckoutRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createBillingCheckoutSessionRoute(
-            billingCheckoutRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const billingPortalRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/billing\/stripe\/portal$/);
-      if (billingPortalRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createBillingPortalSessionRoute(
-            billingPortalRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const regulatoryReviewTasksRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks$/
-      );
-      if (regulatoryReviewTasksRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listRegulatoryReviewTasksRoute(
-            regulatoryReviewTasksRouteMatch[1] ?? "",
-            url.searchParams,
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      const regulatoryReviewTaskActionRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/regulatory-sources\/review-tasks\/([^/]+)\/(review|reject|activate)$/
-      );
-      if (regulatoryReviewTaskActionRouteMatch && request.method === "POST") {
-        const organizationId = regulatoryReviewTaskActionRouteMatch[1] ?? "";
-        const taskId = regulatoryReviewTaskActionRouteMatch[2] ?? "";
-        const action = regulatoryReviewTaskActionRouteMatch[3];
-
-        if (action === "review") {
-          sendJson(
-            response,
-            await markRegulatoryReviewTaskReviewedRoute(
-              organizationId,
-              taskId,
-              body,
-              request.headers.cookie,
-              context,
-              services
-            )
-          );
-          return;
-        }
-
-        if (action === "reject") {
-          sendJson(
-            response,
-            await rejectRegulatoryReviewTaskRoute(
-              organizationId,
-              taskId,
-              body,
-              request.headers.cookie,
-              context,
-              services
-            )
-          );
-          return;
-        }
-
-        sendJson(
-          response,
-          await activateRegulatorySourceVersionRoute(
-            organizationId,
-            taskId,
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const regulatorySourceMapRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/regulatory-sources\/source-versions\/([^/]+)\/source-map$/
-      );
-      if (regulatorySourceMapRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await readRegulatorySourceMapTraceabilityRoute(
-            regulatorySourceMapRouteMatch[1] ?? "",
-            regulatorySourceMapRouteMatch[2] ?? "",
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      if (request.method === "GET" && url.pathname === "/compliance/nis2/ro/onboarding/schema") {
-        sendJson(response, await roNis2OnboardingSchemaRoute());
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/onboarding/progress") {
-        sendJson(response, await roNis2OnboardingProgressRoute(body));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/classification") {
-        sendJson(response, await roNis2ClassificationRoute(body));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/compliance/nis2/ro/notification-draft") {
-        sendJson(response, await roNis2NotificationDraftRoute(body));
-        return;
-      }
-
-      if (request.method === "POST" && url.pathname === "/organizations") {
-        sendJson(response, await createOrganizationRoute(body, request.headers.cookie, context, services));
-        return;
-      }
-
-      const providerConnectionsRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/provider-connections$/);
-      if (providerConnectionsRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await listProviderConnectionsRoute(providerConnectionsRouteMatch[1] ?? "", request.headers.cookie, services)
-        );
-        return;
-      }
-
-      if (providerConnectionsRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await createMockProviderConnectionRoute(
-            providerConnectionsRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const microsoft365ConsentBeginRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/begin$/
-      );
-      if (microsoft365ConsentBeginRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await beginMicrosoft365ConsentRoute(
-            microsoft365ConsentBeginRouteMatch[1] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const microsoft365ConsentCallbackRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/provider-connections\/microsoft365\/consent\/callback$/
-      );
-      if (microsoft365ConsentCallbackRouteMatch && (request.method === "GET" || request.method === "POST")) {
-        const callbackInput =
-          request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
-        sendJson(
-          response,
-          await completeMicrosoft365ConsentRoute(
-            microsoft365ConsentCallbackRouteMatch[1] ?? "",
-            callbackInput,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const providerSyncRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/sync$/
-      );
-      if (providerSyncRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await runProviderSyncRoute(
-            providerSyncRouteMatch[1] ?? "",
-            providerSyncRouteMatch[2] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const microsoft365ProviderSyncRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/microsoft365\/sync$/
-      );
-      if (microsoft365ProviderSyncRouteMatch && request.method === "POST") {
-        sendJson(
-          response,
-          await runMicrosoft365SyncRoute(
-            microsoft365ProviderSyncRouteMatch[1] ?? "",
-            microsoft365ProviderSyncRouteMatch[2] ?? "",
-            body,
-            request.headers.cookie,
-            context,
-            services
-          )
-        );
-        return;
-      }
-
-      const providerHealthRouteMatch = url.pathname.match(
-        /^\/organizations\/([^/]+)\/provider-connections\/([^/]+)\/health$/
-      );
-      if (providerHealthRouteMatch && request.method === "GET") {
-        sendJson(
-          response,
-          await getMicrosoft365ConnectionHealthRoute(
-            providerHealthRouteMatch[1] ?? "",
-            providerHealthRouteMatch[2] ?? "",
-            request.headers.cookie,
-            services
-          )
-        );
-        return;
-      }
-
-      const memberRouteMatch = url.pathname.match(/^\/organizations\/([^/]+)\/members$/);
-      if (request.method === "GET" && memberRouteMatch) {
-        sendJson(response, await listOrganizationMembersRoute(memberRouteMatch[1] ?? "", request.headers.cookie, services));
         return;
       }
 

@@ -119,7 +119,7 @@ describe("api request body and evidence upload limits", () => {
     expect(response.status).toBe(413);
     const body = await readJson<{ error: { code: string } }>(response);
     expect(body.error.code).toBe("payload_too_large");
-    expect(services.repository.billingEvents.size).toBe(0);
+    expect(services.memoryRepositories.billingRepository.billingEvents.size).toBe(0);
     expect(services.auditSink.findByAction("billing_changed")).toHaveLength(0);
     expect(JSON.stringify(body)).not.toContain("whsec_test");
   });
@@ -158,8 +158,8 @@ describe("api request body and evidence upload limits", () => {
     expect(JSON.stringify(body)).not.toContain("MTIzNDU=");
     expect(scanner.scanCalls).toBe(0);
     expect(storage.putCalls).toBe(0);
-    expect(services.repository.evidenceArtifacts.size).toBe(0);
-    expect(services.repository.evidenceAccessLogs).toHaveLength(0);
+    expect(services.memoryRepositories.evidenceRepository.artifacts.size).toBe(0);
+    expect(services.memoryRepositories.evidenceRepository.accessLogs).toHaveLength(0);
     expect(services.auditSink.findByAction("evidence_uploaded")).toHaveLength(0);
   });
 

@@ -66,7 +66,7 @@ import { EvidenceApiService } from "../evidence/service";
 import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
 import { BillingApiService } from "../billing/service";
-import { InMemoryPureSocRepository } from "./memory-repository";
+import { createInMemoryApiRepositorySet, type InMemoryApiRepositorySet } from "./memory-repository";
 import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
 import { createRoNis2NotificationDraftCompanionBuilder } from "../compliance/nis2/ro/notification-draft-companion";
 import type { RbacRepository } from "../rbac";
@@ -93,7 +93,7 @@ export interface ApiPersistenceRuntime {
 export interface ApiServices {
   config: PureSocConfig;
   persistence: ApiPersistenceRuntime;
-  repository: InMemoryPureSocRepository;
+  memoryRepositories: InMemoryApiRepositorySet;
   prismaClient?: PureSocPrismaClient;
   auditSink: RuntimeAuditSink;
   auditWriter: AuditWriter;
@@ -134,10 +134,10 @@ export const createApiServices = (
 ): ApiServices => {
   const config = options.config ?? loadConfig();
   const billingConfig = options.billingConfig ?? config.billing;
-  const repository = new InMemoryPureSocRepository();
+  const memoryRepositories = createInMemoryApiRepositorySet();
   const runtimeRepositories = createRuntimeRepositories({
     config,
-    memoryRepository: repository,
+    memoryRepositories,
     prismaClient: options.prismaClient,
     now: options.now
   });
@@ -262,7 +262,7 @@ export const createApiServices = (
   return {
     config,
     persistence: runtimeRepositories.persistence,
-    repository,
+    memoryRepositories,
     prismaClient: runtimeRepositories.prismaClient,
     auditSink: runtimeRepositories.auditSink,
     auditWriter,
@@ -310,7 +310,7 @@ type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
 
 const createRuntimeRepositories = (input: {
   config: PureSocConfig;
-  memoryRepository: InMemoryPureSocRepository;
+  memoryRepositories: InMemoryApiRepositorySet;
   prismaClient?: PureSocPrismaClient;
   now?: () => Date;
 }): RuntimeRepositorySet => {
@@ -340,11 +340,11 @@ const createRuntimeRepositories = (input: {
       auditCheckpointRepository: new InMemoryAuditCheckpointRepository(auditSink),
       regulatorySourceRepository: new InMemoryRegulatorySourceRepository(),
       actionsRepository: new InMemoryRemediationActionRepository(),
-      evidenceRepository: input.memoryRepository,
-      billingRepository: input.memoryRepository,
+      evidenceRepository: input.memoryRepositories.evidenceRepository,
+      billingRepository: input.memoryRepositories.billingRepository,
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
-      identityRepository: input.memoryRepository,
+      identityRepository: input.memoryRepositories.identityRepository,
       providerResourceStore: new InMemoryProviderResourceStore({ now: input.now }),
       oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore()
     };

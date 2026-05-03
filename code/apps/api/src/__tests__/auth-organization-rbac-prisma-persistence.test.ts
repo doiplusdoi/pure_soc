@@ -73,7 +73,7 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
     expect(services.persistence.persistedContexts).toContain("audit_logs");
     expect(services.persistence.memoryBackedContexts).not.toContain("identity_sessions_organizations_rbac");
     expect(services.persistence.memoryBackedContexts).not.toContain("audit_logs");
-    expect(services.rbacRepository).not.toBe(services.repository);
+    expect(services.rbacRepository).not.toBe(services.memoryRepositories.identityRepository);
 
     const owner = await registerAndLogin("owner@example.test");
     const other = await registerAndLogin("other@example.test");
@@ -125,8 +125,8 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
     );
     expect(prismaClient.auditLog.rows.every((row) => row.entryHash && row.hashAlgorithm === "sha256")).toBe(true);
     expect(JSON.stringify(prismaClient.auditLog.rows)).not.toContain(password);
-    expect(services.repository.organizationMembers.size).toBe(0);
-    expect(services.repository.roleBindings.size).toBe(0);
+    expect(services.memoryRepositories.identityRepository.organizationMembers.size).toBe(0);
+    expect(services.memoryRepositories.identityRepository.roleBindings.size).toBe(0);
   });
 });
 

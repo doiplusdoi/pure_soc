@@ -469,6 +469,17 @@ Owner: Codex/DevOps/Product
 Target phase: Phase K external-smoke operations
 Status: Open; created 2026-05-03 by PLAN_M49 for selector/readiness-audit metadata without live external calls or provider writes; narrowed 2026-05-03 by PLAN_M50 with an explicit no-ready-path blocker review, no approved target, and no live external calls; preserved 2026-05-03 by PLAN_M53, which moved the next selector follow-up to PLAN_M54 and made no live external calls; preserved 2026-05-03 by PLAN_M54 with a repeated no-ready-path selector result, no selected command, no approved target, and no live external calls.
 
+### GAP-045: Memory Repository And API Dispatcher Coupling
+
+Severity: Medium
+Area: API maintainability
+Current state: PLAN_M57 split memory-mode API repository ownership into separate identity/org/RBAC, evidence, and billing adapters exposed through `services.memoryRepositories`, and removed the old `InMemoryPureSocRepository` god-object/inheritance shape. `apps/api/src/server.ts` now dispatches through `apiRouteTable` entries with method, path pattern, route-family metadata, raw-body metadata, and handler functions while preserving middleware ordering, Stripe raw-body parsing, JSON body limits, callback exemptions, cookies, and response contracts.
+Impact: REC-203 and REC-204 from `docs/claude_rec4.md` are narrowed for the current `node:http` runtime: bounded-context memory repositories are no longer coupled through one default test harness, and route additions no longer require extending a single long linear `if`/regex dispatcher. The API is still intentionally not NestJS/Hono/Express, and full OpenAPI/schema-driven routing remains outside this internal refactor.
+Next action: Keep future memory-mode adapters per-context and add new routes through `apiRouteTable`; evaluate a larger framework/router migration only through a dedicated ADR/prompt if route-table metadata becomes insufficient.
+Owner: Codex
+Target phase: Phase K maintainability
+Status: Resolved 2026-05-03 by PLAN_M57 for per-context memory repository split and route-table dispatch without API behavior changes or external calls.
+
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 
 Severity: High

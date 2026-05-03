@@ -1,12 +1,8 @@
 import { randomUUID } from "node:crypto";
 
 import { defaultRoleDefinitions, normalizeEmail, type PureSocRoleKey } from "@puresoc/auth-core";
-import { InMemoryBillingRepository } from "@puresoc/billing-core";
-import type {
-  EvidenceAccessLogEntry,
-  EvidenceArtifactMetadata,
-  EvidenceRepository
-} from "@puresoc/evidence";
+import { InMemoryBillingRepository, type BillingRepository } from "@puresoc/billing-core";
+import { InMemoryEvidenceRepository, type EvidenceRepository } from "@puresoc/evidence";
 import type {
   CreateLocalAccountInput,
   EmailVerificationTokenRecord,
@@ -21,9 +17,20 @@ import type { OidcIdentityRepository, OidcSocialProviderKey } from "@puresoc/aut
 import type { OrganizationRecord, OrganizationRepository } from "../organizations/service";
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
-export class InMemoryPureSocRepository
-  extends InMemoryBillingRepository
-  implements LocalAuthRepository, OidcIdentityRepository, OrganizationRepository, RbacRepository, EvidenceRepository
+export interface InMemoryApiRepositorySet {
+  identityRepository: InMemoryIdentityOrganizationRbacRepository;
+  evidenceRepository: InMemoryEvidenceRepository & EvidenceRepository;
+  billingRepository: InMemoryBillingRepository & BillingRepository;
+}
+
+export const createInMemoryApiRepositorySet = (): InMemoryApiRepositorySet => ({
+  identityRepository: new InMemoryIdentityOrganizationRbacRepository(),
+  evidenceRepository: new InMemoryEvidenceRepository(),
+  billingRepository: new InMemoryBillingRepository()
+});
+
+export class InMemoryIdentityOrganizationRbacRepository
+  implements LocalAuthRepository, OidcIdentityRepository, OrganizationRepository, RbacRepository
 {
   readonly users = new Map<string, LocalAuthUserRecord>();
   readonly identityAccounts = new Map<string, IdentityAccountRecord>();
@@ -35,11 +42,8 @@ export class InMemoryPureSocRepository
   readonly organizationMembers = new Map<string, OrganizationMembershipRecord>();
   readonly roles = new Map<string, RoleRecord>();
   readonly roleBindings = new Map<string, RoleBindingRecord>();
-  readonly evidenceArtifacts = new Map<string, EvidenceArtifactMetadata>();
-  readonly evidenceAccessLogs: EvidenceAccessLogEntry[] = [];
 
   constructor() {
-    super();
     const now = new Date("2026-04-28T00:00:00.000Z");
     for (const role of defaultRoleDefinitions) {
       this.roles.set(role.key, {
@@ -293,31 +297,5 @@ export class InMemoryPureSocRepository
       scopeJson: {},
       createdAt: new Date()
     });
-  }
-
-  async saveArtifact(artifact: EvidenceArtifactMetadata): Promise<EvidenceArtifactMetadata> {
-    this.evidenceArtifacts.set(artifact.id, artifact);
-    return artifact;
-  }
-
-  async findArtifactById(id: string): Promise<EvidenceArtifactMetadata | null> {
-    return this.evidenceArtifacts.get(id) ?? null;
-  }
-
-  async listArtifacts(organizationId: string): Promise<EvidenceArtifactMetadata[]> {
-    return [...this.evidenceArtifacts.values()].filter((artifact) => artifact.organizationId === organizationId);
-  }
-
-  async saveAccessLog(entry: EvidenceAccessLogEntry): Promise<EvidenceAccessLogEntry> {
-    this.evidenceAccessLogs.push(entry);
-    return entry;
-  }
-
-  async listAccessLogs(organizationId: string, evidenceArtifactId?: string): Promise<EvidenceAccessLogEntry[]> {
-    return this.evidenceAccessLogs.filter(
-      (entry) =>
-        entry.organizationId === organizationId &&
-        (evidenceArtifactId === undefined || entry.evidenceArtifactId === evidenceArtifactId)
-    );
   }
 }

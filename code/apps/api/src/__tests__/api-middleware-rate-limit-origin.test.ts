@@ -15,7 +15,7 @@ import {
   RedisFixedWindowRateLimitStore,
   type RateLimitStore
 } from "../rate-limit";
-import { startApiServer } from "../server";
+import { apiRouteTable, startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
 
@@ -298,6 +298,16 @@ describe("api middleware rate limits and origin protection", () => {
       rateLimitFamily: "evidence",
       organizationId: "org_1"
     });
+    expect(findRoute("POST", "/billing/stripe/webhook")).toMatchObject({
+      routeFamily: "webhook",
+      rawBody: true
+    });
+    expect(findRoute("POST", "/auth/oidc/google/callback")).toMatchObject({
+      routeFamily: "oidc_callback"
+    });
+    expect(findRoute("POST", "/organizations/org_1/evidence/upload")).toMatchObject({
+      routeFamily: "evidence"
+    });
   });
 
   it("rejects untrusted origins before JSON body parsing or route side effects", async () => {
@@ -324,7 +334,7 @@ describe("api middleware rate limits and origin protection", () => {
       code: "origin_not_allowed",
       routeFamily: "evidence"
     });
-    expect(services.repository.evidenceArtifacts.size).toBe(0);
+    expect(services.memoryRepositories.evidenceRepository.artifacts.size).toBe(0);
   });
 
   it("rejects missing Origin or Referer when strict browser CSRF posture is configured", async () => {
@@ -351,7 +361,7 @@ describe("api middleware rate limits and origin protection", () => {
       code: "origin_required",
       routeFamily: "evidence"
     });
-    expect(services.repository.evidenceArtifacts.size).toBe(0);
+    expect(services.memoryRepositories.evidenceRepository.artifacts.size).toBe(0);
   });
 
   it("allows trusted same-origin state-changing requests", async () => {
@@ -535,7 +545,7 @@ describe("api middleware rate limits and origin protection", () => {
       received: true,
       duplicate: false
     });
-    expect(services.repository.billingEvents.size).toBe(1);
+    expect(services.memoryRepositories.billingRepository.billingEvents.size).toBe(1);
   });
 
   it("preserves OIDC callback Origin exemption under strict browser CSRF posture", async () => {
@@ -660,3 +670,6 @@ const makeRequest = (options: {
       remoteAddress: options.remoteAddress ?? "127.0.0.1"
     }
   }) as IncomingMessage;
+
+const findRoute = (method: "GET" | "POST", pathname: string) =>
+  apiRouteTable.find((route) => route.methods.includes(method) && route.pattern.test(pathname));

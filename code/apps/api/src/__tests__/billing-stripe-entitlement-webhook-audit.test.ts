@@ -178,7 +178,7 @@ describe("api billing stripe entitlement webhook audit integration", () => {
     const body = await readJson<{ error: { code: string; message: string } }>(response);
     expect(body.error.code).toBe("stripe_webhook_signature_invalid");
     expect(JSON.stringify(body)).not.toContain("whsec_test");
-    expect(services.repository.billingEvents.size).toBe(0);
+    expect(services.memoryRepositories.billingRepository.billingEvents.size).toBe(0);
   });
 
   it("handles Stripe subscription transitions idempotently and audits billing changes", async () => {
@@ -200,7 +200,7 @@ describe("api billing stripe entitlement webhook audit integration", () => {
       duplicate: true
     });
 
-    const subscriptions = await services.repository.listBillingSubscriptions(organization.id);
+    const subscriptions = await services.memoryRepositories.billingRepository.listBillingSubscriptions(organization.id);
     expect(subscriptions).toHaveLength(1);
     expect(subscriptions[0]).toMatchObject({
       subscriptionStatus: "active",
@@ -221,12 +221,14 @@ describe("api billing stripe entitlement webhook audit integration", () => {
     const failedInvoiceResponse = await postRawWebhook(failedInvoicePayload, sign(failedInvoicePayload));
     expect(failedInvoiceResponse.status).toBe(200);
 
-    const updatedSubscriptions = await services.repository.listBillingSubscriptions(organization.id);
+    const updatedSubscriptions = await services.memoryRepositories.billingRepository.listBillingSubscriptions(
+      organization.id
+    );
     expect(updatedSubscriptions[0]?.subscriptionStatus).toBe("past_due");
     expect(await enabledEntitlementKeys(organization.id)).toEqual([]);
 
     expect(services.auditSink.findByAction("billing_changed")).toHaveLength(2);
-    expect(services.repository.billingEvents.size).toBe(2);
+    expect(services.memoryRepositories.billingRepository.billingEvents.size).toBe(2);
     expect(JSON.stringify(services.auditSink.records)).not.toContain("whsec_test");
     expect(JSON.stringify(services.auditSink.records)).not.toContain("sk_test_safe");
   });
@@ -242,7 +244,7 @@ describe("api billing stripe entitlement webhook audit integration", () => {
     });
 
   const enabledEntitlementKeys = async (organizationId: string) =>
-    (await services.repository.listBillingEntitlements(organizationId))
+    (await services.memoryRepositories.billingRepository.listBillingEntitlements(organizationId))
       .filter((entitlement) => entitlement.enabled)
       .map((entitlement) => entitlement.entitlementKey)
       .sort();
