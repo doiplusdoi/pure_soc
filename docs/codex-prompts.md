@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M53, reviewing `docs/claude_rec4.md`, re-sequencing the next steps, and staging Prompt 53 / `docs/PLAN_M54.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M54, preserving the external-smoke no-ready-path blocker posture, and staging Prompt 54 / `docs/PLAN_M55.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -83,6 +83,7 @@ The repository currently contains:
 - PLAN_M51 API rate-limit store, trusted proxy, and CSRF decision slice: API rate limiting now has an injectable fixed-window store boundary while preserving process-local memory defaults; Redis/shared-store configuration is explicit and rejected until the adapter exists; request context ignores `X-Forwarded-For` and `Forwarded` unless an explicit trusted-proxy IP policy is configured; production startup requires strict Origin/Referer validation for browser state-changing routes; and deterministic tests cover trusted/untrusted forwarded headers, secret-free rate-limit errors, strict Origin/Referer behavior, and callback/webhook exemptions.
 - PLAN_M52 API Redis rate-limit store adapter: `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` now selects an implemented Redis fixed-window store when a Redis URL is configured; Redis keys hash route-family/user/IP/org material before storage; the Redis command path uses an EVAL script through the shared Redis command client with configurable retry/backoff; middleware returns secret-free 503 responses for store failures; and startup validation rejects missing/invalid Redis URLs without silently falling back to memory.
 - PLAN_M53 served web runtime baseline: after reading `docs/claude_rec4.md`, M53 was re-sequenced away from another external-smoke blocker review and implemented an authenticated web/API path. ADR-017 records current runtime stack deviations; API now exposes `GET /organizations/:orgId/dashboards/snapshots/latest`; `apps/web` proxies login/logout/session to the API, preserves API session cookies, and renders the operational console from the latest organization dashboard snapshot; `@ui-smoke` seeds a local API organization/evaluation/dashboard snapshot and proves the web dashboard came from that API response without live external calls.
+- PLAN_M54 external-smoke blocker review: `external-smoke:readiness` stayed metadata-only in dry-run mode with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, and `ready_for_disposable_smoke: 0`; `external-smoke:select-target` returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`. No live smoke command was run, and GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -143,7 +144,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 50 / `docs/PLAN_M51.md` is completed.
 - Prompt 51 / `docs/PLAN_M52.md` is completed.
 - Prompt 52 / `docs/PLAN_M53.md` is completed.
-- Prompt 53 / `docs/PLAN_M54.md` is staged as the next active implementation prompt.
+- Prompt 53 / `docs/PLAN_M54.md` is completed.
+- Prompt 54 / `docs/PLAN_M55.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -158,15 +160,14 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 53 / `docs/PLAN_M54.md`: External Live-Smoke Target Approval Follow-Up Or Blocker Review.
-2. Prompt 54 / `docs/PLAN_M55.md`: Action-Run Idempotency.
-3. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
-4. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
-5. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
+1. Prompt 54 / `docs/PLAN_M55.md`: Action-Run Idempotency.
+2. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
+3. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
+4. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M54 must not call Microsoft, Google, GitHub, Microsoft Graph, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external timestamp/signing services, public regulatory URLs, production/staging/customer deployments, Redis targets, or provider write executors unless the existing readiness selector chooses exactly one approved local/test/ci/disposable path and that prompt explicitly authorizes running only that selected command.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M55 must add idempotency at the action-run creation boundary without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 53 / PLAN_M54: External Live-Smoke Target Approval Follow-Up Or Blocker Review
+## Active Prompt 54 / PLAN_M55: Action-Run Idempotency
 
 Read:
 
@@ -176,50 +177,64 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M53.md`
+- `docs/PLAN_M54.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
-- `code/packages/config/src/external-smoke-readiness.ts`
-- `code/scripts/external-smoke-readiness.ts`
-- `code/scripts/external-smoke-target-selection.ts`
-- `code/packages/config/src/**`
-- `code/tests/**`
+- `code/packages/recommendations/src/actions.ts`
+- `code/packages/recommendations/src/__tests__/actions.spec.ts`
+- `code/apps/api/src/actions/service.ts`
+- `code/apps/api/src/actions/routes.ts`
+- `code/apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/src/repositories/actions.ts`
+- `code/packages/database/src/__tests__/prisma-actions.repository.spec.ts`
+- `code/scripts/check-schema-contract-drift.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Keep GAP-044 honest by running the metadata-only readiness/selector flow first and either documenting why no live smoke target is approved, or, if the selector chooses exactly one approved local/test/ci/disposable target, running only the corresponding existing smoke command under that path's guardrails.
+Make action-run creation idempotent so retried clients cannot create duplicate remediation action runs before any future provider write execution is enabled.
 
 Deliverables:
 
-- Run `external-smoke:readiness` and `external-smoke:select-target` before any live smoke command.
-- If no path is selected, record the blocker posture and make no live network/runtime calls.
-- If exactly one path is selected and the operator has configured that path's existing guardrails, run only the selected command and keep every other live path blocked.
-- Preserve secret-free output: no endpoint values, credentials, tokens, cookies, authorization headers, Redis URLs containing credentials, object keys, provider payloads, or customer/user emails.
-- Update GAP-044 and docs with the selected/no-selected target result.
-- Create `docs/PLAN_M55.md` from the next selected active prompt before final response.
+- Add an optional action-run idempotency key to the domain model, API request handling, memory repository, and Prisma action repository.
+- Read the `Idempotency-Key` request header for action-run creation, normalize it conservatively, and reject empty/oversized/malformed keys with a stable client error.
+- If a matching `(organizationId, idempotencyKey)` action run already exists, return that existing run idempotently instead of creating a duplicate.
+- Ensure idempotency scope is per organization and does not allow cross-organization action-run discovery.
+- Keep action lifecycle safety checks intact: recommendation ownership, provider connection identity, preflight/approval/snapshot prerequisites, and write-enabled/provider-executor gates must not be weakened.
+- Add database migration/schema drift coverage for the new idempotency field/index.
+- Update GAP-030 and docs with the narrowed duplicate-action-run risk.
+- Create `docs/PLAN_M56.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/scripts/**`
-- `code/tests/**`
-- `code/package.json`
+- `code/packages/recommendations/src/actions.ts`
+- `code/packages/recommendations/src/__tests__/actions.spec.ts`
+- `code/apps/api/src/actions/service.ts`
+- `code/apps/api/src/actions/routes.ts`
+- `code/apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/prisma/migrations/**`
+- `code/packages/database/src/repositories/actions.ts`
+- `code/packages/database/src/__tests__/prisma-actions.repository.spec.ts`
+- `code/scripts/check-schema-contract-drift.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M54.md`
 - `docs/PLAN_M55.md`
+- `docs/PLAN_M56.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not call Microsoft Graph, OIDC/OAuth providers, Stripe, object storage, scanners, browser/PDF services, KMS/HSM/secret-manager/cloud APIs, external signing services, public regulatory URLs, production/staging/customer deployments, or provider write executors.
-- Do not run any selected live-candidate command unless `external-smoke:select-target` reports exactly one selected path and the path-specific disposable/test guardrails are configured.
-- Do not run more than one live smoke path in this prompt.
-- Do not store or print session cookies, authorization headers, OAuth codes, provider tokens, client secrets, key material, Redis URLs containing credentials, live endpoint URLs, user emails, object-storage keys, provider payloads, or rendered report bodies.
-- Do not enable provider write execution, Microsoft Graph write/remediation scopes, or customer-impacting external calls.
+- Do not execute action runs against live provider executors, Microsoft Graph, or any customer-impacting provider write path.
+- Do not enable Microsoft write/remediation scopes, provider write jobs, or live queues.
+- Do not weaken existing preflight, approval, snapshot, evidence, or audit requirements.
+- Do not make idempotency keys globally scoped; organization scoping is mandatory.
+- Do not log or return raw authorization headers, cookies, provider tokens, secrets, provider payloads, or idempotency key values in audit payloads if a redacted marker is enough.
+- Do not add broad routing/framework migrations in this prompt.
 
 Tests and acceptance commands:
 
@@ -227,19 +242,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm external-smoke:readiness
-pnpm external-smoke:select-target
+pnpm test -- actions remediation api database audit
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M54.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M55.md`.
 
 Expected gap movement:
 
-- Keep GAP-044 open if no path is selected or if no live smoke command is run.
-- Narrow GAP-044 only if exactly one approved local/test/ci/disposable path is selected and exercised through its existing guarded command.
-- Preserve GAP-035, GAP-043, and other runtime gaps unless their specific guarded smoke path is selected and run.
+- Narrow GAP-030 for duplicate action-run creation risk at the API/domain/repository boundary.
+- Preserve live provider execution, provider-specific rollback/verification, live queue orchestration, and customer-facing remediation enablement as deferred under GAP-030/GAP-043.
+- Preserve GAP-044; this prompt must not run external smoke commands.
 
 Final response must include:
 
@@ -247,10 +261,28 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M54` updated
-- `PLAN_M55` created
+- `PLAN_M55` updated
+- `PLAN_M56` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 53 / PLAN_M54: External Live-Smoke Target Approval Follow-Up Or Blocker Review
+
+Completed on 2026-05-03.
+
+Summary:
+- Ran the required metadata-only `external-smoke:readiness` and `external-smoke:select-target` flow before any live smoke command.
+- Used host npm package-script equivalents because sandbox-local `pnpm` and `npm` were unavailable.
+- Readiness stayed dry-run with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, `ready_for_disposable_smoke: 0`, `not_configured: 6`, `configured_dry_run_only: 2`, `blocked_missing_secret: 1`, and `unsafe_production_target: 0`.
+- Selector returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, `selectedCheckIds: []`, `readyCandidateCount: 0`, and `candidateCount: 8`.
+- No live smoke command was run; GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
+
+Validated with host npm equivalents because sandbox-local `pnpm`/`npm` were unavailable:
+- `npm run external-smoke:readiness`
+- `npm run external-smoke:select-target`
+- Additional M54 acceptance command results are recorded in `docs/PLAN_M54.md`.
+
+GAP-044 is preserved with an explicit no-ready-path blocker review. GAP-035, GAP-043, and other runtime/external gaps remain unchanged because no guarded live path was selected or run.
 
 ## Completed Prompt 52 / PLAN_M53: Served Web Runtime Baseline
 

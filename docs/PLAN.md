@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M53 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M54 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -62,8 +62,9 @@ As of 2026-05-03, M1-M53 are implemented at contract/runtime-baseline level.
 - M51 hardens API middleware security. Rate limiting gained an injectable store boundary while preserving deterministic memory defaults, Redis/shared-store selection was made explicit, forwarded client IP headers are ignored unless a trusted-proxy IP policy is configured, production startup requires strict Origin/Referer checks for browser state-changing routes, and webhook/OIDC/provider callback exemptions remain tested.
 - M52 implements the API Redis fixed-window rate-limit store path behind `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis`. Memory remains the default, Redis keys are hashed before storage, the Redis command path uses an EVAL script with configurable retry/backoff, store failures return secret-free 503 responses, and startup validation rejects missing/invalid Redis URLs without silently falling back to memory. No live Redis target or external service was called.
 - M53 re-sequences the next work after `docs/claude_rec4.md`: ADR-017 records current stack deviations from the master plan, API exposes `GET /organizations/:orgId/dashboards/snapshots/latest`, and the served web runtime now proxies login/logout/session to the API, preserves API session cookies, and renders the operational console from the latest organization dashboard snapshot. The local `@ui-smoke` seeds a real API user, organization, compliance evaluation, and dashboard snapshot, then logs in through the web server and asserts dashboard source metadata came from the API response without live external calls.
+- M54 reruns the external-smoke approval/selector blocker review after M53. `external-smoke:readiness` stayed in dry-run mode with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, and `ready_for_disposable_smoke: 0`; `external-smoke:select-target` returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`. No live smoke command was run, and GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
 - Runtime readiness is still partial. Persisted audit concurrency, WORM/immutable export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M54.md`, focused on the external live-smoke target approval/selector handoff while all unapproved live targets remain blocked.
+- Next planned milestone: `docs/PLAN_M55.md`, focused on action-run idempotency before any live remediation execution can be considered.
 
 ## Milestones
 
@@ -84,8 +85,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M53.md` record completed incremental milestones.
-- `docs/PLAN_M54.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M54.md` record completed incremental milestones.
+- `docs/PLAN_M55.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow
