@@ -65,8 +65,11 @@ describe("country-pack notification draft envelopes", () => {
       issues: []
     });
     expect(parseCountryPackNotificationDraftEnvelope(envelope)).toMatchObject({
+      legalCaveatFallbackReason: "missing_translation",
       legalCaveatLocale: "en",
       legalCaveatFallbackUsed: true,
+      legalCaveatRequestedLocale: "ro-RO",
+      legalCaveatReviewStatus: "source_approved",
       locale: "ro",
       notificationType: "country_registration",
       payloadSchemaKey: "ro.nis2.registration_notification.v1"

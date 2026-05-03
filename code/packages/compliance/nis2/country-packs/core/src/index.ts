@@ -8,14 +8,24 @@ import {
   isPureSocLocale,
   resolveLegalCaveatMessage,
   resolvePureSocLocale,
+  type PureSocMessageFallbackReason,
+  type PureSocMessageReviewStatus,
   type PureSocLocale
 } from "@puresoc/shared";
 
 export {
   LEGAL_CAVEAT_MESSAGE_KEY,
   PURESOC_LEGAL_CAVEAT,
+  definePureSocMessageCatalog,
+  resolvePureSocMessage,
   resolveLegalCaveatMessage,
   resolvePureSocLocale,
+  type LocalizedMessageResolution,
+  type LegalCaveatMessageResolution,
+  type PureSocMessageCatalog,
+  type PureSocMessageCatalogEntry,
+  type PureSocMessageFallbackReason,
+  type PureSocMessageReviewStatus,
   type PureSocLocale
 } from "@puresoc/shared";
 
@@ -151,8 +161,12 @@ export const countryPackNotificationTypes: readonly CountryPackNotificationType[
 ];
 
 export interface CountryPackLocalizedMessage {
+  fallbackReason?: PureSocMessageFallbackReason;
+  fallbackUsed?: boolean;
   locale: PureSocLocale;
   messageKey: string;
+  requestedLocale?: string;
+  reviewStatus?: PureSocMessageReviewStatus;
   sourceMapId?: string;
   text: string;
 }
@@ -169,9 +183,12 @@ export interface CountryPackNotificationDraftEnvelope<TPayload extends Record<st
   frameworkKey: "nis2";
   jurisdiction: EuCountryCode | string;
   legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
   legalCaveatFallbackUsed: boolean;
   legalCaveatLocale: PureSocLocale;
   legalCaveatMessageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
   notificationType: CountryPackNotificationType;
   payload: TPayload;
@@ -246,9 +263,12 @@ export const buildCountryPackNotificationDraftEnvelope = <TPayload extends Recor
     frameworkKey: "nis2",
     jurisdiction: input.jurisdiction,
     legalCaveat: legalCaveat.text,
+    legalCaveatFallbackReason: legalCaveat.fallbackReason,
     legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
     legalCaveatLocale: legalCaveat.resolvedLocale,
     legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+    legalCaveatRequestedLocale: legalCaveat.requestedLocale,
+    legalCaveatReviewStatus: legalCaveat.reviewStatus,
     locale,
     notificationType: input.notificationType,
     payload: input.payload,

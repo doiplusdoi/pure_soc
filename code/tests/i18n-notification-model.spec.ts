@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 
 import {
   LEGAL_CAVEAT_MESSAGE_KEY,
+  PURESOC_MESSAGE_KEYS,
   PURESOC_LEGAL_CAVEAT,
   resolveLegalCaveatMessage,
-  resolvePureSocLocale
+  resolvePureSocLocale,
+  resolvePureSocMessage
 } from "@puresoc/shared";
 
 describe("i18n and country-pack notification model contracts", () => {
@@ -25,10 +27,13 @@ describe("i18n and country-pack notification model contracts", () => {
     const caveat = resolveLegalCaveatMessage("ro-RO");
 
     expect(caveat).toMatchObject({
+      fallbackReason: "missing_translation",
       fallbackUsed: true,
       messageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+      messageKind: "legal",
       normalizedLocale: "ro",
       requestedLocale: "ro-RO",
+      reviewStatus: "source_approved",
       resolvedLocale: "en",
       text: PURESOC_LEGAL_CAVEAT
     });
@@ -36,4 +41,37 @@ describe("i18n and country-pack notification model contracts", () => {
     expect(caveat.text).not.toContain("Certified compliant");
   });
 
+  it("resolves demo-safe Romanian product copy without legal caveat approval claims", () => {
+    const message = resolvePureSocMessage({
+      locale: "ro-RO",
+      messageKey: PURESOC_MESSAGE_KEYS.internalReadinessLabel
+    });
+
+    expect(message).toMatchObject({
+      fallbackUsed: false,
+      messageKind: "product",
+      normalizedLocale: "ro",
+      requestedLocale: "ro-RO",
+      resolvedLocale: "ro",
+      reviewStatus: "demo_safe",
+      text: "Pregatire interna"
+    });
+    expect(message.text).not.toMatch(/certificat|legal/i);
+  });
+
+  it("records unsupported-locale fallback separately from missing translations", () => {
+    const message = resolvePureSocMessage({
+      locale: "fr-FR",
+      messageKey: PURESOC_MESSAGE_KEYS.dashboardLabel
+    });
+
+    expect(message).toMatchObject({
+      fallbackReason: "unsupported_locale",
+      fallbackUsed: true,
+      normalizedLocale: "en",
+      requestedLocale: "fr-FR",
+      resolvedLocale: "en",
+      text: "Dashboard"
+    });
+  });
 });

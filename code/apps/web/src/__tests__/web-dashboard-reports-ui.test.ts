@@ -99,4 +99,24 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("stored_analysis");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
+
+  it("can resolve demo-safe Romanian product copy without translating legal caveats", () => {
+    const html = renderOperationalConsole(createOperationalConsoleDemoModel(), {
+      locale: "ro-RO"
+    });
+    const login = renderLoginScreen({
+      locale: "ro-RO"
+    });
+
+    expect(html).toContain('<html lang="ro">');
+    expect(html).toContain("Tablou de bord");
+    expect(html).toContain("Dovezi si rapoarte");
+    expect(html).toContain("Coada de aprobari");
+    expect(html).toContain(PURESOC_LEGAL_CAVEAT);
+    expect(login).toContain('<html lang="ro">');
+    expect(login).toContain("Autentificare");
+    expect(login).toContain("Sesiune API");
+    expect(login).toContain('<label for="password">Parola</label>');
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
 });

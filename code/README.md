@@ -99,6 +99,12 @@ pnpm test:e2e -- --grep @ui-smoke
 
 This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, Romania onboarding screens, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
+### Message Catalog Runtime
+
+Supported product locales are `en` and `ro`. Shared message resolution lives in `@puresoc/shared` and returns the requested locale, normalized locale, resolved locale, fallback reason, message key, and review status.
+
+Romanian demo-safe product labels such as dashboard, sign-in, evidence/report, and approval headings resolve from the shared catalog. Romanian legal-caveat text is not approved in this repository, so legal caveat requests for `ro` deliberately fall back to the English source text with `missing_translation` metadata. Romania notification draft labels are owned by the Romania country pack and remain English/source-mapped until product/legal-approved Romanian regulatory copy is added.
+
 ## API Middleware Security
 
 The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.

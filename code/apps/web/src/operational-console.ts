@@ -2,6 +2,12 @@ import type { DashboardWidgetContract } from "@puresoc/dashboards";
 import type { ActionRun } from "@puresoc/recommendations";
 import type { ReportEvidenceSummary, ReportSourceReference } from "@puresoc/reports";
 import {
+  PURESOC_MESSAGE_KEYS,
+  resolvePureSocLocale,
+  resolvePureSocMessage,
+  type PureSocLocale
+} from "@puresoc/shared";
+import {
   escapeHtml,
   renderCommandButton,
   renderDataTable,
@@ -26,40 +32,59 @@ import type {
 
 export interface RenderOperationalConsoleOptions {
   includeDocumentShell?: boolean;
+  locale?: string | null;
 }
 
 export interface RenderLoginScreenOptions {
-  productName?: string;
-  errorMessage?: string;
   activeOrganizationId?: string | null;
+  errorMessage?: string;
+  locale?: string | null;
+  productName?: string;
 }
 
 export interface RuntimeMessageScreenInput {
-  title: string;
-  summary: string;
-  statusLabel: string;
-  statusTone?: PureSocUiTone;
   actionHref?: string;
   actionLabel?: string;
+  locale?: string | null;
+  statusLabel: string;
+  statusTone?: PureSocUiTone;
+  summary: string;
+  title: string;
+}
+
+interface OperationalConsoleCopy {
+  apiSession: string;
+  approvalQueue: string;
+  dashboard: string;
+  email: string;
+  evidenceReports: string;
+  internalReadiness: string;
+  internalReadinessConsole: string;
+  locale: PureSocLocale;
+  password: string;
+  signIn: string;
+  sourceMapped: string;
+  storedAggregate: string;
 }
 
 export const renderOperationalConsole = (
   model: OperationalConsoleModel,
   options: RenderOperationalConsoleOptions = {}
 ): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
   const content = [
     '<a class="ps-skip-link" href="#content">Skip to content</a>',
     '<div class="ps-shell" data-ui-smoke="operational-console">',
-    renderSidebar(model),
+    renderSidebar(model, copy),
     '<main class="ps-main" id="content" tabindex="-1">',
     renderTopbar(model),
     '<div class="ps-content">',
-    renderDashboardSection(model),
-    renderOnboardingSection(model),
+    renderDashboardSection(model, copy),
+    renderOnboardingSection(model, copy),
     renderMicrosoft365Section(model),
     renderGapsAndRecommendationsSection(model),
-    renderEvidenceReportsSection(model),
-    renderApprovalSection(model.actionRuns),
+    renderEvidenceReportsSection(model, copy),
+    renderApprovalSection(model.actionRuns, copy),
     "</div>",
     "</main>",
     "</div>"
@@ -71,7 +96,7 @@ export const renderOperationalConsole = (
 
   return [
     "<!doctype html>",
-    '<html lang="en">',
+    `<html lang="${copy.locale}">`,
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -88,34 +113,35 @@ export const renderOperationalConsole = (
 export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {}): string => {
   const normalized = typeof options === "string" ? { productName: options } : options;
   const productName = normalized.productName ?? "PureSOC";
+  const copy = resolveOperationalConsoleCopy(normalized.locale);
 
   return [
     "<!doctype html>",
-    '<html lang="en">',
+    `<html lang="${copy.locale}">`,
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${escapeHtml(productName)} sign in</title>`,
+    `<title>${escapeHtml(productName)} ${escapeHtml(copy.signIn.toLowerCase())}</title>`,
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
     '<main class="ps-content" id="content" tabindex="-1">',
     '<section class="ps-section" aria-labelledby="login-title">',
     '<div class="ps-section__header">',
-    '<div><h1 class="ps-section__title" id="login-title">Sign in</h1><p class="ps-muted">PureSOC internal readiness console</p></div>',
-    renderStatusPill({ label: "API session", tone: "info" }),
+    `<div><h1 class="ps-section__title" id="login-title">${escapeHtml(copy.signIn)}</h1><p class="ps-muted">${escapeHtml(copy.internalReadinessConsole)}</p></div>`,
+    renderStatusPill({ label: copy.apiSession, tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
     normalized.errorMessage
       ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(normalized.errorMessage)}</p>`
       : "",
     '<form class="ps-form" action="/auth/login" method="post">',
-    '<div class="ps-field"><label for="email">Email</label><input id="email" name="email" type="email" autocomplete="email" required></div>',
-    '<div class="ps-field"><label for="password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>',
+    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email" required></div>`,
+    `<div class="ps-field"><label for="password">${escapeHtml(copy.password)}</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>`,
     normalized.activeOrganizationId
       ? `<input type="hidden" name="activeOrganizationId" value="${escapeHtml(normalized.activeOrganizationId)}">`
       : "",
-    renderCommandButton({ label: "Sign in", ariaLabel: "Sign in to PureSOC", tone: "primary", type: "submit" }),
+    renderCommandButton({ label: copy.signIn, ariaLabel: `${copy.signIn} PureSOC`, tone: "primary", type: "submit" }),
     "</form>",
     "</div>",
     "</section>",
@@ -126,9 +152,12 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
 };
 
 export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): string =>
-  [
+  {
+    const locale = resolvePureSocLocale(input.locale).locale;
+
+    return [
     "<!doctype html>",
-    '<html lang="en">',
+    `<html lang="${locale}">`,
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
@@ -151,23 +180,44 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     "</main>",
     "</body>",
     "</html>"
-  ].join("");
+    ].join("");
+  };
 
-const renderSidebar = (model: OperationalConsoleModel): string => {
+const resolveOperationalConsoleCopy = (locale?: string | null): OperationalConsoleCopy => {
+  const resolvedLocale = resolvePureSocLocale(locale).locale;
+  const text = (messageKey: string): string => resolvePureSocMessage({ locale, messageKey }).text;
+
+  return {
+    apiSession: text(PURESOC_MESSAGE_KEYS.apiSessionLabel),
+    approvalQueue: text(PURESOC_MESSAGE_KEYS.approvalQueueLabel),
+    dashboard: text(PURESOC_MESSAGE_KEYS.dashboardLabel),
+    email: text(PURESOC_MESSAGE_KEYS.emailLabel),
+    evidenceReports: text(PURESOC_MESSAGE_KEYS.evidenceReportsLabel),
+    internalReadiness: text(PURESOC_MESSAGE_KEYS.internalReadinessLabel),
+    internalReadinessConsole: text(PURESOC_MESSAGE_KEYS.internalReadinessConsoleLabel),
+    locale: resolvedLocale,
+    password: text(PURESOC_MESSAGE_KEYS.passwordLabel),
+    signIn: text(PURESOC_MESSAGE_KEYS.signInTitle),
+    sourceMapped: text(PURESOC_MESSAGE_KEYS.sourceMappedLabel),
+    storedAggregate: text(PURESOC_MESSAGE_KEYS.storedAggregateLabel)
+  };
+};
+
+const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string => {
   const items = [
-    ["Dashboard", "#dashboard"],
+    [copy.dashboard, "#dashboard"],
     ["Onboarding", "#onboarding"],
     ["Microsoft 365", "#microsoft365"],
     ["Gaps", "#gaps"],
-    ["Evidence", "#evidence"],
-    ["Approvals", "#approvals"]
+    [copy.evidenceReports, "#evidence"],
+    [copy.approvalQueue, "#approvals"]
   ] as const;
 
   return [
     '<aside class="ps-sidebar" aria-label="Primary navigation">',
     '<div class="ps-brand">',
     `<div><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">${escapeHtml(model.organization.primaryCountryCode)} workspace</span></div>`,
-    renderStatusPill({ label: "Internal readiness", tone: "accent" }),
+    renderStatusPill({ label: copy.internalReadiness, tone: "accent" }),
     "</div>",
     '<nav class="ps-nav">',
     ...items.map(([label, href], index) =>
@@ -190,7 +240,7 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     "</header>"
   ].join("");
 
-const renderDashboardSection = (model: OperationalConsoleModel): string => {
+const renderDashboardSection = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string => {
   const scores = model.dashboard.readinessScores;
   const scoreMeters = [
     ["EU applicability", scores.euApplicability],
@@ -203,8 +253,8 @@ const renderDashboardSection = (model: OperationalConsoleModel): string => {
 
   return renderSection({
     id: "dashboard",
-    title: "Dashboard",
-    eyebrow: renderSourceChip({ label: "Stored aggregate", detail: model.dashboard.snapshotType }),
+    title: copy.dashboard,
+    eyebrow: renderSourceChip({ label: copy.storedAggregate, detail: model.dashboard.snapshotType }),
     body: [
       '<div class="ps-score-grid">',
       ...scoreMeters.map(([label, value]) => `<div class="ps-panel">${renderMeter({ label, value, source: "dashboard_snapshots" })}</div>`),
@@ -228,11 +278,11 @@ const renderDashboardWidget = (widget: DashboardWidgetContract): string =>
     "</article>"
   ].join("");
 
-const renderOnboardingSection = (model: OperationalConsoleModel): string =>
+const renderOnboardingSection = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string =>
   renderSection({
     id: "onboarding",
     title: "Onboarding And Country Packs",
-    eyebrow: renderStatusPill({ label: "Source mapped", tone: "accent" }),
+    eyebrow: renderStatusPill({ label: copy.sourceMapped, tone: "accent" }),
     body: [
       '<div class="ps-grid">',
       renderOnboardingPanel(model.onboarding.eu),
@@ -384,10 +434,10 @@ const renderGapsAndRecommendationsSection = (model: OperationalConsoleModel): st
     ].join("")
   });
 
-const renderEvidenceReportsSection = (model: OperationalConsoleModel): string =>
+const renderEvidenceReportsSection = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string =>
   renderSection({
     id: "evidence",
-    title: "Evidence And Reports",
+    title: copy.evidenceReports,
     eyebrow: renderSourceChip({ label: "Provenance", detail: "stored_analysis" }),
     body: [
       renderLegalCaveat(model.legalCaveat),
@@ -445,10 +495,10 @@ const renderEvidenceReportsSection = (model: OperationalConsoleModel): string =>
     ].join("")
   });
 
-const renderApprovalSection = (runs: readonly ActionRun[]): string =>
+const renderApprovalSection = (runs: readonly ActionRun[], copy: OperationalConsoleCopy): string =>
   renderSection({
     id: "approvals",
-    title: "Approval Queue",
+    title: copy.approvalQueue,
     eyebrow: renderSourceChip({ label: "Safety model", detail: "preflight + approval + snapshots" }),
     body: [
       '<div class="ps-action-list">',

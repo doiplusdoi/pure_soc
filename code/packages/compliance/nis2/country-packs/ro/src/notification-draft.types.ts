@@ -1,10 +1,14 @@
 import {
   buildCountryPackNotificationDraftEnvelope,
   countryPackNotificationPayloadSchemaKey,
+  definePureSocMessageCatalog,
   parseCountryPackNotificationDraftEnvelope,
   resolveLegalCaveatMessage,
   resolvePureSocLocale,
+  resolvePureSocMessage,
   type CountryPackNotificationDraftEnvelope,
+  type PureSocMessageFallbackReason,
+  type PureSocMessageReviewStatus,
   type PureSocLocale
 } from "@puresoc/country-packs-core";
 import {
@@ -20,8 +24,12 @@ export type RoNis2NotificationDraftStatus = "draft" | "ready_for_review" | "expo
 export interface RoNis2NotificationDraftField {
   key: string;
   label: string;
+  labelFallbackReason?: PureSocMessageFallbackReason;
+  labelFallbackUsed: boolean;
   labelLocale: PureSocLocale;
   labelMessageKey: string;
+  labelRequestedLocale?: string;
+  labelReviewStatus: PureSocMessageReviewStatus;
   sourceMapId: string;
   sourceReferences: readonly RoNis2SourceReference[];
   targetCell: string;
@@ -38,9 +46,12 @@ export interface RoNis2NotificationDraftJson {
   generatedAt: string;
   jurisdiction: "RO";
   legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
   legalCaveatFallbackUsed: boolean;
   legalCaveatLocale: PureSocLocale;
   legalCaveatMessageKey: string;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus: PureSocMessageReviewStatus;
   locale: PureSocLocale;
   notificationType: "ro_nis2_registration_notification";
   payloadSchemaKey: string;
@@ -50,6 +61,12 @@ export interface RoNis2NotificationDraftJson {
   status: RoNis2NotificationDraftStatus;
   submission: {
     notice: string;
+    noticeFallbackReason?: PureSocMessageFallbackReason;
+    noticeFallbackUsed: boolean;
+    noticeLocale: PureSocLocale;
+    noticeMessageKey: string;
+    noticeRequestedLocale?: string;
+    noticeReviewStatus: PureSocMessageReviewStatus;
     submittedAt: null;
     submittedToDnsc: false;
   };
@@ -91,6 +108,9 @@ export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION = "1.0.0";
 
 export const RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE =
   "PureSOC prepares an internal Romania NIS2 notification-form draft from source-mapped workbook fields. PureSOC does not submit this draft to DNSC.";
+
+export const RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE_MESSAGE_KEY =
+  "country_pack.ro.nis2.notification.submission.notice.v1";
 
 export const RO_NIS2_NOTIFICATION_LEGAL_CAVEAT = resolveLegalCaveatMessage("en").text;
 
@@ -211,6 +231,36 @@ const NOTIFICATION_MAPPINGS: readonly NotificationMapping[] = [
   )
 ];
 
+const roNis2NotificationMessageCatalog = definePureSocMessageCatalog([
+  ...NOTIFICATION_MAPPINGS.map((mapping) => ({
+    messageKey: mapping.labelMessageKey,
+    messageKind: "country_pack_notification" as const,
+    reviewStatusByLocale: {
+      en: "source_approved" as const
+    },
+    translations: {
+      en: mapping.label
+    }
+  })),
+  {
+    messageKey: RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE_MESSAGE_KEY,
+    messageKind: "country_pack_notification" as const,
+    reviewStatusByLocale: {
+      en: "source_approved" as const
+    },
+    translations: {
+      en: RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE
+    }
+  }
+]);
+
+const resolveRoNis2NotificationMessage = (messageKey: string, locale?: string | null) =>
+  resolvePureSocMessage({
+    catalog: roNis2NotificationMessageCatalog,
+    locale,
+    messageKey
+  });
+
 export const buildRoNis2NotificationDraft = (input: {
   answers: RoNis2OnboardingAnswers;
   classification: Nis2Classification;
@@ -220,16 +270,30 @@ export const buildRoNis2NotificationDraft = (input: {
 }): RoNis2NotificationDraftJson => {
   const locale = resolvePureSocLocale(input.locale).locale;
   const legalCaveat = resolveLegalCaveatMessage(input.locale);
-  const fields = NOTIFICATION_MAPPINGS.map((mapping) => ({
-    key: mapping.key,
-    label: mapping.label,
-    labelLocale: "en" as const,
-    labelMessageKey: mapping.labelMessageKey,
-    sourceMapId: mapping.sourceMapId,
-    sourceReferences: mapping.sourceReferences,
-    targetCell: mapping.targetCell,
-    value: mapping.answerPath ? formatNotificationValue(mapping.answerPath, getAnswerValue(input.answers, mapping.answerPath)) : mapping.value ?? null
-  }));
+  const submissionNotice = resolveRoNis2NotificationMessage(
+    RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE_MESSAGE_KEY,
+    input.locale
+  );
+  const fields = NOTIFICATION_MAPPINGS.map((mapping) => {
+    const label = resolveRoNis2NotificationMessage(mapping.labelMessageKey, input.locale);
+
+    return {
+      key: mapping.key,
+      label: label.text,
+      labelFallbackReason: label.fallbackReason,
+      labelFallbackUsed: label.fallbackUsed,
+      labelLocale: label.resolvedLocale,
+      labelMessageKey: mapping.labelMessageKey,
+      labelRequestedLocale: label.requestedLocale,
+      labelReviewStatus: label.reviewStatus,
+      sourceMapId: mapping.sourceMapId,
+      sourceReferences: mapping.sourceReferences,
+      targetCell: mapping.targetCell,
+      value: mapping.answerPath
+        ? formatNotificationValue(mapping.answerPath, getAnswerValue(input.answers, mapping.answerPath))
+        : mapping.value ?? null
+    };
+  });
   const sourceMapLinks = fields.map((field) => ({
     sourceMapId: field.sourceMapId,
     sourceReferences: field.sourceReferences,
@@ -252,9 +316,12 @@ export const buildRoNis2NotificationDraft = (input: {
     generatedAt: input.generatedAt ?? new Date().toISOString(),
     jurisdiction: "RO",
     legalCaveat: legalCaveat.text,
+    legalCaveatFallbackReason: legalCaveat.fallbackReason,
     legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
     legalCaveatLocale: legalCaveat.resolvedLocale,
     legalCaveatMessageKey: legalCaveat.messageKey,
+    legalCaveatRequestedLocale: legalCaveat.requestedLocale,
+    legalCaveatReviewStatus: legalCaveat.reviewStatus,
     locale,
     notificationType: "ro_nis2_registration_notification",
     payloadSchemaKey: RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY,
@@ -263,7 +330,13 @@ export const buildRoNis2NotificationDraft = (input: {
     sourceVersion: RO_NIS2_SOURCE_VERSION,
     status: input.status ?? "draft",
     submission: {
-      notice: RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE,
+      notice: submissionNotice.text,
+      noticeFallbackReason: submissionNotice.fallbackReason,
+      noticeFallbackUsed: submissionNotice.fallbackUsed,
+      noticeLocale: submissionNotice.resolvedLocale,
+      noticeMessageKey: RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE_MESSAGE_KEY,
+      noticeRequestedLocale: submissionNotice.requestedLocale,
+      noticeReviewStatus: submissionNotice.reviewStatus,
       submittedAt: null,
       submittedToDnsc: false
     }
@@ -275,7 +348,7 @@ export const toRoNis2NotificationDraftEnvelope = (
 ): RoNis2NotificationDraftEnvelope =>
   buildCountryPackNotificationDraftEnvelope({
     jurisdiction: "RO",
-    locale: draft.locale,
+    locale: draft.legalCaveatRequestedLocale ?? draft.locale,
     notificationType: "country_registration",
     payload: {
       classification: draft.classification,
@@ -292,8 +365,12 @@ export const toRoNis2NotificationDraftEnvelope = (
     sourceMappedFields: draft.fields.map((field) => ({
       fieldKey: field.key,
       label: {
+        fallbackReason: field.labelFallbackReason,
+        fallbackUsed: field.labelFallbackUsed,
         locale: field.labelLocale,
         messageKey: field.labelMessageKey,
+        requestedLocale: field.labelRequestedLocale,
+        reviewStatus: field.labelReviewStatus,
         sourceMapId: field.sourceMapId,
         text: field.label
       },
@@ -449,7 +526,9 @@ const validateLegacyRoNotificationDraftJson = (
 
 const validateLegacyCaveat = (payload: Record<string, unknown>, issues: string[]): void => {
   const locale = typeof payload.locale === "string" ? payload.locale : "";
-  const legalCaveat = resolveLegalCaveatMessage(locale);
+  const requestedLocale =
+    typeof payload.legalCaveatRequestedLocale === "string" ? payload.legalCaveatRequestedLocale : locale;
+  const legalCaveat = resolveLegalCaveatMessage(requestedLocale);
 
   if (resolvePureSocLocale(locale).locale !== payload.locale) {
     issues.push("legacy payload locale must already be normalized to a supported PureSOC locale.");
@@ -465,6 +544,15 @@ const validateLegacyCaveat = (payload: Record<string, unknown>, issues: string[]
   }
   if (payload.legalCaveatFallbackUsed !== legalCaveat.fallbackUsed) {
     issues.push("legacy payload legal caveat fallback flag must match the requested locale.");
+  }
+  if (payload.legalCaveatFallbackReason !== undefined && payload.legalCaveatFallbackReason !== legalCaveat.fallbackReason) {
+    issues.push("legacy payload legal caveat fallback reason must match the requested locale.");
+  }
+  if (payload.legalCaveatRequestedLocale !== undefined && payload.legalCaveatRequestedLocale !== legalCaveat.requestedLocale) {
+    issues.push("legacy payload legal caveat requested locale must match the message resolver.");
+  }
+  if (payload.legalCaveatReviewStatus !== undefined && payload.legalCaveatReviewStatus !== legalCaveat.reviewStatus) {
+    issues.push("legacy payload legal caveat review status must match the message resolver.");
   }
 };
 

@@ -13,6 +13,8 @@ Keep entries short, specific, and actionable.
 - Provider write/remediation actions stay disabled until audit logging, approval, preflight, snapshots, verification, and evidence metadata exist.
 - Cross-package TypeScript imports must use `@puresoc/*` package exports; `code/scripts/check-layout.mjs` rejects deep relative package imports, deep package subpaths, and missing workspace dependency declarations.
 - Legal-caveat copy is message-keyed and falls back to English for Romanian locale until product/legal approves Romanian wording.
+- M58 adds shared message-catalog resolution with requested/resolved locale, fallback reason, message key, and review status. Keep legal Romanian copy absent until approved; use demo-safe Romanian product labels only for non-legal UI copy.
+- Romania notification draft labels are country-pack-owned message keys. They currently resolve English/source-mapped labels for Romanian requests with `missing_translation` metadata rather than claiming approved Romanian regulatory copy.
 - Future country-pack notification drafts should use the generic `NotificationDraft.payloadJson` envelope with a versioned schema key; Romania-specific draft tables are compatibility/workflow companions, not the default pattern for new countries.
 - Generic notification draft writes should validate the payload envelope semantics before persistence, including keyed legal caveat metadata and source-mapped fields.
 - Runtime notification draft writes should create the generic `NotificationDraft` first; Romania companion rows only add RO workflow links such as onboarding/classification IDs.

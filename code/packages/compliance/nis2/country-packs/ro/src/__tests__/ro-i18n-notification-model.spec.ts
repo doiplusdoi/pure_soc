@@ -46,6 +46,9 @@ describe("Romania i18n notification model contract", () => {
     expect(envelope.legalCaveatMessageKey).toBe(LEGAL_CAVEAT_MESSAGE_KEY);
     expect(envelope.legalCaveatLocale).toBe("en");
     expect(envelope.legalCaveatFallbackUsed).toBe(true);
+    expect(envelope.legalCaveatFallbackReason).toBe("missing_translation");
+    expect(envelope.legalCaveatRequestedLocale).toBe("ro");
+    expect(envelope.legalCaveatReviewStatus).toBe("source_approved");
     expect(envelope.sourceMappedFields[0]?.label.messageKey).toContain("country_pack.ro.nis2.notification");
   });
 
@@ -72,11 +75,26 @@ describe("Romania i18n notification model contract", () => {
 
     expect(draft.locale).toBe("ro");
     expect(draft.legalCaveatLocale).toBe("en");
+    expect(draft.legalCaveatFallbackReason).toBe("missing_translation");
+    expect(draft.legalCaveatRequestedLocale).toBe("ro-RO");
+    expect(draft.legalCaveatReviewStatus).toBe("source_approved");
     expect(draft.legalCaveatFallbackUsed).toBe(true);
     expect(draft.payloadSchemaKey).toBe("ro.nis2.registration_notification.v1");
+    expect(draft.submission).toMatchObject({
+      noticeFallbackReason: "missing_translation",
+      noticeFallbackUsed: true,
+      noticeLocale: "en",
+      noticeMessageKey: "country_pack.ro.nis2.notification.submission.notice.v1",
+      noticeRequestedLocale: "ro-RO",
+      noticeReviewStatus: "source_approved"
+    });
     expect(entityNameField).toMatchObject({
+      labelFallbackReason: "missing_translation",
+      labelFallbackUsed: true,
       labelLocale: "en",
       labelMessageKey: "country_pack.ro.nis2.notification.notification_c9.label",
+      labelRequestedLocale: "ro-RO",
+      labelReviewStatus: "source_approved",
       sourceMapId: "ro-nis2-notification_draft_mapping-notification_c9"
     });
   });

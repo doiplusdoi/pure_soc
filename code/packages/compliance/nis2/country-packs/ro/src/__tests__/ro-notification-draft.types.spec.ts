@@ -60,11 +60,21 @@ describe("ro notification draft data contract", () => {
     expect(draft.payloadSchemaVersion).toBe("1.0.0");
     expect(draft.locale).toBe("en");
     expect(draft.legalCaveatMessageKey).toBe("puresoc.legal_caveat.internal_readiness.v1");
+    expect(draft.legalCaveatReviewStatus).toBe("source_approved");
+    expect(draft.legalCaveatFallbackUsed).toBe(false);
     expect(draft.legalCaveat).toContain("not a legal opinion");
+    expect(draft.submission).toMatchObject({
+      noticeFallbackUsed: false,
+      noticeLocale: "en",
+      noticeMessageKey: "country_pack.ro.nis2.notification.submission.notice.v1",
+      noticeReviewStatus: "source_approved"
+    });
     expect(notificationDraftHasSourceMappedFields(draft)).toBe(true);
     expect(draft.fields.find((field) => field.key === "notification_c10")).toMatchObject({
       labelMessageKey: "country_pack.ro.nis2.notification.notification_c10.label",
+      labelFallbackUsed: false,
       labelLocale: "en",
+      labelReviewStatus: "source_approved",
       sourceMapId: "ro-nis2-notification_draft_mapping-notification_c10",
       targetCell: "C10",
       value: "12345678"
@@ -95,6 +105,9 @@ describe("ro notification draft data contract", () => {
 
     expect(parseCountryPackNotificationDraftEnvelope(envelope)).toMatchObject({
       jurisdiction: "RO",
+      legalCaveatFallbackReason: "missing_translation",
+      legalCaveatRequestedLocale: "ro-RO",
+      legalCaveatReviewStatus: "source_approved",
       legalCaveatLocale: "en",
       locale: "ro",
       notificationType: "country_registration",
@@ -106,6 +119,9 @@ describe("ro notification draft data contract", () => {
     });
     expect(envelope.sourceMappedFields.find((field) => field.fieldKey === "notification_c9")).toMatchObject({
       label: {
+        fallbackReason: "missing_translation",
+        fallbackUsed: true,
+        locale: "en",
         messageKey: "country_pack.ro.nis2.notification.notification_c9.label"
       },
       value: "Example SA"

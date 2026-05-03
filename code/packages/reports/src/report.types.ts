@@ -2,6 +2,8 @@ import {
   LEGAL_CAVEAT_MESSAGE_KEY,
   PURESOC_LEGAL_CAVEAT,
   type ActionableSeverity,
+  type PureSocMessageFallbackReason,
+  type PureSocMessageReviewStatus,
   type PureSocLocale,
   type SourceReference
 } from "@puresoc/shared";
@@ -101,9 +103,12 @@ export interface InternalReadinessReport {
   reportType: "internal_readiness";
   generatedAt: string;
   legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
   legalCaveatFallbackUsed: boolean;
   legalCaveatLocale: PureSocLocale;
   legalCaveatMessageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
   sourceReferences: ReportSourceReference[];
   controlResults: ReportControlResultSummary[];
@@ -126,9 +131,12 @@ export interface RomaniaNotificationDraftExport {
   reportType: "romania_notification_draft";
   generatedAt: string;
   legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
   legalCaveatFallbackUsed: boolean;
   legalCaveatLocale: PureSocLocale;
   legalCaveatMessageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
   status: "draft" | "ready_for_review" | "exported" | "superseded";
   payload: Record<string, unknown>;
@@ -157,6 +165,7 @@ export const createReportShell = (organizationId: string, jurisdiction = "eu"): 
   legalCaveatFallbackUsed: false,
   legalCaveatLocale: "en",
   legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+  legalCaveatReviewStatus: "source_approved",
   locale: "en",
   controlResults: [],
   gaps: [],

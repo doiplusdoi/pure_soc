@@ -73,6 +73,9 @@ describe("reports exports stable JSON contracts", () => {
     expect(report.legalCaveatMessageKey).toBe(LEGAL_CAVEAT_MESSAGE_KEY);
     expect(report.legalCaveatLocale).toBe("en");
     expect(report.legalCaveatFallbackUsed).toBe(false);
+    expect(report.legalCaveatFallbackReason).toBeUndefined();
+    expect(report.legalCaveatRequestedLocale).toBeUndefined();
+    expect(report.legalCaveatReviewStatus).toBe("source_approved");
     expect(report.locale).toBe("en");
     expect(report.provenance.source).toBe("stored_analysis");
     expect(report.sourceReferences).toHaveLength(1);
@@ -109,7 +112,10 @@ describe("reports exports stable JSON contracts", () => {
 
     expect(exportData.legalCaveat).toContain("not a legal opinion");
     expect(exportData.locale).toBe("ro");
+    expect(exportData.legalCaveatFallbackReason).toBe("missing_translation");
     expect(exportData.legalCaveatLocale).toBe("en");
+    expect(exportData.legalCaveatRequestedLocale).toBe("ro-RO");
+    expect(exportData.legalCaveatReviewStatus).toBe("source_approved");
     expect(exportData.legalCaveatFallbackUsed).toBe(true);
     expect(exportData.sourceMappedFields[0]).toMatchObject({
       fieldKey: "entityName",

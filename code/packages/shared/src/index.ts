@@ -9,19 +9,61 @@ export const defaultLocale: PureSocLocale = "en";
 
 export const LEGAL_CAVEAT_MESSAGE_KEY = "puresoc.legal_caveat.internal_readiness.v1";
 
+export const PURESOC_MESSAGE_KEYS = {
+  apiSessionLabel: "puresoc.auth.api_session.label.v1",
+  approvalQueueLabel: "puresoc.product.approval_queue.label.v1",
+  dashboardLabel: "puresoc.product.dashboard.label.v1",
+  emailLabel: "puresoc.auth.email.label.v1",
+  evidenceReportsLabel: "puresoc.product.evidence_reports.label.v1",
+  internalReadinessConsoleLabel: "puresoc.product.internal_readiness_console.label.v1",
+  internalReadinessLabel: "puresoc.product.internal_readiness.label.v1",
+  legalCaveat: LEGAL_CAVEAT_MESSAGE_KEY,
+  passwordLabel: "puresoc.auth.password.label.v1",
+  signInTitle: "puresoc.auth.sign_in.title.v1",
+  sourceMappedLabel: "puresoc.status.source_mapped.label.v1",
+  storedAggregateLabel: "puresoc.source.stored_aggregate.label.v1"
+} as const;
+
+export type PureSocGlobalMessageKey = (typeof PURESOC_MESSAGE_KEYS)[keyof typeof PURESOC_MESSAGE_KEYS];
+
+export type PureSocMessageKind = "country_pack_notification" | "legal" | "product";
+
+export type PureSocMessageReviewStatus = "demo_safe" | "requires_product_legal_approval" | "source_approved";
+
+export type PureSocMessageFallbackReason = "missing_translation" | "unsupported_locale";
+
 export interface LocaleResolution {
+  fallbackReason?: PureSocMessageFallbackReason;
   fallbackUsed: boolean;
   locale: PureSocLocale;
   requestedLocale?: string;
 }
 
+export interface PureSocMessageCatalogEntry<TKey extends string = string> {
+  defaultLocale?: PureSocLocale;
+  messageKey: TKey;
+  messageKind: PureSocMessageKind;
+  reviewStatusByLocale?: Partial<Record<PureSocLocale, PureSocMessageReviewStatus>>;
+  translations: Partial<Record<PureSocLocale, string>>;
+}
+
+export type PureSocMessageCatalog<TKey extends string = string> = Record<TKey, PureSocMessageCatalogEntry<TKey>>;
+
 export interface LocalizedMessageResolution {
+  fallbackReason?: PureSocMessageFallbackReason;
   fallbackUsed: boolean;
-  messageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  messageKey: string;
+  messageKind: PureSocMessageKind;
   normalizedLocale: PureSocLocale;
   requestedLocale?: string;
+  reviewStatus: PureSocMessageReviewStatus;
   resolvedLocale: PureSocLocale;
   text: string;
+}
+
+export interface LegalCaveatMessageResolution extends LocalizedMessageResolution {
+  messageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  messageKind: "legal";
 }
 
 export const isPureSocLocale = (value: string): value is PureSocLocale =>
@@ -40,30 +82,175 @@ export const resolvePureSocLocale = (locale?: string | null): LocaleResolution =
   }
 
   return {
+    fallbackReason: requestedLocale === undefined ? undefined : "unsupported_locale",
     fallbackUsed: requestedLocale !== undefined,
     locale: defaultLocale,
     requestedLocale
   };
 };
 
-const legalCaveatMessages: Partial<Record<PureSocLocale, string>> = {
-  en: PURESOC_LEGAL_CAVEAT
+export const definePureSocMessageCatalog = <TKey extends string>(
+  entries: readonly PureSocMessageCatalogEntry<TKey>[]
+): PureSocMessageCatalog<TKey> =>
+  Object.fromEntries(entries.map((entry) => [entry.messageKey, entry])) as PureSocMessageCatalog<TKey>;
+
+const demoSafeProductReviewStatus: Partial<Record<PureSocLocale, PureSocMessageReviewStatus>> = {
+  en: "source_approved",
+  ro: "demo_safe"
 };
 
-export const resolveLegalCaveatMessage = (locale?: string | null): LocalizedMessageResolution => {
-  const localeResolution = resolvePureSocLocale(locale);
-  const localizedText = legalCaveatMessages[localeResolution.locale];
-  const resolvedLocale = localizedText ? localeResolution.locale : defaultLocale;
+export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMessageKey>([
+  {
+    messageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+    messageKind: "legal",
+    reviewStatusByLocale: {
+      en: "source_approved"
+    },
+    translations: {
+      en: PURESOC_LEGAL_CAVEAT
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.internalReadinessLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Internal readiness",
+      ro: "Pregatire interna"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.internalReadinessConsoleLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "PureSOC internal readiness console",
+      ro: "Consola PureSOC pentru pregatire interna"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.dashboardLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Dashboard",
+      ro: "Tablou de bord"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.evidenceReportsLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Evidence And Reports",
+      ro: "Dovezi si rapoarte"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.approvalQueueLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Approval Queue",
+      ro: "Coada de aprobari"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.apiSessionLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "API session",
+      ro: "Sesiune API"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.signInTitle,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Sign in",
+      ro: "Autentificare"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.emailLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Email",
+      ro: "Email"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.passwordLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Password",
+      ro: "Parola"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.sourceMappedLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Source mapped",
+      ro: "Mapat la sursa"
+    }
+  },
+  {
+    messageKey: PURESOC_MESSAGE_KEYS.storedAggregateLabel,
+    messageKind: "product",
+    reviewStatusByLocale: demoSafeProductReviewStatus,
+    translations: {
+      en: "Stored aggregate",
+      ro: "Agregat stocat"
+    }
+  }
+]);
+
+export const resolvePureSocMessage = (input: {
+  catalog?: PureSocMessageCatalog;
+  locale?: string | null;
+  messageKey: string;
+}): LocalizedMessageResolution => {
+  const catalog: Record<string, PureSocMessageCatalogEntry> = input.catalog ?? pureSocMessageCatalog;
+  const entry = catalog[input.messageKey];
+  if (!entry) {
+    throw new Error(`Unknown PureSOC message key: ${input.messageKey}`);
+  }
+
+  const localeResolution = resolvePureSocLocale(input.locale);
+  const defaultMessageLocale = entry.defaultLocale ?? defaultLocale;
+  const localizedText = entry.translations[localeResolution.locale];
+  const resolvedLocale = localizedText ? localeResolution.locale : defaultMessageLocale;
+  const fallbackReason = localeResolution.fallbackReason ?? (localizedText ? undefined : "missing_translation");
+  const fallbackText = entry.translations[defaultMessageLocale];
+
+  if (!localizedText && !fallbackText) {
+    throw new Error(`PureSOC message key has no ${defaultMessageLocale} fallback: ${input.messageKey}`);
+  }
 
   return {
-    fallbackUsed: localeResolution.fallbackUsed || resolvedLocale !== localeResolution.locale,
-    messageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+    fallbackReason,
+    fallbackUsed: Boolean(fallbackReason),
+    messageKey: entry.messageKey,
+    messageKind: entry.messageKind,
     normalizedLocale: localeResolution.locale,
     requestedLocale: localeResolution.requestedLocale,
+    reviewStatus: entry.reviewStatusByLocale?.[resolvedLocale] ?? "demo_safe",
     resolvedLocale,
-    text: localizedText ?? legalCaveatMessages[defaultLocale] ?? PURESOC_LEGAL_CAVEAT
+    text: localizedText ?? fallbackText ?? ""
   };
 };
+
+export const resolveLegalCaveatMessage = (locale?: string | null): LegalCaveatMessageResolution =>
+  resolvePureSocMessage({
+    locale,
+    messageKey: LEGAL_CAVEAT_MESSAGE_KEY
+  }) as LegalCaveatMessageResolution;
 
 export const findingSeverities = ["informational", "low", "medium", "high", "critical"] as const;
 

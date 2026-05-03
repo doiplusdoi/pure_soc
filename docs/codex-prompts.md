@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M57, narrowing memory-repository and API dispatcher maintainability risk, and staging Prompt 57 / `docs/PLAN_M58.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M58, narrowing Romanian message-catalog runtime risk, and staging Prompt 58 / `docs/PLAN_M59.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -87,6 +87,7 @@ The repository currently contains:
 - PLAN_M55 action-run idempotency: action-run creation now accepts a normalized organization-scoped `Idempotency-Key`, rejects empty/oversized/malformed keys, returns existing same-org runs for retries, stores the optional key in memory and Prisma repositories with unique `(organizationId, idempotencyKey)` schema coverage, keeps raw keys out of API responses, and preserves provider-write disablement.
 - PLAN_M56 audit-chain append concurrency: Prisma audit writes now use a transaction-scoped PostgreSQL advisory lock per audit scope, persisted `scopeKey`/`chainSequence` ordering metadata, and a unique `(scopeKey, chainSequence)` index so same-scope concurrent appends produce one deterministic chain. In-memory audit writes serialize only within one process for tests/local mode and remain non-persistent/non-multi-process.
 - PLAN_M57 memory repository split and API route table: memory-mode API repositories now expose separate identity/org/RBAC, evidence, and billing adapters through `services.memoryRepositories`; the old `InMemoryPureSocRepository` god-object was removed; `apps/api/src/server.ts` dispatches through `apiRouteTable` method/pattern/route-family/handler metadata while preserving raw Stripe body handling, JSON limits, callbacks, cookies, middleware ordering, authorization, and response contracts.
+- PLAN_M58 Romanian message catalog runtime: `@puresoc/shared` now exposes shared `en`/`ro` message-catalog resolution with requested/resolved locale, fallback reason, message key, message kind, and review status metadata. Reports, generic country-pack envelopes, Romania notification drafts, and selected served-web labels consume the resolver. Romanian legal-caveat and regulatory/workbook notification labels remain English fallback with explicit `missing_translation` metadata until product/legal-approved copy exists.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -151,7 +152,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 54 / `docs/PLAN_M55.md` is completed.
 - Prompt 55 / `docs/PLAN_M56.md` is completed.
 - Prompt 56 / `docs/PLAN_M57.md` is completed.
-- Prompt 57 / `docs/PLAN_M58.md` is staged as the next active implementation prompt.
+- Prompt 57 / `docs/PLAN_M58.md` is completed.
+- Prompt 58 / `docs/PLAN_M59.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -166,11 +168,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
+1. Prompt 58 / `docs/PLAN_M59.md`: Served Romania Onboarding Route Baseline.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M58 must stay fully in-repo: wire Romanian message-catalog runtime behavior and fallback metadata without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M59 must stay fully in-repo: add a small served Romania onboarding route baseline without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 57 / PLAN_M58: Romanian Message Catalog Runtime
+## Active Prompt 58 / PLAN_M59: Served Romania Onboarding Route Baseline
 
 Read:
 
@@ -180,58 +182,54 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M57.md`
+- `docs/PLAN_M58.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
-- `code/packages/shared/src/index.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-i18n-notification-model.spec.ts`
-- `code/packages/reports/src/builders.ts`
-- `code/packages/reports/src/__tests__/report-builders.spec.ts`
+- `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
-- `code/apps/web/src/__tests__/operational-console.test.ts`
+- `code/apps/web/src/app-data.ts`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/onboarding.schema.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Implement the next Romanian message-catalog runtime slice so locale-aware product/report/notification surfaces resolve approved or fallback copy through one contract instead of hardcoded English-only caveat behavior.
+Add a small served Romania onboarding route that consumes existing Romania country-pack/onboarding contracts and M58 message-catalog behavior without introducing a full frontend framework or live integrations.
 
 Deliverables:
 
-- Add or refine a shared message-catalog resolver for supported PureSOC locales (`en`, `ro`) with stable message keys, fallback metadata, and no silent claim that Romanian legal copy is approved if it is not.
-- Keep the legal caveat legally safe: if Romanian legal-caveat copy is not product/legal-approved in the repo, preserve English fallback and expose fallback metadata clearly.
-- Wire report builders and Romania notification envelope generation through the shared resolver so message keys, resolved locale, requested locale, and fallback status are deterministic.
-- Add a small Romanian operational-copy catalog for non-legal demo-safe labels/statuses only where copy can be safely translated without legal approval; keep unresolved legal/regulatory copy in fallback state.
-- Update the served operational console only if it can consume the catalog without introducing a broad frontend/i18n framework or changing layout behavior.
-- Add regression tests for English and Romanian locale resolution, legal-caveat fallback behavior, Romania notification label metadata, and report builder locale metadata.
-- Update GAP-042 and handoff docs with exactly what is now runtime-wired versus still blocked on product/legal-approved Romanian legal copy.
-- Create `docs/PLAN_M59.md` from the next selected active prompt before final response.
+- Add a served `GET /onboarding/romania` or equivalent Romania onboarding route in `apps/web`.
+- Render a compact Romania onboarding/readiness view from existing country-pack schema/source-map metadata and M58 catalog/caveat metadata.
+- Link to the route from the operational console without changing dashboard layout or adding a broad frontend/i18n framework.
+- Show source, caveat, fallback, unsupported-state, and no-DNSC-submission signals honestly.
+- Add tests proving the route renders source/caveat/fallback metadata, avoids legal/certification claims, and remains compatible with `@ui-smoke`.
+- Update GAP-031 and handoff docs with exactly what is now served versus still blocked on full React/Next.js/browser-matrix work.
+- Create `docs/PLAN_M60.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/packages/shared/src/index.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
-- `code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-i18n-notification-model.spec.ts`
-- `code/packages/reports/src/builders.ts`
-- `code/packages/reports/src/__tests__/report-builders.spec.ts`
+- `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
-- `code/apps/web/src/__tests__/operational-console.test.ts`
+- `code/apps/web/src/app-data.ts`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/onboarding.schema.ts`
+- `code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M58.md`
 - `docs/PLAN_M59.md`
+- `docs/PLAN_M60.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not add unapproved Romanian legal-caveat text or imply legal/certification approval.
-- Do not put Romania-specific copy into EU baseline modules except through country-pack/message-key data.
-- Do not hardcode regulatory facts in UI conditionals.
-- Do not introduce a broad i18n framework or frontend rewrite in this prompt.
-- Do not change report/notification payload schema keys unless tests and migration posture are updated.
+- Do not add direct DNSC submission or imply that PureSOC submits to DNSC.
+- Do not add unapproved Romanian legal/regulatory translations or certification claims.
+- Do not hardcode workbook-derived regulatory rules in UI conditionals; use country-pack/onboarding data contracts.
+- Do not introduce a broad frontend framework, router migration, or layout rewrite.
 - Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
 
 Tests and acceptance commands:
@@ -240,18 +238,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- i18n ro notification reports web
+pnpm test -- web ro onboarding i18n
 pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M58.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M59.md`.
 
 Expected gap movement:
 
-- Narrow GAP-042 for runtime message-catalog wiring and explicit fallback metadata.
-- Preserve the product/legal blocker for Romanian legal-caveat approval if no approved wording exists.
+- Narrow GAP-031 for a served Romania onboarding route and operational-console navigation.
+- Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands.
 
 Final response must include:
@@ -260,10 +258,32 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M58` updated
-- `PLAN_M59` created
+- `PLAN_M59` updated
+- `PLAN_M60` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 57 / PLAN_M58: Romanian Message Catalog Runtime
+
+Completed on 2026-05-03.
+
+Summary:
+- Added shared `en`/`ro` message-catalog resolution with requested/resolved locale, fallback reason, message key, message kind, and review status metadata.
+- Preserved the English legal caveat as the only approved legal caveat text; Romanian legal-caveat requests explicitly fall back to English with `missing_translation`.
+- Added demo-safe Romanian product labels for selected non-legal UI copy.
+- Wired reports, generic country-pack notification envelopes, Romania notification draft generation, and selected served-web labels through the resolver.
+- Kept Romania regulatory/workbook notification labels English/source-mapped for Romanian requests until approved Romanian regulatory copy exists.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+Validated with host npm equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run lint`
+- `npm run test -- i18n ro notification reports web`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M58 acceptance command results are recorded in `docs/PLAN_M58.md`.
+
+GAP-042 is narrowed for runtime message-catalog wiring and explicit fallback metadata. Romanian legal-caveat and regulatory/workbook copy approval remains open. GAP-044 is unchanged.
 
 ## Completed Prompt 56 / PLAN_M57: Memory Repository Split And API Route Table
 
