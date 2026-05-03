@@ -107,6 +107,43 @@ describe("audit integrity", () => {
     expect(sink.verifyIntegrity().valid).toBe(true);
   });
 
+  it("serializes concurrent in-memory writes within one process without claiming persistence hardening", async () => {
+    let id = 0;
+    const sink = new InMemoryAuditSink();
+    const firstWriter = new AuditWriter({
+      sink,
+      idFactory: () => `12121212-1212-4121-8121-${(++id).toString().padStart(12, "0")}`,
+      now: fixedNow("2026-05-03T08:00:00.000Z")
+    });
+    const secondWriter = new AuditWriter({
+      sink,
+      idFactory: () => `34343434-3434-4343-8343-${(++id).toString().padStart(12, "0")}`,
+      now: fixedNow("2026-05-03T08:00:00.000Z")
+    });
+
+    await Promise.all([
+      firstWriter.write({
+        organizationId: "org-memory-contention",
+        targetType: "session",
+        action: "login"
+      }),
+      secondWriter.write({
+        organizationId: "org-memory-contention",
+        targetType: "session",
+        action: "logout"
+      })
+    ]);
+
+    expect(sink.records).toHaveLength(2);
+    expect(sink.records[0]?.previousHash).toBeNull();
+    expect(sink.records[1]?.previousHash).toBe(sink.records[0]?.entryHash);
+    expect(sink.verifyIntegrity("org-memory-contention")).toEqual({
+      valid: true,
+      checkedRecords: 2,
+      violations: []
+    });
+  });
+
   it("detects field tampering and broken chain continuity", async () => {
     let id = 0;
     const sink = new InMemoryAuditSink();

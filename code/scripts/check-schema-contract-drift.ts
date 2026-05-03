@@ -81,6 +81,7 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     contractName: "AuditLogRecord",
     modelName: "AuditLog",
     tableName: "audit_logs",
+    modelAttributes: ['@@unique([scopeKey, chainSequence], map: "audit_logs_scope_sequence_key")'],
     fields: [
       f("id", "String"),
       s("organizationId", "String", "organization_id", { isOptional: true }),
@@ -88,6 +89,8 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("targetType", "String", "target_type"),
       s("targetId", "String", "target_id", { isOptional: true }),
       f("action", "String"),
+      s("scopeKey", "String", "scope_key"),
+      s("chainSequence", "Int", "chain_sequence"),
       s("ipAddress", "String", "ip_address", { isOptional: true }),
       s("userAgent", "String", "user_agent", { isOptional: true }),
       s("beforeJson", "Json", "before_json", { isOptional: true }),

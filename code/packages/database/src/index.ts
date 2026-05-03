@@ -50,6 +50,8 @@ export {
   type RoleRecordContract
 } from "./repositories/identity-organization-rbac";
 export {
+  auditScopeAdvisoryLockKey,
+  auditScopeKeyForOrganization,
   PrismaAuditCheckpointRepository,
   PrismaAuditSink,
   type PrismaAuditCheckpointClient,

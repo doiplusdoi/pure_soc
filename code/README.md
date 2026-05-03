@@ -61,6 +61,16 @@ pnpm prisma:smoke:postgres
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
 
+## Audit Hash-Chain Persistence
+
+Audit records are tamper-evident database rows, not WORM storage, external notarization, legal certification, or protection from a database administrator rewriting all rows.
+
+In memory mode, audit writes are serialized only inside the current Node.js process so local tests and contract runs produce deterministic chains. Memory mode is not a multi-process persistence model.
+
+In Prisma mode, audit append uses a transaction-scoped PostgreSQL advisory lock per audit scope (`global` or one organization) before reading the latest anchor and inserting the next row. New rows also store `scopeKey` and `chainSequence`; the unique `(scopeKey, chainSequence)` index gives each scope a deterministic chain order for latest-anchor reads and audit exports even when timestamps tie. Different organization scopes use different advisory-lock keys and sequence independently.
+
+Audit export and checkpoint APIs continue to expose database-only, non-WORM, non-notarized guarantees. Immutable export storage, external signing/notarization, retention operations, legal hold/deletion procedures, and operational verification/alerting remain operator-owned release hardening work.
+
 ## Served Web Runtime
 
 The current web runtime is the lightweight `node:http` server documented in ADR-017, not a Next.js runtime yet. It is API-backed:

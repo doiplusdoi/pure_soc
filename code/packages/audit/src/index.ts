@@ -82,6 +82,13 @@ export interface AuditLogIntegrityAnchor {
   hashAlgorithm: AuditHashAlgorithm;
 }
 
+export type AuditLogDraft = Omit<
+  AuditLogRecord,
+  "canonicalPayload" | "entryHash" | "hashAlgorithm" | "previousHash"
+>;
+
+export type AuditLogIntegrityBuilder = (previousHash: string | null) => AuditLogRecord;
+
 export type AuditIntegrityViolationCode =
   | "canonical_payload_mismatch"
   | "entry_hash_mismatch"
@@ -104,6 +111,7 @@ export interface AuditIntegrityVerification {
 
 export interface AuditSink {
   append(record: AuditLogRecord): Promise<void>;
+  appendWithIntegrity?(draft: AuditLogDraft, buildRecord: AuditLogIntegrityBuilder): Promise<AuditLogRecord>;
   getLatestIntegrityAnchor?(organizationId: string | null): Promise<AuditLogIntegrityAnchor | null>;
 }
 
@@ -1154,20 +1162,26 @@ export class AuditWriter {
   }
 
   async write(input: AuditLogInput): Promise<AuditLogRecord> {
-    const record = attachAuditIntegrity(
-      {
-        id: this.idFactory(),
-        organizationId: input.organizationId ?? null,
-        actorUserId: input.actorUserId ?? null,
-        targetType: input.targetType,
-        targetId: input.targetId ?? null,
-        action: input.action,
-        ipAddress: input.ipAddress ?? null,
-        userAgent: input.userAgent ?? null,
-        beforeJson: redactSensitiveAuditValue(input.beforeJson ?? null),
-        afterJson: redactSensitiveAuditValue(input.afterJson ?? null),
-        createdAt: this.now()
-      },
+    const draft: AuditLogDraft = {
+      id: this.idFactory(),
+      organizationId: input.organizationId ?? null,
+      actorUserId: input.actorUserId ?? null,
+      targetType: input.targetType,
+      targetId: input.targetId ?? null,
+      action: input.action,
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      beforeJson: redactSensitiveAuditValue(input.beforeJson ?? null),
+      afterJson: redactSensitiveAuditValue(input.afterJson ?? null),
+      createdAt: this.now()
+    };
+    const buildRecord = (previousHash: string | null) => attachAuditIntegrity(draft, previousHash);
+
+    if (this.sink.appendWithIntegrity) {
+      return this.sink.appendWithIntegrity(draft, buildRecord);
+    }
+
+    const record = buildRecord(
       (await this.sink.getLatestIntegrityAnchor?.(input.organizationId ?? null))?.entryHash ?? null
     );
 
@@ -1178,9 +1192,18 @@ export class AuditWriter {
 
 export class InMemoryAuditSink implements AuditSink {
   readonly records: AuditLogRecord[] = [];
+  private readonly scopeLocks = new Map<string, Promise<void>>();
 
   async append(record: AuditLogRecord): Promise<void> {
     this.records.push(record);
+  }
+
+  async appendWithIntegrity(draft: AuditLogDraft, buildRecord: AuditLogIntegrityBuilder): Promise<AuditLogRecord> {
+    return this.withScopeLock(draft.organizationId, async () => {
+      const record = buildRecord((await this.getLatestIntegrityAnchor(draft.organizationId))?.entryHash ?? null);
+      await this.append(record);
+      return record;
+    });
   }
 
   async getLatestIntegrityAnchor(organizationId: string | null): Promise<AuditLogIntegrityAnchor | null> {
@@ -1200,6 +1223,27 @@ export class InMemoryAuditSink implements AuditSink {
 
   verifyIntegrity(organizationId?: string | null): AuditIntegrityVerification {
     return verifyAuditHashChain(this.records, organizationId);
+  }
+
+  private async withScopeLock<T>(organizationId: string | null, run: () => Promise<T>): Promise<T> {
+    const scopeKey = organizationId ?? "__global__";
+    const previous = this.scopeLocks.get(scopeKey) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = previous.then(() => current);
+    this.scopeLocks.set(scopeKey, chained);
+
+    await previous;
+    try {
+      return await run();
+    } finally {
+      release();
+      if (this.scopeLocks.get(scopeKey) === chained) {
+        this.scopeLocks.delete(scopeKey);
+      }
+    }
   }
 }
 

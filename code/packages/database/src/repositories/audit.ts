@@ -2,6 +2,8 @@ import {
   buildAuditCanonicalPayload,
   type AuditCheckpointRecord,
   type AuditCheckpointRepository,
+  type AuditLogDraft,
+  type AuditLogIntegrityBuilder,
   createAuditExportHandoff,
   createAuditRetentionExportPolicy,
   type AuditExternalCheckpointStatus,
@@ -13,12 +15,18 @@ import {
   type AuditHashAlgorithm,
   type AuditLogRecord
 } from "@puresoc/audit";
+import { createHash } from "node:crypto";
 
 type DelegateArgs = Record<string, unknown>;
 
 interface AuditLogDelegate {
   create(args: DelegateArgs): Promise<unknown>;
   findFirst(args: DelegateArgs): Promise<AuditLogRow | null>;
+}
+
+interface PrismaAuditTransactionClient {
+  auditLog: AuditLogDelegate;
+  $queryRawUnsafe?<T = unknown>(query: string, ...values: unknown[]): Promise<T>;
 }
 
 interface AuditLogExportDelegate {
@@ -33,13 +41,16 @@ interface AuditCheckpointDelegate {
 interface AuditLogRow {
   id: string;
   organizationId?: string | null;
+  scopeKey?: string | null;
+  chainSequence?: number | null;
   entryHash?: string | null;
   hashAlgorithm?: string | null;
   createdAt?: Date | string;
 }
 
-export interface PrismaAuditClient {
+export interface PrismaAuditClient extends PrismaAuditTransactionClient {
   auditLog: AuditLogDelegate;
+  $transaction<T>(callback: (tx: PrismaAuditTransactionClient) => Promise<T>): Promise<T>;
 }
 
 export interface PrismaAuditCheckpointClient {
@@ -68,6 +79,8 @@ export interface PrismaAuditCanonicalPayload {
 export interface PrismaAuditLogRecord {
   id: string;
   organizationId: string | null;
+  scopeKey?: string;
+  chainSequence?: number;
   actorUserId: string | null;
   targetType: string;
   targetId: string | null;
@@ -85,6 +98,8 @@ export interface PrismaAuditLogRecord {
 
 export interface PrismaAuditLogIntegrityAnchor {
   organizationId: string | null;
+  scopeKey: string;
+  chainSequence: number;
   entryHash: string;
   hashAlgorithm: PrismaAuditHashAlgorithm;
 }
@@ -141,31 +156,65 @@ export class PrismaAuditSink {
   constructor(private readonly client: PrismaAuditClient) {}
 
   async append(record: PrismaAuditLogRecord): Promise<void> {
-    await this.client.auditLog.create({
-      data: toAuditLogData(record)
+    await this.client.$transaction(async (tx) => {
+      const scopeKey = auditScopeKeyForOrganization(record.organizationId);
+      await acquireAuditScopeAdvisoryLock(tx, scopeKey);
+      const latestAnchor = await this.getLatestPersistedIntegrityAnchor(tx, record.organizationId, scopeKey);
+      const recordWithPersistenceMetadata = withAuditPersistenceMetadata(
+        record,
+        scopeKey,
+        nextAuditChainSequence(latestAnchor)
+      );
+      await tx.auditLog.create({
+        data: toAuditLogData(recordWithPersistenceMetadata)
+      });
+      this.records.push(recordWithPersistenceMetadata);
     });
-    this.records.push(record);
+  }
+
+  async appendWithIntegrity(
+    draft: AuditLogDraft,
+    buildRecord: AuditLogIntegrityBuilder
+  ): Promise<PrismaAuditLogRecord> {
+    return this.client.$transaction(async (tx) => {
+      const scopeKey = auditScopeKeyForOrganization(draft.organizationId);
+      await acquireAuditScopeAdvisoryLock(tx, scopeKey);
+      const latestAnchor = await this.getLatestPersistedIntegrityAnchor(tx, draft.organizationId, scopeKey);
+      const record = withAuditPersistenceMetadata(
+        buildRecord(latestAnchor?.entryHash ?? null),
+        scopeKey,
+        nextAuditChainSequence(latestAnchor)
+      );
+      await tx.auditLog.create({
+        data: toAuditLogData(record)
+      });
+      this.records.push(record);
+      return record;
+    });
   }
 
   async getLatestIntegrityAnchor(organizationId: string | null): Promise<PrismaAuditLogIntegrityAnchor | null> {
-    const inProcessRecord = [...this.records].reverse().find((record) => record.organizationId === organizationId);
-    if (inProcessRecord) {
-      return {
-        organizationId,
-        entryHash: inProcessRecord.entryHash,
-        hashAlgorithm: inProcessRecord.hashAlgorithm
-      };
-    }
+    return this.getLatestPersistedIntegrityAnchor(
+      this.client,
+      organizationId,
+      auditScopeKeyForOrganization(organizationId)
+    );
+  }
 
-    const row = await this.client.auditLog.findFirst({
+  private async getLatestPersistedIntegrityAnchor(
+    client: PrismaAuditTransactionClient,
+    organizationId: string | null,
+    scopeKey: string
+  ): Promise<PrismaAuditLogIntegrityAnchor | null> {
+    const row = await client.auditLog.findFirst({
       where: {
-        organizationId,
+        scopeKey,
         entryHash: {
           not: null
         }
       },
       orderBy: {
-        createdAt: "desc"
+        chainSequence: "desc"
       }
     });
 
@@ -175,6 +224,8 @@ export class PrismaAuditSink {
 
     return {
       organizationId,
+      scopeKey,
+      chainSequence: typeof row.chainSequence === "number" ? row.chainSequence : 0,
       entryHash: row.entryHash,
       hashAlgorithm: row.hashAlgorithm
     };
@@ -197,7 +248,7 @@ export class PrismaAuditCheckpointRepository implements AuditCheckpointRepositor
         }
       },
       orderBy: {
-        createdAt: "asc"
+        chainSequence: "asc"
       }
     });
 
@@ -227,6 +278,8 @@ export class PrismaAuditCheckpointRepository implements AuditCheckpointRepositor
 const toAuditLogData = (record: PrismaAuditLogRecord): Record<string, unknown> => ({
   id: record.id,
   organizationId: record.organizationId,
+  scopeKey: record.scopeKey ?? auditScopeKeyForOrganization(record.organizationId),
+  chainSequence: record.chainSequence ?? 1,
   actorUserId: record.actorUserId,
   targetType: record.targetType,
   targetId: record.targetId,
@@ -360,6 +413,44 @@ const toAuditCheckpointRecord = (row: AuditCheckpointRow): AuditCheckpointRecord
 };
 
 const jsonOrNull = (value: unknown): unknown => (value === undefined ? null : value);
+
+export const auditScopeKeyForOrganization = (organizationId: string | null): string =>
+  organizationId === null ? "global" : `organization:${organizationId}`;
+
+const auditAdvisoryLockNamespace = 0x50534341;
+
+export const auditScopeAdvisoryLockKey = (scopeKey: string): {
+  namespace: number;
+  scope: number;
+} => ({
+  namespace: auditAdvisoryLockNamespace,
+  scope: createHash("sha256").update(scopeKey).digest().readInt32BE(0)
+});
+
+const acquireAuditScopeAdvisoryLock = async (
+  client: PrismaAuditTransactionClient,
+  scopeKey: string
+): Promise<void> => {
+  if (!client.$queryRawUnsafe) {
+    return;
+  }
+
+  const lockKey = auditScopeAdvisoryLockKey(scopeKey);
+  await client.$queryRawUnsafe("SELECT pg_advisory_xact_lock($1, $2)", lockKey.namespace, lockKey.scope);
+};
+
+const nextAuditChainSequence = (anchor: Pick<PrismaAuditLogIntegrityAnchor, "chainSequence"> | null): number =>
+  (anchor?.chainSequence ?? 0) + 1;
+
+const withAuditPersistenceMetadata = (
+  record: PrismaAuditLogRecord,
+  scopeKey: string,
+  chainSequence: number
+): PrismaAuditLogRecord => ({
+  ...record,
+  scopeKey,
+  chainSequence
+});
 
 const isAuditHashAlgorithm = (value: unknown): value is PrismaAuditHashAlgorithm => value === "sha256";
 

@@ -467,6 +467,8 @@ model AuditLog {
   targetType     String   @map("target_type")
   targetId       String?  @map("target_id")
   action         String
+  scopeKey       String   @map("scope_key")
+  chainSequence  Int      @map("chain_sequence")
   ipAddress      String?  @map("ip_address")
   userAgent      String?  @map("user_agent")
   beforeJson     Json?    @map("before_json")
@@ -481,6 +483,7 @@ model AuditLog {
   @@index([actorUserId, createdAt], map: "audit_logs_actor_created_idx")
   @@index([action, createdAt], map: "audit_logs_action_created_idx")
   @@index([organizationId, entryHash], map: "audit_logs_org_entry_hash_idx")
+  @@unique([scopeKey, chainSequence], map: "audit_logs_scope_sequence_key")
   @@map("audit_logs")
 }
 

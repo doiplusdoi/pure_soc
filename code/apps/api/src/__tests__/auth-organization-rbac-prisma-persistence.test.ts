@@ -197,7 +197,7 @@ class FakeDelegate {
   }
 
   async findFirst(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
+    orderBy?: Record<string, "asc" | "desc">;
     where: Record<string, unknown>;
   }): Promise<Record<string, unknown> | null> {
     const rows = this.rows.filter((row) => matchesWhere(row, input.where));
@@ -292,15 +292,18 @@ const matchesWhere = (row: Record<string, unknown>, where: Record<string, unknow
   return true;
 };
 
-const sortRows = (rows: Array<Record<string, unknown>>, orderBy?: { createdAt?: "asc" | "desc" }): void => {
-  if (!orderBy?.createdAt) {
+const sortRows = (rows: Array<Record<string, unknown>>, orderBy?: Record<string, "asc" | "desc">): void => {
+  const [field, direction] = Object.entries(orderBy ?? {})[0] ?? [];
+  if (!field || !direction) {
     return;
   }
 
   rows.sort((left, right) => {
-    const leftTime = toDate(left.createdAt).getTime();
-    const rightTime = toDate(right.createdAt).getTime();
-    return orderBy.createdAt === "asc" ? leftTime - rightTime : rightTime - leftTime;
+    const leftValue = left[field];
+    const rightValue = right[field];
+    const leftComparable = typeof leftValue === "number" ? leftValue : toDate(leftValue).getTime();
+    const rightComparable = typeof rightValue === "number" ? rightValue : toDate(rightValue).getTime();
+    return direction === "asc" ? leftComparable - rightComparable : rightComparable - leftComparable;
   });
 };
 

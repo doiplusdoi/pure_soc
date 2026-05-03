@@ -6,11 +6,14 @@ import {
   AuditWriter,
   InMemoryAuditSink,
   buildAuditCheckpointFromExportSegment,
-  createAuditExportSegment
+  createAuditExportSegment,
+  verifyAuditHashChain
 } from "@puresoc/audit";
 import {
   PrismaAuditCheckpointRepository,
   PrismaAuditSink,
+  auditScopeAdvisoryLockKey,
+  auditScopeKeyForOrganization,
   type PrismaAuditCheckpointClient,
   type PrismaAuditClient,
   type PrismaAuditLogRecord
@@ -89,6 +92,99 @@ describe("PrismaAuditSink", () => {
     });
     expect(JSON.stringify(client.auditLog.rows)).not.toContain("must-not-persist");
     expect(JSON.stringify(client.auditLog.rows)).toContain("canonicalPayload");
+  });
+
+  it("serializes concurrent same-scope appends into one persisted hash chain", async () => {
+    let id = 0;
+    const client = createFakeAuditClient();
+    const organizationId = randomUUID();
+    const firstWriter = new AuditWriter({
+      sink: new PrismaAuditSink(client),
+      idFactory: () => `11111111-1111-4111-8111-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date("2026-05-03T09:00:00.000Z")
+    });
+    const secondWriter = new AuditWriter({
+      sink: new PrismaAuditSink(client),
+      idFactory: () => `22222222-2222-4222-8222-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date("2026-05-03T09:00:00.000Z")
+    });
+
+    const [first, second] = await Promise.all([
+      firstWriter.write({
+        organizationId,
+        targetType: "session",
+        action: "login",
+        afterJson: {
+          status: "first"
+        }
+      }),
+      secondWriter.write({
+        organizationId,
+        targetType: "session",
+        action: "logout",
+        afterJson: {
+          status: "second"
+        }
+      })
+    ]);
+    const rows = client.auditLog.rows.filter((row) => row.organizationId === organizationId);
+    const orderedRows = [...rows].sort((left, right) => left.chainSequence - right.chainSequence);
+
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((row) => row.previousHash)).size).toBe(2);
+    expect(orderedRows.map((row) => row.chainSequence)).toEqual([1, 2]);
+    expect(orderedRows[0]?.previousHash).toBeNull();
+    expect(orderedRows[1]?.previousHash).toBe(orderedRows[0]?.entryHash);
+    expect([first.previousHash, second.previousHash].filter((previousHash) => previousHash === null)).toHaveLength(1);
+    expect(verifyAuditHashChain(orderedRows as unknown as PrismaAuditLogRecord[], organizationId)).toMatchObject({
+      valid: true,
+      checkedRecords: 2,
+      violations: []
+    });
+    expect(client.auditLockKeys).toEqual([
+      auditScopeLockKeyString(organizationId),
+      auditScopeLockKeyString(organizationId)
+    ]);
+  });
+
+  it("keeps different organization audit chains independently sequenced", async () => {
+    let id = 0;
+    const client = createFakeAuditClient();
+    const orgA = randomUUID();
+    const orgB = randomUUID();
+    const writerA = new AuditWriter({
+      sink: new PrismaAuditSink(client),
+      idFactory: () => `33333333-3333-4333-8333-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date("2026-05-03T09:05:00.000Z")
+    });
+    const writerB = new AuditWriter({
+      sink: new PrismaAuditSink(client),
+      idFactory: () => `44444444-4444-4444-8444-${(++id).toString().padStart(12, "0")}`,
+      now: () => new Date("2026-05-03T09:05:00.000Z")
+    });
+
+    const [first, second] = await Promise.all([
+      writerA.write({
+        organizationId: orgA,
+        targetType: "session",
+        action: "login"
+      }),
+      writerB.write({
+        organizationId: orgB,
+        targetType: "session",
+        action: "login"
+      })
+    ]);
+
+    expect(first.previousHash).toBeNull();
+    expect(second.previousHash).toBeNull();
+    expect(client.auditLog.rows.map((row) => row.scopeKey).sort()).toEqual(
+      [auditScopeKeyForOrganization(orgA), auditScopeKeyForOrganization(orgB)].sort()
+    );
+    expect(client.auditLog.rows.map((row) => row.chainSequence)).toEqual([1, 1]);
+    expect(verifyAuditHashChain(client.auditLog.rows as unknown as PrismaAuditLogRecord[], orgA).valid).toBe(true);
+    expect(verifyAuditHashChain(client.auditLog.rows as unknown as PrismaAuditLogRecord[], orgB).valid).toBe(true);
+    expect(client.auditLockKeys.sort()).toEqual([auditScopeLockKeyString(orgA), auditScopeLockKeyString(orgB)].sort());
   });
 
   it("exports audit rows and stores database-only checkpoint metadata", async () => {
@@ -258,6 +354,8 @@ const makeAuditRecord = (
 interface FakeAuditLogRow extends Record<string, unknown> {
   id: string;
   organizationId: string | null;
+  scopeKey: string;
+  chainSequence: number;
   entryHash: string;
   hashAlgorithm: string;
   createdAt: Date;
@@ -267,14 +365,44 @@ type FakeAuditLogDelegate = {
   rows: FakeAuditLogRow[];
   create(input: { data: Record<string, unknown> }): Promise<FakeAuditLogRow>;
   findFirst(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
+    orderBy?: Record<string, "asc" | "desc">;
     where?: Record<string, unknown>;
   }): Promise<FakeAuditLogRow | null>;
 };
 
-const createFakeAuditClient = (): PrismaAuditClient & { auditLog: FakeAuditLogDelegate } => ({
-  auditLog: createAuditLogDelegate()
-});
+type FakeAuditClient = PrismaAuditClient & {
+  auditLockKeys: string[];
+  auditLog: FakeAuditLogDelegate;
+};
+
+const createFakeAuditClient = (): FakeAuditClient => {
+  const client: FakeAuditClient = {
+    auditLog: createAuditLogDelegate(),
+    auditLockKeys: [],
+    async $transaction<T>(callback: (tx: PrismaAuditClient) => Promise<T>): Promise<T> {
+      const releases: Array<() => void> = [];
+      const tx = {
+        auditLog: client.auditLog,
+        $queryRawUnsafe: async <TQuery = unknown>(_query: string, ...values: unknown[]): Promise<TQuery> => {
+          const key = values.join(":");
+          client.auditLockKeys.push(key);
+          releases.push(await fakeAuditLockManager.acquire(key));
+          return [] as TQuery;
+        },
+        $transaction: client.$transaction.bind(client)
+      };
+
+      try {
+        return await callback(tx);
+      } finally {
+        for (const release of releases.reverse()) {
+          release();
+        }
+      }
+    }
+  };
+  return client;
+};
 
 const createFakeAuditCheckpointClient = (
   auditRows: PrismaAuditLogRecord[]
@@ -300,7 +428,7 @@ const createAuditLogDelegate = (): FakeAuditLogDelegate => {
       return row;
     },
     async findFirst(input: {
-      orderBy?: { createdAt?: "asc" | "desc" };
+      orderBy?: Record<string, "asc" | "desc">;
       where?: Record<string, unknown>;
     }): Promise<FakeAuditLogRow | null> {
       const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
@@ -313,7 +441,7 @@ const createAuditLogDelegate = (): FakeAuditLogDelegate => {
 type FakeAuditLogExportDelegate = {
   rows: Array<PrismaAuditLogRecord & Record<string, unknown>>;
   findMany(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
+    orderBy?: Record<string, "asc" | "desc">;
     where?: Record<string, unknown>;
   }): Promise<Array<PrismaAuditLogRecord & Record<string, unknown>>>;
 };
@@ -323,14 +451,14 @@ const createAuditLogExportDelegate = (inputRows: PrismaAuditLogRecord[]): FakeAu
 
   return {
     rows,
-  async findMany(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
-    where?: Record<string, unknown>;
-  }): Promise<Array<PrismaAuditLogRecord & Record<string, unknown>>> {
-    const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
-    sortRows(found as unknown as FakeAuditLogRow[], input.orderBy);
-    return found;
-  }
+    async findMany(input: {
+      orderBy?: Record<string, "asc" | "desc">;
+      where?: Record<string, unknown>;
+    }): Promise<Array<PrismaAuditLogRecord & Record<string, unknown>>> {
+      const found = rows.filter((row) => matchesWhere(row, input.where ?? {}));
+      sortRows(found as unknown as FakeAuditLogRow[], input.orderBy);
+      return found;
+    }
   };
 };
 
@@ -403,15 +531,18 @@ const matchesWhere = (row: Record<string, unknown>, where: Record<string, unknow
   return true;
 };
 
-const sortRows = (rows: FakeAuditLogRow[], orderBy?: { createdAt?: "asc" | "desc" }): void => {
-  if (!orderBy?.createdAt) {
+const sortRows = (rows: FakeAuditLogRow[], orderBy?: Record<string, "asc" | "desc">): void => {
+  const [field, direction] = Object.entries(orderBy ?? {})[0] ?? [];
+  if (!field || !direction) {
     return;
   }
 
   rows.sort((left, right) => {
-    const leftTime = toDate(left.createdAt).getTime();
-    const rightTime = toDate(right.createdAt).getTime();
-    return orderBy.createdAt === "asc" ? leftTime - rightTime : rightTime - leftTime;
+    const leftValue = left[field];
+    const rightValue = right[field];
+    const leftComparable = typeof leftValue === "number" ? leftValue : toDate(leftValue).getTime();
+    const rightComparable = typeof rightValue === "number" ? rightValue : toDate(rightValue).getTime();
+    return direction === "asc" ? leftComparable - rightComparable : rightComparable - leftComparable;
   });
 };
 
@@ -419,3 +550,33 @@ const toDate = (value: unknown): Date => (value instanceof Date ? value : new Da
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === "object" && value !== null && !Array.isArray(value);
+
+const auditScopeLockKeyString = (organizationId: string | null): string => {
+  const lockKey = auditScopeAdvisoryLockKey(auditScopeKeyForOrganization(organizationId));
+  return `${lockKey.namespace}:${lockKey.scope}`;
+};
+
+class FakeAuditLockManager {
+  private readonly locks = new Map<string, Promise<void>>();
+
+  async acquire(key: string): Promise<() => void> {
+    const previous = this.locks.get(key) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const chained = previous.then(() => current);
+    this.locks.set(key, chained);
+
+    await previous;
+
+    return () => {
+      release();
+      if (this.locks.get(key) === chained) {
+        this.locks.delete(key);
+      }
+    };
+  }
+}
+
+const fakeAuditLockManager = new FakeAuditLockManager();

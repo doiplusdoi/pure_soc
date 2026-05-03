@@ -4,8 +4,10 @@
 
 Harden persisted audit append ordering so concurrent API processes cannot fork the per-organization or global audit hash chain by appending against the same latest anchor.
 
-Status: staged for implementation after M55.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -85,32 +87,61 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Added an audit sink append boundary that lets persistence adapters attach hash-chain integrity inside their own serialized append path.
+- `InMemoryAuditSink` now serializes concurrent writes within one Node.js process for deterministic local/test behavior, while remaining explicitly non-persistent and non-multi-process.
+- `PrismaAuditSink` now appends inside a transaction, acquires a PostgreSQL advisory lock per audit scope, reads the latest persisted anchor under that lock, and writes `scopeKey`/`chainSequence` ordering metadata.
+- Added a Prisma migration, schema drift coverage, and exported helpers for audit scope/advisory-lock keys.
+- Latest-anchor reads and audit exports now use persisted `chainSequence` ordering instead of timestamp-only ordering.
+- Added deterministic same-scope contention coverage and different-organization independence coverage without live PostgreSQL or external services.
+- Preserved redacted canonical payload semantics, organization/global scope handling, database-only checkpoint/export guarantees, and non-WORM/non-notarized caveats.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/auth-organization-rbac-prisma-persistence.test.ts`
+- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
+- `code/packages/audit/src/index.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/prisma/migrations/20260503020000_audit_scope_sequence/migration.sql`
+- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
+- `code/packages/database/src/index.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `code/scripts/check-schema-contract-drift.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M56.md`
+- `docs/PLAN_M57.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Failed as expected in this environment: `pnpm test -- audit database api` (`pnpm: command not found`).
+- Failed as expected in this environment: `npm run test -- audit database api` (`npm: command not found`).
+- Passed: `flatpak-spawn --host npm run test -- audit database api` (35 files, 125 tests).
+- Passed: `flatpak-spawn --host npm run lint` (layout, schema drift, generated regulatory drift, TypeScript).
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
 
 Acceptance status:
 
-- Pending.
+- Accepted. Same-scope persisted audit appends are serialized in the deterministic Prisma repository contract, different organizations sequence independently, audit redaction/checkpoint/export guarantees remain intact, and no live external services or provider write paths were called.
 
 Gaps updated:
 
-- Pending.
+- GAP-039 narrowed for transaction-scoped same-scope audit append locking, persisted scope sequence ordering, and deterministic contention tests without WORM, external notarization, live PostgreSQL, or external services.
+- GAP-041 narrowed for audit `scopeKey`/`chainSequence` field and unique scope-sequence attribute drift coverage.
+- GAP-044 preserved; no external smoke commands were run.
 
 Prompt handoff:
 
-- Pending. M56 implementation must create `docs/PLAN_M57.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 55 / PLAN_M56 complete and stages Prompt 56 / PLAN_M57 for memory repository split and API route-table work.
+- `docs/PLAN_M57.md` created.
 
 Residual risk:
 
-- Pending.
+- The implemented lock path is covered by deterministic fake-Prisma contention tests, not a live multi-replica PostgreSQL deployment. WORM/object-storage export writers, real external signing/notarized checkpoints, checkpoint retention operations, legal-hold/deletion procedures, deployed database migration/replica smoke coverage, and operational verification/alerting remain deferred under GAP-039.

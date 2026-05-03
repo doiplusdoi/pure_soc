@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M55, narrowing action-run duplicate creation risk, and staging Prompt 55 / `docs/PLAN_M56.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M56, narrowing persisted audit-chain append concurrency risk, and staging Prompt 56 / `docs/PLAN_M57.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -85,6 +85,7 @@ The repository currently contains:
 - PLAN_M53 served web runtime baseline: after reading `docs/claude_rec4.md`, M53 was re-sequenced away from another external-smoke blocker review and implemented an authenticated web/API path. ADR-017 records current runtime stack deviations; API now exposes `GET /organizations/:orgId/dashboards/snapshots/latest`; `apps/web` proxies login/logout/session to the API, preserves API session cookies, and renders the operational console from the latest organization dashboard snapshot; `@ui-smoke` seeds a local API organization/evaluation/dashboard snapshot and proves the web dashboard came from that API response without live external calls.
 - PLAN_M54 external-smoke blocker review: `external-smoke:readiness` stayed metadata-only in dry-run mode with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, and `ready_for_disposable_smoke: 0`; `external-smoke:select-target` returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`. No live smoke command was run, and GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
 - PLAN_M55 action-run idempotency: action-run creation now accepts a normalized organization-scoped `Idempotency-Key`, rejects empty/oversized/malformed keys, returns existing same-org runs for retries, stores the optional key in memory and Prisma repositories with unique `(organizationId, idempotencyKey)` schema coverage, keeps raw keys out of API responses, and preserves provider-write disablement.
+- PLAN_M56 audit-chain append concurrency: Prisma audit writes now use a transaction-scoped PostgreSQL advisory lock per audit scope, persisted `scopeKey`/`chainSequence` ordering metadata, and a unique `(scopeKey, chainSequence)` index so same-scope concurrent appends produce one deterministic chain. In-memory audit writes serialize only within one process for tests/local mode and remain non-persistent/non-multi-process.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -147,7 +148,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 52 / `docs/PLAN_M53.md` is completed.
 - Prompt 53 / `docs/PLAN_M54.md` is completed.
 - Prompt 54 / `docs/PLAN_M55.md` is completed.
-- Prompt 55 / `docs/PLAN_M56.md` is staged as the next active implementation prompt.
+- Prompt 55 / `docs/PLAN_M56.md` is completed.
+- Prompt 56 / `docs/PLAN_M57.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -162,13 +164,12 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
-2. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
-3. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
+1. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
+2. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M56 must harden persisted audit append ordering without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M57 must stay fully in-repo: split memory repositories and reduce API dispatcher boilerplate without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 55 / PLAN_M56: Multi-Process Audit-Chain Append Concurrency
+## Active Prompt 56 / PLAN_M57: Memory Repository Split And API Route Table
 
 Read:
 
@@ -178,60 +179,59 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M55.md`
+- `docs/PLAN_M56.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
-- `code/packages/audit/src/index.ts`
-- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
-- `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/src/repositories/audit.ts`
-- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
-- `code/apps/api/src/audit/routes.ts`
-- `code/apps/api/src/__tests__/audit-export-checkpoints.test.ts`
 - `code/apps/api/src/auth/services.ts`
-- `code/scripts/check-schema-contract-drift.ts`
+- `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/middleware.ts`
+- `code/apps/api/src/__tests__/auth-organization-rbac-audit-session.test.ts`
+- `code/apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts`
+- `code/apps/api/src/__tests__/billing-stripe-entitlement-webhook-audit.test.ts`
+- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Harden persisted audit append ordering so two API processes cannot fork the per-organization or global audit hash chain by appending concurrently against the same latest anchor.
+Reduce two internal maintainability hotspots before they grow further: split the default memory repository into per-context repositories, and replace the long linear regex dispatcher in `apps/api/src/server.ts` with a small route table/dispatcher loop.
 
 Deliverables:
 
-- Add an explicit persisted audit append concurrency strategy for Prisma mode, preferring a transaction-scoped PostgreSQL advisory lock or an equivalent deterministic repository boundary that serializes by audit scope.
-- Preserve the current in-memory deterministic audit behavior while documenting that it is not a multi-process persistence model.
-- Ensure concurrent same-scope appends produce one linear chain with no duplicate `previousHash` fork.
-- Keep organization/global scope handling intact and preserve redacted canonical audit payload semantics.
-- Add deterministic fake-Prisma or repository-level contention tests that simulate two concurrent appenders for the same scope.
-- Add coverage that different organizations can still append independently without cross-organization chain contamination.
-- Update GAP-039 and docs with the narrowed multi-process audit-chain risk.
-- Create `docs/PLAN_M57.md` from the next selected active prompt before final response.
+- Extract memory-mode auth/identity/org/RBAC, evidence, and billing repository ownership so `InMemoryPureSocRepository` no longer extends billing behavior or owns unrelated contexts through one god-object.
+- Keep memory-mode behavior equivalent for local auth, OIDC identity lookup, organization/RBAC, evidence metadata/access logs, billing, reports, dashboards, notification drafts, and remediation action tests.
+- Mirror the existing `createRuntimeRepositories` per-context shape in memory mode; do not change Prisma repository wiring.
+- Add a tiny route table inside `apps/api/src/server.ts` with route entries for method, pattern, route family, and handler, while preserving middleware ordering, raw Stripe body handling, callback exemptions, request limits, cookies, and existing response shapes.
+- Keep this as an internal refactor: no new API framework, no broad route migration beyond the current dispatcher table, and no customer-facing behavior changes.
+- Add regression tests or extend existing API tests so auth/org/RBAC, evidence/report/dashboard, billing, and middleware route-family behavior still pass through memory mode.
+- Update docs with the narrowed REC-203/REC-204 risk.
+- Create `docs/PLAN_M58.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/packages/audit/src/index.ts`
-- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
-- `code/packages/database/src/repositories/audit.ts`
-- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
-- `code/packages/database/prisma/schema.prisma`
-- `code/scripts/check-schema-contract-drift.ts`
-- `code/apps/api/src/audit/routes.ts`
-- `code/apps/api/src/__tests__/audit-export-checkpoints.test.ts`
+- `code/apps/api/src/auth/memory-repository.ts`
+- `code/apps/api/src/auth/services.ts`
+- `code/apps/api/src/server.ts`
+- `code/apps/api/src/__tests__/auth-organization-rbac-audit-session.test.ts`
+- `code/apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts`
+- `code/apps/api/src/__tests__/billing-stripe-entitlement-webhook-audit.test.ts`
+- `code/apps/api/src/__tests__/api-middleware-rate-limit-origin.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M56.md`
 - `docs/PLAN_M57.md`
+- `docs/PLAN_M58.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not claim WORM storage, external notarization, legal certification, or database-admin-proof auditability.
-- Do not call live PostgreSQL, Redis, external signing/notary services, object storage, KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, Stripe, OIDC/OAuth providers, public regulatory URLs, production/staging/customer deployments, or provider write executors.
-- Do not weaken existing audit redaction, organization scoping, checkpoint/export guarantees, or non-WORM/non-notarized caveats.
-- Do not introduce a broad API framework or route migration in this prompt.
+- Do not change API response contracts, route authorization, request-size limits, middleware ordering, cookie behavior, Stripe raw-body handling, OIDC/provider callback exemptions, or rate-limit route-family semantics.
+- Do not introduce NestJS, Hono, Express, or another API framework in this prompt.
+- Do not move package boundaries or add broad shared abstractions beyond the minimal memory repository split and route table.
+- Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, or provider write executors.
+- If the memory repository split touches more than ten files or becomes behavior-changing, finish the repository split first and restage the route-table work as the next prompt.
 
 Tests and acceptance commands:
 
@@ -239,17 +239,17 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- audit database api
+pnpm test -- api auth evidence billing
+pnpm test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M56.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M57.md`.
 
 Expected gap movement:
 
-- Narrow GAP-039 for multi-process same-scope audit-chain append ordering.
-- Preserve WORM/object-storage export writers, real external signing/notarized checkpoints, checkpoint retention operations, legal-hold/deletion procedures, and operational verification/alerting as deferred under GAP-039.
+- Narrow the `docs/claude_rec4.md` REC-203/REC-204 architecture risks in the implementation handoff docs.
 - Preserve GAP-044; this prompt must not run external smoke commands.
 
 Final response must include:
@@ -258,10 +258,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M56` updated
-- `PLAN_M57` created
+- `PLAN_M57` updated
+- `PLAN_M58` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 55 / PLAN_M56: Multi-Process Audit-Chain Append Concurrency
+
+Completed on 2026-05-03.
+
+Summary:
+- Added an audit sink boundary that lets persistence adapters attach hash-chain integrity inside their own serialized append path.
+- Prisma audit writes now run in a transaction, acquire a PostgreSQL advisory lock per audit scope, and persist `scopeKey` plus `chainSequence` with a unique `(scopeKey, chainSequence)` index.
+- Latest-anchor reads and audit exports now use the persisted chain sequence rather than timestamp-only ordering.
+- Added deterministic same-scope contention tests and different-organization independence tests; in-memory audit writes now serialize within one process while remaining explicitly non-persistent/non-multi-process.
+- Redacted canonical payload semantics, organization/global scopes, database-only checkpoints, and non-WORM/non-notarized guarantees were preserved; no live PostgreSQL, external services, provider writes, Redis targets, or external-smoke commands were run.
+
+Validated with host npm equivalents because sandbox-local `pnpm`/`npm` were unavailable:
+- `npm run lint`
+- `npm run test -- audit database api`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M56 acceptance command results are recorded in `docs/PLAN_M56.md`.
+
+GAP-039 is narrowed for transaction-scoped same-scope audit append locking and persisted chain ordering. GAP-041 is narrowed for audit scope-sequence schema drift coverage. WORM/object-storage export writers, real external signing/notarized checkpoints, checkpoint retention operations, legal-hold/deletion procedures, deployed database migration/replica smoke coverage, and operational verification/alerting remain deferred under GAP-039. GAP-044 is unchanged.
 
 ## Completed Prompt 54 / PLAN_M55: Action-Run Idempotency
 
