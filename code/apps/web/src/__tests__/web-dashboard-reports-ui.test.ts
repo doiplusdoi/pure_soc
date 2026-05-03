@@ -152,6 +152,10 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Submitted to DNSC");
     expect(html).toContain("false");
     expect(html).toContain("PureSOC does not submit this draft to DNSC.");
+    expect(html).toContain('id="romania-source-map"');
+    expect(html).toContain('id="romania-unsupported"');
+    expect(html).toContain('id="romania-draft"');
+    expect(html).toContain('<a class="ps-command" href="/">Back to dashboard</a>');
     expect(html).toContain("not a full React or Next.js onboarding wizard");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
     expect(html).not.toContain("Submitted to DNSC true");

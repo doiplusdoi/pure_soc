@@ -233,7 +233,7 @@ async function runBrowserSmoke() {
             status: "blocked",
             blocker: !firefoxPath ? "firefox_not_found" : "node_websocket_unavailable",
             fallback:
-              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth coverage is not claimed when this blocker is present.",
+              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth coverage, including Romania route browser PNG coverage, is not claimed when this blocker is present.",
             artifacts: {
               directory: artifactsDir
             },
@@ -338,6 +338,39 @@ async function runBrowserSmoke() {
         scrollTarget: "#approvals",
         expectedText: ["Approval Queue", "Provider write execution remains disabled"],
         expectOperationalConsole: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "romania-route-desktop",
+        url: `${webBaseUrl}/onboarding/romania?locale=ro-RO`,
+        width: 1440,
+        height: 900,
+        expectedText: [
+          "Romania NIS2 Onboarding",
+          "Source Map Sample",
+          "not a legal opinion",
+          "missing_translation",
+          "PureSOC does not submit this draft to DNSC."
+        ],
+        expectRomaniaRoute: true
+      })
+    );
+    screenshots.push(
+      await captureBrowserPage(browser, {
+        context,
+        name: "romania-route-mobile",
+        url: `${webBaseUrl}/onboarding/romania?locale=ro-RO`,
+        width: 390,
+        height: 844,
+        expectedText: [
+          "Romania NIS2 Onboarding",
+          "Direct DNSC submission",
+          "Submitted to DNSC",
+          "false"
+        ],
+        expectRomaniaRoute: true
       })
     );
 
@@ -456,7 +489,7 @@ async function startApiSmokeServer({
   });
   const services = createApiServices({
     config,
-    now: () => new Date("2026-05-02T10:00:00.000Z")
+    now: () => new Date()
   });
   const server = startApiServer(port, services);
   await waitForListening(server);
@@ -1048,21 +1081,45 @@ async function readBrowserLayout(browser, context) {
           return rect.width <= 0 || rect.height <= 0;
         })
         .map((element) => element.textContent.trim() || element.getAttribute("aria-label") || element.id || element.tagName);
+      const bodyText = document.body.innerText;
       return JSON.stringify({
         url: location.href,
         title: document.title,
-        text: document.body.innerText,
+        text: bodyText,
+        documentLang: document.documentElement.lang,
         innerWidth: window.innerWidth,
         innerHeight: window.innerHeight,
         scrollY: window.scrollY,
         documentScrollWidth: document.documentElement.scrollWidth,
         hasOperationalConsole: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+        hasRomaniaRoute: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
         hasSkipLink: Boolean(document.querySelector('a[href="#content"]')),
+        hasContentFocusTarget: Boolean(document.querySelector('#content[tabindex="-1"]')),
         overlapCount,
         overflowingControls,
         zeroSizedControls,
         approvalFactsNested: Boolean(document.querySelector(".ps-panel .ps-panel .ps-fact")),
-        certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(document.body.innerText)
+        certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(bodyText),
+        romania: {
+          sourceMapVisible: bodyText.includes("Source Map Sample") && bodyText.includes("Workbook-derived mappings"),
+          workbookCellsVisible:
+            bodyText.includes("ro-nis2-entity_fields-entity_field_12_name_of_the_entity") &&
+            bodyText.includes("Entity assessment!D66:D142"),
+          legalCaveatVisible: bodyText.includes("not a legal opinion"),
+          fallbackMetadataVisible:
+            bodyText.includes("missing_translation") && bodyText.includes("requested ro-RO") && bodyText.includes("caveat en"),
+          unsupportedStateVisible:
+            bodyText.includes("Boundaries And Unsupported States") &&
+            bodyText.includes("Direct DNSC submission") &&
+            bodyText.includes("Legal activation") &&
+            bodyText.includes("not a full React or Next.js onboarding wizard"),
+          noDnscSubmissionVisible:
+            bodyText.includes("no DNSC submission") &&
+            bodyText.includes("Submitted to DNSC") &&
+            bodyText.includes("false") &&
+            bodyText.includes("PureSOC does not submit this draft to DNSC."),
+          directDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(bodyText)
+        }
       });
     })()`
   );
@@ -1071,7 +1128,7 @@ async function readBrowserLayout(browser, context) {
 function assertBrowserLayout(name, layout, input) {
   record(`${name}_browser_viewport_width`, layout.innerWidth === input.width, `${layout.innerWidth}`);
   record(`${name}_browser_viewport_height`, layout.innerHeight === input.height, `${layout.innerHeight}`);
-  const minimumReadableTextLength = input.expectOperationalConsole ? 100 : 40;
+  const minimumReadableTextLength = input.expectOperationalConsole || input.expectRomaniaRoute ? 100 : 40;
   record(`${name}_browser_has_readable_text`, layout.text.length > minimumReadableTextLength, `${layout.text.length}`);
   record(`${name}_browser_has_no_certification_claims`, layout.certificationClaim === false);
   record(`${name}_browser_has_no_document_horizontal_overflow`, layout.documentScrollWidth <= input.width + 2, `${layout.documentScrollWidth}`);
@@ -1083,6 +1140,18 @@ function assertBrowserLayout(name, layout, input) {
   if (input.expectOperationalConsole) {
     record(`${name}_browser_operational_console_marker`, layout.hasOperationalConsole === true);
     record(`${name}_browser_skip_link_present`, layout.hasSkipLink === true);
+  } else if (input.expectRomaniaRoute) {
+    record(`${name}_browser_romania_route_marker`, layout.hasRomaniaRoute === true);
+    record(`${name}_browser_romania_route_declares_ro_locale`, layout.documentLang === "ro", layout.documentLang);
+    record(`${name}_browser_romania_route_skip_link_present`, layout.hasSkipLink === true);
+    record(`${name}_browser_romania_route_focus_target_present`, layout.hasContentFocusTarget === true);
+    record(`${name}_browser_romania_route_source_map_visible`, layout.romania.sourceMapVisible === true);
+    record(`${name}_browser_romania_route_workbook_cells_visible`, layout.romania.workbookCellsVisible === true);
+    record(`${name}_browser_romania_route_legal_caveat_visible`, layout.romania.legalCaveatVisible === true);
+    record(`${name}_browser_romania_route_fallback_metadata_visible`, layout.romania.fallbackMetadataVisible === true);
+    record(`${name}_browser_romania_route_unsupported_state_visible`, layout.romania.unsupportedStateVisible === true);
+    record(`${name}_browser_romania_route_no_dnsc_submission_visible`, layout.romania.noDnscSubmissionVisible === true);
+    record(`${name}_browser_romania_route_no_direct_dnsc_submit_command`, layout.romania.directDnscSubmitCommand === false);
   } else {
     record(`${name}_browser_login_without_console_marker`, layout.hasOperationalConsole === false);
   }
@@ -1107,44 +1176,57 @@ async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded
   });
   await browser.command("browsingContext.navigate", {
     context,
-    url: `${webBaseUrl}/login`,
+    url: `${webBaseUrl}/login?organizationId=${encodeURIComponent(seeded.organizationId)}`,
     wait: "complete"
   });
 
-  const result = await evaluateBrowserJson(
+  const submitted = await evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      const form = document.querySelector('form[action="/auth/login"]');
+      const email = document.querySelector('#email');
+      const password = document.querySelector('#password');
+      const activeOrganizationId = document.querySelector('input[name="activeOrganizationId"]');
+      if (!form || !email || !password) {
+        return JSON.stringify({ submitted: false, reason: "login_form_missing" });
+      }
+      email.value = ${JSON.stringify(seeded.email)};
+      password.value = ${JSON.stringify(seeded.password)};
+      if (activeOrganizationId) {
+        activeOrganizationId.value = ${JSON.stringify(seeded.organizationId)};
+      }
+      form.requestSubmit();
+      return JSON.stringify({ submitted: true });
+    })()`
+  );
+  record("browser_web_login_form_submitted", submitted.submitted === true, JSON.stringify(submitted));
+
+  const result = await waitForBrowserState(
     browser,
     context,
     `((async () => {
-      const response = await fetch("/auth/login", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "content-type": "application/x-www-form-urlencoded"
-        },
-        body: new URLSearchParams({
-          email: ${JSON.stringify(seeded.email)},
-          password: ${JSON.stringify(seeded.password)},
-          activeOrganizationId: ${JSON.stringify(seeded.organizationId)}
-        })
-      });
-      const loginText = await response.text();
       const session = await fetch("/auth/session", {
         credentials: "include"
       });
       const sessionText = await session.text();
       return JSON.stringify({
-        loginStatus: response.status,
-        loginUrl: response.url,
-        loginRenderedDashboard: loginText.includes("Overall internal readiness") && loginText.includes(${JSON.stringify(seeded.expectedDashboardText)}),
+        currentUrl: location.href,
+        loginRenderedDashboard:
+          document.body.innerText.includes("Overall internal readiness") &&
+          document.body.innerText.includes(${JSON.stringify(seeded.expectedDashboardText)}),
         sessionStatus: session.status,
         sessionHasActiveOrganization: sessionText.includes(${JSON.stringify(seeded.organizationId)}),
         documentCookieAfterLogin: document.cookie
       });
-    })())`
+    })())`,
+    (candidate) => candidate.loginRenderedDashboard === true && candidate.sessionStatus === 200,
+    "browser web login redirect and session cookie",
+    5_000
   );
 
-  record("browser_web_login_proxy_renders_dashboard", result.loginStatus === 200 && result.loginRenderedDashboard === true, JSON.stringify(result));
-  record("browser_web_login_lands_on_dashboard_url", result.loginUrl.endsWith("/"), JSON.stringify(result));
+  record("browser_web_login_proxy_renders_dashboard", result.loginRenderedDashboard === true, JSON.stringify(result));
+  record("browser_web_login_lands_on_dashboard_url", new URL(result.currentUrl).pathname === "/", JSON.stringify(result));
   record("browser_web_session_proxy_status_ok", result.sessionStatus === 200, JSON.stringify(result));
   record("browser_web_session_contains_active_organization", result.sessionHasActiveOrganization === true, JSON.stringify(result));
   record("browser_web_document_cookie_cannot_read_http_only_session", !result.documentCookieAfterLogin.includes("puresoc_session"), result.documentCookieAfterLogin);
@@ -1296,6 +1378,30 @@ async function evaluateBrowserJson(browser, context, expression) {
   }
 
   return JSON.parse(result.result.value);
+}
+
+async function waitForBrowserState(browser, context, expression, predicate, label, timeoutMs) {
+  const deadline = Date.now() + timeoutMs;
+  let lastResult = null;
+  let lastError = null;
+
+  while (Date.now() < deadline) {
+    try {
+      const result = await evaluateBrowserJson(browser, context, expression);
+      lastResult = result;
+      if (predicate(result)) {
+        return result;
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    await delay(100);
+  }
+
+  throw new Error(
+    `${label} timed out${lastResult ? `: ${JSON.stringify(lastResult)}` : lastError instanceof Error ? `: ${lastError.message}` : ""}`
+  );
 }
 
 function assertOperationalConsole(consoleHtml, loginHtml) {

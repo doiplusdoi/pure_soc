@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M60, narrowing local served UI smoke coverage for the Romania onboarding route, and staging Prompt 60 / `docs/PLAN_M61.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M61, narrowing Firefox browser smoke coverage for the Romania onboarding route, and staging Prompt 61 / `docs/PLAN_M62.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -90,6 +90,7 @@ The repository currently contains:
 - PLAN_M58 Romanian message catalog runtime: `@puresoc/shared` now exposes shared `en`/`ro` message-catalog resolution with requested/resolved locale, fallback reason, message key, message kind, and review status metadata. Reports, generic country-pack envelopes, Romania notification drafts, and selected served-web labels consume the resolver. Romanian legal-caveat and regulatory/workbook notification labels remain English fallback with explicit `missing_translation` metadata until product/legal-approved copy exists.
 - PLAN_M59 served Romania onboarding route baseline: `apps/web` now serves `GET /onboarding/romania` from existing Romania onboarding schema, classification, notification-draft, source-map, and message-catalog fallback contracts. The operational console links to the route, and tests cover source/caveat/fallback/no-DNSC metadata without legal/certification claims or live external calls.
 - PLAN_M60 served Romania route UI smoke coverage: `pnpm test:e2e -- --grep @ui-smoke` now fetches `GET /onboarding/romania?locale=ro-RO`, asserts route-specific source-map, legal-caveat, fallback, unsupported-state, no-DNSC-submission, responsive, focus, and forbidden-claim behavior, and writes deterministic Romania desktop/mobile HTML snapshots beside the existing dashboard snapshots without live external calls.
+- PLAN_M61 Romania route browser smoke traversal: `pnpm test:e2e -- --grep @browser-smoke` now navigates to `GET /onboarding/romania?locale=ro-RO` when Firefox WebDriver BiDi is available, captures desktop/mobile route PNG screenshots, and asserts browser DOM/layout source-map, caveat, fallback, unsupported-state, no-DNSC-submission, focus/readability, no-horizontal-overflow, and forbidden-claim behavior while preserving the deterministic `@ui-smoke` fallback.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -157,7 +158,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 57 / `docs/PLAN_M58.md` is completed.
 - Prompt 58 / `docs/PLAN_M59.md` is completed.
 - Prompt 59 / `docs/PLAN_M60.md` is completed.
-- Prompt 60 / `docs/PLAN_M61.md` is staged as the next active implementation prompt.
+- Prompt 60 / `docs/PLAN_M61.md` is completed.
+- Prompt 61 / `docs/PLAN_M62.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -172,11 +174,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 60 / `docs/PLAN_M61.md`: Romania Route Browser Smoke Traversal.
+1. Prompt 61 / `docs/PLAN_M62.md`: Browser Keyboard And Route Navigation Traversal.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M61 must stay fully in-repo: extend local browser smoke traversal for the Romania onboarding route without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M62 must stay fully in-repo: extend local browser smoke keyboard/navigation traversal for the existing served web routes without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 60 / PLAN_M61: Romania Route Browser Smoke Traversal
+## Active Prompt 61 / PLAN_M62: Browser Keyboard And Route Navigation Traversal
 
 Read:
 
@@ -186,7 +188,7 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M60.md`
+- `docs/PLAN_M61.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
 - `code/scripts/run-ui-smoke.mjs`
@@ -199,18 +201,18 @@ Read:
 
 Goal:
 
-Extend the local browser smoke so the Romania onboarding route is exercised by the existing Firefox WebDriver BiDi path when a browser is available, while preserving the deterministic `@ui-smoke` HTTP fallback and no-live-call posture.
+Extend the local browser smoke so Firefox WebDriver BiDi, when available, proves keyboard and route navigation across the API-backed dashboard and Romania onboarding route while preserving the deterministic `@ui-smoke` HTTP fallback and no-live-call posture.
 
 Deliverables:
 
-- Update `@browser-smoke` to navigate to `GET /onboarding/romania?locale=ro-RO` after the existing local web login path is established.
-- Capture route-specific desktop/mobile PNG screenshots under `/tmp/puresoc-browser-smoke-*` when Firefox WebDriver BiDi is available.
-- Add browser DOM/layout assertions for Romania route source-map, caveat, fallback, unsupported-state, no-DNSC-submission, responsive/focus/readability, no horizontal overflow, and forbidden legal/certification claims.
-- Keep the existing dashboard desktop/mobile, login, evidence, approvals, browser-auth, cookie, Origin, and callback-exemption checks intact.
-- Preserve the M60 `@ui-smoke` HTTP fallback and make blocked browser output clear that Romania browser PNG coverage is not claimed when Firefox is unavailable.
+- Update `@browser-smoke` to exercise route navigation from the operational console to `/onboarding/romania?locale=ro-RO` through the visible "Romania onboarding" navigation link after the existing local web login path is established.
+- Exercise keyboard/focus behavior for the dashboard skip link, the Romania route skip link, the dashboard-to-Romania navigation link, and the Romania "Back to dashboard" link using browser DOM actions instead of raw HTML-only checks.
+- Record browser navigation assertions for URL changes, focus target movement, route markers, back-navigation to the dashboard, no horizontal overflow, no certification claims, no direct DNSC submit command, and preserved no-live-call posture.
+- Keep the existing dashboard desktop/mobile, login, evidence, approvals, Romania route desktop/mobile, browser-auth, cookie, Origin, and callback-exemption checks intact.
+- Preserve the M60 `@ui-smoke` HTTP fallback and M61 route-specific browser screenshots; blocked browser output must remain clear that keyboard/navigation browser coverage is not claimed when Firefox is unavailable.
 - Add focused tests for browser assertion helpers if they are factored.
-- Update GAP-031 and handoff docs to distinguish local HTML route snapshots from route-specific browser PNG traversal.
-- Create `docs/PLAN_M62.md` from the next selected active prompt before final response.
+- Update GAP-031 and handoff docs to distinguish browser screenshot coverage from keyboard/pointer route traversal.
+- Create `docs/PLAN_M63.md` from the next selected active prompt before final response.
 
 Expected files:
 
@@ -221,8 +223,8 @@ Expected files:
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M61.md`
 - `docs/PLAN_M62.md`
+- `docs/PLAN_M63.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -241,18 +243,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui-smoke browser romania onboarding
+pnpm test -- web ui-smoke browser navigation romania onboarding
 pnpm test:e2e -- --grep @ui-smoke
 pnpm test:e2e -- --grep @browser-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M61.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M62.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof.
 
 Expected gap movement:
 
-- Narrow GAP-031 for route-specific Firefox browser traversal coverage of the Romania onboarding route when browser support is available, or preserve the browser blocker explicitly if not.
+- Narrow GAP-031 for Firefox browser keyboard/navigation traversal across dashboard and Romania onboarding routes when browser support is available, or preserve the browser blocker explicitly if not.
 - Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands or live external targets.
 
@@ -262,10 +264,33 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M61` updated
-- `PLAN_M62` created
+- `PLAN_M62` updated
+- `PLAN_M63` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 60 / PLAN_M61: Romania Route Browser Smoke Traversal
+
+Completed on 2026-05-03.
+
+Summary:
+- Extended `pnpm test:e2e -- --grep @browser-smoke` to navigate to `GET /onboarding/romania?locale=ro-RO` when Firefox WebDriver BiDi is available.
+- Added route-specific desktop/mobile PNG screenshots under `/tmp/puresoc-browser-smoke-*`.
+- Added browser DOM/layout assertions for Romania route source-map, workbook cells, legal caveat, locale fallback, unsupported-state, no-DNSC-submission, skip-link/focus target, readable text, no horizontal overflow, and forbidden legal/certification claims.
+- Preserved existing dashboard desktop/mobile, login, evidence, approvals, browser-auth, cookie, Origin, callback-exemption, and M60 `@ui-smoke` fallback checks.
+- Fixed the local smoke API clock so browser session cookies are not issued with stale fixed-date expiry as calendar time advances.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+Validated with host npm equivalents because sandbox-local `pnpm` and `npm` were unavailable:
+- `npm run lint`
+- `npm run test -- web ui-smoke browser romania onboarding`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `npm run test:e2e -- --grep @browser-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M61 acceptance command results are recorded in `docs/PLAN_M61.md`.
+
+GAP-031 is narrowed for route-specific Firefox browser traversal of the Romania onboarding route. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 59 / PLAN_M60: Served Romania Route UI Smoke Coverage
 

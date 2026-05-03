@@ -61,6 +61,7 @@ Keep entries short, specific, and actionable.
 - `pnpm test:e2e -- --grep @ui-smoke` now seeds a local API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server. It still makes no live external calls and must not print session cookies or user emails in smoke output.
 - `apps/web` also serves `GET /onboarding/romania` as a small contract-backed route, not a full wizard. It should keep using `@puresoc/country-pack-ro` onboarding schema, classification, notification-draft, source-map, and message-catalog metadata; it must keep no-DNSC-submission and legal-caveat fallback signals visible until product/legal-approved Romanian regulatory copy exists.
 - M60 extends `pnpm test:e2e -- --grep @ui-smoke` to fetch `/onboarding/romania?locale=ro-RO`, assert Romania route source-map/caveat/fallback/unsupported/no-DNSC/responsive/focus signals, and write deterministic route desktop/mobile HTML snapshots. Browser PNG traversal for this route remains separate from the HTTP snapshot smoke.
+- M61 extends `pnpm test:e2e -- --grep @browser-smoke` so Firefox WebDriver BiDi, when available, captures Romania route desktop/mobile PNG screenshots and asserts browser DOM/layout signals for source maps, caveats, fallback metadata, unsupported states, no DNSC submission, focus targets, no horizontal overflow, and no certification claims. If Firefox/WebDriver BiDi is unavailable, only the M60 `@ui-smoke` HTML snapshots are proof; do not claim Romania browser PNG coverage from a blocked browser smoke.
 
 ## How To Add Learnings
 
