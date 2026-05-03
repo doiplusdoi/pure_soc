@@ -56,8 +56,10 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("overflow-wrap: anywhere");
     expect(html).toContain("white-space: normal");
     expect(html).toContain('href="#content"');
+    expect(html).toContain('data-ui-action="skip-to-content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain('aria-label="Primary navigation"');
+    expect(html).toContain('data-ui-action="open-romania-onboarding"');
     expect(login).toContain('<label for="email">Email</label>');
     expect(login).toContain('<label for="password">Password</label>');
     expect(login).toContain('autocomplete="current-password"');
@@ -138,6 +140,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("@media (max-width: 640px)");
     expect(html).toContain(":focus-visible");
     expect(html).toContain('href="#content"');
+    expect(html).toContain('data-ui-action="skip-to-content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain("Romania NIS2 Onboarding");
     expect(html).toContain("roNis2OnboardingSchema");
@@ -155,7 +158,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('id="romania-source-map"');
     expect(html).toContain('id="romania-unsupported"');
     expect(html).toContain('id="romania-draft"');
-    expect(html).toContain('<a class="ps-command" href="/">Back to dashboard</a>');
+    expect(html).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(html).toContain("not a full React or Next.js onboarding wizard");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
     expect(html).not.toContain("Submitted to DNSC true");

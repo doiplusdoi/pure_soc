@@ -4,8 +4,10 @@
 
 Extend the local browser smoke so Firefox WebDriver BiDi, when available, proves keyboard and route navigation across the API-backed dashboard and Romania onboarding route while preserving the deterministic `@ui-smoke` HTTP fallback and no-live-call posture.
 
-Status: staged for implementation after M61.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -97,32 +99,56 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03 and completed 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Added stable non-visible `data-ui-action` markers for the dashboard skip link, Romania onboarding navigation link, Romania route skip link, and Romania "Back to dashboard" link.
+- Extended `pnpm test:e2e -- --grep @browser-smoke` with a Firefox keyboard traversal helper that runs after the local web login path. It tabs to skip links, activates the Romania navigation/back links with keyboard input, and records route-navigation output.
+- Added browser assertions for URL changes, focus target movement, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and preserved no-live-call posture.
+- Preserved existing dashboard desktop/mobile, login, evidence, approvals, Romania route desktop/mobile, browser-auth, cookie, Origin, callback-exemption, and M60 `@ui-smoke` fallback checks.
+- Documented the new keyboard traversal and narrowed GAP-031 while keeping GAP-042 and GAP-044 open.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/apps/web/src/operational-console.ts`
+- `code/scripts/run-ui-smoke.mjs`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M62.md`
+- `docs/PLAN_M63.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Passed: `flatpak-spawn --host npm run lint`.
+- Passed: `flatpak-spawn --host npm run test -- web ui-smoke browser navigation romania onboarding` (4 files, 18 tests).
+- Passed: `flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke`; output included Romania route desktop/mobile HTML snapshots under `/tmp/puresoc-ui-smoke-TGNlVG`.
+- Passed: `flatpak-spawn --host npm run test:e2e -- --grep @browser-smoke`; output included dashboard/login/evidence/approvals screenshots plus Romania route desktop/mobile PNGs under `/tmp/puresoc-browser-smoke-eHBY1c` and route-navigation results for dashboard skip, dashboard-to-Romania, Romania skip, and back-to-dashboard traversal.
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
+- Used host npm equivalents because sandbox-local `pnpm` and `npm` were unavailable in this environment.
 
 Acceptance status:
 
-- Pending.
+- Accepted. Firefox WebDriver BiDi now proves keyboard traversal between the authenticated API-backed dashboard and the Romania onboarding route, including skip-link focus targets and keyboard activation of the visible route links. The local HTTP fallback and previous browser screenshot/auth checks remain intact. No live external services or provider write paths were called.
 
 Gaps updated:
 
-- Pending.
+- GAP-031 narrowed for Firefox keyboard traversal of dashboard and Romania skip links plus dashboard-to-Romania and back-to-dashboard route activation.
+- GAP-042 preserved for product/legal-approved Romanian legal/regulatory copy.
+- GAP-044 preserved; no external-smoke commands or live external targets were run.
 
 Prompt handoff:
 
-- Pending. M62 implementation must create `docs/PLAN_M63.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 61 / PLAN_M62 complete and stages Prompt 62 / PLAN_M63 for browser pointer route navigation traversal.
+- `docs/PLAN_M63.md` created.
 
 Residual risk:
 
-- Pending.
+- Browser coverage remains Firefox WebDriver BiDi only, not Chromium/WebKit/Playwright parity.
+- Pointer/click route traversal, screenshot diff thresholds, browser organization selection, full Next.js/React runtime, and a persistent Romania onboarding wizard remain deferred under GAP-031.
+- Romanian legal caveat and regulatory/workbook labels still fall back to English/source-mapped copy until product/legal-approved Romanian text exists under GAP-042.

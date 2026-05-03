@@ -233,7 +233,7 @@ async function runBrowserSmoke() {
             status: "blocked",
             blocker: !firefoxPath ? "firefox_not_found" : "node_websocket_unavailable",
             fallback:
-              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth coverage, including Romania route browser PNG coverage, is not claimed when this blocker is present.",
+              "Run pnpm test:e2e -- --grep @ui-smoke for the deterministic M39 HTTP fallback. Browser PNG/auth and keyboard/navigation coverage, including Romania route coverage, is not claimed when this blocker is present.",
             artifacts: {
               directory: artifactsDir
             },
@@ -281,6 +281,7 @@ async function runBrowserSmoke() {
     browser = await startFirefoxBidiBrowser(firefoxPath);
     const context = await createBrowserContext(browser);
     await assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, apiBackedDashboard);
+    const routeNavigation = await assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl);
     const screenshots = [];
 
     screenshots.push(
@@ -408,6 +409,7 @@ async function runBrowserSmoke() {
             directory: artifactsDir,
             screenshots
           },
+          routeNavigation,
           browserAuth,
           checks: checkNames(),
           fallbackPreserved: "pnpm test:e2e -- --grep @ui-smoke remains the deterministic M39 HTTP fallback.",
@@ -1163,6 +1165,289 @@ function assertBrowserLayout(name, layout, input) {
   if (input.scrollTarget) {
     record(`${name}_browser_anchor_scroll_applied`, layout.scrollY > 0, `${layout.scrollY}`);
   }
+}
+
+async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl) {
+  await browser.command("browsingContext.setViewport", {
+    context,
+    viewport: {
+      width: 1024,
+      height: 760
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command("browsingContext.navigate", {
+    context,
+    url: `${webBaseUrl}/`,
+    wait: "complete"
+  });
+  await waitForBrowserPaint(browser, context);
+
+  const dashboardLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("keyboard_dashboard_start", dashboardLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Overall internal readiness", "Romania onboarding"],
+    expectOperationalConsole: true
+  });
+
+  await resetBrowserFocus(browser, context);
+  await pressBrowserKey(browser, context, "Tab");
+  const dashboardSkipFocused = await readBrowserFocusSnapshot(browser, context);
+  record(
+    "browser_keyboard_dashboard_skip_link_focused_by_tab",
+    dashboardSkipFocused.dataAction === "skip-to-content" && dashboardSkipFocused.href.endsWith("#content"),
+    JSON.stringify(dashboardSkipFocused)
+  );
+  await pressBrowserKey(browser, context, "Enter");
+  const dashboardSkipTarget = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const active = document.activeElement;
+      return JSON.stringify({
+        hash: location.hash,
+        activeId: active?.id ?? "",
+        activeTag: active?.tagName ?? "",
+        path: location.pathname,
+        marker: Boolean(document.querySelector('[data-ui-smoke="operational-console"]'))
+      });
+    })()`,
+    (candidate) => candidate.hash === "#content" && candidate.activeId === "content" && candidate.marker === true,
+    "dashboard skip link keyboard focus target",
+    5_000
+  );
+  record("browser_keyboard_dashboard_skip_link_moves_focus_to_content", dashboardSkipTarget.activeId === "content", JSON.stringify(dashboardSkipTarget));
+
+  const romaniaNavFocus = await focusBrowserElement(browser, context, '[data-ui-action="open-romania-onboarding"]');
+  record(
+    "browser_keyboard_dashboard_romania_nav_link_focused",
+    romaniaNavFocus.activeText.includes("Romania onboarding") && romaniaNavFocus.href.endsWith("/onboarding/romania?locale=ro-RO"),
+    JSON.stringify(romaniaNavFocus)
+  );
+  await pressBrowserKey(browser, context, "Enter");
+  const romaniaLanding = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const text = document.body.innerText;
+      return JSON.stringify({
+        path: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
+        hasSourceMap: text.includes("Source Map Sample"),
+        hasNoDnscNotice: text.includes("PureSOC does not submit this draft to DNSC."),
+        hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
+        hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
+      });
+    })()`,
+    (candidate) =>
+      candidate.path === "/onboarding/romania" &&
+      candidate.search === "?locale=ro-RO" &&
+      candidate.routeMarker === true &&
+      candidate.hasSourceMap === true,
+    "dashboard to Romania onboarding keyboard navigation",
+    5_000
+  );
+  record("browser_keyboard_dashboard_to_romania_url_changed", romaniaLanding.path === "/onboarding/romania", JSON.stringify(romaniaLanding));
+  record("browser_keyboard_dashboard_to_romania_route_marker", romaniaLanding.routeMarker === true, JSON.stringify(romaniaLanding));
+  record("browser_keyboard_dashboard_to_romania_keeps_no_dnsc_notice", romaniaLanding.hasNoDnscNotice === true, JSON.stringify(romaniaLanding));
+  record("browser_keyboard_dashboard_to_romania_no_certification_claims", romaniaLanding.hasCertificationClaim === false, JSON.stringify(romaniaLanding));
+  record("browser_keyboard_dashboard_to_romania_no_direct_dnsc_submit_command", romaniaLanding.hasDirectDnscSubmitCommand === false, JSON.stringify(romaniaLanding));
+
+  await waitForBrowserPaint(browser, context);
+  const romaniaLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("keyboard_romania_route", romaniaLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Romania NIS2 Onboarding", "missing_translation", "PureSOC does not submit this draft to DNSC."],
+    expectRomaniaRoute: true
+  });
+
+  await resetBrowserFocus(browser, context);
+  await pressBrowserKey(browser, context, "Tab");
+  const romaniaSkipFocused = await readBrowserFocusSnapshot(browser, context);
+  record(
+    "browser_keyboard_romania_skip_link_focused_by_tab",
+    romaniaSkipFocused.dataAction === "skip-to-content" && romaniaSkipFocused.href.endsWith("#content"),
+    JSON.stringify(romaniaSkipFocused)
+  );
+  await pressBrowserKey(browser, context, "Enter");
+  const romaniaSkipTarget = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const active = document.activeElement;
+      return JSON.stringify({
+        hash: location.hash,
+        activeId: active?.id ?? "",
+        activeTag: active?.tagName ?? "",
+        path: location.pathname,
+        marker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]'))
+      });
+    })()`,
+    (candidate) => candidate.hash === "#content" && candidate.activeId === "content" && candidate.marker === true,
+    "Romania skip link keyboard focus target",
+    5_000
+  );
+  record("browser_keyboard_romania_skip_link_moves_focus_to_content", romaniaSkipTarget.activeId === "content", JSON.stringify(romaniaSkipTarget));
+
+  const backLinkFocus = await focusBrowserElement(browser, context, '[data-ui-action="back-to-dashboard"]');
+  record(
+    "browser_keyboard_romania_back_link_focused",
+    backLinkFocus.activeText.includes("Back to dashboard") && backLinkFocus.href.endsWith("/"),
+    JSON.stringify(backLinkFocus)
+  );
+  await pressBrowserKey(browser, context, "Enter");
+  const dashboardReturn = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const text = document.body.innerText;
+      return JSON.stringify({
+        path: location.pathname,
+        search: location.search,
+        hash: location.hash,
+        dashboardMarker: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+        hasDashboardText: text.includes("Overall internal readiness"),
+        hasRomaniaMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
+        hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text)
+      });
+    })()`,
+    (candidate) => candidate.path === "/" && candidate.dashboardMarker === true && candidate.hasDashboardText === true,
+    "Romania back to dashboard keyboard navigation",
+    5_000
+  );
+  record("browser_keyboard_romania_back_link_returns_to_dashboard_url", dashboardReturn.path === "/", JSON.stringify(dashboardReturn));
+  record("browser_keyboard_romania_back_link_returns_to_dashboard_marker", dashboardReturn.dashboardMarker === true, JSON.stringify(dashboardReturn));
+  record("browser_keyboard_romania_back_link_no_certification_claims", dashboardReturn.hasCertificationClaim === false, JSON.stringify(dashboardReturn));
+
+  await waitForBrowserPaint(browser, context);
+  const returnedDashboardLayout = await readBrowserLayout(browser, context);
+  assertBrowserLayout("keyboard_dashboard_return", returnedDashboardLayout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Overall internal readiness", "Romania onboarding"],
+    expectOperationalConsole: true
+  });
+  record("browser_keyboard_navigation_preserves_no_live_call_posture", true);
+
+  return {
+    dashboardSkip: {
+      focusedByTab: dashboardSkipFocused.dataAction,
+      targetId: dashboardSkipTarget.activeId
+    },
+    dashboardToRomania: {
+      activatedLink: romaniaNavFocus.dataAction,
+      path: romaniaLanding.path,
+      search: romaniaLanding.search
+    },
+    romaniaSkip: {
+      focusedByTab: romaniaSkipFocused.dataAction,
+      targetId: romaniaSkipTarget.activeId
+    },
+    romaniaBackToDashboard: {
+      activatedLink: backLinkFocus.dataAction,
+      path: dashboardReturn.path
+    }
+  };
+}
+
+async function resetBrowserFocus(browser, context) {
+  await evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      window.scrollTo(0, 0);
+      if (document.activeElement && typeof document.activeElement.blur === "function") {
+        document.activeElement.blur();
+      }
+      return JSON.stringify({
+        activeTag: document.activeElement?.tagName ?? "",
+        path: location.pathname
+      });
+    })()`
+  );
+}
+
+async function focusBrowserElement(browser, context, selector) {
+  const focused = await evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      const element = document.querySelector(${JSON.stringify(selector)});
+      if (!element || typeof element.focus !== "function") {
+        return JSON.stringify({
+          found: false,
+          selector: ${JSON.stringify(selector)}
+        });
+      }
+      element.focus();
+      const active = document.activeElement;
+      return JSON.stringify({
+        found: true,
+        selector: ${JSON.stringify(selector)},
+        activeTag: active?.tagName ?? "",
+        activeId: active?.id ?? "",
+        activeText: active?.textContent?.trim() ?? "",
+        dataAction: active?.getAttribute("data-ui-action") ?? "",
+        href: active instanceof HTMLAnchorElement ? active.href : "",
+        path: location.pathname
+      });
+    })()`
+  );
+  record(`browser_focus_element_${slug(selector)}`, focused.found === true, JSON.stringify(focused));
+  record(`browser_focus_element_${slug(selector)}_is_active`, focused.dataAction.length > 0 || focused.activeId.length > 0, JSON.stringify(focused));
+
+  return focused;
+}
+
+async function readBrowserFocusSnapshot(browser, context) {
+  return evaluateBrowserJson(
+    browser,
+    context,
+    `(() => {
+      const active = document.activeElement;
+      return JSON.stringify({
+        activeTag: active?.tagName ?? "",
+        activeId: active?.id ?? "",
+        activeText: active?.textContent?.trim() ?? "",
+        dataAction: active?.getAttribute("data-ui-action") ?? "",
+        href: active instanceof HTMLAnchorElement ? active.href : "",
+        path: location.pathname,
+        hash: location.hash
+      });
+    })()`
+  );
+}
+
+async function pressBrowserKey(browser, context, key) {
+  const valueByKey = {
+    Enter: "\uE007",
+    Tab: "\uE004"
+  };
+  const value = valueByKey[key] ?? key;
+  await browser.command("input.performActions", {
+    context,
+    actions: [
+      {
+        type: "key",
+        id: "keyboard",
+        actions: [
+          {
+            type: "keyDown",
+            value
+          },
+          {
+            type: "keyUp",
+            value
+          }
+        ]
+      }
+    ]
+  });
+  record(`browser_key_${slug(key)}_performed`, true);
 }
 
 async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded) {

@@ -78,7 +78,7 @@ export const renderOperationalConsole = (
 ): string => {
   const copy = resolveOperationalConsoleCopy(options.locale);
   const content = [
-    '<a class="ps-skip-link" href="#content">Skip to content</a>',
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<div class="ps-shell" data-ui-smoke="operational-console">',
     renderSidebar(model, copy),
     '<main class="ps-main" id="content" tabindex="-1">',
@@ -198,7 +198,7 @@ export const renderRomaniaOnboardingRoute = (
   const labelFallbackCount = model.notificationDraft.fields.filter((field) => field.labelFallbackUsed).length;
   const servicesSourceMap = model.sourceMapLinks.find((link) => link.targetCollection === "service_options");
   const content = [
-    '<a class="ps-skip-link" href="#content">Skip to content</a>',
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
     renderSection({
       id: "romania-onboarding",
@@ -360,7 +360,7 @@ export const renderRomaniaOnboardingRoute = (
         model.sourceMapLinks.slice(0, 8)
       )
     }),
-    '<p><a class="ps-command" href="/">Back to dashboard</a></p>',
+    '<p><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
     "</main>"
   ].join("");
 
@@ -422,9 +422,10 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
     renderStatusPill({ label: copy.internalReadiness, tone: "accent" }),
     "</div>",
     '<nav class="ps-nav">',
-    ...items.map(([label, href], index) =>
-      `<a class="ps-nav__link" href="${href}"${index === 0 ? ' aria-current="page"' : ""}><span>${escapeHtml(label)}</span><span aria-hidden="true">&rsaquo;</span></a>`
-    ),
+    ...items.map(([label, href], index) => {
+      const action = href.startsWith("/onboarding/romania") ? ' data-ui-action="open-romania-onboarding"' : "";
+      return `<a class="ps-nav__link" href="${href}"${index === 0 ? ' aria-current="page"' : ""}${action}><span>${escapeHtml(label)}</span><span aria-hidden="true">&rsaquo;</span></a>`;
+    }),
     "</nav>",
     "</aside>"
   ].join("");
