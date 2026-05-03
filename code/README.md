@@ -102,6 +102,8 @@ pnpm test:e2e -- --grep @ui-smoke
 
 This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
 
+The served UI smoke also writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json`. The index is the reviewer entrypoint for the dashboard, workspace-selection, and Romania HTML snapshot filenames; route and source metadata; API-backed dashboard proof; auth/cookie/Origin/callback-exemption summaries; check names; and no-live-call guarantees. It references snapshot files and hashes without embedding HTML bodies, session cookies, passwords, session tokens, authorization headers, full user emails, local port-bearing endpoint URLs, provider secrets, raw provider payloads, object-storage URIs, or external URLs.
+
 When host Firefox WebDriver BiDi is available, the browser smoke also selects the visible workspace after login, proves operational-console section-anchor traversal, and proves keyboard and pointer route traversal after the selected dashboard is established:
 
 ```sh

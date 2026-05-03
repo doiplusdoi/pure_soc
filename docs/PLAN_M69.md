@@ -4,8 +4,9 @@
 
 Persist a secret-free served UI smoke artifact index under `/tmp/puresoc-ui-smoke-*` so reviewers can inspect deterministic local HTTP snapshot outputs from files, not only stdout.
 
-Status: staged.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
 
 ## Source Inputs
 
@@ -95,4 +96,58 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03.
+
+Completed 2026-05-03.
+
+Implementation results:
+
+- Added `puresoc.ui_smoke.served_artifact_index.v1` and `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` to `code/scripts/run-ui-smoke.mjs` for the deterministic local HTTP `@ui-smoke` path.
+- The index records the artifact directory, six HTML snapshot summaries for dashboard/workspace/Romania routes, file names, dimensions, HTML byte counts, SHA-256 prefixes, route metadata, API-backed dashboard/source proof, workspace-selection proof, Romania source/caveat/fallback/no-DNSC proof, auth/cookie/Origin/callback-exemption summaries, passed check count/names, and no-live-call guarantees.
+- The index keeps reviewer metadata secret-free by avoiding embedded HTML bodies, session cookie values, passwords, session tokens, authorization headers, provider/client secrets, raw provider payloads, object-storage URIs, local port-bearing endpoint URLs, full user emails, and external URLs.
+- Preserved the M68 browser-smoke artifact index, M67 anchor-driven section screenshots, M66 anchor workflows, M65 visual thresholds, M64 workspace selection, M63/M62 Romania route traversal, M61/M60 screenshots/snapshots, auth/cookie/Origin/callback checks, and no-live-call posture.
+- Updated handoff docs and staged M70 for selected output schema drift coverage.
+
+Changed files:
+
+- `code/scripts/run-ui-smoke.mjs`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/README.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M69.md`
+- `docs/PLAN_M70.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
+- `docs/LEARNINGS.md`
+
+Validation:
+
+- Local sandbox command execution could not create the required namespace, so validation used host equivalents through `flatpak-spawn --host sh -lc 'cd /mnt/solodata/SoloCode/pure_soc/code && npm run ...'`.
+- `npm run test -- web-dashboard-reports-ui` passed: 1 file, 14 tests.
+- `npm run lint` passed: layout, Prisma schema drift, Romania generated regulatory drift, and TypeScript.
+- `npm run test -- web ui-smoke artifact index browser screenshot visual dashboard gaps evidence approvals microsoft onboarding romania` passed: 18 files, 87 tests.
+- `npm run test:e2e -- --grep @ui-smoke` passed and wrote HTML artifacts under `/tmp/puresoc-ui-smoke-PQg7L1`, including `/tmp/puresoc-ui-smoke-PQg7L1/ui-smoke-artifact-index.json`.
+- The final generated UI artifact index was scanned for obvious secret and endpoint patterns; no matches were found for session cookies, session tokens, the synthetic password, client/provider secrets, storage URIs, full emails, external URLs, or local port-bearing URLs.
+- `npm run test:e2e -- --grep @browser-smoke` passed with host Firefox `/usr/bin/firefox` version `150.0`; artifacts were written under `/tmp/puresoc-browser-smoke-FFZu1M`, preserving `visual-metrics-manifest.json` and `browser-smoke-artifact-index.json`.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
+
+Acceptance status:
+
+- Accepted for M69: `@ui-smoke` now writes a secret-free served UI artifact index beside deterministic HTML snapshots, records the existing dashboard/workspace/Romania/auth/source/check/no-live posture from files, and preserves the current lightweight local runtime without Playwright, golden images, external calls, or framework migration.
+
+Gaps updated:
+
+- GAP-031 narrowed for a persisted served HTTP `@ui-smoke` artifact index beside deterministic HTML snapshots.
+- GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy.
+- GAP-044 remains open and unchanged; no external smoke commands or live external targets were run.
+
+Prompt handoff:
+
+- `docs/codex-prompts.md` updated to retire M69 and stage M70.
+- `docs/PLAN_M70.md` created as the next active milestone stub.
+
+Residual risk:
+
+- Served UI artifact-index coverage is still deterministic HTTP snapshot proof, not browser PNG proof; browser PNG proof remains the separate Firefox WebDriver BiDi path.
+- Cross-browser Playwright parity, committed golden-image/pixel-diff review, full Next.js/React runtime behavior, deployed TLS/proxy browser smoke, approved Romanian legal/regulatory copy, and live external integration smokes remain out of scope.

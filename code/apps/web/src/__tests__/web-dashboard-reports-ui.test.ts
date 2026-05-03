@@ -168,6 +168,26 @@ describe("web dashboard reports operational UI", () => {
     expect(smokeScript).not.toContain("browser-smoke-golden");
   });
 
+  it("wires a secret-free served UI smoke artifact index beside the HTML snapshots", () => {
+    const smokeScript = readFileSync(new URL("../../../../scripts/run-ui-smoke.mjs", import.meta.url), "utf8");
+
+    expect(smokeScript).toContain('const UI_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.served_artifact_index.v1"');
+    expect(smokeScript).toContain('const UI_SMOKE_ARTIFACT_INDEX_FILE = "ui-smoke-artifact-index.json"');
+    expect(smokeScript).toContain("EXPECTED_UI_HTML_SNAPSHOT_COUNT = 6");
+    expect(smokeScript).toContain("writeServedUiSmokeArtifactIndex");
+    expect(smokeScript).toContain("formatServedUiSnapshotSummary");
+    expect(smokeScript).toContain("sanitizeServedUiAuthChecks");
+    expect(smokeScript).toContain("apiBackedDashboard");
+    expect(smokeScript).toContain("workspaceSelectionSnapshots");
+    expect(smokeScript).toContain("romaniaRouteSnapshots");
+    expect(smokeScript).toContain("authCookieOriginChecks");
+    expect(smokeScript).toContain("local port-bearing endpoint URLs");
+    expect(smokeScript).toContain("isServedUiArtifactIndexSecretFree");
+    expect(smokeScript).toContain("ui_smoke_artifact_index_secret_free");
+    expect(smokeScript).toContain("ui_smoke_artifact_index_written");
+    expect(smokeScript).not.toContain("ui-smoke-golden");
+  });
+
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {
     const dashboardHtml = renderOperationalConsole(createOperationalConsoleDemoModel());
     const romaniaHtml = renderRomaniaOnboardingRoute(createRomaniaOnboardingRouteModel({ locale: "ro-RO" }));

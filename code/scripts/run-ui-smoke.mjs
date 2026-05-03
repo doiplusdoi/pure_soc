@@ -21,9 +21,20 @@ let runtimeModulesPromise = null;
 const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1";
 const VISUAL_THRESHOLD_VERSION = "m65-lightweight-thresholds.v1";
 const ANCHOR_SECTION_CAPTURE_SCHEMA = "puresoc.ui_smoke.anchor_section_capture.v1";
+const UI_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.served_artifact_index.v1";
+const UI_SMOKE_ARTIFACT_INDEX_FILE = "ui-smoke-artifact-index.json";
 const BROWSER_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.browser_artifact_index.v1";
 const BROWSER_SMOKE_ARTIFACT_INDEX_FILE = "browser-smoke-artifact-index.json";
+const EXPECTED_UI_HTML_SNAPSHOT_COUNT = 6;
 const EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT = 10;
+const UI_ARTIFACT_INDEX_CHECK_NAMES = [
+  "ui_smoke_artifact_index_snapshot_count",
+  "ui_smoke_artifact_index_workspace_selection_referenced",
+  "ui_smoke_artifact_index_romania_route_referenced",
+  "ui_smoke_artifact_index_auth_cookie_origin_checks_referenced",
+  "ui_smoke_artifact_index_secret_free",
+  "ui_smoke_artifact_index_written"
+];
 const BROWSER_ARTIFACT_INDEX_CHECK_NAMES = [
   "browser_smoke_artifact_index_screenshot_count",
   "browser_smoke_artifact_index_visual_metrics_manifest_referenced",
@@ -284,7 +295,7 @@ async function runServedUiSmoke() {
     assertOperationalConsole(consoleHtml, loginHtml);
     assertResponsiveLayout(consoleHtml);
     assertNoObviousOverlapRegression(consoleHtml);
-    await assertBrowserAuthMiddlewareSmoke({
+    const localHttpAuthChecks = await assertBrowserAuthMiddlewareSmoke({
       apiBaseUrl,
       webBaseUrl,
       expectSecureCookie: false
@@ -297,11 +308,74 @@ async function runServedUiSmoke() {
       secureCookie: true
     });
     servers.push(secureApiServer.server);
-    await assertBrowserAuthMiddlewareSmoke({
+    const secureCookieAuthChecks = await assertBrowserAuthMiddlewareSmoke({
       apiBaseUrl: secureApiServer.baseUrl,
       webBaseUrl,
       expectSecureCookie: true,
       emailSuffix: "secure"
+    });
+    const artifactIndex = writeServedUiSmokeArtifactIndex({
+      snapshots: {
+        dashboard: [
+          {
+            captureId: "dashboard-desktop",
+            filePath: desktopSnapshot,
+            routeId: "operational-console",
+            routePath: "/",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "dashboard-mobile",
+            filePath: mobileSnapshot,
+            routeId: "operational-console",
+            routePath: "/",
+            width: 390,
+            height: 844
+          }
+        ],
+        workspaceSelection: [
+          {
+            captureId: "workspaces-desktop",
+            filePath: workspaceDesktopSnapshot,
+            routeId: "workspace-selection",
+            routePath: "/workspaces",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "workspaces-mobile",
+            filePath: workspaceMobileSnapshot,
+            routeId: "workspace-selection",
+            routePath: "/workspaces",
+            width: 390,
+            height: 844
+          }
+        ],
+        romaniaRoute: [
+          {
+            captureId: "romania-desktop",
+            filePath: romaniaDesktopSnapshot,
+            routeId: "romania-onboarding-route",
+            routePath: "/onboarding/romania?locale=ro-RO",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "romania-mobile",
+            filePath: romaniaMobileSnapshot,
+            routeId: "romania-onboarding-route",
+            routePath: "/onboarding/romania?locale=ro-RO",
+            width: 390,
+            height: 844
+          }
+        ]
+      },
+      apiBackedDashboard,
+      authChecks: {
+        localHttp: localHttpAuthChecks,
+        secureCookieConfig: secureCookieAuthChecks
+      }
     });
 
     console.log(
@@ -323,7 +397,8 @@ async function runServedUiSmoke() {
             romaniaRoute: {
               desktopSnapshot: romaniaDesktopSnapshot,
               mobileSnapshot: romaniaMobileSnapshot
-            }
+            },
+            artifactIndex
           },
           checks: checkNames(),
           nonLiveGuarantees: nonLiveGuarantees()
@@ -664,6 +739,166 @@ function record(name, condition, detail = "") {
 
 function checkNames() {
   return [...new Set(checks.map((check) => check.name))];
+}
+
+function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authChecks }) {
+  const artifactIndexPath = join(artifactsDir, UI_SMOKE_ARTIFACT_INDEX_FILE);
+  const dashboardSnapshots = snapshots.dashboard.map(formatServedUiSnapshotSummary);
+  const workspaceSnapshots = snapshots.workspaceSelection.map(formatServedUiSnapshotSummary);
+  const romaniaSnapshots = snapshots.romaniaRoute.map(formatServedUiSnapshotSummary);
+  const allSnapshots = [...dashboardSnapshots, ...workspaceSnapshots, ...romaniaSnapshots];
+  const finalCheckNames = finalUiArtifactIndexCheckNames();
+  const index = {
+    schema: UI_SMOKE_ARTIFACT_INDEX_SCHEMA,
+    status: "passed",
+    smokeMode: "local_http_browser_substitute",
+    artifactDirectory: artifactsDir,
+    artifacts: {
+      htmlSnapshots: allSnapshots,
+      dashboardSnapshots,
+      workspaceSelectionSnapshots: workspaceSnapshots,
+      romaniaRouteSnapshots: romaniaSnapshots
+    },
+    workspaceSelection: {
+      status: "passed",
+      routePath: "/workspaces",
+      sourceRoutes: ["GET /auth/session", "GET /organizations", "POST /auth/session/active-organization"],
+      visibleSelectorRendered: true,
+      activeMembershipCheckRequired: true,
+      sessionStartsWithoutActiveOrganization: true,
+      selectedWorkspaceName: apiBackedDashboard.selectedOrganization.name,
+      unselectedWorkspaceName: apiBackedDashboard.primaryOrganization.name,
+      selectedWorkspaceControlsDashboard: true,
+      rawSessionValueIncluded: false
+    },
+    romaniaRoute: {
+      status: "passed",
+      routePath: "/onboarding/romania?locale=ro-RO",
+      localeRequested: "ro-RO",
+      resolvedDocumentLanguage: "ro",
+      sourceMapVisible: true,
+      legalCaveatVisible: true,
+      fallbackMetadataVisible: true,
+      unsupportedStateVisible: true,
+      noDnscSubmissionVisible: true,
+      directDnscSubmitCommandPresent: false,
+      certificationClaimPresent: false
+    },
+    apiBackedDashboard: {
+      status: "passed",
+      sourceRouteTemplate: "GET /organizations/:orgId/dashboards/snapshots/latest",
+      storedOutputSource: "stored_analysis",
+      selectedWorkspaceName: apiBackedDashboard.selectedOrganization.name,
+      unselectedWorkspaceHidden: true,
+      expectedDashboardText: apiBackedDashboard.expectedDashboardText,
+      countryPackCompleteness: {
+        selectedWorkspace: apiBackedDashboard.selectedOrganization.countryPackCompleteness,
+        primaryWorkspace: apiBackedDashboard.primaryOrganization.countryPackCompleteness
+      },
+      rawOrganizationIdsIncluded: false,
+      fullUserEmailIncluded: false
+    },
+    authCookieOriginChecks: sanitizeServedUiAuthChecks(authChecks),
+    checks: {
+      status: "passed",
+      count: finalCheckNames.length,
+      names: finalCheckNames
+    },
+    nonLiveGuarantees: nonLiveGuarantees(),
+    secretFreePolicy: {
+      excludes: [
+        "session cookies",
+        "passwords",
+        "session tokens",
+        "authorization headers",
+        "client secrets",
+        "provider tokens",
+        "endpoint secrets",
+        "raw provider payloads",
+        "object-storage URIs",
+        "local port-bearing endpoint URLs",
+        "full user emails"
+      ],
+      htmlBodiesEmbedded: false,
+      localLoopbackOriginsRedacted: true
+    }
+  };
+  const serialized = `${JSON.stringify(index, null, 2)}\n`;
+
+  record(
+    "ui_smoke_artifact_index_snapshot_count",
+    allSnapshots.length === EXPECTED_UI_HTML_SNAPSHOT_COUNT,
+    String(allSnapshots.length)
+  );
+  record("ui_smoke_artifact_index_workspace_selection_referenced", workspaceSnapshots.length === 2, String(workspaceSnapshots.length));
+  record("ui_smoke_artifact_index_romania_route_referenced", romaniaSnapshots.length === 2, String(romaniaSnapshots.length));
+  record(
+    "ui_smoke_artifact_index_auth_cookie_origin_checks_referenced",
+    authChecks.localHttp?.sessionCookie?.httpOnly === true && authChecks.secureCookieConfig?.sessionCookie?.secureExpected === true
+  );
+  record("ui_smoke_artifact_index_secret_free", isServedUiArtifactIndexSecretFree(serialized), redactSmokeText(serialized));
+  writeFileSync(artifactIndexPath, serialized, "utf8");
+  record("ui_smoke_artifact_index_written", existsSync(artifactIndexPath), artifactIndexPath);
+
+  return artifactIndexPath;
+}
+
+function finalUiArtifactIndexCheckNames() {
+  return [...new Set([...checkNames(), ...UI_ARTIFACT_INDEX_CHECK_NAMES])];
+}
+
+function formatServedUiSnapshotSummary(snapshot) {
+  const html = readFileSync(snapshot.filePath, "utf8");
+
+  return {
+    captureId: snapshot.captureId,
+    fileName: basename(snapshot.filePath),
+    width: snapshot.width,
+    height: snapshot.height,
+    routeId: snapshot.routeId,
+    routePath: snapshot.routePath,
+    htmlBytes: Buffer.byteLength(html, "utf8"),
+    htmlSha256Prefix: createHash("sha256").update(html).digest("hex").slice(0, 16),
+    htmlBodyEmbedded: false
+  };
+}
+
+function sanitizeServedUiAuthChecks(authChecks) {
+  return {
+    localHttp: summarizeServedUiAuthCheck(authChecks.localHttp),
+    secureCookieConfig: summarizeServedUiAuthCheck(authChecks.secureCookieConfig)
+  };
+}
+
+function summarizeServedUiAuthCheck(check) {
+  return {
+    originPolicy: check.originPolicy,
+    login: check.login,
+    sessionCookie: check.sessionCookie,
+    session: check.session,
+    logout: check.logout,
+    callbackExemptions: check.callbackExemptions,
+    rawCookieIncluded: false,
+    fullUserEmailIncluded: false,
+    localEndpointUrlIncluded: false
+  };
+}
+
+function isServedUiArtifactIndexSecretFree(serialized) {
+  const forbiddenPatterns = [
+    /puresoc_session=/i,
+    /"sessionToken"\s*:/i,
+    /"password"\s*:/i,
+    /"authorization"\s*:/i,
+    /"clientSecret"\s*:/i,
+    /"providerToken"\s*:/i,
+    /"storageUri"\s*:/i,
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+    /https?:\/\/[^\s"]+/i,
+    /\b(?:127\.0\.0\.1|localhost):\d+\b/i
+  ];
+
+  return forbiddenPatterns.every((pattern) => !pattern.test(serialized));
 }
 
 async function startApiSmokeServer({
@@ -1035,7 +1270,8 @@ async function assertBrowserAuthMiddlewareSmoke({ apiBaseUrl, webBaseUrl, expect
   record("session_cookie_is_http_only", /;\s*HttpOnly/i.test(setCookie), setCookie);
   record("session_cookie_is_samesite_lax", /;\s*SameSite=Lax/i.test(setCookie), setCookie);
   record("session_cookie_secure_matches_config", /;\s*Secure/i.test(setCookie) === expectSecureCookie, setCookie);
-  record("session_cookie_does_not_expose_token_in_body", !(await trustedLogin.text()).includes("sessionToken"));
+  const loginBody = await trustedLogin.text();
+  record("session_cookie_does_not_expose_token_in_body", !loginBody.includes("sessionToken"));
 
   const sessionResponse = await fetch(`${apiBaseUrl}/auth/session`, {
     headers: {
@@ -1077,6 +1313,38 @@ async function assertBrowserAuthMiddlewareSmoke({ apiBaseUrl, webBaseUrl, expect
   );
   const providerBody = await providerCallback.json();
   record("provider_callback_origin_exemption_reaches_route", providerBody.error?.code !== "origin_not_allowed");
+
+  return {
+    originPolicy: {
+      untrustedOriginStatus: blockedOrigin.status,
+      stableErrorCode: blockedBody.error?.code === "origin_not_allowed" ? "origin_not_allowed" : "unexpected",
+      trustedRegisterStatus: trustedRegister.status
+    },
+    login: {
+      status: trustedLogin.status,
+      setCookieObserved: setCookie.includes("puresoc_session"),
+      bodyExposesSessionToken: loginBody.includes("sessionToken")
+    },
+    sessionCookie: {
+      httpOnly: /;\s*HttpOnly/i.test(setCookie),
+      sameSite: /;\s*SameSite=Lax/i.test(setCookie) ? "Lax" : "unexpected",
+      secureExpected: expectSecureCookie,
+      secureMatchesConfig: /;\s*Secure/i.test(setCookie) === expectSecureCookie,
+      rawCookieIncluded: false
+    },
+    session: {
+      authenticatedStatus: sessionResponse.status
+    },
+    logout: {
+      status: logoutResponse.status,
+      clearCookieKeepsSafetyAttributes: /HttpOnly/i.test(clearCookie) && /SameSite=Lax/i.test(clearCookie),
+      clearCookieSecureMatchesConfig: /;\s*Secure/i.test(clearCookie) === expectSecureCookie
+    },
+    callbackExemptions: {
+      oidcCallbackReachedRoute: oidcBody.error?.code !== "origin_not_allowed",
+      providerConsentCallbackReachedRoute: providerBody.error?.code !== "origin_not_allowed"
+    }
+  };
 }
 
 async function assertOriginExemptionHttpSmoke({ apiBaseUrl }) {

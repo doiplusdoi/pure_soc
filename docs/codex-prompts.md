@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M67, narrowing Firefox anchor-driven section screenshot coverage, and staging Prompt 67 / `docs/PLAN_M68.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M69, narrowing served UI smoke artifact reviewability, and staging Prompt 69 / `docs/PLAN_M70.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -97,6 +97,8 @@ The repository currently contains:
 - PLAN_M65 browser screenshot visual threshold baseline: `@browser-smoke` now emits `/tmp/puresoc-browser-smoke-*/visual-metrics-manifest.json` when Firefox captures the dashboard desktop/mobile, login mobile, evidence desktop, approvals desktop, and Romania desktop/mobile PNGs. The manifest records route id, viewport/PNG size, color-diversity, non-light, edge, luminance, dominant-color, and threshold result metadata, and the smoke fails blank, wrong-size, missing-route, and severe visual-collapse captures without Playwright, committed golden PNGs, pixel-perfect comparisons, external calls, or framework migration.
 - PLAN_M66 browser operational console anchor workflow baseline: operational-console sidebar anchors now have stable visible `data-ui-action` markers for dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue sections; `@browser-smoke` activates those anchors with keyboard focus/Enter and visible pointer clicks after local login/workspace selection, records hash/scroll state, target bounds, readable section text, no-overflow/no-certification checks, and preserves the M65 visual metrics manifest plus no-live-call posture without Playwright, cross-browser parity, external calls, or framework migration.
 - PLAN_M67 browser anchor-driven section screenshot baseline: `@browser-smoke` captures dashboard, onboarding/country packs, Microsoft 365, gaps, evidence/reports, and approval queue PNGs only after visible anchor activation; the visual metrics manifest now records 10 captures with secret-free anchor action, hash/scroll, section id/title, readable text, route marker, and bounds metadata without direct section `scrollIntoView`, Playwright, golden images, cross-browser parity, external calls, or framework migration.
+- PLAN_M68 browser smoke artifact index baseline: `@browser-smoke` writes `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` when Firefox WebDriver BiDi is available, summarizing screenshot filenames, visual metrics, M67 anchor-driven section captures, M66 keyboard/pointer anchor workflows, route traversal, browser auth/session status, checks, and no-live-call guarantees without embedding PNG bytes, raw session values, secrets, endpoint URLs, provider payloads, storage URIs, or full user emails.
+- PLAN_M69 served UI smoke artifact index baseline: `@ui-smoke` writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` beside deterministic HTML snapshots, summarizing dashboard/workspace/Romania snapshot filenames and hashes, route/source metadata, API-backed dashboard proof, auth/cookie/Origin/callback-exemption checks, check status, and no-live-call guarantees without embedding HTML bodies, session cookies, raw emails, local port-bearing URLs, secrets, provider payloads, storage URIs, external URLs, direct DNSC submission, or certification claims.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -171,7 +173,9 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 64 / `docs/PLAN_M65.md` is completed.
 - Prompt 65 / `docs/PLAN_M66.md` is completed.
 - Prompt 66 / `docs/PLAN_M67.md` is completed.
-- Prompt 67 / `docs/PLAN_M68.md` is staged as the next active implementation prompt.
+- Prompt 67 / `docs/PLAN_M68.md` is completed.
+- Prompt 68 / `docs/PLAN_M69.md` is completed.
+- Prompt 69 / `docs/PLAN_M70.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -186,11 +190,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 68 / `docs/PLAN_M69.md`: Served UI Smoke Artifact Index Baseline.
+1. Prompt 69 / `docs/PLAN_M70.md`: Selected Output Drift Coverage Expansion.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M69 must stay fully in-repo: persist a secret-free served UI smoke artifact index for the existing deterministic local HTTP snapshot outputs without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, golden-image workflows, or a frontend framework/router migration.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M70 must stay fully in-repo: expand selected schema drift coverage for already-modeled evidence/report/dashboard output tables without invoking live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, provider write executors, or Prisma migrations.
 
-## Active Prompt 68 / PLAN_M69: Served UI Smoke Artifact Index Baseline
+## Active Prompt 69 / PLAN_M70: Selected Output Drift Coverage Expansion
 
 Read:
 
@@ -200,48 +204,46 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M68.md`
+- `docs/PLAN_M69.md`
 - `docs/threat-model.md`
-- `docs/claude_rec4.md`
-- `code/scripts/run-ui-smoke.mjs`
-- `code/apps/web/src/operational-console.ts`
-- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/scripts/check-schema-contract-drift.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/src/repositories/output.ts`
+- `code/packages/database/src/repositories/evidence.ts`
+- `code/packages/database/src/__tests__/schema-contract.test.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Persist a secret-free served UI smoke artifact index under `/tmp/puresoc-ui-smoke-*` so a reviewer can inspect the deterministic local HTTP snapshot outputs, workspace selection snapshots, Romania route snapshots, API-backed dashboard proof, auth/cookie/Origin checks, and no-live-call posture from files rather than only stdout.
+Narrow GAP-041 by expanding deterministic schema drift coverage to selected evidence/report/dashboard output surfaces that already exist in the Prisma schema and repository contracts, so persisted output metadata cannot drift silently from TypeScript expectations.
 
 Deliverables:
 
-- Add a `ui-smoke-artifact-index.json` file under `/tmp/puresoc-ui-smoke-*` for `@ui-smoke`, with schema/version, artifact directory, HTML snapshot summaries, workspace-selection route summaries, Romania route summaries, API-backed dashboard/source metadata, auth/cookie/Origin/callback-exemption check summaries, check count/status, and non-live guarantees.
-- Keep the index secret-free: do not include session cookies, passwords, session tokens, authorization headers, client secrets, provider tokens, endpoint secrets, raw provider payloads, object-storage URIs, local port-bearing endpoint URLs, or full user emails.
-- Preserve M68 browser-smoke artifact index behavior, M67 section screenshots, M66 keyboard/pointer anchor workflow coverage, M65 visual thresholds, M64 workspace selection, M63 Romania pointer traversal, M62 Romania keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
-- Preserve the existing lightweight `node:http` web runtime and route-table API style; do not introduce Next.js/React, Playwright, Chromium/WebKit matrix setup, committed golden PNG files, or router/layout migrations in this slice.
-- Update GAP-031 and handoff docs to distinguish the HTTP UI artifact index from browser PNG proof, cross-browser Playwright parity, committed golden images, or production browser smoke.
-- Create `docs/PLAN_M70.md` from the next selected active prompt before final response.
+- Extend `code/scripts/check-schema-contract-drift.ts` with selected field expectations for evidence/report/dashboard output tables that are currently called out as excluded under GAP-041, prioritizing `EvidenceLink`, `ReportExport`, and `DashboardWidget` if those Prisma models are present.
+- Add or update deterministic drift tests/documentation so `pnpm lint` fails when the selected fields disappear, rename, or change type in the Prisma schema.
+- Keep this as a schema/contract guard only; do not add new migrations, live database access, generated Prisma client changes, runtime repository rewrites, UI changes, or external smoke calls.
+- Update GAP-041 and handoff docs to distinguish this selected drift expansion from exhaustive schema coverage, live PostgreSQL smoke, or customer data migration.
+- Create `docs/PLAN_M71.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/scripts/run-ui-smoke.mjs`
-- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/scripts/check-schema-contract-drift.ts`
+- `code/packages/database/src/__tests__/schema-contract.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M69.md`
 - `docs/PLAN_M70.md`
+- `docs/PLAN_M71.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not add direct DNSC submission or imply that PureSOC submits to DNSC.
-- Do not add unapproved Romanian legal/regulatory translations or certification claims.
-- Do not hardcode workbook-derived regulatory rules in UI conditionals; use country-pack/onboarding data contracts.
-- Do not introduce a broad frontend framework, router migration, Playwright dependency, Chromium/WebKit setup, committed golden PNG baseline set, or layout rewrite.
+- Do not change the Prisma schema or generate a migration unless the drift script proves a documented field expectation is wrong and the fix is explicitly a docs/test correction.
+- Do not broaden drift coverage to every remaining model; keep the slice to the named output/evidence/report/dashboard surfaces.
 - Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
-- Do not weaken existing screenshot visual thresholds, anchor-driven section screenshots, browser workspace selection, session cookie, RBAC/organization scoping, Romania route, or no-live-call assertions.
+- Do not weaken existing M31 live PostgreSQL smoke, M68/M69 artifact index behavior, evidence/report/dashboard runtime persistence tests, organization scoping, legal caveats, or no-live-call assertions.
 
 Tests and acceptance commands:
 
@@ -249,20 +251,17 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui-smoke artifact index browser screenshot visual dashboard gaps evidence approvals microsoft onboarding romania
-pnpm test:e2e -- --grep @ui-smoke
-pnpm test:e2e -- --grep @browser-smoke
+pnpm test -- schema drift evidence reports dashboards output
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M69.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve both the `@ui-smoke` route snapshot proof and UI artifact-index coverage without claiming browser PNG coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M70.md`.
 
 Expected gap movement:
 
-- Narrow GAP-031 for a persisted served UI smoke artifact index in the deterministic HTTP fallback path.
-- Preserve GAP-042 for approved Romanian legal/regulatory copy.
-- Preserve GAP-044; this prompt must not run external smoke commands or live external targets.
+- Narrow GAP-041 for selected evidence/report/dashboard output drift coverage.
+- Preserve GAP-031, GAP-042, and GAP-044; this prompt must not change UI smoke/browser behavior, legal/regulatory copy, or external live-smoke posture.
 
 Final response must include:
 
@@ -270,10 +269,23 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M69` updated
-- `PLAN_M70` created
+- `PLAN_M70` updated
+- `PLAN_M71` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 68 / PLAN_M69: Served UI Smoke Artifact Index Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Added `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` for the deterministic served HTTP `@ui-smoke` path.
+- The index records the artifact directory, dashboard/workspace/Romania HTML snapshot filenames and hashes, route/source metadata, API-backed dashboard proof, auth/cookie/Origin/callback-exemption summaries, passed check count/names, and no-live-call guarantees.
+- The index avoids embedding HTML bodies, session cookie values, passwords, session tokens, authorization headers, provider/client secrets, raw provider payloads, object-storage URIs, local port-bearing endpoint URLs, full user emails, and external URLs.
+- Preserved M68 browser-smoke artifact index behavior, M67 section screenshots, M66 anchor workflows, M65 visual thresholds, M64 workspace selection, M63/M62 Romania route traversal, M61/M60 screenshots/snapshots, browser-auth, Origin/callback-exemption, and no-live-call posture.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+GAP-031 is narrowed for a persisted served UI smoke artifact index beside deterministic HTML snapshots. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 67 / PLAN_M68: Browser Smoke Artifact Index Baseline
 
