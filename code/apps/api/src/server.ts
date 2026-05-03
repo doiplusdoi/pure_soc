@@ -246,7 +246,13 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       if (actionRunsRouteMatch && request.method === "POST") {
         sendJson(
           response,
-          await createActionRunRoute(actionRunsRouteMatch[1] ?? "", body, request.headers.cookie, services)
+          await createActionRunRoute(
+            actionRunsRouteMatch[1] ?? "",
+            body,
+            request.headers.cookie,
+            request.headers["idempotency-key"],
+            services
+          )
         );
         return;
       }

@@ -895,6 +895,7 @@ model ProviderActionTemplate {
 model ProviderActionRun {
   id                    String                           @id @default(uuid()) @db.Uuid
   organizationId        String                           @map("organization_id") @db.Uuid
+  idempotencyKey        String?                          @map("idempotency_key") @db.VarChar(128)
   providerConnectionId  String                           @map("provider_connection_id") @db.Uuid
   recommendationId      String?                          @map("recommendation_id") @db.Uuid
   actionTemplateId      String?                          @map("action_template_id") @db.Uuid
@@ -944,6 +945,7 @@ model ProviderActionRun {
   createdAt             DateTime                         @default(now()) @map("created_at")
   updatedAt             DateTime                         @updatedAt @map("updated_at")
 
+  @@unique([organizationId, idempotencyKey], map: "provider_action_runs_org_idempotency_key_key")
   @@map("provider_action_runs")
 }
 

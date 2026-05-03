@@ -132,6 +132,84 @@ describe("remediation action lifecycle", () => {
     ]);
   });
 
+  it("creates action runs idempotently per organization when a key is provided", async () => {
+    const repository = new InMemoryRemediationActionRepository();
+    const lifecycle = createLifecycle(repository);
+    const template = await lifecycle.createTemplate(safeTemplate());
+    const input = {
+      organizationId: "org_actions",
+      idempotencyKey: "retry-key:action-1",
+      providerConnectionId: "provider_connection_1",
+      recommendation: recommendation(),
+      template
+    };
+
+    const first = await lifecycle.createActionRun(input);
+    const retried = await lifecycle.createActionRun({
+      ...input,
+      recommendation: {
+        ...input.recommendation,
+        id: "recommendation_retry_payload"
+      }
+    });
+    const otherOrganization = await lifecycle.createActionRun({
+      ...input,
+      organizationId: "org_other",
+      recommendation: {
+        ...recommendation(),
+        organizationId: "org_other",
+        id: "recommendation_other_org"
+      },
+      template: {
+        ...template,
+        organizationId: "org_other"
+      }
+    });
+    const noKeyFirst = await lifecycle.createActionRun({
+      organizationId: "org_actions",
+      providerConnectionId: "provider_connection_1",
+      recommendation: {
+        ...recommendation(),
+        id: "recommendation_no_key_1"
+      },
+      template
+    });
+    const noKeySecond = await lifecycle.createActionRun({
+      organizationId: "org_actions",
+      providerConnectionId: "provider_connection_1",
+      recommendation: {
+        ...recommendation(),
+        id: "recommendation_no_key_2"
+      },
+      template
+    });
+
+    expect(retried.id).toBe(first.id);
+    expect(retried.recommendationId).toBe("recommendation_1");
+    expect(otherOrganization.id).not.toBe(first.id);
+    expect(noKeySecond.id).not.toBe(noKeyFirst.id);
+    expect(repository.runs.size).toBe(4);
+  });
+
+  it("rejects malformed action-run idempotency keys", async () => {
+    const lifecycle = createLifecycle();
+    const template = await lifecycle.createTemplate(safeTemplate());
+
+    for (const idempotencyKey of [" ", "bad key with spaces", "x".repeat(129)]) {
+      await expect(
+        lifecycle.createActionRun({
+          organizationId: "org_actions",
+          idempotencyKey,
+          providerConnectionId: "provider_connection_1",
+          recommendation: recommendation(),
+          template
+        })
+      ).rejects.toMatchObject({
+        code: "invalid_idempotency_key"
+      });
+    }
+  });
+
   it("links recommendation, control, provider connection, snapshots, verification, and evidence before close", async () => {
     const lifecycle = createLifecycle();
     const template = await lifecycle.createTemplate(safeTemplate());

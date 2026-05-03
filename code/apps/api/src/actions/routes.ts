@@ -1,10 +1,13 @@
 import { AuthError } from "@puresoc/auth-core";
-import type {
-  ActionPreflightResult,
-  ActionSnapshotMetadata,
-  ActionTemplate,
-  ActionVerificationResult,
-  RecommendationContract
+import {
+  RemediationActionError,
+  normalizeActionRunIdempotencyKey,
+  type ActionRun,
+  type ActionPreflightResult,
+  type ActionSnapshotMetadata,
+  type ActionTemplate,
+  type ActionVerificationResult,
+  type RecommendationContract
 } from "@puresoc/recommendations";
 import {
   actionableSeverities,
@@ -26,6 +29,7 @@ export const createActionRunRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
   cookieHeader: string | undefined,
+  idempotencyKeyHeader: string | string[] | undefined,
   services: ApiServices
 ): Promise<JsonResult> => {
   const actorUserId = await readSessionUserId(cookieHeader, services);
@@ -35,6 +39,26 @@ export const createActionRunRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
   });
+  const idempotencyKey = normalizeIdempotencyKeyHeader(idempotencyKeyHeader);
+  if (idempotencyKey) {
+    const existing = await services.actionsRepository.findActionRunByIdempotencyKeyForOrganization({
+      organizationId,
+      idempotencyKey
+    });
+    if (existing) {
+      return {
+        statusCode: 201,
+        body: {
+          actionRun: actionRunResponse(existing),
+          followupTasks: services.actions.createManualGuidedTasks({
+            run: existing,
+            ownerUserId: actorUserId
+          })
+        }
+      };
+    }
+  }
+
   const providerConnectionId = stringField(body, "providerConnectionId");
   await services.providerConnections.store.getConnectionForOrganization(organizationId, providerConnectionId);
   const template = await services.actions.createTemplate(parseActionTemplate(body.actionTemplate, organizationId));
@@ -42,6 +66,7 @@ export const createActionRunRoute = async (
     organizationId,
     providerConnectionId,
     actorUserId,
+    idempotencyKey,
     recommendation: parseRecommendation(body.recommendation, organizationId),
     template
   });
@@ -49,7 +74,7 @@ export const createActionRunRoute = async (
   return {
     statusCode: 201,
     body: {
-      actionRun: run,
+      actionRun: actionRunResponse(run),
       followupTasks: services.actions.createManualGuidedTasks({
         run,
         ownerUserId: actorUserId
@@ -77,13 +102,13 @@ export const recordActionPreflightRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.recordPreflight({
+      actionRun: actionRunResponse(await services.actions.recordPreflight({
         organizationId,
         actionRunId,
         actorUserId,
         result: parsePreflightResult(body),
         context
-      })
+      }))
     }
   };
 };
@@ -106,12 +131,12 @@ export const requestActionApprovalRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.requestApproval({
+      actionRun: actionRunResponse(await services.actions.requestApproval({
         organizationId,
         actionRunId,
         actorUserId,
         context
-      })
+      }))
     }
   };
 };
@@ -134,12 +159,12 @@ export const approveActionRunRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.approve({
+      actionRun: actionRunResponse(await services.actions.approve({
         organizationId,
         actionRunId,
         actorUserId,
         context
-      })
+      }))
     }
   };
 };
@@ -162,11 +187,11 @@ export const attachActionSnapshotRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.attachSnapshot({
+      actionRun: actionRunResponse(await services.actions.attachSnapshot({
         organizationId,
         actionRunId,
         snapshot: parseSnapshot(body, actorUserId)
-      })
+      }))
     }
   };
 };
@@ -207,7 +232,7 @@ export const queueActionRunRoute = async (
   return {
     statusCode: 202,
     body: {
-      actionRun: result.run,
+      actionRun: actionRunResponse(result.run),
       workerJob: result.job
     }
   };
@@ -232,13 +257,13 @@ export const failActionRunRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.fail({
+      actionRun: actionRunResponse(await services.actions.fail({
         organizationId,
         actionRunId,
         actorUserId,
         reason: stringField(body, "reason"),
         context
-      })
+      }))
     }
   };
 };
@@ -262,13 +287,13 @@ export const verifyActionRunRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.recordVerification({
+      actionRun: actionRunResponse(await services.actions.recordVerification({
         organizationId,
         actionRunId,
         actorUserId,
         result: parseVerificationResult(body),
         context
-      })
+      }))
     }
   };
 };
@@ -291,14 +316,31 @@ export const closeActionRunRoute = async (
   return {
     statusCode: 200,
     body: {
-      actionRun: await services.actions.close({
+      actionRun: actionRunResponse(await services.actions.close({
         organizationId,
         actionRunId,
         actorUserId,
         context
-      })
+      }))
     }
   };
+};
+
+const normalizeIdempotencyKeyHeader = (value: string | string[] | undefined): string | undefined => {
+  if (Array.isArray(value)) {
+    throw new RemediationActionError(
+      "invalid_idempotency_key",
+      "Idempotency-Key must be provided only once.",
+      400
+    );
+  }
+
+  return normalizeActionRunIdempotencyKey(value);
+};
+
+const actionRunResponse = (run: ActionRun): Omit<ActionRun, "idempotencyKey"> & { idempotencyKeyPresent?: true } => {
+  const { idempotencyKey, ...response } = run;
+  return idempotencyKey ? { ...response, idempotencyKeyPresent: true } : response;
 };
 
 const parseActionTemplate = (value: unknown, organizationId: string): Omit<ActionTemplate, "createdAt" | "updatedAt"> => {

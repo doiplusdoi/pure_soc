@@ -127,6 +127,7 @@ export interface ActionTemplate {
 export interface ActionRun {
   id: string;
   organizationId: string;
+  idempotencyKey?: string;
   providerConnectionId: string;
   recommendationId?: string;
   actionTemplateId?: string;
@@ -239,6 +240,7 @@ export interface CreateActionTemplateInput {
 export interface CreateActionRunInput {
   id?: string;
   organizationId: string;
+  idempotencyKey?: string;
   providerConnectionId: string;
   actorUserId?: string;
   recommendation: RecommendationContract;
@@ -263,6 +265,10 @@ export interface RemediationActionRepository {
     organizationId: string;
     actionRunId: string;
   }): Promise<ActionRun | null>;
+  findActionRunByIdempotencyKeyForOrganization(input: {
+    organizationId: string;
+    idempotencyKey: string;
+  }): Promise<ActionRun | null>;
   listActionRuns(organizationId: string): Promise<ActionRun[]>;
 }
 
@@ -270,6 +276,7 @@ export type RemediationActionErrorCode =
   | "action_not_found"
   | "invalid_action_state"
   | "invalid_action_template"
+  | "invalid_idempotency_key"
   | "cross_organization_action"
   | "snapshot_provider_connection_mismatch"
   | "provider_connection_write_disabled";
@@ -304,6 +311,42 @@ const forbiddenExecutableActionKeySet = new Set<string>(v1ForbiddenExecutableAct
 
 export const isV1ForbiddenExecutableActionKey = (actionKey: string): boolean =>
   forbiddenExecutableActionKeySet.has(actionKey);
+
+export const maxActionRunIdempotencyKeyLength = 128;
+const actionRunIdempotencyKeyPattern = /^[A-Za-z0-9._:-]+$/;
+
+export const normalizeActionRunIdempotencyKey = (value: string | undefined): string | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const normalized = value.trim();
+  if (normalized.length === 0) {
+    throw new RemediationActionError(
+      "invalid_idempotency_key",
+      "Idempotency-Key must not be empty.",
+      400
+    );
+  }
+
+  if (normalized.length > maxActionRunIdempotencyKeyLength) {
+    throw new RemediationActionError(
+      "invalid_idempotency_key",
+      `Idempotency-Key must be ${maxActionRunIdempotencyKeyLength} characters or fewer.`,
+      400
+    );
+  }
+
+  if (!actionRunIdempotencyKeyPattern.test(normalized)) {
+    throw new RemediationActionError(
+      "invalid_idempotency_key",
+      "Idempotency-Key may contain only letters, numbers, dot, underscore, colon, or hyphen.",
+      400
+    );
+  }
+
+  return normalized;
+};
 
 export class InMemoryRemediationActionRepository implements RemediationActionRepository {
   readonly templates = new Map<string, ActionTemplate>();
@@ -343,6 +386,19 @@ export class InMemoryRemediationActionRepository implements RemediationActionRep
     }
 
     return clone(run);
+  }
+
+  async findActionRunByIdempotencyKeyForOrganization(input: {
+    organizationId: string;
+    idempotencyKey: string;
+  }): Promise<ActionRun | null> {
+    const run = [...this.runs.values()].find(
+      (candidate) =>
+        candidate.organizationId === input.organizationId &&
+        candidate.idempotencyKey === input.idempotencyKey
+    );
+
+    return run ? clone(run) : null;
   }
 
   async listActionRuns(organizationId: string): Promise<ActionRun[]> {
@@ -411,11 +467,22 @@ export class RemediationActionLifecycle {
     }
 
     validateTemplateSafety(input.template);
+    const idempotencyKey = normalizeActionRunIdempotencyKey(input.idempotencyKey);
+    if (idempotencyKey) {
+      const existing = await this.repository.findActionRunByIdempotencyKeyForOrganization({
+        organizationId: input.organizationId,
+        idempotencyKey
+      });
+      if (existing) {
+        return existing;
+      }
+    }
 
     const timestamp = this.timestamp();
     const run: ActionRun = {
       id: input.id ?? this.idFactory(),
       organizationId: input.organizationId,
+      idempotencyKey,
       providerConnectionId: input.providerConnectionId,
       recommendationId: input.recommendation.id,
       actionTemplateId: input.template.id,

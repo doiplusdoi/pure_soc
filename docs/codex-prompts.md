@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M54, preserving the external-smoke no-ready-path blocker posture, and staging Prompt 54 / `docs/PLAN_M55.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M55, narrowing action-run duplicate creation risk, and staging Prompt 55 / `docs/PLAN_M56.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -84,6 +84,7 @@ The repository currently contains:
 - PLAN_M52 API Redis rate-limit store adapter: `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` now selects an implemented Redis fixed-window store when a Redis URL is configured; Redis keys hash route-family/user/IP/org material before storage; the Redis command path uses an EVAL script through the shared Redis command client with configurable retry/backoff; middleware returns secret-free 503 responses for store failures; and startup validation rejects missing/invalid Redis URLs without silently falling back to memory.
 - PLAN_M53 served web runtime baseline: after reading `docs/claude_rec4.md`, M53 was re-sequenced away from another external-smoke blocker review and implemented an authenticated web/API path. ADR-017 records current runtime stack deviations; API now exposes `GET /organizations/:orgId/dashboards/snapshots/latest`; `apps/web` proxies login/logout/session to the API, preserves API session cookies, and renders the operational console from the latest organization dashboard snapshot; `@ui-smoke` seeds a local API organization/evaluation/dashboard snapshot and proves the web dashboard came from that API response without live external calls.
 - PLAN_M54 external-smoke blocker review: `external-smoke:readiness` stayed metadata-only in dry-run mode with target kind `unknown`, no disposable confirmation, no live network calls, provider writes disabled, and `ready_for_disposable_smoke: 0`; `external-smoke:select-target` returned `outcome: no_ready_path`, `selectedPathId: null`, `selectedCommand: null`, and `readyCandidateCount: 0`. No live smoke command was run, and GAP-044 remains open until exactly one approved local/test/ci/disposable target is configured and selected.
+- PLAN_M55 action-run idempotency: action-run creation now accepts a normalized organization-scoped `Idempotency-Key`, rejects empty/oversized/malformed keys, returns existing same-org runs for retries, stores the optional key in memory and Prisma repositories with unique `(organizationId, idempotencyKey)` schema coverage, keeps raw keys out of API responses, and preserves provider-write disablement.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -145,7 +146,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 51 / `docs/PLAN_M52.md` is completed.
 - Prompt 52 / `docs/PLAN_M53.md` is completed.
 - Prompt 53 / `docs/PLAN_M54.md` is completed.
-- Prompt 54 / `docs/PLAN_M55.md` is staged as the next active implementation prompt.
+- Prompt 54 / `docs/PLAN_M55.md` is completed.
+- Prompt 55 / `docs/PLAN_M56.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -160,14 +162,13 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 54 / `docs/PLAN_M55.md`: Action-Run Idempotency.
-2. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
-3. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
-4. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
+1. Prompt 55 / `docs/PLAN_M56.md`: Multi-Process Audit-Chain Append Concurrency.
+2. Prompt 56 / `docs/PLAN_M57.md`: Memory Repository Split And API Route Table.
+3. Prompt 57 / `docs/PLAN_M58.md`: Romanian Message Catalog Runtime.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M55 must add idempotency at the action-run creation boundary without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M56 must harden persisted audit append ordering without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
 
-## Active Prompt 54 / PLAN_M55: Action-Run Idempotency
+## Active Prompt 55 / PLAN_M56: Multi-Process Audit-Chain Append Concurrency
 
 Read:
 
@@ -177,64 +178,60 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M54.md`
+- `docs/PLAN_M55.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
-- `code/packages/recommendations/src/actions.ts`
-- `code/packages/recommendations/src/__tests__/actions.spec.ts`
-- `code/apps/api/src/actions/service.ts`
-- `code/apps/api/src/actions/routes.ts`
-- `code/apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `code/packages/audit/src/index.ts`
+- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
 - `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/src/repositories/actions.ts`
-- `code/packages/database/src/__tests__/prisma-actions.repository.spec.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
+- `code/apps/api/src/audit/routes.ts`
+- `code/apps/api/src/__tests__/audit-export-checkpoints.test.ts`
+- `code/apps/api/src/auth/services.ts`
 - `code/scripts/check-schema-contract-drift.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Make action-run creation idempotent so retried clients cannot create duplicate remediation action runs before any future provider write execution is enabled.
+Harden persisted audit append ordering so two API processes cannot fork the per-organization or global audit hash chain by appending concurrently against the same latest anchor.
 
 Deliverables:
 
-- Add an optional action-run idempotency key to the domain model, API request handling, memory repository, and Prisma action repository.
-- Read the `Idempotency-Key` request header for action-run creation, normalize it conservatively, and reject empty/oversized/malformed keys with a stable client error.
-- If a matching `(organizationId, idempotencyKey)` action run already exists, return that existing run idempotently instead of creating a duplicate.
-- Ensure idempotency scope is per organization and does not allow cross-organization action-run discovery.
-- Keep action lifecycle safety checks intact: recommendation ownership, provider connection identity, preflight/approval/snapshot prerequisites, and write-enabled/provider-executor gates must not be weakened.
-- Add database migration/schema drift coverage for the new idempotency field/index.
-- Update GAP-030 and docs with the narrowed duplicate-action-run risk.
-- Create `docs/PLAN_M56.md` from the next selected active prompt before final response.
+- Add an explicit persisted audit append concurrency strategy for Prisma mode, preferring a transaction-scoped PostgreSQL advisory lock or an equivalent deterministic repository boundary that serializes by audit scope.
+- Preserve the current in-memory deterministic audit behavior while documenting that it is not a multi-process persistence model.
+- Ensure concurrent same-scope appends produce one linear chain with no duplicate `previousHash` fork.
+- Keep organization/global scope handling intact and preserve redacted canonical audit payload semantics.
+- Add deterministic fake-Prisma or repository-level contention tests that simulate two concurrent appenders for the same scope.
+- Add coverage that different organizations can still append independently without cross-organization chain contamination.
+- Update GAP-039 and docs with the narrowed multi-process audit-chain risk.
+- Create `docs/PLAN_M57.md` from the next selected active prompt before final response.
 
 Expected files:
 
-- `code/packages/recommendations/src/actions.ts`
-- `code/packages/recommendations/src/__tests__/actions.spec.ts`
-- `code/apps/api/src/actions/service.ts`
-- `code/apps/api/src/actions/routes.ts`
-- `code/apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `code/packages/audit/src/index.ts`
+- `code/packages/audit/src/__tests__/audit-integrity.spec.ts`
+- `code/packages/database/src/repositories/audit.ts`
+- `code/packages/database/src/__tests__/prisma-audit.repository.spec.ts`
 - `code/packages/database/prisma/schema.prisma`
-- `code/packages/database/prisma/migrations/**`
-- `code/packages/database/src/repositories/actions.ts`
-- `code/packages/database/src/__tests__/prisma-actions.repository.spec.ts`
 - `code/scripts/check-schema-contract-drift.ts`
+- `code/apps/api/src/audit/routes.ts`
+- `code/apps/api/src/__tests__/audit-export-checkpoints.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M55.md`
 - `docs/PLAN_M56.md`
+- `docs/PLAN_M57.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
 
 Negative constraints:
 
-- Do not execute action runs against live provider executors, Microsoft Graph, or any customer-impacting provider write path.
-- Do not enable Microsoft write/remediation scopes, provider write jobs, or live queues.
-- Do not weaken existing preflight, approval, snapshot, evidence, or audit requirements.
-- Do not make idempotency keys globally scoped; organization scoping is mandatory.
-- Do not log or return raw authorization headers, cookies, provider tokens, secrets, provider payloads, or idempotency key values in audit payloads if a redacted marker is enough.
-- Do not add broad routing/framework migrations in this prompt.
+- Do not claim WORM storage, external notarization, legal certification, or database-admin-proof auditability.
+- Do not call live PostgreSQL, Redis, external signing/notary services, object storage, KMS/HSM/secret-manager/cloud APIs, Microsoft Graph, Stripe, OIDC/OAuth providers, public regulatory URLs, production/staging/customer deployments, or provider write executors.
+- Do not weaken existing audit redaction, organization scoping, checkpoint/export guarantees, or non-WORM/non-notarized caveats.
+- Do not introduce a broad API framework or route migration in this prompt.
 
 Tests and acceptance commands:
 
@@ -242,17 +239,17 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- actions remediation api database audit
+pnpm test -- audit database api
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M55.md`.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M56.md`.
 
 Expected gap movement:
 
-- Narrow GAP-030 for duplicate action-run creation risk at the API/domain/repository boundary.
-- Preserve live provider execution, provider-specific rollback/verification, live queue orchestration, and customer-facing remediation enablement as deferred under GAP-030/GAP-043.
+- Narrow GAP-039 for multi-process same-scope audit-chain append ordering.
+- Preserve WORM/object-storage export writers, real external signing/notarized checkpoints, checkpoint retention operations, legal-hold/deletion procedures, and operational verification/alerting as deferred under GAP-039.
 - Preserve GAP-044; this prompt must not run external smoke commands.
 
 Final response must include:
@@ -261,10 +258,30 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M55` updated
-- `PLAN_M56` created
+- `PLAN_M56` updated
+- `PLAN_M57` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 54 / PLAN_M55: Action-Run Idempotency
+
+Completed on 2026-05-03.
+
+Summary:
+- Added optional action-run idempotency keys to the recommendation domain model, in-memory remediation repository, Prisma action repository, and Prisma schema.
+- `POST /organizations/:orgId/actions/runs` now reads `Idempotency-Key`, trims it, rejects empty/oversized/malformed keys with `invalid_idempotency_key`, and returns the existing same-organization action run for retries.
+- Added a unique `(organizationId, idempotencyKey)` Prisma model/index plus migration and schema drift coverage.
+- API action-run responses redact the raw key and expose only `idempotencyKeyPresent: true`.
+- Existing preflight, approval, snapshot, provider write-enabled, verification, evidence, and audit gates were preserved; no provider writes, live queues, external services, or external-smoke commands were run.
+
+Validated with host npm equivalents because sandbox-local `pnpm` was unavailable:
+- `npm run lint`
+- `npm run test -- actions remediation api database audit`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M55 acceptance command results are recorded in `docs/PLAN_M55.md`.
+
+GAP-030 is narrowed for duplicate action-run creation risk at the API/domain/repository boundary. Live provider execution, provider-specific rollback/verification, live queue orchestration, and customer-facing remediation enablement remain deferred under GAP-030/GAP-043. GAP-044 is unchanged.
 
 ## Completed Prompt 53 / PLAN_M54: External Live-Smoke Target Approval Follow-Up Or Blocker Review
 

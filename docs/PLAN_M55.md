@@ -4,8 +4,10 @@
 
 Add idempotency at the remediation action-run creation boundary so retried API clients cannot create duplicate action runs before any future provider write execution is enabled.
 
-Status: staged for implementation after M54.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -92,32 +94,61 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Added optional `ActionRun.idempotencyKey` support to the recommendation domain, in-memory remediation repository, API service input, Prisma action repository, and Prisma schema.
+- `POST /organizations/:orgId/actions/runs` now reads `Idempotency-Key`, trims it, rejects empty/oversized/malformed values with `invalid_idempotency_key`, and returns an existing same-organization action run for retries.
+- Action-run API responses omit the raw idempotency key and expose only `idempotencyKeyPresent: true`.
+- Added a Prisma migration and drift coverage for `ProviderActionRun.idempotencyKey` plus unique `(organizationId, idempotencyKey)` model attribute.
+- Added domain, API, and Prisma repository tests for retry deduplication, no-key create-new behavior, malformed key rejection, and cross-organization scoping.
+- No provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, Redis targets, external smoke commands, or provider write paths were called or enabled.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/api/src/__tests__/actions-remediation-approval-preflight-evidence-audit.test.ts`
+- `code/apps/api/src/actions/routes.ts`
+- `code/apps/api/src/actions/service.ts`
+- `code/apps/api/src/server.ts`
+- `code/packages/database/prisma/schema.prisma`
+- `code/packages/database/prisma/migrations/20260503010000_action_run_idempotency/migration.sql`
+- `code/packages/database/src/__tests__/prisma-actions.repository.spec.ts`
+- `code/packages/database/src/repositories/actions.ts`
+- `code/packages/recommendations/src/__tests__/actions.spec.ts`
+- `code/packages/recommendations/src/actions.ts`
+- `code/packages/recommendations/src/index.ts`
+- `code/scripts/check-schema-contract-drift.ts`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M55.md`
+- `docs/PLAN_M56.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Failed as expected in this environment: `pnpm test -- actions remediation api database audit` (`pnpm: command not found`).
+- Passed: `flatpak-spawn --host npm run test -- actions remediation api database audit` (37 files, 131 tests).
+- Passed: `flatpak-spawn --host npm run lint` (layout, schema drift, generated regulatory drift, TypeScript).
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
 
 Acceptance status:
 
-- Pending.
+- Accepted. Action-run creation is idempotent per organization/key, malformed keys are rejected, no-key requests remain intentionally create-new, raw idempotency keys are not returned by the API, Prisma and in-memory behavior are covered, and provider writes remain disabled.
 
 Gaps updated:
 
-- Pending.
+- GAP-030 narrowed for API/domain/repository action-run creation idempotency, organization-scoped key lookup, response redaction, Prisma field/index coverage, and deterministic tests without live provider writes.
+- GAP-043 and GAP-044 are preserved; no live queue/external-smoke path was run.
 
 Prompt handoff:
 
-- Pending. M55 implementation must create `docs/PLAN_M56.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 54 / PLAN_M55 complete and stages Prompt 55 / PLAN_M56 for multi-process audit-chain append concurrency.
+- `docs/PLAN_M56.md` created.
 
 Residual risk:
 
-- Pending.
+- Idempotency narrows duplicate action-run creation only when clients provide a key. Live provider execution, provider-specific rollback/verification, production queue orchestration, live database/queue action-execution smoke, evidence artifact creation beyond metadata, and customer-facing remediation enablement remain deferred under GAP-030/GAP-043.

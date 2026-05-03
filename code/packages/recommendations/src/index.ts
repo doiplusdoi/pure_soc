@@ -6,6 +6,8 @@ export {
 export {
   InMemoryRemediationActionRepository,
   isV1ForbiddenExecutableActionKey,
+  maxActionRunIdempotencyKeyLength,
+  normalizeActionRunIdempotencyKey,
   RemediationActionError,
   RemediationActionLifecycle,
   v1ForbiddenExecutableActionKeys,

@@ -91,6 +91,18 @@ This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers
 
 The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.
 
+## Remediation Action Idempotency
+
+Action-run creation accepts an optional `Idempotency-Key` header on:
+
+```txt
+POST /organizations/:orgId/actions/runs
+```
+
+Keys are scoped to the organization, normalized by trimming outer whitespace, limited to 128 ASCII characters, and may contain only letters, numbers, dot, underscore, colon, or hyphen. Retrying the same organization/key pair returns the existing action run instead of creating a duplicate. Requests without a key keep the existing create-new-run behavior.
+
+The API does not return the raw idempotency key in action-run responses; it only exposes `idempotencyKeyPresent: true` when a stored run has one. This idempotency boundary does not queue or execute provider writes. Existing preflight, approval, pre-state snapshot, provider write-enabled, verification, evidence, and audit gates remain required before any future executable action path can proceed.
+
 Client IPs come from the socket by default. `X-Forwarded-For` and `Forwarded` are ignored unless an operator configures an explicit trusted-proxy policy:
 
 ```sh

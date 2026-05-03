@@ -30,12 +30,13 @@ describe("api remediation action safety foundation", () => {
     });
   });
 
-  const postJson = (path: string, body: unknown, cookie?: string) =>
+  const postJson = (path: string, body: unknown, cookie?: string, headers: Record<string, string> = {}) =>
     fetch(`${baseUrl}${path}`, {
       method: "POST",
       headers: {
         "content-type": "application/json",
-        ...(cookie ? { cookie } : {})
+        ...(cookie ? { cookie } : {}),
+        ...headers
       },
       body: JSON.stringify(body)
     });
@@ -222,6 +223,136 @@ describe("api remediation action safety foundation", () => {
     expect(response.status).toBe(403);
     expect(services.auditSink.findByAction("action_preflight")).toHaveLength(0);
   });
+
+  it("creates action runs idempotently per organization without returning the raw key", async () => {
+    const owner = await registerAndLogin("m55-owner@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    const secondOrgResponse = await postJson(
+      "/organizations",
+      {
+        name: "Second Action Org",
+        primaryCountryCode: "RO"
+      },
+      owner.cookie
+    );
+    expect(secondOrgResponse.status).toBe(201);
+    const { organization: secondOrganization } = await readJson<{ organization: { id: string } }>(secondOrgResponse);
+
+    const connection = await services.providerConnections.store.createConnection({
+      id: "provider_connection_action_idempotent",
+      organizationId: organization.id,
+      providerKey: "mock",
+      displayName: "Mock action connection",
+      writeEnabled: false
+    });
+    const secondConnection = await services.providerConnections.store.createConnection({
+      id: "provider_connection_action_idempotent_other",
+      organizationId: secondOrganization.id,
+      providerKey: "mock",
+      displayName: "Second mock action connection",
+      writeEnabled: false
+    });
+    const keyHeader = {
+      "Idempotency-Key": "action-retry:review-mfa"
+    };
+
+    const firstResponse = await postJson(
+      `/organizations/${organization.id}/actions/runs`,
+      actionRunRequestBody(organization.id, connection.id),
+      owner.cookie,
+      keyHeader
+    );
+    expect(firstResponse.status).toBe(201);
+    const first = await readJson<{
+      actionRun: {
+        id: string;
+        recommendationId: string;
+        idempotencyKey?: string;
+        idempotencyKeyPresent?: boolean;
+      };
+    }>(firstResponse);
+
+    const retriedResponse = await postJson(
+      `/organizations/${organization.id}/actions/runs`,
+      {
+        ...actionRunRequestBody(organization.id, connection.id),
+        recommendation: {
+          ...recommendation(organization.id),
+          id: "recommendation_retry_payload"
+        }
+      },
+      owner.cookie,
+      keyHeader
+    );
+    expect(retriedResponse.status).toBe(201);
+    const retried = await readJson<{
+      actionRun: {
+        id: string;
+        recommendationId: string;
+        idempotencyKey?: string;
+        idempotencyKeyPresent?: boolean;
+      };
+    }>(retriedResponse);
+
+    const secondOrgResponseWithSameKey = await postJson(
+      `/organizations/${secondOrganization.id}/actions/runs`,
+      actionRunRequestBody(secondOrganization.id, secondConnection.id),
+      owner.cookie,
+      keyHeader
+    );
+    expect(secondOrgResponseWithSameKey.status).toBe(201);
+    const secondOrgRun = await readJson<{ actionRun: { id: string } }>(secondOrgResponseWithSameKey);
+
+    const noKeyFirstResponse = await postJson(
+      `/organizations/${organization.id}/actions/runs`,
+      actionRunRequestBody(organization.id, connection.id, "recommendation_no_key_1"),
+      owner.cookie
+    );
+    const noKeySecondResponse = await postJson(
+      `/organizations/${organization.id}/actions/runs`,
+      actionRunRequestBody(organization.id, connection.id, "recommendation_no_key_2"),
+      owner.cookie
+    );
+    const noKeyFirst = await readJson<{ actionRun: { id: string } }>(noKeyFirstResponse);
+    const noKeySecond = await readJson<{ actionRun: { id: string } }>(noKeySecondResponse);
+    const listed = await services.actionsRepository.listActionRuns(organization.id);
+
+    expect(retried.actionRun.id).toBe(first.actionRun.id);
+    expect(retried.actionRun.recommendationId).toBe("recommendation_1");
+    expect(first.actionRun.idempotencyKey).toBeUndefined();
+    expect(first.actionRun.idempotencyKeyPresent).toBe(true);
+    expect(secondOrgRun.actionRun.id).not.toBe(first.actionRun.id);
+    expect(noKeySecond.actionRun.id).not.toBe(noKeyFirst.actionRun.id);
+    expect(listed).toHaveLength(3);
+    expect(services.auditSink.findByAction("action_queued")).toHaveLength(0);
+  });
+
+  it("rejects malformed action-run idempotency key headers", async () => {
+    const owner = await registerAndLogin("m55-invalid-key@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    const connection = await services.providerConnections.store.createConnection({
+      id: "provider_connection_action_bad_key",
+      organizationId: organization.id,
+      providerKey: "mock",
+      displayName: "Mock action connection",
+      writeEnabled: false
+    });
+
+    for (const idempotencyKey of ["bad key", "x".repeat(129)]) {
+      const response = await postJson(
+        `/organizations/${organization.id}/actions/runs`,
+        actionRunRequestBody(organization.id, connection.id),
+        owner.cookie,
+        {
+          "Idempotency-Key": idempotencyKey
+        }
+      );
+      const body = await readJson<{ error: { code: string } }>(response);
+
+      expect(response.status).toBe(400);
+      expect(body.error.code).toBe("invalid_idempotency_key");
+    }
+  });
 });
 
 const actionTemplateInput = (organizationId: string) => ({
@@ -270,6 +401,19 @@ const recommendation = (organizationId: string): RecommendationContract => ({
   evidenceRequired: true,
   status: "proposed",
   sourceReferences: []
+});
+
+const actionRunRequestBody = (
+  organizationId: string,
+  providerConnectionId: string,
+  recommendationId = "recommendation_1"
+) => ({
+  providerConnectionId,
+  actionTemplate: actionTemplateInput(organizationId),
+  recommendation: {
+    ...recommendation(organizationId),
+    id: recommendationId
+  }
 });
 
 const snapshot = (sourceType: "action_pre_state" | "action_post_state", evidenceArtifactId: string) => ({

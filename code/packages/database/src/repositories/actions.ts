@@ -119,6 +119,20 @@ export class PrismaActionRepository implements RemediationActionRepository {
     return row ? fromRunRow(row) : null;
   }
 
+  async findActionRunByIdempotencyKeyForOrganization(input: {
+    organizationId: string;
+    idempotencyKey: string;
+  }): Promise<ActionRun | null> {
+    const row = await this.client.providerActionRun.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        idempotencyKey: input.idempotencyKey
+      }
+    });
+
+    return row ? fromRunRow(row) : null;
+  }
+
   async listActionRuns(organizationId: string): Promise<ActionRun[]> {
     const rows = await this.client.providerActionRun.findMany({
       where: {
@@ -164,6 +178,7 @@ const toRunData = (run: ActionRun): Record<string, unknown> =>
   stripUndefined({
     id: run.id,
     organizationId: run.organizationId,
+    idempotencyKey: run.idempotencyKey,
     providerConnectionId: run.providerConnectionId,
     recommendationId: uuidOrNull(run.recommendationId),
     actionTemplateId: uuidOrNull(run.actionTemplateId),

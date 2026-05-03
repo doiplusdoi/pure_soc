@@ -44,6 +44,7 @@ export class ActionApiService {
 
   createActionRun(input: {
     organizationId: string;
+    idempotencyKey?: string;
     providerConnectionId: string;
     recommendation: RecommendationContract;
     template: ActionTemplate;

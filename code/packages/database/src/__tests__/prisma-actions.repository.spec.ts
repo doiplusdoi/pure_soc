@@ -40,6 +40,7 @@ describe("PrismaActionRepository", () => {
     const run: ActionRun = {
       id: randomUUID(),
       organizationId,
+      idempotencyKey: "retry-key:db-action",
       providerConnectionId: randomUUID(),
       recommendationId: randomUUID(),
       actionTemplateId: template.id,
@@ -135,6 +136,14 @@ describe("PrismaActionRepository", () => {
       organizationId: otherOrganizationId,
       actionRunId: run.id
     });
+    const foundByIdempotencyKey = await repository.findActionRunByIdempotencyKeyForOrganization({
+      organizationId,
+      idempotencyKey: "retry-key:db-action"
+    });
+    const otherOrganizationIdempotencyLookup = await repository.findActionRunByIdempotencyKeyForOrganization({
+      organizationId: otherOrganizationId,
+      idempotencyKey: "retry-key:db-action"
+    });
     const listed = await repository.listActionRuns(organizationId);
 
     expect(foundTemplate).toMatchObject({
@@ -152,8 +161,11 @@ describe("PrismaActionRepository", () => {
       },
       preflightStatus: "passed",
       verificationStatus: "not_run",
+      idempotencyKey: "retry-key:db-action",
       controlId: "nis2.access-control.mfa"
     });
+    expect(foundByIdempotencyKey?.id).toBe(run.id);
+    expect(otherOrganizationIdempotencyLookup).toBeNull();
     expect(foundRun?.workerJob).toMatchObject({
       jobName: "actions.execute",
       safetyGates: {

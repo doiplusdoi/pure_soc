@@ -13,6 +13,7 @@ export interface PrismaFieldExpectation {
 export interface PrismaModelExpectation {
   contractName: string;
   fields: PrismaFieldExpectation[];
+  modelAttributes?: string[];
   modelName: string;
   tableName: string;
 }
@@ -29,6 +30,7 @@ export interface ParsedPrismaField {
 
 export interface ParsedPrismaModel {
   fields: Map<string, ParsedPrismaField>;
+  modelAttributes: string[];
   modelName: string;
   tableName: string;
 }
@@ -37,7 +39,15 @@ export interface DriftIssue {
   actual?: string;
   expected?: string;
   fieldName?: string;
-  kind: "missing_model" | "table_name_mismatch" | "missing_field" | "type_mismatch" | "list_mismatch" | "optional_mismatch" | "map_mismatch";
+  kind:
+    | "missing_model"
+    | "table_name_mismatch"
+    | "missing_field"
+    | "type_mismatch"
+    | "list_mismatch"
+    | "optional_mismatch"
+    | "map_mismatch"
+    | "missing_model_attribute";
   message: string;
   modelName: string;
 }
@@ -585,9 +595,11 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     contractName: "ProviderActionRunContract",
     modelName: "ProviderActionRun",
     tableName: "provider_action_runs",
+    modelAttributes: ['@@unique([organizationId, idempotencyKey], map: "provider_action_runs_org_idempotency_key_key")'],
     fields: [
       f("id", "String"),
       s("organizationId", "String", "organization_id"),
+      s("idempotencyKey", "String", "idempotency_key", { isOptional: true }),
       s("providerConnectionId", "String", "provider_connection_id"),
       s("recommendationId", "String", "recommendation_id", { isOptional: true }),
       s("actionTemplateId", "String", "action_template_id", { isOptional: true }),
@@ -716,10 +728,16 @@ export const parsePrismaModels = (schemaText: string): Map<string, ParsedPrismaM
   for (const [, modelName, body] of schemaText.matchAll(/model\s+(\w+)\s+\{([\s\S]*?)\n\}/g)) {
     const tableName = body.match(/@@map\("([^"]+)"\)/)?.[1] ?? modelName;
     const fields = new Map<string, ParsedPrismaField>();
+    const modelAttributes: string[] = [];
 
     for (const rawLine of body.split("\n")) {
       const line = rawLine.trim();
-      if (!line || line.startsWith("//") || line.startsWith("@@")) {
+      if (!line || line.startsWith("//")) {
+        continue;
+      }
+
+      if (line.startsWith("@@")) {
+        modelAttributes.push(line);
         continue;
       }
 
@@ -753,6 +771,7 @@ export const parsePrismaModels = (schemaText: string): Map<string, ParsedPrismaM
 
     models.set(modelName, {
       fields,
+      modelAttributes,
       modelName,
       tableName
     });
@@ -845,6 +864,17 @@ export const checkPrismaContractDrift = (input: {
           fieldName: expectedField.name,
           kind: "map_mismatch",
           message: `${expectation.modelName}.${expectedField.name} maps to ${actual.mappedName ?? "(none)"}, expected ${expectedField.mappedName}.`,
+          modelName: expectation.modelName
+        });
+      }
+    }
+
+    for (const expectedAttribute of expectation.modelAttributes ?? []) {
+      if (!model.modelAttributes.includes(expectedAttribute)) {
+        issues.push({
+          expected: expectedAttribute,
+          kind: "missing_model_attribute",
+          message: `${expectation.modelName} is missing model attribute ${expectedAttribute}.`,
           modelName: expectation.modelName
         });
       }
