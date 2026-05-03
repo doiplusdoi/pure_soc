@@ -8,6 +8,7 @@ import {
   loginRoute,
   logoutRoute,
   registerRoute,
+  selectActiveOrganizationRoute,
   sessionRoute
 } from "./auth/routes";
 import { countryPackStatusRoute } from "./compliance/nis2/routes";
@@ -21,7 +22,7 @@ import {
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, parseRawBody, sendJson, toJsonResultError, type JsonResult } from "./http";
 import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
-import { createOrganizationRoute, listOrganizationMembersRoute } from "./organizations/routes";
+import { createOrganizationRoute, listOrganizationMembersRoute, listOrganizationsRoute } from "./organizations/routes";
 import {
   createMockProviderConnectionRoute,
   listProviderConnectionsRoute,
@@ -120,6 +121,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
   route("POST", /^\/auth\/logout$/, "auth", ({ request, context, services }) =>
     logoutRoute(request.headers.cookie, context, services)),
   route("GET", /^\/auth\/session$/, "auth", ({ request, services }) => sessionRoute(request.headers.cookie, services)),
+  route("POST", /^\/auth\/session\/active-organization$/, "auth", ({ body, request, context, services }) =>
+    selectActiveOrganizationRoute(body, request.headers.cookie, context, services)),
   route("POST", /^\/auth\/oidc\/([^/]+)\/begin$/, "oidc_begin", ({ params, services }) =>
     beginOidcAuthorizationRoute(params[0] ?? "", services)),
   route(["GET", "POST"], /^\/auth\/oidc\/([^/]+)\/callback$/, "oidc_callback", ({ request, url, body, params, context, services }) => {
@@ -194,6 +197,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     roNis2ClassificationRoute(body)),
   route("POST", /^\/compliance\/nis2\/ro\/notification-draft$/, "public_compliance", ({ body }) =>
     roNis2NotificationDraftRoute(body)),
+  route("GET", /^\/organizations$/, "tenant_read", ({ request, services }) =>
+    listOrganizationsRoute(request.headers.cookie, services)),
   route("POST", /^\/organizations$/, "organization", ({ body, request, context, services }) =>
     createOrganizationRoute(body, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/provider-connections$/, "provider", ({ params, request, services }) =>

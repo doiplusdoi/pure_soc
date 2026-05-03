@@ -98,6 +98,40 @@ describe("auth organization rbac audit session integration", () => {
     });
     expect(membersResponse.status).toBe(200);
 
+    const organizationsResponse = await fetch(`${baseUrl}/organizations`, {
+      headers: { cookie }
+    });
+    expect(organizationsResponse.status).toBe(200);
+    await expect(
+      readJson<{ organizations: Array<{ organization: { id: string; name: string }; roleKeys: string[] }> }>(
+        organizationsResponse
+      )
+    ).resolves.toMatchObject({
+      organizations: [
+        {
+          organization: {
+            id: organizationBody.organization.id,
+            name: "PureSOC Test Org"
+          },
+          roleKeys: ["owner"]
+        }
+      ]
+    });
+
+    const selectActiveResponse = await postJson(
+      "/auth/session/active-organization",
+      {
+        organizationId: organizationBody.organization.id
+      },
+      cookie
+    );
+    expect(selectActiveResponse.status).toBe(200);
+    await expect(readJson<{ session: { activeOrganizationId: string } }>(selectActiveResponse)).resolves.toMatchObject({
+      session: {
+        activeOrganizationId: organizationBody.organization.id
+      }
+    });
+
     const logoutResponse = await postJson("/auth/logout", {}, cookie);
     expect(logoutResponse.status).toBe(200);
 
@@ -109,6 +143,7 @@ describe("auth organization rbac audit session integration", () => {
     expect(services.auditSink.findByAction("local_account_created")).toHaveLength(1);
     expect(services.auditSink.findByAction("login")).toHaveLength(1);
     expect(services.auditSink.findByAction("session_created")).toHaveLength(1);
+    expect(services.auditSink.findByAction("session_active_organization_changed")).toHaveLength(1);
     expect(services.auditSink.findByAction("organization_created")).toHaveLength(1);
     expect(services.auditSink.findByAction("logout")).toHaveLength(1);
   });
@@ -131,6 +166,15 @@ describe("auth organization rbac audit session integration", () => {
     });
 
     expect(crossOrgResponse.status).toBe(403);
+
+    const selectCrossOrgResponse = await postJson(
+      "/auth/session/active-organization",
+      {
+        organizationId: organizationBody.organization.id
+      },
+      otherUser.cookie
+    );
+    expect(selectCrossOrgResponse.status).toBe(403);
   });
 
   it("audits failed logins, rate-limits repeated failures, and keeps secrets out of responses and audit logs", async () => {

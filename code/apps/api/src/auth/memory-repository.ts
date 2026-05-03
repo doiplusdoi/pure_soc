@@ -173,6 +173,20 @@ export class InMemoryIdentityOrganizationRbacRepository
     return session && user ? { ...session, user } : null;
   }
 
+  async updateSessionActiveOrganization(sessionId: string, activeOrganizationId: string | null): Promise<SessionRecord> {
+    const session = this.sessions.get(sessionId);
+    if (!session) {
+      throw new Error(`Unknown session: ${sessionId}`);
+    }
+
+    const updated = {
+      ...session,
+      activeOrganizationId
+    };
+    this.sessions.set(sessionId, updated);
+    return updated;
+  }
+
   async revokeSession(sessionId: string, revokedAt: Date): Promise<SessionRecord | null> {
     const session = this.sessions.get(sessionId);
     if (!session) {
@@ -261,6 +275,26 @@ export class InMemoryIdentityOrganizationRbacRepository
           throw new Error(`Organization member references unknown user: ${member.userId}`);
         }
         return { ...member, user };
+      });
+  }
+
+  async listOrganizationsForUser(userId: string) {
+    return [...this.organizationMembers.values()]
+      .filter((member) => member.userId === userId)
+      .sort((left, right) => left.createdAt.getTime() - right.createdAt.getTime())
+      .map((member) => {
+        const organization = this.organizations.get(member.organizationId);
+        if (!organization) {
+          throw new Error(`Organization membership references unknown organization: ${member.organizationId}`);
+        }
+        const roleKeys = [...this.roleBindings.values()]
+          .filter((binding) => binding.organizationId === member.organizationId && binding.userId === userId)
+          .map((binding) => binding.roleKey);
+        return {
+          organization,
+          membership: member,
+          roleKeys
+        };
       });
   }
 

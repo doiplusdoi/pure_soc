@@ -179,6 +179,7 @@ export interface LocalAuthRepository {
   updateIdentityLastLogin(providerKey: AuthProviderKey, providerSubject: string, lastLoginAt: Date): Promise<void>;
   createSession(input: SessionRecord): Promise<SessionRecord>;
   findSessionByHash(sessionHash: string): Promise<(SessionRecord & { user: LocalAuthUserRecord }) | null>;
+  updateSessionActiveOrganization(sessionId: string, activeOrganizationId: string | null): Promise<SessionRecord>;
   revokeSession(sessionId: string, revokedAt: Date): Promise<SessionRecord | null>;
   createPasswordResetToken(input: PasswordResetTokenRecord): Promise<PasswordResetTokenRecord>;
   findPasswordResetTokenByHash(tokenHash: string): Promise<PasswordResetTokenRecord | null>;
@@ -544,6 +545,36 @@ export class LocalAuthService {
     return {
       user: publicUserView(session.user),
       session: this.safeSessionView(session)
+    };
+  }
+
+  async selectActiveOrganization(
+    plaintextSessionToken: string,
+    activeOrganizationId: string | null,
+    context: RequestSecurityContext = {}
+  ) {
+    const session = await this.getValidSessionRecord(plaintextSessionToken);
+    const updatedSession = await this.repository.updateSessionActiveOrganization(session.id, activeOrganizationId);
+
+    await this.auditWriter.write({
+      actorUserId: session.userId,
+      organizationId: activeOrganizationId ?? null,
+      targetType: "session",
+      targetId: session.id,
+      action: "session_active_organization_changed",
+      ipAddress: context.ipAddress ?? null,
+      userAgent: context.userAgent ?? null,
+      beforeJson: {
+        activeOrganizationId: session.activeOrganizationId ?? null
+      },
+      afterJson: {
+        activeOrganizationId: updatedSession.activeOrganizationId ?? null
+      }
+    });
+
+    return {
+      user: publicUserView(session.user),
+      session: this.safeSessionView(updatedSession)
     };
   }
 

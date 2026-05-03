@@ -28,7 +28,8 @@ import type {
   OperationalStatus,
   RomaniaOnboardingRouteModel,
   RecommendationSurface,
-  ReportSurface
+  ReportSurface,
+  WorkspaceSelectionModel
 } from "./app-data";
 
 export interface RenderOperationalConsoleOptions {
@@ -51,6 +52,11 @@ export interface RuntimeMessageScreenInput {
   statusTone?: PureSocUiTone;
   summary: string;
   title: string;
+}
+
+export interface RenderWorkspaceSelectionOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
 }
 
 export interface RenderRomaniaOnboardingRouteOptions {
@@ -187,6 +193,55 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     "</html>"
     ].join("");
   };
+
+export const renderWorkspaceSelectionScreen = (
+  model: WorkspaceSelectionModel,
+  options: RenderWorkspaceSelectionOptions = {}
+): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
+  const activeOrganizationId = model.session.session.activeOrganizationId ?? null;
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="workspace-selection">',
+    '<section class="ps-section" aria-labelledby="workspace-selection-title">',
+    '<div class="ps-section__header">',
+    `<div><h1 class="ps-section__title" id="workspace-selection-title">Select A Workspace</h1><p class="ps-muted">${escapeHtml(model.session.user.displayName ?? model.session.user.email)}</p></div>`,
+    renderStatusPill({ label: copy.apiSession, tone: "info" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
+    model.organizations.length === 0
+      ? '<p class="ps-muted">No active workspace memberships are available for this session.</p>'
+      : [
+          '<div class="ps-grid">',
+          ...model.organizations.map((organization) => renderWorkspaceSelectionPanel(organization, activeOrganizationId)),
+          "</div>"
+        ].join(""),
+    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Select workspace | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
 
 export const renderRomaniaOnboardingRoute = (
   model: RomaniaOnboardingRouteModel,
@@ -436,12 +491,46 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     '<header class="ps-topbar">',
     `<div><p class="ps-topbar__title">${escapeHtml(model.organization.name)}</p><span class="ps-muted">${escapeHtml(model.user.displayName)} | ${escapeHtml(model.user.role)}</span></div>`,
     '<div class="ps-topbar__actions">',
+    '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
     renderStatusPill({ label: `Plan: ${model.organization.subscriptionStatus}`, tone: "info" }),
     model.runtimeSource ? renderSourceChip(model.runtimeSource) : "",
     renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
     "</div>",
     "</header>"
   ].join("");
+
+const renderWorkspaceSelectionPanel = (
+  organization: WorkspaceSelectionModel["organizations"][number],
+  activeOrganizationId: string | null
+): string => {
+  const roleSummary = organization.roleKeys.length > 0 ? organization.roleKeys.join(", ") : "member";
+  const selected = organization.id === activeOrganizationId || organization.isActive;
+
+  return [
+    '<article class="ps-panel">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h3 class="ps-panel__title">${escapeHtml(organization.name)}</h3><p class="ps-muted">${escapeHtml(
+      organization.primaryCountryCode ?? "EU"
+    )} workspace | ${escapeHtml(roleSummary)}</p></div>`,
+    renderStatusPill({ label: selected ? "active" : organization.membershipStatus, tone: selected ? "success" : "info" }),
+    "</div>",
+    '<div class="ps-chip-row">',
+    renderSourceChip({ label: "Organization", detail: organization.id }),
+    renderStatusPill({ label: `Billing ${organization.billingStatus}`, tone: "neutral" }),
+    "</div>",
+    `<form class="ps-form ps-stack-top" action="/workspaces/select" method="post" data-organization-id="${escapeHtml(
+      organization.id
+    )}">`,
+    `<input type="hidden" name="organizationId" value="${escapeHtml(organization.id)}">`,
+    `<button type="submit" class="ps-command${selected ? "" : " ps-command--primary"}" aria-label="${escapeHtml(
+      `Open ${organization.name}`
+    )}" data-ui-action="select-workspace" data-organization-id="${escapeHtml(organization.id)}"><span>${escapeHtml(
+      selected ? "Open active workspace" : "Open workspace"
+    )}</span></button>`,
+    "</form>",
+    "</article>"
+  ].join("");
+};
 
 const renderDashboardSection = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string => {
   const scores = model.dashboard.readinessScores;

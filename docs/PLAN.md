@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-03, M1-M63 are implemented at contract/runtime-baseline level.
+As of 2026-05-03, M1-M64 are implemented at contract/runtime-baseline level.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -72,8 +72,9 @@ As of 2026-05-03, M1-M63 are implemented at contract/runtime-baseline level.
 - M61 adds the served Romania onboarding route to `@browser-smoke`. When Firefox WebDriver BiDi is available, the local smoke now captures Romania route desktop/mobile PNG screenshots and asserts route-specific source-map, legal-caveat, fallback, unsupported-state, no-DNSC-submission, focus/readability, no-horizontal-overflow, and forbidden-claim DOM invariants without live external calls.
 - M62 adds Firefox keyboard route traversal to `@browser-smoke`. After the local web login path, the smoke tabs to dashboard and Romania skip links, activates the visible Romania onboarding navigation link and the Romania "Back to dashboard" link with keyboard input, and records URL changes, focus targets, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and no-live-call posture.
 - M63 adds Firefox pointer route traversal to `@browser-smoke`. After the local web login path, the smoke measures visible dashboard-to-Romania and Romania back-link bounds, clicks their centers through BiDi pointer actions, records target bounds plus route transitions, and repeats no horizontal overflow, no certification claims, no direct DNSC submit command, and no-live-call posture checks.
-- Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M64.md`, focused on browser organization selection for the served web runtime.
+- M64 adds visible served workspace selection after login. The API exposes current-session organization membership listing plus an active-organization session selection route guarded by active membership checks, the web runtime serves `/workspaces` and `/workspaces/select`, `@ui-smoke` seeds two organizations and proves the selected dashboard snapshot, and `@browser-smoke` clicks a visible workspace selector when Firefox WebDriver BiDi is available.
+- Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, screenshot-diff thresholds, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
+- Next planned milestone: `docs/PLAN_M65.md`, focused on browser screenshot diff threshold baselines for the served web runtime.
 
 ## Milestones
 
@@ -94,8 +95,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M63.md` record completed incremental milestones.
-- `docs/PLAN_M64.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M64.md` record completed incremental milestones.
+- `docs/PLAN_M65.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

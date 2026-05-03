@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M63, narrowing Firefox pointer navigation coverage across the dashboard and Romania onboarding routes, and staging Prompt 63 / `docs/PLAN_M64.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-03 after completing PLAN_M64, narrowing served web and Firefox browser workspace selection coverage, and staging Prompt 64 / `docs/PLAN_M65.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -93,6 +93,7 @@ The repository currently contains:
 - PLAN_M61 Romania route browser smoke traversal: `pnpm test:e2e -- --grep @browser-smoke` now navigates to `GET /onboarding/romania?locale=ro-RO` when Firefox WebDriver BiDi is available, captures desktop/mobile route PNG screenshots, and asserts browser DOM/layout source-map, caveat, fallback, unsupported-state, no-DNSC-submission, focus/readability, no-horizontal-overflow, and forbidden-claim behavior while preserving the deterministic `@ui-smoke` fallback.
 - PLAN_M62 browser keyboard route navigation traversal: `pnpm test:e2e -- --grep @browser-smoke` now tabs to dashboard and Romania skip links, activates the visible Romania onboarding navigation link and Romania "Back to dashboard" link with keyboard input, and records URL changes, focus targets, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and no-live-call posture when Firefox WebDriver BiDi is available.
 - PLAN_M63 browser pointer route navigation traversal: `pnpm test:e2e -- --grep @browser-smoke` now measures visible dashboard-to-Romania and Romania back-link bounds, clicks their centers through Firefox WebDriver BiDi pointer actions, records target bounds and route transitions, and repeats no-overflow/no-certification/no-direct-DNSC/no-live-call assertions while preserving M61 screenshots and M62 keyboard traversal.
+- PLAN_M64 browser organization selection baseline: the API now lists current-session organizations and changes the session active organization only after active membership checks; `apps/web` serves `/workspaces` and `/workspaces/select`; `@ui-smoke` seeds two organizations and proves selected dashboard snapshot rendering; and `@browser-smoke` clicks a visible workspace selector before asserting selected session/dashboard state when Firefox WebDriver BiDi is available.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -163,7 +164,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 60 / `docs/PLAN_M61.md` is completed.
 - Prompt 61 / `docs/PLAN_M62.md` is completed.
 - Prompt 62 / `docs/PLAN_M63.md` is completed.
-- Prompt 63 / `docs/PLAN_M64.md` is staged as the next active implementation prompt.
+- Prompt 63 / `docs/PLAN_M64.md` is completed.
+- Prompt 64 / `docs/PLAN_M65.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -178,11 +180,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 63 / `docs/PLAN_M64.md`: Browser Organization Selection Baseline.
+1. Prompt 64 / `docs/PLAN_M65.md`: Browser Screenshot Diff Threshold Baseline.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M64 must stay fully in-repo: extend the local served web/browser smoke around organization selection using in-memory API/web surfaces only, without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, or external smoke commands.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M65 must stay fully in-repo: add lightweight screenshot/artifact threshold checks to the existing local served web/browser smoke using in-memory API/web surfaces only, without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, or a frontend framework/router migration.
 
-## Active Prompt 63 / PLAN_M64: Browser Organization Selection Baseline
+## Active Prompt 64 / PLAN_M65: Browser Screenshot Diff Threshold Baseline
 
 Read:
 
@@ -192,46 +194,38 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M63.md`
+- `docs/PLAN_M64.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
 - `code/scripts/run-ui-smoke.mjs`
-- `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
-- `code/apps/web/src/app-data.ts`
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
-- `code/apps/api/src/auth/routes.ts`
-- `code/apps/api/src/organizations/routes.ts`
 - `code/package.json`
 - `code/README.md`
 
 Goal:
 
-Add a small served-web organization selection surface so the local web/browser smoke can choose among API-backed workspaces after login instead of relying only on a hidden `organizationId` query parameter.
+Add a lightweight screenshot/artifact threshold baseline so the existing served web and Firefox browser smoke catches blank, wrong-size, and gross visual-regression failures without introducing Playwright, golden-image churn, or a frontend framework migration.
 
 Deliverables:
 
-- Add a lightweight API-backed workspace selection route or login-state surface in `apps/web` that lists organizations available to the current session and lets the user pick the active organization through existing API/session contracts.
-- Extend local `@ui-smoke` to seed at least two organizations for the synthetic user, exercise the selection surface through HTTP form/fetch behavior, and prove the dashboard renders from the selected organization snapshot.
-- Extend `@browser-smoke`, when Firefox WebDriver BiDi is available, to select a workspace through visible browser controls after login and assert URL/state/dashboard source changes without raw API-only assertions.
-- Preserve existing browser screenshots, Romania route screenshots, M62 keyboard traversal, M63 pointer traversal, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
-- Keep the lightweight `node:http` web runtime and route-table API style; do not introduce Next.js/React/Playwright/router migrations in this slice.
-- Update GAP-031 and handoff docs to distinguish browser organization selection from screenshot, keyboard, and pointer traversal coverage.
-- Create `docs/PLAN_M65.md` from the next selected active prompt before final response.
+- Add deterministic screenshot/artifact threshold metadata for the current local browser smoke captures: dashboard desktop/mobile, login mobile, evidence desktop, approval desktop, and Romania onboarding desktop/mobile.
+- Extend the smoke to emit a secret-free visual metrics manifest under `/tmp/puresoc-browser-smoke-*` when Firefox WebDriver BiDi is available, including viewport size, PNG size, nonblank/edge/color-diversity style metrics, route id, and threshold result per capture.
+- Add threshold checks that fail on blank images, obviously wrong dimensions, missing route state, or severe color/contrast collapse while avoiding brittle pixel-perfect golden comparisons.
+- Keep M64 workspace selection, M63 pointer traversal, M62 keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture intact.
+- Preserve the existing lightweight `node:http` web runtime and route-table API style; do not introduce Next.js/React, Playwright, Chromium/WebKit matrix setup, committed golden PNG files, or router/layout migrations in this slice.
+- Update GAP-031 and handoff docs to distinguish metric threshold coverage from cross-browser screenshot parity.
+- Create `docs/PLAN_M66.md` from the next selected active prompt before final response.
 
 Expected files:
 
 - `code/scripts/run-ui-smoke.mjs`
-- `code/apps/web/src/server.ts`
 - `code/apps/web/src/operational-console.ts`
-- `code/apps/web/src/app-data.ts`
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
-- `code/apps/api/src/auth/routes.ts`
-- `code/apps/api/src/organizations/routes.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M64.md`
 - `docs/PLAN_M65.md`
+- `docs/PLAN_M66.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -241,9 +235,9 @@ Negative constraints:
 - Do not add direct DNSC submission or imply that PureSOC submits to DNSC.
 - Do not add unapproved Romanian legal/regulatory translations or certification claims.
 - Do not hardcode workbook-derived regulatory rules in UI conditionals; use country-pack/onboarding data contracts.
-- Do not introduce a broad frontend framework, router migration, Playwright dependency, or layout rewrite.
+- Do not introduce a broad frontend framework, router migration, Playwright dependency, Chromium/WebKit setup, committed golden PNG baseline set, or layout rewrite.
 - Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
-- Do not widen session scope across organizations; all selection behavior must use the authenticated user's memberships and preserve RBAC/organization scoping.
+- Do not weaken existing browser workspace selection, session cookie, RBAC/organization scoping, Romania route, or no-live-call assertions.
 
 Tests and acceptance commands:
 
@@ -251,18 +245,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui-smoke browser organization selection dashboard session
+pnpm test -- web ui-smoke browser screenshot visual threshold dashboard romania
 pnpm test:e2e -- --grep @ui-smoke
 pnpm test:e2e -- --grep @browser-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M64.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M65.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof without claiming browser screenshot-threshold coverage.
 
 Expected gap movement:
 
-- Narrow GAP-031 for browser organization selection when browser support is available, or preserve the browser blocker explicitly if not.
+- Narrow GAP-031 for screenshot-threshold coverage when browser support is available, or preserve the browser blocker explicitly if not.
 - Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands or live external targets.
 
@@ -272,10 +266,33 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M64` updated
-- `PLAN_M65` created
+- `PLAN_M65` updated
+- `PLAN_M66` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 63 / PLAN_M64: Browser Organization Selection Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Added current-session organization listing and active-organization session selection to the API, guarded by active membership checks and backed by memory plus Prisma repository methods.
+- Added the served web workspace selector at `/workspaces` and `/workspaces/select`; `/` now sends authenticated sessions without an active organization to the selector and renders selected-organization dashboard snapshots after selection.
+- Extended operational console navigation with a visible workspace switch affordance.
+- Extended focused tests, `@ui-smoke`, and `@browser-smoke` so local smokes seed two organizations, log in without an active organization, select a visible workspace, and prove the selected dashboard snapshot renders.
+- Preserved existing browser screenshots, Romania route screenshots, keyboard traversal, pointer traversal, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+Validated with host npm equivalents because sandbox-local `node`, `npm`, and `pnpm` were unavailable:
+- `npm run lint`
+- `npm run test -- web ui-smoke browser organization selection dashboard session`
+- `npm run test:e2e -- --grep @ui-smoke`
+- `npm run test:e2e -- --grep @browser-smoke`
+- `docker compose -f infra/compose/docker-compose.yml config`
+- `git diff --check`
+- Additional M64 acceptance command results are recorded in `docs/PLAN_M64.md`.
+
+GAP-031 is narrowed for visible web/API workspace selection, active-membership-checked session switching, HTTP selection smoke, and Firefox browser workspace selection. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 62 / PLAN_M63: Browser Pointer Route Navigation Traversal
 

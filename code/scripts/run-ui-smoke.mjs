@@ -107,14 +107,35 @@ async function runServedUiSmoke() {
 
     const webLogin = await loginThroughWeb({
       webBaseUrl,
-      ...apiBackedDashboard
+      email: apiBackedDashboard.email,
+      password: apiBackedDashboard.password
     });
     const webSession = await fetchJson(`${webBaseUrl}/auth/session`, {
       headers: {
         cookie: webLogin.cookie
       }
     });
-    record("web_session_proxy_returns_active_organization", webSession.session?.activeOrganizationId === apiBackedDashboard.organizationId);
+    record("web_session_proxy_starts_without_active_organization", webSession.session?.activeOrganizationId === null);
+    const workspaceSelectionHtml = await fetchText(`${webBaseUrl}/workspaces`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    assertWorkspaceSelectionHtml(workspaceSelectionHtml, apiBackedDashboard);
+    await selectWorkspaceThroughWeb({
+      webBaseUrl,
+      cookie: webLogin.cookie,
+      organizationId: apiBackedDashboard.selectedOrganization.organizationId
+    });
+    const selectedWebSession = await fetchJson(`${webBaseUrl}/auth/session`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record(
+      "web_session_proxy_returns_selected_active_organization",
+      selectedWebSession.session?.activeOrganizationId === apiBackedDashboard.selectedOrganization.organizationId
+    );
     const consoleHtml = await fetchText(`${webBaseUrl}/`, {
       headers: {
         cookie: webLogin.cookie
@@ -135,6 +156,18 @@ async function runServedUiSmoke() {
       width: 390,
       height: 844,
       html: consoleHtml
+    });
+    const workspaceDesktopSnapshot = writeViewportSnapshot({
+      name: "workspaces-desktop",
+      width: 1440,
+      height: 900,
+      html: workspaceSelectionHtml
+    });
+    const workspaceMobileSnapshot = writeViewportSnapshot({
+      name: "workspaces-mobile",
+      width: 390,
+      height: 844,
+      html: workspaceSelectionHtml
     });
     const romaniaDesktopSnapshot = writeViewportSnapshot({
       name: "romania-desktop",
@@ -185,6 +218,10 @@ async function runServedUiSmoke() {
             directory: artifactsDir,
             desktopSnapshot,
             mobileSnapshot,
+            workspaceSelection: {
+              desktopSnapshot: workspaceDesktopSnapshot,
+              mobileSnapshot: workspaceMobileSnapshot
+            },
             romaniaRoute: {
               desktopSnapshot: romaniaDesktopSnapshot,
               mobileSnapshot: romaniaMobileSnapshot
@@ -521,7 +558,7 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
     {
       email: credentials.email,
       password: credentials.password,
-      displayName: "M53 Web Runtime"
+      displayName: "M64 Web Runtime"
     },
     requestHeaders
   );
@@ -539,46 +576,90 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
   const seedCookie = login.headers.get("set-cookie") ?? "";
   record("web_runtime_api_seed_cookie_present", seedCookie.includes("puresoc_session"));
 
+  const primaryOrganization = await seedWorkspaceDashboard({
+    apiBaseUrl,
+    requestHeaders,
+    seedCookie,
+    name: "M64 Primary Workspace",
+    countryCode: "RO",
+    assessmentSuffix: "primary",
+    warning: "M64 primary workspace smoke",
+    countryPackCompleteness: 61,
+    findingSeverity: "medium"
+  });
+  const selectedOrganization = await seedWorkspaceDashboard({
+    apiBaseUrl,
+    requestHeaders,
+    seedCookie,
+    name: "M64 Selected Workspace",
+    countryCode: "DE",
+    assessmentSuffix: "selected",
+    warning: "M64 selected workspace smoke",
+    countryPackCompleteness: 86,
+    findingSeverity: "high"
+  });
+
+  return {
+    ...credentials,
+    organizationId: selectedOrganization.organizationId,
+    assessmentId: selectedOrganization.assessmentId,
+    primaryOrganization,
+    selectedOrganization,
+    expectedDashboardText: "Open gaps"
+  };
+}
+
+async function seedWorkspaceDashboard({
+  apiBaseUrl,
+  requestHeaders,
+  seedCookie,
+  name,
+  countryCode,
+  assessmentSuffix,
+  warning,
+  countryPackCompleteness,
+  findingSeverity
+}) {
   const organization = await postJson(
     `${apiBaseUrl}/organizations`,
     {
-      name: "M53 API Backed Workspace",
-      primaryCountryCode: "RO"
+      name,
+      primaryCountryCode: countryCode
     },
     {
       ...requestHeaders,
       cookie: seedCookie
     }
   );
-  record("web_runtime_api_create_organization_status_created", organization.status === 201, String(organization.status));
+  record(`web_runtime_api_create_${slug(assessmentSuffix)}_organization_status_created`, organization.status === 201, String(organization.status));
   const organizationBody = await organization.json();
   const organizationId = organizationBody.organization?.id;
-  record("web_runtime_api_organization_id_present", typeof organizationId === "string" && organizationId.length > 0);
+  record(`web_runtime_api_${slug(assessmentSuffix)}_organization_id_present`, typeof organizationId === "string" && organizationId.length > 0);
 
-  const assessmentId = `${organizationId}:m53-web-runtime`;
+  const assessmentId = `${organizationId}:m64-web-runtime:${assessmentSuffix}`;
   const evaluation = await postJson(
     `${apiBaseUrl}/organizations/${organizationId}/compliance/evaluate`,
     {
       assessmentId,
       jurisdiction: "EU",
       countryPack: {
-        countryCode: "RO",
+        countryCode,
         completeness: "planned_full_pack",
-        warnings: ["M53 served web runtime smoke"]
+        warnings: [warning]
       },
       providerFindings: [
         {
-          id: "finding_m53_mfa",
+          id: `finding_m64_${slug(assessmentSuffix)}_mfa`,
           providerKey: "microsoft365",
           signalKey: "entra.admin_mfa_gap",
-          severity: "high",
-          summary: "Synthetic read-only MFA finding for local web runtime smoke."
+          severity: findingSeverity,
+          summary: `Synthetic read-only MFA finding for ${name}.`
         }
       ],
       evidenceArtifacts: [
         {
-          id: "evidence_m53_dashboard",
-          title: "M53 dashboard source evidence",
+          id: `evidence_m64_${slug(assessmentSuffix)}_dashboard`,
+          title: `${name} dashboard source evidence`,
           scanStatus: "clean",
           sourceType: "generated_report"
         }
@@ -589,43 +670,46 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
       cookie: seedCookie
     }
   );
-  record("web_runtime_api_evaluate_status_ok", evaluation.status === 200, String(evaluation.status));
+  record(`web_runtime_api_${slug(assessmentSuffix)}_evaluate_status_ok`, evaluation.status === 200, String(evaluation.status));
 
   const dashboard = await postJson(
     `${apiBaseUrl}/organizations/${organizationId}/dashboards/snapshots`,
     {
       assessmentId,
-      countryPackCompleteness: 77
+      countryPackCompleteness
     },
     {
       ...requestHeaders,
       cookie: seedCookie
     }
   );
-  record("web_runtime_api_dashboard_snapshot_status_created", dashboard.status === 201, String(dashboard.status));
+  record(`web_runtime_api_${slug(assessmentSuffix)}_dashboard_snapshot_status_created`, dashboard.status === 201, String(dashboard.status));
   const dashboardBody = await dashboard.json();
-  record("web_runtime_api_dashboard_source_is_stored_analysis", dashboardBody.snapshot?.source === "stored_analysis");
+  record(`web_runtime_api_${slug(assessmentSuffix)}_dashboard_source_is_stored_analysis`, dashboardBody.snapshot?.source === "stored_analysis");
 
   return {
-    ...credentials,
-    organizationId,
     assessmentId,
-    expectedDashboardText: "Open gaps"
+    countryPackCompleteness,
+    name,
+    organizationId
   };
 }
 
 async function loginThroughWeb({ webBaseUrl, email, password, organizationId }) {
+  const body = new URLSearchParams({
+    email,
+    password
+  });
+  if (organizationId) {
+    body.set("activeOrganizationId", organizationId);
+  }
   const response = await fetch(`${webBaseUrl}/auth/login`, {
     method: "POST",
     redirect: "manual",
     headers: {
       "content-type": "application/x-www-form-urlencoded"
     },
-    body: new URLSearchParams({
-      email,
-      password,
-      activeOrganizationId: organizationId
-    })
+    body
   });
 
   record("web_login_proxy_redirects_after_api_login", response.status === 303, String(response.status));
@@ -637,12 +721,43 @@ async function loginThroughWeb({ webBaseUrl, email, password, organizationId }) 
   };
 }
 
+async function selectWorkspaceThroughWeb({ webBaseUrl, cookie, organizationId }) {
+  const response = await fetch(`${webBaseUrl}/workspaces/select`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      cookie
+    },
+    body: new URLSearchParams({
+      organizationId
+    })
+  });
+
+  record("web_workspace_select_redirects_after_session_update", response.status === 303, String(response.status));
+  record("web_workspace_select_redirect_location_dashboard", response.headers.get("location") === "/");
+}
+
 function assertApiBackedDashboardHtml(html, seeded) {
   const text = htmlText(html);
   record("web_dashboard_uses_api_latest_snapshot_route", text.includes("GET /organizations/:orgId/dashboards/snapshots/latest"));
   record("web_dashboard_contains_seeded_api_widget", text.includes(seeded.expectedDashboardText));
-  record("web_dashboard_contains_active_workspace_marker", text.includes(`Workspace ${seeded.organizationId.slice(0, 8)}`));
-  record("web_dashboard_contains_api_session_user", text.includes("M53 Web Runtime"));
+  record("web_dashboard_contains_selected_workspace_name", text.includes(seeded.selectedOrganization.name));
+  record("web_dashboard_contains_selected_snapshot_id", text.includes(`snapshot ${seeded.selectedOrganization.organizationId}`));
+  record("web_dashboard_excludes_unselected_workspace_name", !text.includes(seeded.primaryOrganization.name));
+  record("web_dashboard_contains_api_session_user", text.includes("M64 Web Runtime"));
+}
+
+function assertWorkspaceSelectionHtml(html, seeded) {
+  const text = htmlText(html);
+  record("workspace_selection_html_is_nonblank", html.length > 4_000, String(html.length));
+  record("workspace_selection_marker_present", html.includes('data-ui-smoke="workspace-selection"'));
+  record("workspace_selection_lists_primary_workspace", text.includes(seeded.primaryOrganization.name));
+  record("workspace_selection_lists_selected_workspace", text.includes(seeded.selectedOrganization.name));
+  record("workspace_selection_posts_to_select_route", html.includes('action="/workspaces/select"'));
+  record("workspace_selection_contains_selected_organization_id", html.includes(`value="${seeded.selectedOrganization.organizationId}"`));
+  record("workspace_selection_has_no_session_token_leak", !html.includes("sessionToken"));
+  record("workspace_selection_has_no_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));
 }
 
 async function startBrowserAuthProxy({ apiBaseUrl, port }) {
@@ -1698,7 +1813,7 @@ async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded
   });
   await browser.command("browsingContext.navigate", {
     context,
-    url: `${webBaseUrl}/login?organizationId=${encodeURIComponent(seeded.organizationId)}`,
+    url: `${webBaseUrl}/login`,
     wait: "complete"
   });
 
@@ -1709,20 +1824,60 @@ async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded
       const form = document.querySelector('form[action="/auth/login"]');
       const email = document.querySelector('#email');
       const password = document.querySelector('#password');
-      const activeOrganizationId = document.querySelector('input[name="activeOrganizationId"]');
       if (!form || !email || !password) {
         return JSON.stringify({ submitted: false, reason: "login_form_missing" });
       }
       email.value = ${JSON.stringify(seeded.email)};
       password.value = ${JSON.stringify(seeded.password)};
-      if (activeOrganizationId) {
-        activeOrganizationId.value = ${JSON.stringify(seeded.organizationId)};
-      }
       form.requestSubmit();
       return JSON.stringify({ submitted: true });
     })()`
   );
   record("browser_web_login_form_submitted", submitted.submitted === true, JSON.stringify(submitted));
+
+  const selection = await waitForBrowserState(
+    browser,
+    context,
+    `((async () => {
+      const session = await fetch("/auth/session", {
+        credentials: "include"
+      });
+      const sessionText = await session.text();
+      const bodyText = document.body.innerText;
+      return JSON.stringify({
+        currentUrl: location.href,
+        workspaceSelectionVisible: Boolean(document.querySelector('[data-ui-smoke="workspace-selection"]')),
+        primaryWorkspaceVisible: bodyText.includes(${JSON.stringify(seeded.primaryOrganization.name)}),
+        selectedWorkspaceVisible: bodyText.includes(${JSON.stringify(seeded.selectedOrganization.name)}),
+        sessionStatus: session.status,
+        sessionHasNoActiveOrganization: sessionText.includes('"activeOrganizationId":null'),
+        documentCookieAfterLogin: document.cookie
+      });
+    })())`,
+    (candidate) => candidate.workspaceSelectionVisible === true && candidate.sessionStatus === 200,
+    "browser web login redirect and workspace selection",
+    5_000
+  );
+
+  record("browser_web_login_proxy_renders_workspace_selection", selection.workspaceSelectionVisible === true, JSON.stringify(selection));
+  record("browser_web_login_lands_on_workspace_selection_url", new URL(selection.currentUrl).pathname === "/", JSON.stringify(selection));
+  record("browser_web_workspace_selection_lists_primary_workspace", selection.primaryWorkspaceVisible === true, JSON.stringify(selection));
+  record("browser_web_workspace_selection_lists_selected_workspace", selection.selectedWorkspaceVisible === true, JSON.stringify(selection));
+  record("browser_web_session_proxy_status_ok", selection.sessionStatus === 200, JSON.stringify(selection));
+  record("browser_web_session_starts_without_active_organization", selection.sessionHasNoActiveOrganization === true, JSON.stringify(selection));
+  record("browser_web_document_cookie_cannot_read_http_only_session", !selection.documentCookieAfterLogin.includes("puresoc_session"), selection.documentCookieAfterLogin);
+
+  const workspaceTarget = await clickBrowserElement(
+    browser,
+    context,
+    `[data-ui-action="select-workspace"][data-organization-id="${seeded.selectedOrganization.organizationId}"]`,
+    "workspace_selection_selected_workspace"
+  );
+  record(
+    "browser_workspace_selection_visible_control_clicked",
+    workspaceTarget.text.includes("Open workspace") && workspaceTarget.dataAction === "select-workspace",
+    JSON.stringify(workspaceTarget)
+  );
 
   const result = await waitForBrowserState(
     browser,
@@ -1732,26 +1887,33 @@ async function assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, seeded
         credentials: "include"
       });
       const sessionText = await session.text();
+      const bodyText = document.body.innerText;
       return JSON.stringify({
         currentUrl: location.href,
         loginRenderedDashboard:
-          document.body.innerText.includes("Overall internal readiness") &&
-          document.body.innerText.includes(${JSON.stringify(seeded.expectedDashboardText)}),
+          bodyText.includes("Overall internal readiness") &&
+          bodyText.includes(${JSON.stringify(seeded.expectedDashboardText)}),
+        selectedWorkspaceNameVisible: bodyText.includes(${JSON.stringify(seeded.selectedOrganization.name)}),
+        primaryWorkspaceNameVisible: bodyText.includes(${JSON.stringify(seeded.primaryOrganization.name)}),
+        selectedSnapshotVisible: bodyText.includes(${JSON.stringify(`snapshot ${seeded.selectedOrganization.organizationId}`)}),
         sessionStatus: session.status,
-        sessionHasActiveOrganization: sessionText.includes(${JSON.stringify(seeded.organizationId)}),
-        documentCookieAfterLogin: document.cookie
+        sessionHasSelectedOrganization: sessionText.includes(${JSON.stringify(seeded.selectedOrganization.organizationId)})
       });
     })())`,
-    (candidate) => candidate.loginRenderedDashboard === true && candidate.sessionStatus === 200,
-    "browser web login redirect and session cookie",
+    (candidate) =>
+      candidate.loginRenderedDashboard === true &&
+      candidate.sessionStatus === 200 &&
+      candidate.selectedWorkspaceNameVisible === true,
+    "browser workspace selection renders selected dashboard",
     5_000
   );
 
-  record("browser_web_login_proxy_renders_dashboard", result.loginRenderedDashboard === true, JSON.stringify(result));
-  record("browser_web_login_lands_on_dashboard_url", new URL(result.currentUrl).pathname === "/", JSON.stringify(result));
-  record("browser_web_session_proxy_status_ok", result.sessionStatus === 200, JSON.stringify(result));
-  record("browser_web_session_contains_active_organization", result.sessionHasActiveOrganization === true, JSON.stringify(result));
-  record("browser_web_document_cookie_cannot_read_http_only_session", !result.documentCookieAfterLogin.includes("puresoc_session"), result.documentCookieAfterLogin);
+  record("browser_web_workspace_selection_renders_dashboard", result.loginRenderedDashboard === true, JSON.stringify(result));
+  record("browser_web_workspace_selection_lands_on_dashboard_url", new URL(result.currentUrl).pathname === "/", JSON.stringify(result));
+  record("browser_web_workspace_selection_shows_selected_workspace", result.selectedWorkspaceNameVisible === true, JSON.stringify(result));
+  record("browser_web_workspace_selection_hides_unselected_workspace", result.primaryWorkspaceNameVisible === false, JSON.stringify(result));
+  record("browser_web_workspace_selection_uses_selected_snapshot", result.selectedSnapshotVisible === true, JSON.stringify(result));
+  record("browser_web_session_contains_selected_active_organization", result.sessionHasSelectedOrganization === true, JSON.stringify(result));
 }
 
 async function assertBrowserAuthSessionSmoke(browser, context, browserAuthBaseUrl) {

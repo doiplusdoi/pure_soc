@@ -108,6 +108,40 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
       ]
     });
 
+    const organizationsResponse = await fetch(`${baseUrl}/organizations`, {
+      headers: { cookie: owner.cookie }
+    });
+    expect(organizationsResponse.status).toBe(200);
+    await expect(
+      readJson<{ organizations: Array<{ organization: { id: string; name: string }; roleKeys: string[] }> }>(
+        organizationsResponse
+      )
+    ).resolves.toMatchObject({
+      organizations: [
+        {
+          organization: {
+            id: organizationBody.organization.id,
+            name: "Persisted Org"
+          },
+          roleKeys: ["owner"]
+        }
+      ]
+    });
+
+    const selectResponse = await postJson(
+      "/auth/session/active-organization",
+      {
+        organizationId: organizationBody.organization.id
+      },
+      owner.cookie
+    );
+    expect(selectResponse.status).toBe(200);
+    await expect(readJson<{ session: { activeOrganizationId: string } }>(selectResponse)).resolves.toMatchObject({
+      session: {
+        activeOrganizationId: organizationBody.organization.id
+      }
+    });
+
     const crossOrgResponse = await fetch(`${baseUrl}/organizations/${organizationBody.organization.id}/members`, {
       headers: { cookie: other.cookie }
     });

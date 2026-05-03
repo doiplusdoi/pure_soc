@@ -89,26 +89,28 @@ Implemented web paths:
 - `POST /auth/login`: forwards form credentials to API `/auth/login`, preserves the API-issued `puresoc_session` cookie, and redirects to `/`.
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
-- `GET /`: resolves the API session and active organization, then renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
+- `GET /workspaces`: lists the authenticated user's active organization memberships from API `/organizations` and renders a visible workspace selector.
+- `POST /workspaces/select`: forwards the selected organization to API `/auth/session/active-organization`; the API only accepts active memberships for the current user.
+- `GET /`: resolves the API session and active organization, renders the workspace selector when no organization is active, and otherwise renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
 - `GET /onboarding/romania`: renders a compact Romania NIS2 onboarding/readiness route from the checked-in Romania country-pack onboarding schema, classification helper, notification draft metadata, source-map links, and message-catalog fallback metadata. The route is an internal readiness view only; it prepares no DNSC submission, makes no live external calls, and does not claim legal certification.
 
-The local UI smoke seeds a synthetic in-memory API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server:
+The local UI smoke seeds a synthetic in-memory API user, two organizations, compliance evaluations, and dashboard snapshots before logging in through the web server without an active workspace:
 
 ```sh
 pnpm test:e2e -- --grep @ui-smoke
 ```
 
-This smoke also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
+This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
 
-When host Firefox WebDriver BiDi is available, the browser smoke also proves keyboard and pointer route traversal after the local web login path is established:
+When host Firefox WebDriver BiDi is available, the browser smoke also selects the visible workspace after login and proves keyboard and pointer route traversal after the selected dashboard is established:
 
 ```sh
 pnpm test:e2e -- --grep @browser-smoke
 ```
 
-It tabs to the dashboard skip link, activates the visible Romania onboarding navigation link, tabs to the Romania route skip link, and activates the Romania "Back to dashboard" link. It then clicks the visible dashboard-to-Romania and Romania back-to-dashboard links with browser pointer actions after checking target bounds. The command records URL changes, focus targets, pointer target bounds, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and the same no-live-call posture as the HTTP fallback.
+It clicks the visible workspace control, asserts the browser session and dashboard reflect the selected organization snapshot, tabs to the dashboard skip link, activates the visible Romania onboarding navigation link, tabs to the Romania route skip link, and activates the Romania "Back to dashboard" link. It then clicks the visible dashboard-to-Romania and Romania back-to-dashboard links with browser pointer actions after checking target bounds. The command records URL changes, focus targets, pointer target bounds, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and the same no-live-call posture as the HTTP fallback.
 
-This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, a persistent Romania onboarding wizard, screenshot-diff thresholds, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
+This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, a persistent Romania onboarding wizard, screenshot-diff thresholds, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
 ### Message Catalog Runtime
 
@@ -533,13 +535,13 @@ Country-pack notification drafts should converge on the generic `NotificationDra
 
 The M10 UI milestone adds a contract-backed operational console renderer in `apps/web` and shared design-system primitives in `packages/ui`. The console renders from stored dashboard, report, evidence, and remediation action contracts; it does not call live providers directly and does not make legal certification claims.
 
-`pnpm test:e2e -- --grep "@ui-smoke"` runs the M39 served-web/runtime smoke. It starts local web and API HTTP surfaces in deterministic memory mode, fetches the operational console and login pages, writes desktop and mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, and checks browser-relevant local auth/session-cookie behavior:
+`pnpm test:e2e -- --grep "@ui-smoke"` runs the M39 served-web/runtime smoke. It starts local web and API HTTP surfaces in deterministic memory mode, fetches the operational console, login, and workspace selection pages, writes desktop and mobile HTML viewport snapshots under `/tmp/puresoc-ui-smoke-*`, and checks browser-relevant local auth/session-cookie behavior:
 
 ```sh
 pnpm test:e2e -- --grep "@ui-smoke"
 ```
 
-The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config behavior, trusted-Origin acceptance, untrusted-Origin rejection, and OIDC/Microsoft provider callback Origin exemptions without calling Microsoft Graph, Stripe APIs, OIDC providers, object storage, scanners, KMS/secret-manager backends, public regulatory URLs, or provider write executors.
+The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config behavior, trusted-Origin acceptance, untrusted-Origin rejection, workspace selection through authenticated memberships, selected dashboard snapshot rendering, and OIDC/Microsoft provider callback Origin exemptions without calling Microsoft Graph, Stripe APIs, OIDC providers, object storage, scanners, KMS/secret-manager backends, public regulatory URLs, or provider write executors.
 
 `pnpm test:e2e -- --grep "@browser-smoke"` runs the M40 browser-grade local smoke when a compatible browser is available. The harness uses host Firefox WebDriver BiDi when present, starts local web/API surfaces plus a same-origin local auth proxy in memory mode, captures deterministic PNG screenshots under `/tmp/puresoc-browser-smoke-*`, and verifies browser DOM/layout invariants:
 
@@ -547,6 +549,6 @@ The smoke proves `HttpOnly`, `SameSite=Lax`, secure-cookie config behavior, trus
 pnpm test:e2e -- --grep "@browser-smoke"
 ```
 
-The browser smoke captures dashboard desktop/mobile, login mobile, evidence desktop, approval desktop, and Romania onboarding desktop/mobile screenshots. It asserts viewport dimensions, nonblank PNG pixels, readable text, no obvious grouped-control overlap, no document horizontal overflow, legal caveat presence, and no certification claims. For the Romania route it also checks the route marker, Romanian locale, source-map sample, workbook cell references, legal-caveat fallback metadata, unsupported-state messaging, no-DNSC-submission metadata, skip-link/focus target, and absence of a direct DNSC submit command. The M62 path uses keyboard input to tab to dashboard and Romania skip links, activate the visible Romania onboarding navigation link, and activate the route's "Back to dashboard" link while recording URL changes and focus targets. The M63 path uses pointer actions against visible link centers and records target bounds before asserting the same dashboard-to-Romania and back-to-dashboard route changes. It also verifies a real browser cookie jar can register, log in, authenticate `/auth/session`, hide the `HttpOnly` session token from `document.cookie`, inspect `SameSite=lax`/`HttpOnly`/local `secure=false` attributes through WebDriver storage, and remove the session on logout. Untrusted-Origin rejection and callback exemptions remain covered through the deterministic local HTTP fallback because the API intentionally does not expose permissive browser CORS.
+The browser smoke captures dashboard desktop/mobile, login mobile, evidence desktop, approval desktop, and Romania onboarding desktop/mobile screenshots. It asserts viewport dimensions, nonblank PNG pixels, readable text, no obvious grouped-control overlap, no document horizontal overflow, legal caveat presence, and no certification claims. The M64 path logs in without an active organization, clicks a visible workspace selection control, and asserts `/auth/session` plus the dashboard snapshot reflect the selected organization. For the Romania route it also checks the route marker, Romanian locale, source-map sample, workbook cell references, legal-caveat fallback metadata, unsupported-state messaging, no-DNSC-submission metadata, skip-link/focus target, and absence of a direct DNSC submit command. The M62 path uses keyboard input to tab to dashboard and Romania skip links, activate the visible Romania onboarding navigation link, and activate the route's "Back to dashboard" link while recording URL changes and focus targets. The M63 path uses pointer actions against visible link centers and records target bounds before asserting the same dashboard-to-Romania and back-to-dashboard route changes. It also verifies a real browser cookie jar can register, log in, authenticate `/auth/session`, hide the `HttpOnly` session token from `document.cookie`, inspect `SameSite=lax`/`HttpOnly`/local `secure=false` attributes through WebDriver storage, and remove the session on logout. Untrusted-Origin rejection and callback exemptions remain covered through the deterministic local HTTP fallback because the API intentionally does not expose permissive browser CORS.
 
-If Firefox/WebDriver BiDi is unavailable, the command reports a `blocked` status and does not claim PNG, browser-auth, Romania route browser PNG, keyboard traversal, or pointer traversal coverage; keep the M39/M60 `@ui-smoke` fallback passing in that environment. Deployed TLS/CORS/reverse-proxy browser smoke, browser organization selection, cross-browser Playwright parity, screenshot-diff thresholds, and live OIDC callback cookies remain release-hardening work.
+If Firefox/WebDriver BiDi is unavailable, the command reports a `blocked` status and does not claim PNG, browser-auth, Romania route browser PNG, keyboard traversal, pointer traversal, or browser workspace-selection coverage; keep the M39/M60/M64 `@ui-smoke` fallback passing in that environment. Deployed TLS/CORS/reverse-proxy browser smoke, cross-browser Playwright parity, screenshot-diff thresholds, and live OIDC callback cookies remain release-hardening work.

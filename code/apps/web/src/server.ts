@@ -2,12 +2,18 @@ import { createServer } from "node:http";
 
 import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
-import { createOperationalConsoleRuntimeModel, createRomaniaOnboardingRouteModel, type RuntimeSessionSurface } from "./app-data";
+import {
+  createOperationalConsoleRuntimeModel,
+  createRomaniaOnboardingRouteModel,
+  type RuntimeSessionSurface,
+  type WorkspaceSelectionModel
+} from "./app-data";
 import {
   renderLoginScreen,
   renderOperationalConsole,
   renderRomaniaOnboardingRoute,
-  renderRuntimeMessageScreen
+  renderRuntimeMessageScreen,
+  renderWorkspaceSelectionScreen
 } from "./operational-console";
 
 export interface WebServerOptions {
@@ -17,6 +23,22 @@ export interface WebServerOptions {
 
 interface LatestDashboardSnapshotResponse {
   snapshot: DashboardSnapshotContract;
+}
+
+interface OrganizationListResponse {
+  organizations: Array<{
+    membership: {
+      id: string;
+      status: string;
+    };
+    organization: {
+      id: string;
+      name: string;
+      billingStatus: string;
+      primaryCountryCode?: string | null;
+    };
+    roleKeys: string[];
+  }>;
 }
 
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
@@ -117,6 +139,60 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/workspaces") {
+      const selection = await loadWorkspaceSelectionModel({
+        apiBaseUrl,
+        cookie: request.headers.cookie
+      });
+
+      if (!selection) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to choose a workspace."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderWorkspaceSelectionScreen(selection));
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/workspaces/select") {
+      const form = await readFormBody(request);
+      const organizationId = optionalFormValue(form.get("organizationId"));
+      const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          organizationId
+        }
+      });
+
+      if (selected.statusCode !== 200) {
+        const selection = await loadWorkspaceSelectionModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Workspace selection failed. Choose an organization where your membership is active."
+        });
+        sendHtml(
+          response,
+          selection
+            ? renderWorkspaceSelectionScreen(selection)
+            : renderLoginScreen({ errorMessage: "Sign in to choose a workspace." }),
+          selected.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader("location", "/");
+      response.end();
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/auth/session") {
       const session = await apiJson<unknown>(apiBaseUrl, "/auth/session", {
         method: "GET",
@@ -146,16 +222,23 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
       const activeOrganizationId = session.body.session.activeOrganizationId;
       if (!activeOrganizationId) {
+        const selection = await loadWorkspaceSelectionModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          session: session.body
+        });
         sendHtml(
           response,
-          renderRuntimeMessageScreen({
-            title: "Select A Workspace",
-            summary: "The API session is valid, but no active organization is attached to this browser session yet.",
-            statusLabel: "Session active",
-            statusTone: "warning",
-            actionHref: "/login",
-            actionLabel: "Sign in with workspace"
-          })
+          selection
+            ? renderWorkspaceSelectionScreen(selection)
+            : renderRuntimeMessageScreen({
+                title: "Select A Workspace",
+                summary: "The API session is valid, but no active organization is attached to this browser session yet.",
+                statusLabel: "Session active",
+                statusTone: "warning",
+                actionHref: "/login",
+                actionLabel: "Sign in again"
+              })
         );
         return;
       }
@@ -189,9 +272,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           createOperationalConsoleRuntimeModel({
             session: session.body,
             dashboard: dashboard.body.snapshot,
-            organization: {
-              id: activeOrganizationId
-            }
+            organization: await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body)
           })
         )
       );
@@ -256,6 +337,69 @@ const readFormBody = async (request: AsyncIterable<Buffer>): Promise<URLSearchPa
   }
 
   return new URLSearchParams(body);
+};
+
+const loadWorkspaceSelectionModel = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+  errorMessage?: string;
+  session?: RuntimeSessionSurface;
+}): Promise<WorkspaceSelectionModel | null> => {
+  const session =
+    input.session ??
+    (await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
+      method: "GET",
+      cookie: input.cookie
+    }));
+  const sessionBody = "statusCode" in session ? session.body : session;
+  if ("statusCode" in session && session.statusCode !== 200) {
+    return null;
+  }
+
+  const organizations = await apiJson<OrganizationListResponse>(input.apiBaseUrl, "/organizations", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (organizations.statusCode !== 200) {
+    return null;
+  }
+
+  return {
+    errorMessage: input.errorMessage,
+    session: sessionBody,
+    organizations: organizations.body.organizations
+      .filter((item) => item.membership.status === "active")
+      .map((item) => ({
+        id: item.organization.id,
+        name: item.organization.name,
+        primaryCountryCode: item.organization.primaryCountryCode ?? null,
+        billingStatus: item.organization.billingStatus,
+        membershipStatus: item.membership.status,
+        roleKeys: item.roleKeys,
+        isActive: item.organization.id === sessionBody.session.activeOrganizationId
+      }))
+  };
+};
+
+const resolveActiveOrganizationSurface = async (
+  apiBaseUrl: string,
+  cookie: string | undefined,
+  session: RuntimeSessionSurface
+) => {
+  const activeOrganizationId = session.session.activeOrganizationId ?? "unknown";
+  const selection = await loadWorkspaceSelectionModel({
+    apiBaseUrl,
+    cookie,
+    session
+  });
+  const active = selection?.organizations.find((organization) => organization.id === activeOrganizationId);
+
+  return {
+    id: activeOrganizationId,
+    name: active?.name ?? null,
+    primaryCountryCode: active?.primaryCountryCode ?? null,
+    subscriptionStatus: active?.billingStatus ?? null
+  };
 };
 
 const apiJson = async <T>(

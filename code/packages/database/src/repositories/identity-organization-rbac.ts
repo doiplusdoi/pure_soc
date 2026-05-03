@@ -322,6 +322,19 @@ export class PrismaIdentityOrganizationRbacRepository {
     return user ? { ...fromSessionRow(session), user } : null;
   }
 
+  async updateSessionActiveOrganization(sessionId: string, activeOrganizationId: string | null): Promise<SessionRecord> {
+    const row = await this.client.session.update({
+      where: {
+        id: sessionId
+      },
+      data: {
+        activeOrganizationId
+      }
+    });
+
+    return fromSessionRow(row);
+  }
+
   async revokeSession(sessionId: string, revokedAt: Date): Promise<SessionRecord | null> {
     const existing = await this.client.session.findUnique({
       where: {
@@ -468,6 +481,63 @@ export class PrismaIdentityOrganizationRbacRepository {
       return {
         ...fromOrganizationMemberRow(member),
         user
+      };
+    });
+  }
+
+  async listOrganizationsForUser(userId: string): Promise<
+    Array<{
+      organization: OrganizationRecordContract;
+      membership: OrganizationMembershipRecordContract;
+      roleKeys: PureSocRoleKey[];
+    }>
+  > {
+    const members = await this.client.organizationMember.findMany({
+      where: {
+        userId
+      },
+      orderBy: {
+        createdAt: "asc"
+      }
+    });
+    const organizationIds = members.map((member) => member.organizationId);
+    const organizations =
+      organizationIds.length === 0
+        ? []
+        : await this.client.organization.findMany({
+            where: {
+              id: {
+                in: [...new Set(organizationIds)]
+              }
+            }
+          });
+    const organizationById = new Map(organizations.map((organization) => [organization.id, fromOrganizationRow(organization)]));
+    const bindings =
+      organizationIds.length === 0
+        ? []
+        : await this.client.roleBinding.findMany({
+            where: {
+              userId,
+              organizationId: {
+                in: [...new Set(organizationIds)]
+              }
+            }
+          });
+    const roles = await this.loadRolesByIds(bindings.map((binding) => binding.roleId));
+
+    return members.map((member) => {
+      const organization = organizationById.get(member.organizationId);
+      if (!organization) {
+        throw new Error(`Organization membership references unknown organization: ${member.organizationId}`);
+      }
+
+      return {
+        organization,
+        membership: fromOrganizationMemberRow(member),
+        roleKeys: bindings
+          .filter((binding) => binding.organizationId === member.organizationId)
+          .map((binding) => roles.get(binding.roleId)?.key)
+          .filter((roleKey): roleKey is PureSocRoleKey => Boolean(roleKey))
       };
     });
   }

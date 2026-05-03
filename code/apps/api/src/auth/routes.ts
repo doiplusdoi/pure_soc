@@ -75,6 +75,27 @@ export const sessionRoute = async (cookieHeader: string | undefined, services: A
   };
 };
 
+export const selectActiveOrganizationRoute = async (
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
+  const session = await services.localAuth.getSession(sessionToken ?? "");
+  const organizationId = requireString(body, "organizationId");
+  const membership = await services.rbacRepository.findMembership(organizationId, session.user.id);
+
+  if (!membership || membership.status !== "active") {
+    throw new AuthError("forbidden", "The authenticated user is not an active member of this organization.", 403);
+  }
+
+  return {
+    statusCode: 200,
+    body: await services.localAuth.selectActiveOrganization(sessionToken ?? "", organizationId, context)
+  };
+};
+
 export const logoutRoute = async (
   cookieHeader: string | undefined,
   context: RequestContext,

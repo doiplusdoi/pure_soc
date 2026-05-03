@@ -65,6 +65,22 @@ export interface RuntimeSessionSurface {
   };
 }
 
+export interface WorkspaceSelectionOrganizationSurface {
+  id: string;
+  name: string;
+  primaryCountryCode: string | null;
+  billingStatus: string;
+  membershipStatus: string;
+  roleKeys: string[];
+  isActive: boolean;
+}
+
+export interface WorkspaceSelectionModel {
+  errorMessage?: string;
+  organizations: WorkspaceSelectionOrganizationSurface[];
+  session: RuntimeSessionSurface;
+}
+
 export interface OnboardingSurface {
   title: string;
   status: OperationalStatus;
@@ -485,7 +501,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
     dashboard: input.dashboard,
     runtimeSource: {
       label: "API snapshot",
-      detail: "GET /organizations/:orgId/dashboards/snapshots/latest"
+      detail: `GET /organizations/:orgId/dashboards/snapshots/latest | snapshot ${input.dashboard.organizationId}`
     },
     onboarding: {
       ...base.onboarding,

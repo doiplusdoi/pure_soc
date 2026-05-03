@@ -10,7 +10,8 @@ import {
   createRomaniaOnboardingRouteModel,
   renderLoginScreen,
   renderOperationalConsole,
-  renderRomaniaOnboardingRoute
+  renderRomaniaOnboardingRoute,
+  renderWorkspaceSelectionScreen
 } from "../index";
 import { startWebServer } from "../server";
 
@@ -78,9 +79,56 @@ describe("web dashboard reports operational UI", () => {
     expect(dashboardHtml).toContain(
       '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
     );
+    expect(dashboardHtml).toContain('<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>');
     expect(dashboardHtml).not.toContain('onclick="');
     expect(romaniaHtml).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(romaniaHtml).not.toContain('onclick="');
+  });
+
+  it("renders a visible API-backed organization selection workspace selector without exposing session secrets", () => {
+    const html = renderWorkspaceSelectionScreen({
+      session: {
+        user: {
+          id: "user_workspace",
+          email: "workspace@example.test",
+          displayName: "Workspace User"
+        },
+        session: {
+          activeOrganizationId: "org_secondary"
+        }
+      },
+      organizations: [
+        {
+          id: "org_primary",
+          name: "Primary Workspace",
+          primaryCountryCode: "RO",
+          billingStatus: "none",
+          membershipStatus: "active",
+          roleKeys: ["owner"],
+          isActive: false
+        },
+        {
+          id: "org_secondary",
+          name: "Selected Workspace",
+          primaryCountryCode: "DE",
+          billingStatus: "api",
+          membershipStatus: "active",
+          roleKeys: ["auditor"],
+          isActive: true
+        }
+      ]
+    });
+
+    expect(html).toContain('data-ui-smoke="workspace-selection"');
+    expect(html).toContain("Workspace User");
+    expect(html).toContain("Primary Workspace");
+    expect(html).toContain("Selected Workspace");
+    expect(html).toContain('action="/workspaces/select"');
+    expect(html).toContain('name="organizationId" value="org_secondary"');
+    expect(html).toContain("Open active workspace");
+    expect(html).toContain('data-ui-action="back-to-dashboard"');
+    expect(html).not.toContain("sessionToken");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
   it("can render the console from an API session and dashboard snapshot contract", () => {
@@ -115,6 +163,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Runtime User");
     expect(html).toContain("API dashboard snapshot");
     expect(html).toContain("GET /organizations/:orgId/dashboards/snapshots/latest");
+    expect(html).toContain('data-ui-action="open-workspace-selector"');
     expect(html).toContain("stored_analysis");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });

@@ -40,6 +40,19 @@ export const createOrganizationRoute = async (
   };
 };
 
+export const listOrganizationsRoute = async (
+  cookieHeader: string | undefined,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
+  const session = await services.localAuth.getSession(sessionToken ?? "");
+
+  return {
+    statusCode: 200,
+    body: await services.organizations.listOrganizationsForUser(session.user.id)
+  };
+};
+
 export const listOrganizationMembersRoute = async (
   organizationId: string,
   cookieHeader: string | undefined,

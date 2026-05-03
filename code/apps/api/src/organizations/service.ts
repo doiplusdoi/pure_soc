@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 
-import { defaultRoleDefinitions, publicUserView, type AuthenticatedUser } from "@puresoc/auth-core";
+import { defaultRoleDefinitions, publicUserView, type AuthenticatedUser, type PureSocRoleKey } from "@puresoc/auth-core";
 import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import type { OrganizationMembershipRecord, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
@@ -33,6 +33,13 @@ export interface OrganizationRepository {
   ensureRole(input: Omit<RoleRecord, "id" | "createdAt">): Promise<RoleRecord>;
   bindRole(input: RoleBindingRecord): Promise<RoleBindingRecord>;
   listOrganizationMembers(organizationId: string): Promise<Array<OrganizationMembershipRecord & { user: AuthenticatedUser }>>;
+  listOrganizationsForUser(userId: string): Promise<
+    Array<{
+      organization: OrganizationRecord;
+      membership: OrganizationMembershipRecord;
+      roleKeys: PureSocRoleKey[];
+    }>
+  >;
 }
 
 export class OrganizationService {
@@ -136,6 +143,21 @@ export class OrganizationService {
         organizationId: member.organizationId,
         user: publicUserView(member.user),
         status: member.status
+      }))
+    };
+  }
+
+  async listOrganizationsForUser(userId: string) {
+    const memberships = await this.repository.listOrganizationsForUser(userId);
+
+    return {
+      organizations: memberships.map(({ organization, membership, roleKeys }) => ({
+        organization: this.safeOrganizationView(organization),
+        membership: {
+          id: membership.id,
+          status: membership.status
+        },
+        roleKeys
       }))
     };
   }

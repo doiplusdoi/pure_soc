@@ -92,6 +92,14 @@ describe("Prisma identity/session/organization/RBAC repository", () => {
       },
       activeOrganizationId: ORG_A
     });
+    await expect(
+      repository.updateSessionActiveOrganization("cccccccc-cccc-4ccc-8ccc-cccccccccccc", ORG_B)
+    ).resolves.toMatchObject({
+      activeOrganizationId: ORG_B
+    });
+    await expect(repository.findSessionByHash("sha256:session-token-hash")).resolves.toMatchObject({
+      activeOrganizationId: ORG_B
+    });
 
     await repository.revokeSession("cccccccc-cccc-4ccc-8ccc-cccccccccccc", NOW);
     await expect(repository.findSessionByHash("sha256:session-token-hash")).resolves.toMatchObject({
@@ -204,6 +212,22 @@ describe("Prisma identity/session/organization/RBAC repository", () => {
         user: {
           email: "member@example.test"
         }
+      }
+    ]);
+    await expect(repository.listOrganizationsForUser(userId)).resolves.toMatchObject([
+      {
+        organization: {
+          id: ORG_A,
+          name: "Org A"
+        },
+        roleKeys: ["owner"]
+      },
+      {
+        organization: {
+          id: ORG_B,
+          name: "Org B"
+        },
+        roleKeys: []
       }
     ]);
   });
