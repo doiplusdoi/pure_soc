@@ -148,6 +148,26 @@ describe("web dashboard reports operational UI", () => {
     expect(smokeScript).not.toContain('scrollTarget: "#approvals"');
   });
 
+  it("wires a secret-free browser smoke artifact index beside the visual metrics manifest", () => {
+    const smokeScript = readFileSync(new URL("../../../../scripts/run-ui-smoke.mjs", import.meta.url), "utf8");
+
+    expect(smokeScript).toContain('const BROWSER_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.browser_artifact_index.v1"');
+    expect(smokeScript).toContain('const BROWSER_SMOKE_ARTIFACT_INDEX_FILE = "browser-smoke-artifact-index.json"');
+    expect(smokeScript).toContain("writeBrowserSmokeArtifactIndex");
+    expect(smokeScript).toContain("formatBrowserArtifactIndexScreenshot");
+    expect(smokeScript).toContain("m67AnchorDrivenSectionCaptures");
+    expect(smokeScript).toContain("m66AnchorWorkflows");
+    expect(smokeScript).toContain("routeTraversal");
+    expect(smokeScript).toContain("sanitizeBrowserAuthSummary");
+    expect(smokeScript).toContain("secretFreePolicy");
+    expect(smokeScript).toContain("isBrowserArtifactIndexSecretFree");
+    expect(smokeScript).toContain("browser_smoke_artifact_index_secret_free");
+    expect(smokeScript).toContain("browser_smoke_artifact_index_written");
+    expect(smokeScript).toContain("session cookies");
+    expect(smokeScript).toContain("full user emails");
+    expect(smokeScript).not.toContain("browser-smoke-golden");
+  });
+
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {
     const dashboardHtml = renderOperationalConsole(createOperationalConsoleDemoModel());
     const romaniaHtml = renderRomaniaOnboardingRoute(createRomaniaOnboardingRouteModel({ locale: "ro-RO" }));

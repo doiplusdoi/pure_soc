@@ -186,11 +186,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 67 / `docs/PLAN_M68.md`: Browser Smoke Artifact Index Baseline.
+1. Prompt 68 / `docs/PLAN_M69.md`: Served UI Smoke Artifact Index Baseline.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M68 must stay fully in-repo: persist a secret-free browser-smoke artifact index for the existing local HTTP/Firefox smoke outputs without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, golden-image workflows, or a frontend framework/router migration.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M69 must stay fully in-repo: persist a secret-free served UI smoke artifact index for the existing deterministic local HTTP snapshot outputs without invoking provider executors, live queues, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, Redis targets, external smoke commands, Playwright adoption, golden-image workflows, or a frontend framework/router migration.
 
-## Active Prompt 67 / PLAN_M68: Browser Smoke Artifact Index Baseline
+## Active Prompt 68 / PLAN_M69: Served UI Smoke Artifact Index Baseline
 
 Read:
 
@@ -200,7 +200,7 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/prompt-tests.md`
-- `docs/PLAN_M67.md`
+- `docs/PLAN_M68.md`
 - `docs/threat-model.md`
 - `docs/claude_rec4.md`
 - `code/scripts/run-ui-smoke.mjs`
@@ -211,16 +211,16 @@ Read:
 
 Goal:
 
-Persist a secret-free browser-smoke artifact index beside the existing visual metrics manifest so a reviewer can inspect the local Firefox/HTTP smoke outputs, anchor-driven section screenshots, route traversal, workspace selection, and no-live-call posture from files rather than only stdout.
+Persist a secret-free served UI smoke artifact index under `/tmp/puresoc-ui-smoke-*` so a reviewer can inspect the deterministic local HTTP snapshot outputs, workspace selection snapshots, Romania route snapshots, API-backed dashboard proof, auth/cookie/Origin checks, and no-live-call posture from files rather than only stdout.
 
 Deliverables:
 
-- Add a `browser-smoke-artifact-index.json` file under `/tmp/puresoc-browser-smoke-*` when Firefox WebDriver BiDi is available, with schema/version, artifact directory, screenshot summaries, visual metrics manifest path, M67 anchor-driven section capture summaries, M66 anchor workflow summaries, route traversal summaries, browser/auth/cookie smoke summaries, check count/status, and non-live guarantees.
-- Keep the index secret-free: do not include session cookies, passwords, session tokens, authorization headers, client secrets, provider tokens, endpoint secrets, raw provider payloads, object-storage URIs, or full user emails.
-- Keep M67 section screenshots anchor-driven and preserve M66 keyboard/pointer anchor workflow coverage, M65 visual thresholds, M64 workspace selection, M63 Romania pointer traversal, M62 Romania keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
+- Add a `ui-smoke-artifact-index.json` file under `/tmp/puresoc-ui-smoke-*` for `@ui-smoke`, with schema/version, artifact directory, HTML snapshot summaries, workspace-selection route summaries, Romania route summaries, API-backed dashboard/source metadata, auth/cookie/Origin/callback-exemption check summaries, check count/status, and non-live guarantees.
+- Keep the index secret-free: do not include session cookies, passwords, session tokens, authorization headers, client secrets, provider tokens, endpoint secrets, raw provider payloads, object-storage URIs, local port-bearing endpoint URLs, or full user emails.
+- Preserve M68 browser-smoke artifact index behavior, M67 section screenshots, M66 keyboard/pointer anchor workflow coverage, M65 visual thresholds, M64 workspace selection, M63 Romania pointer traversal, M62 Romania keyboard traversal, M61 screenshots, M60 UI route snapshots, browser-auth, cookie, Origin, callback-exemption, and no-live-call posture.
 - Preserve the existing lightweight `node:http` web runtime and route-table API style; do not introduce Next.js/React, Playwright, Chromium/WebKit matrix setup, committed golden PNG files, or router/layout migrations in this slice.
-- Update GAP-031 and handoff docs to distinguish the Firefox artifact index from cross-browser Playwright parity, committed golden images, or production browser smoke.
-- Create `docs/PLAN_M69.md` from the next selected active prompt before final response.
+- Update GAP-031 and handoff docs to distinguish the HTTP UI artifact index from browser PNG proof, cross-browser Playwright parity, committed golden images, or production browser smoke.
+- Create `docs/PLAN_M70.md` from the next selected active prompt before final response.
 
 Expected files:
 
@@ -228,8 +228,8 @@ Expected files:
 - `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
 - `code/README.md`
 - `docs/PLAN.md`
-- `docs/PLAN_M68.md`
 - `docs/PLAN_M69.md`
+- `docs/PLAN_M70.md`
 - `docs/codex-prompts.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
@@ -249,18 +249,18 @@ Run from `code/`:
 
 ```sh
 pnpm lint
-pnpm test -- web ui-smoke browser artifact index screenshot visual dashboard gaps evidence approvals microsoft onboarding romania
+pnpm test -- web ui-smoke artifact index browser screenshot visual dashboard gaps evidence approvals microsoft onboarding romania
 pnpm test:e2e -- --grep @ui-smoke
 pnpm test:e2e -- --grep @browser-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M68.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve the `@ui-smoke` route snapshot proof without claiming browser artifact-index coverage.
+If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M69.md`. If Firefox/WebDriver BiDi is unavailable, `@browser-smoke` may return its existing blocked status; record the blocker and preserve both the `@ui-smoke` route snapshot proof and UI artifact-index coverage without claiming browser PNG coverage.
 
 Expected gap movement:
 
-- Narrow GAP-031 for a persisted Firefox browser-smoke artifact index when browser support is available, or preserve the browser blocker explicitly if not.
+- Narrow GAP-031 for a persisted served UI smoke artifact index in the deterministic HTTP fallback path.
 - Preserve GAP-042 for approved Romanian legal/regulatory copy.
 - Preserve GAP-044; this prompt must not run external smoke commands or live external targets.
 
@@ -270,10 +270,23 @@ Final response must include:
 - Tests run
 - Acceptance status
 - Gaps updated
-- `PLAN_M68` updated
-- `PLAN_M69` created
+- `PLAN_M69` updated
+- `PLAN_M70` created
 - Codex prompts updated
 - Residual risk
+
+## Completed Prompt 67 / PLAN_M68: Browser Smoke Artifact Index Baseline
+
+Completed on 2026-05-03.
+
+Summary:
+- Added `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` when Firefox WebDriver BiDi is available.
+- The index records the artifact directory, screenshot file summaries, visual metrics manifest reference, M67 anchor-driven section captures, M66 keyboard/pointer anchor workflows, Romania route traversal, browser auth/session status, passed check count/names, and no-live-call guarantees.
+- The index avoids embedding screenshot bytes, session cookie values, passwords, session tokens, authorization headers, provider/client secrets, raw provider payloads, object-storage URIs, full user emails, and external endpoint URLs.
+- Preserved M67 section screenshots, M66 anchor workflows, M65 visual thresholds, M64 workspace selection, M63/M62 Romania route traversal, M61/M60 route screenshots/snapshots, browser-auth, Origin/callback-exemption, and no-live-call posture.
+- No live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, deployments, external-smoke commands, or provider write executors were called.
+
+GAP-031 is narrowed for a persisted Firefox browser-smoke artifact index beside the visual metrics manifest. GAP-042 remains open for product/legal-approved Romanian legal/regulatory copy. GAP-044 is unchanged.
 
 ## Completed Prompt 66 / PLAN_M67: Browser Anchor-Driven Section Screenshot Baseline
 

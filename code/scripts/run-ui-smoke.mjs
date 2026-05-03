@@ -21,7 +21,16 @@ let runtimeModulesPromise = null;
 const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1";
 const VISUAL_THRESHOLD_VERSION = "m65-lightweight-thresholds.v1";
 const ANCHOR_SECTION_CAPTURE_SCHEMA = "puresoc.ui_smoke.anchor_section_capture.v1";
+const BROWSER_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.browser_artifact_index.v1";
+const BROWSER_SMOKE_ARTIFACT_INDEX_FILE = "browser-smoke-artifact-index.json";
 const EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT = 10;
+const BROWSER_ARTIFACT_INDEX_CHECK_NAMES = [
+  "browser_smoke_artifact_index_screenshot_count",
+  "browser_smoke_artifact_index_visual_metrics_manifest_referenced",
+  "browser_smoke_artifact_index_anchor_sections_referenced",
+  "browser_smoke_artifact_index_secret_free",
+  "browser_smoke_artifact_index_written"
+];
 const DEFAULT_VISUAL_THRESHOLDS = {
   minPngBytes: 6_000,
   minUniqueSampledColors: 24,
@@ -566,6 +575,19 @@ async function runBrowserSmoke() {
       expectSecureCookie: true,
       emailSuffix: "browser-secure"
     });
+    const artifactIndex = writeBrowserSmokeArtifactIndex({
+      browser: {
+        executableName: basename(firefoxPath),
+        name: browser.capabilities.browserName,
+        version: browser.capabilities.browserVersion,
+        headless: browser.capabilities["moz:headless"] === true
+      },
+      screenshots,
+      visualMetricsManifest,
+      anchorNavigation,
+      routeNavigation,
+      browserAuth
+    });
 
     console.log(
       JSON.stringify(
@@ -582,7 +604,8 @@ async function runBrowserSmoke() {
           artifacts: {
             directory: artifactsDir,
             screenshots: screenshots.map(formatScreenshotArtifact),
-            visualMetricsManifest
+            visualMetricsManifest,
+            artifactIndex
           },
           anchorNavigation,
           routeNavigation,
@@ -1493,6 +1516,226 @@ function writeVisualMetricsManifest(screenshots) {
   record("browser_visual_metrics_all_thresholds_passed", manifest.status === "passed", manifest.status);
 
   return manifestPath;
+}
+
+function writeBrowserSmokeArtifactIndex({
+  browser,
+  screenshots,
+  visualMetricsManifest,
+  anchorNavigation,
+  routeNavigation,
+  browserAuth
+}) {
+  const artifactIndexPath = join(artifactsDir, BROWSER_SMOKE_ARTIFACT_INDEX_FILE);
+  const finalCheckNames = finalBrowserArtifactIndexCheckNames();
+  const screenshotSummaries = screenshots.map(formatBrowserArtifactIndexScreenshot);
+  const sectionCaptureSummaries = screenshotSummaries
+    .filter((screenshot) => Boolean(screenshot.anchorDrivenSectionCapture))
+    .map((screenshot) => screenshot.anchorDrivenSectionCapture);
+  const index = {
+    schema: BROWSER_SMOKE_ARTIFACT_INDEX_SCHEMA,
+    status: "passed",
+    smokeMode: "firefox_webdriver_bidi",
+    artifactDirectory: artifactsDir,
+    browser,
+    artifacts: {
+      screenshots: screenshotSummaries,
+      visualMetricsManifest: {
+        path: visualMetricsManifest,
+        fileName: basename(visualMetricsManifest),
+        schema: VISUAL_METRICS_SCHEMA,
+        thresholdVersion: VISUAL_THRESHOLD_VERSION,
+        status: screenshots.every((screenshot) => screenshot.thresholdStatus === "passed") ? "passed" : "failed",
+        expectedCaptureCount: EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT,
+        captureCount: screenshots.length
+      }
+    },
+    m67AnchorDrivenSectionCaptures: {
+      schema: ANCHOR_SECTION_CAPTURE_SCHEMA,
+      status: sectionCaptureSummaries.length === OPERATIONAL_CONSOLE_ANCHORS.length ? "passed" : "failed",
+      expectedSectionCount: OPERATIONAL_CONSOLE_ANCHORS.length,
+      sectionCount: sectionCaptureSummaries.length,
+      sections: sectionCaptureSummaries
+    },
+    m66AnchorWorkflows: {
+      keyboard: summarizeAnchorWorkflow(anchorNavigation.keyboard),
+      pointer: summarizeAnchorWorkflow(anchorNavigation.pointer)
+    },
+    routeTraversal: sanitizeRouteTraversalSummary(routeNavigation),
+    browserAuth: sanitizeBrowserAuthSummary(browserAuth),
+    checks: {
+      status: "passed",
+      count: finalCheckNames.length,
+      names: finalCheckNames
+    },
+    nonLiveGuarantees: nonLiveGuarantees(),
+    secretFreePolicy: {
+      excludes: [
+        "session cookies",
+        "passwords",
+        "session tokens",
+        "authorization headers",
+        "client secrets",
+        "provider tokens",
+        "endpoint secrets",
+        "raw provider payloads",
+        "object-storage URIs",
+        "full user emails"
+      ],
+      localLoopbackOriginsRedacted: true,
+      screenshotBytesEmbedded: false
+    }
+  };
+  const serialized = `${JSON.stringify(index, null, 2)}\n`;
+
+  record(
+    "browser_smoke_artifact_index_screenshot_count",
+    screenshots.length === EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT,
+    String(screenshots.length)
+  );
+  record("browser_smoke_artifact_index_visual_metrics_manifest_referenced", basename(visualMetricsManifest) === "visual-metrics-manifest.json");
+  record(
+    "browser_smoke_artifact_index_anchor_sections_referenced",
+    sectionCaptureSummaries.length === OPERATIONAL_CONSOLE_ANCHORS.length,
+    String(sectionCaptureSummaries.length)
+  );
+  record("browser_smoke_artifact_index_secret_free", isBrowserArtifactIndexSecretFree(serialized), redactSmokeText(serialized));
+  writeFileSync(artifactIndexPath, serialized, "utf8");
+  record("browser_smoke_artifact_index_written", existsSync(artifactIndexPath), artifactIndexPath);
+
+  return artifactIndexPath;
+}
+
+function finalBrowserArtifactIndexCheckNames() {
+  return [...new Set([...checkNames(), ...BROWSER_ARTIFACT_INDEX_CHECK_NAMES])];
+}
+
+function formatBrowserArtifactIndexScreenshot(screenshot) {
+  const summary = {
+    captureId: screenshot.name,
+    fileName: basename(screenshot.filePath),
+    width: screenshot.width,
+    height: screenshot.height,
+    pngBytes: screenshot.pngBytes,
+    routeId: screenshot.routeId,
+    thresholdStatus: screenshot.thresholdStatus,
+    metrics: {
+      uniqueSampledColors: screenshot.uniqueSampledColors,
+      nonLightRatio: screenshot.nonLightRatio,
+      edgeRatio: screenshot.edgeRatio,
+      luminanceStdDev: screenshot.luminanceStdDev
+    }
+  };
+
+  if (screenshot.anchorActivation) {
+    summary.anchorDrivenSectionCapture = summarizeAnchorDrivenSectionCapture(screenshot);
+  }
+
+  return summary;
+}
+
+function summarizeAnchorDrivenSectionCapture(screenshot) {
+  const activation = screenshot.anchorActivation;
+
+  return {
+    captureId: activation.captureId,
+    screenshotFileName: basename(screenshot.filePath),
+    thresholdStatus: screenshot.thresholdStatus,
+    inputMode: activation.inputMode,
+    anchor: {
+      id: activation.anchor.id,
+      action: activation.anchor.action,
+      href: activation.anchor.href,
+      selector: activation.anchor.selector,
+      usedVisibleControl: activation.anchor.usedVisibleControl,
+      scriptScrolledControl: activation.anchor.scriptScrolledControl,
+      targetBounds: activation.anchor.targetBounds
+    },
+    route: activation.route,
+    section: activation.section,
+    assertions: activation.assertions
+  };
+}
+
+function summarizeAnchorWorkflow(workflow) {
+  return {
+    status: "passed",
+    dashboardSkip: workflow.dashboardSkip,
+    anchorCount: workflow.anchors.length,
+    anchors: workflow.anchors.map((anchor) => ({
+      id: anchor.id,
+      action: anchor.action,
+      hash: anchor.hash,
+      scrollY: anchor.scrollY,
+      sectionTitle: anchor.sectionTitle,
+      ...(anchor.targetBounds ? { targetBounds: anchor.targetBounds } : {})
+    })),
+    noLiveCallPosture: true
+  };
+}
+
+function sanitizeRouteTraversalSummary(routeNavigation) {
+  return {
+    keyboard: {
+      dashboardSkip: routeNavigation.keyboard.dashboardSkip,
+      dashboardToRomania: {
+        activatedLink: routeNavigation.keyboard.dashboardToRomania.activatedLink,
+        path: routeNavigation.keyboard.dashboardToRomania.path,
+        search: routeNavigation.keyboard.dashboardToRomania.search
+      },
+      romaniaSkip: routeNavigation.keyboard.romaniaSkip,
+      romaniaBackToDashboard: routeNavigation.keyboard.romaniaBackToDashboard,
+      noLiveCallPosture: true
+    },
+    pointer: {
+      dashboardToRomania: {
+        clickedAction: routeNavigation.pointer.dashboardToRomania.clickedAction,
+        path: routeNavigation.pointer.dashboardToRomania.path,
+        search: routeNavigation.pointer.dashboardToRomania.search,
+        hrefPath: safeRoutePath(routeNavigation.pointer.dashboardToRomania.href),
+        targetBounds: routeNavigation.pointer.dashboardToRomania.targetBounds
+      },
+      romaniaBackToDashboard: {
+        clickedAction: routeNavigation.pointer.romaniaBackToDashboard.clickedAction,
+        path: routeNavigation.pointer.romaniaBackToDashboard.path,
+        hrefPath: safeRoutePath(routeNavigation.pointer.romaniaBackToDashboard.href),
+        targetBounds: routeNavigation.pointer.romaniaBackToDashboard.targetBounds
+      },
+      noLiveCallPosture: true
+    }
+  };
+}
+
+function sanitizeBrowserAuthSummary(browserAuth) {
+  return {
+    registerStatus: browserAuth.registerStatus,
+    loginStatus: browserAuth.loginStatus,
+    sessionBeforeStatus: browserAuth.sessionBeforeStatus,
+    logoutStatus: browserAuth.logoutStatus,
+    sessionAfterStatus: browserAuth.sessionAfterStatus,
+    sessionState: {
+      httpOnly: browserAuth.cookieAttributes.httpOnly,
+      secure: browserAuth.cookieAttributes.secure,
+      sameSite: browserAuth.cookieAttributes.sameSite
+    },
+    rawSessionValueIncluded: false
+  };
+}
+
+function isBrowserArtifactIndexSecretFree(serialized) {
+  const forbiddenPatterns = [
+    /puresoc_session=/i,
+    /"sessionToken"\s*:/i,
+    /"password"\s*:/i,
+    /"authorization"\s*:/i,
+    /"clientSecret"\s*:/i,
+    /"providerToken"\s*:/i,
+    /"storageUri"\s*:/i,
+    /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i,
+    /https?:\/\/(?!127\.0\.0\.1(?::\d+)?(?:\/|$)|localhost(?::\d+)?(?:\/|$))[^\s"]+/i
+  ];
+
+  return forbiddenPatterns.every((pattern) => !pattern.test(serialized));
 }
 
 function formatScreenshotArtifact(screenshot) {
