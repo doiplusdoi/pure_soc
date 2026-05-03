@@ -121,6 +121,8 @@ async function runServedUiSmoke() {
       }
     });
     assertApiBackedDashboardHtml(consoleHtml, apiBackedDashboard);
+    const romaniaRouteHtml = await fetchText(`${webBaseUrl}/onboarding/romania?locale=ro-RO`);
+    assertRomaniaOnboardingRoute(romaniaRouteHtml);
 
     const desktopSnapshot = writeViewportSnapshot({
       name: "desktop",
@@ -133,6 +135,18 @@ async function runServedUiSmoke() {
       width: 390,
       height: 844,
       html: consoleHtml
+    });
+    const romaniaDesktopSnapshot = writeViewportSnapshot({
+      name: "romania-desktop",
+      width: 1440,
+      height: 900,
+      html: romaniaRouteHtml
+    });
+    const romaniaMobileSnapshot = writeViewportSnapshot({
+      name: "romania-mobile",
+      width: 390,
+      height: 844,
+      html: romaniaRouteHtml
     });
 
     record("unauthenticated_root_prompts_for_login", htmlText(unauthenticatedHtml).includes("Sign in to open the operational console"));
@@ -170,7 +184,11 @@ async function runServedUiSmoke() {
           artifacts: {
             directory: artifactsDir,
             desktopSnapshot,
-            mobileSnapshot
+            mobileSnapshot,
+            romaniaRoute: {
+              desktopSnapshot: romaniaDesktopSnapshot,
+              mobileSnapshot: romaniaMobileSnapshot
+            }
           },
           checks: checkNames(),
           nonLiveGuarantees: nonLiveGuarantees()
@@ -1312,6 +1330,52 @@ function assertNoObviousOverlapRegression(html) {
     .map((match) => match[1] ?? "")
     .filter((label) => label.length > 32);
   record("button_labels_fit_compact_controls", longButtonLabels.length === 0, longButtonLabels.join(", "));
+}
+
+function assertRomaniaOnboardingRoute(html) {
+  const text = htmlText(html);
+  record("romania_route_html_is_nonblank", html.length > 14_000, String(html.length));
+  record("romania_route_marker_present", html.includes('data-ui-smoke="romania-onboarding-route"'));
+  record("romania_route_declares_ro_locale", html.includes('<html lang="ro">'));
+  record("romania_route_source_map_sample_visible", text.includes("Source Map Sample") && text.includes("Workbook-derived mappings"));
+  record(
+    "romania_route_workbook_source_map_cells_visible",
+    html.includes("ro-nis2-entity_fields-entity_field_12_name_of_the_entity") && html.includes("Entity assessment!D66:D142")
+  );
+  record("romania_route_legal_caveat_visible", text.includes("not a legal opinion"));
+  record(
+    "romania_route_locale_fallback_metadata_visible",
+    text.includes("missing_translation") && text.includes("requested ro-RO") && text.includes("caveat en")
+  );
+  record(
+    "romania_route_unsupported_states_visible",
+    text.includes("Boundaries And Unsupported States") &&
+      text.includes("Direct DNSC submission") &&
+      text.includes("Legal activation") &&
+      text.includes("not a full React or Next.js onboarding wizard")
+  );
+  record(
+    "romania_route_no_dnsc_submission_visible",
+    text.includes("no DNSC submission") &&
+      text.includes("Submitted to DNSC") &&
+      text.includes("false") &&
+      text.includes("PureSOC does not submit this draft to DNSC.")
+  );
+  record("romania_route_no_dnsc_direct_submit_command", !/submit\s+(to\s+)?dnsc/i.test(text));
+  record("romania_route_has_no_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));
+  record("romania_route_html_has_no_undefined_or_object_leaks", !/(undefined|\[object Object\])/.test(html));
+  record("romania_route_html_ids_are_unique", duplicateIds(html).length === 0, duplicateIds(html).join(", "));
+  assertRomaniaRouteResponsiveFocus(html);
+}
+
+function assertRomaniaRouteResponsiveFocus(html) {
+  const css = styleBlock(html);
+  record("romania_route_mobile_breakpoints_present", css.includes("@media (max-width: 980px)") && css.includes("@media (max-width: 640px)"));
+  record("romania_route_tables_scroll_instead_of_squeezing_text", css.includes(".ps-table-wrap") && css.includes("overflow-x: auto"));
+  record("romania_route_chips_and_buttons_wrap_long_text", css.includes("overflow-wrap: anywhere") && css.includes("white-space: normal"));
+  record("romania_route_focus_visible_affordance_present", css.includes(":focus-visible") && html.includes('href="#content"') && html.includes('id="content" tabindex="-1"'));
+  record("romania_route_font_size_does_not_scale_with_viewport_width", !/font-size:\s*[^;]*vw/.test(css));
+  record("romania_route_letter_spacing_is_not_negative", !/letter-spacing:\s*-/.test(css));
 }
 
 function writeViewportSnapshot({ name, width, height, html }) {

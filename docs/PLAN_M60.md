@@ -4,8 +4,10 @@
 
 Extend the local served UI smoke so the Romania onboarding route added in M59 is exercised through the served web runtime, not only through unit/server tests.
 
-Status: staged for implementation after M59.
+Status: completed.
 Created: 2026-05-03.
+Started: 2026-05-03.
+Completed: 2026-05-03.
 
 ## Source Inputs
 
@@ -95,32 +97,55 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Started 2026-05-03 and completed 2026-05-03.
 
 Implementation results:
 
-- Pending.
+- Extended `pnpm test:e2e -- --grep @ui-smoke` to fetch `GET /onboarding/romania?locale=ro-RO` from the local served web runtime.
+- Added route-specific smoke assertions for source-map links, workbook source-map cells, legal caveat, Romanian-locale fallback metadata, unsupported-state signals, no-DNSC-submission metadata, responsive/focus CSS, no undefined/object leaks, unique IDs, and forbidden legal/certification claims.
+- Added deterministic Romania desktop/mobile HTML viewport snapshots to the existing `@ui-smoke` artifact directory and exposed them in the smoke JSON output under `artifacts.romaniaRoute`.
+- Preserved existing dashboard, login/session proxy, cookie, Origin, and callback exemption checks.
+- Added focused renderer test assertions that the Romania route keeps responsive breakpoints, focus affordance, skip link, and `#content` target semantics.
+- Updated docs and staged `docs/PLAN_M61.md` for the next browser traversal slice.
 
 Changed files:
 
-- Pending.
+- `code/README.md`
+- `code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts`
+- `code/scripts/run-ui-smoke.mjs`
+- `docs/LEARNINGS.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M60.md`
+- `docs/PLAN_M61.md`
+- `docs/codex-prompts.md`
+- `docs/implementation-gaps.md`
 
 Validation:
 
-- Pending.
+- Passed: `flatpak-spawn --host npm run lint`.
+- Passed: `flatpak-spawn --host npm run test -- web ui-smoke romania onboarding` (4 files, 18 tests).
+- Passed: `flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke`; output included Romania route desktop/mobile snapshots under `/tmp/puresoc-ui-smoke-26nbn7`.
+- Passed: `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config`.
+- Passed: `git diff --check`.
+- Used host npm equivalents because sandbox-local `pnpm` is unavailable in this environment.
 
 Acceptance status:
 
-- Pending.
+- Accepted. The served UI smoke now exercises and snapshots the Romania onboarding route while preserving the existing local web/API auth, dashboard, cookie, Origin, and callback checks. No live external services or provider write paths were called.
 
 Gaps updated:
 
-- Pending.
+- GAP-031 narrowed for local served `@ui-smoke` coverage of the Romania onboarding route with route-specific desktop/mobile HTML snapshots and source/caveat/fallback/unsupported/no-DNSC/responsive/focus assertions.
+- GAP-042 preserved for product/legal-approved Romanian legal/regulatory copy.
+- GAP-044 preserved; no external-smoke commands or live external calls were run.
 
 Prompt handoff:
 
-- Pending. M60 implementation must create `docs/PLAN_M61.md` before final response.
+- `docs/codex-prompts.md` marks Prompt 59 / PLAN_M60 complete and stages Prompt 60 / PLAN_M61 for Romania route browser smoke traversal.
+- `docs/PLAN_M61.md` created.
 
 Residual risk:
 
-- Pending.
+- The Romania route still has local HTTP snapshot coverage, not route-specific browser PNG coverage; that is staged for M61.
+- Full Next.js/React runtime, browser organization selection, Playwright/Chromium/WebKit parity, persistent Romania onboarding, and pointer/keyboard traversal remain deferred under GAP-031.
+- Romanian legal caveat and regulatory/workbook labels still fall back to English/source-mapped copy until product/legal-approved Romanian text exists under GAP-042.

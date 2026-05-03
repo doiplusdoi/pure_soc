@@ -134,6 +134,11 @@ describe("web dashboard reports operational UI", () => {
 
     expect(html).toContain('data-ui-smoke="romania-onboarding-route"');
     expect(html).toContain('<html lang="ro">');
+    expect(html).toContain("@media (max-width: 980px)");
+    expect(html).toContain("@media (max-width: 640px)");
+    expect(html).toContain(":focus-visible");
+    expect(html).toContain('href="#content"');
+    expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain("Romania NIS2 Onboarding");
     expect(html).toContain("roNis2OnboardingSchema");
     expect(html).toContain("ro-nis2-entity_fields-entity_field_12_name_of_the_entity");

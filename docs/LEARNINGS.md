@@ -60,6 +60,7 @@ Keep entries short, specific, and actionable.
 - `apps/web` now proxies local login/logout/session to the API. The server preserves the API-issued `puresoc_session` cookie and renders `/` from `GET /organizations/:orgId/dashboards/snapshots/latest` when the API session has an active organization.
 - `pnpm test:e2e -- --grep @ui-smoke` now seeds a local API user, organization, compliance evaluation, and dashboard snapshot before logging in through the web server. It still makes no live external calls and must not print session cookies or user emails in smoke output.
 - `apps/web` also serves `GET /onboarding/romania` as a small contract-backed route, not a full wizard. It should keep using `@puresoc/country-pack-ro` onboarding schema, classification, notification-draft, source-map, and message-catalog metadata; it must keep no-DNSC-submission and legal-caveat fallback signals visible until product/legal-approved Romanian regulatory copy exists.
+- M60 extends `pnpm test:e2e -- --grep @ui-smoke` to fetch `/onboarding/romania?locale=ro-RO`, assert Romania route source-map/caveat/fallback/unsupported/no-DNSC/responsive/focus signals, and write deterministic route desktop/mobile HTML snapshots. Browser PNG traversal for this route remains separate from the HTTP snapshot smoke.
 
 ## How To Add Learnings
 

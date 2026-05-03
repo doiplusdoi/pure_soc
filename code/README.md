@@ -98,7 +98,9 @@ The local UI smoke seeds a synthetic in-memory API user, organization, complianc
 pnpm test:e2e -- --grep @ui-smoke
 ```
 
-This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, a persistent Romania onboarding wizard, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
+This smoke also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
+
+This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, browser organization selection, a persistent Romania onboarding wizard, route-specific browser PNG traversal, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
 ### Message Catalog Runtime
 
