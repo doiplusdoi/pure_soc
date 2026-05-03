@@ -1,4 +1,5 @@
 import { once } from "node:events";
+import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
@@ -62,6 +63,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('aria-label="Primary navigation"');
     expect(html).toContain('data-ui-action="open-romania-onboarding"');
     expect(login).toContain('<label for="email">Email</label>');
+    expect(login).toContain('data-ui-smoke="login-screen"');
     expect(login).toContain('<label for="password">Password</label>');
     expect(login).toContain('autocomplete="current-password"');
     expect(login).toContain('type="submit"');
@@ -70,6 +72,26 @@ describe("web dashboard reports operational UI", () => {
       (match) => match[1] ?? ""
     );
     expect(buttonLabels.every((label) => label.length <= 32)).toBe(true);
+  });
+
+  it("wires browser screenshot visual threshold manifest coverage without golden image baselines", () => {
+    const smokeScript = readFileSync(new URL("../../../../scripts/run-ui-smoke.mjs", import.meta.url), "utf8");
+
+    expect(smokeScript).toContain('const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1"');
+    expect(smokeScript).toContain('"visual-metrics-manifest.json"');
+    expect(smokeScript).toContain("createVisualMetrics");
+    expect(smokeScript).toContain("assertVisualThresholds");
+    expect(smokeScript).toContain("edgeRatio");
+    expect(smokeScript).toContain("dominantColorRatio");
+    expect(smokeScript).toContain("route_id");
+    expect(smokeScript).toContain("dashboard-desktop");
+    expect(smokeScript).toContain("dashboard-mobile");
+    expect(smokeScript).toContain("login-mobile");
+    expect(smokeScript).toContain("evidence-desktop");
+    expect(smokeScript).toContain("approvals-desktop");
+    expect(smokeScript).toContain("romania-route-desktop");
+    expect(smokeScript).toContain("romania-route-mobile");
+    expect(smokeScript).not.toContain("golden-image");
   });
 
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {

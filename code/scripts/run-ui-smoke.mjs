@@ -4,7 +4,7 @@ import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSy
 import { createServer as createHttpServer } from "node:http";
 import { createServer as createTcpServer } from "node:net";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { setTimeout as delay } from "node:timers/promises";
 import { pathToFileURL } from "node:url";
 import { inflateSync } from "node:zlib";
@@ -17,6 +17,43 @@ let artifactsDir = "";
 let checks = [];
 let servers = [];
 let runtimeModulesPromise = null;
+
+const VISUAL_METRICS_SCHEMA = "puresoc.ui_smoke.visual_metrics.v1";
+const VISUAL_THRESHOLD_VERSION = "m65-lightweight-thresholds.v1";
+const DEFAULT_VISUAL_THRESHOLDS = {
+  minPngBytes: 6_000,
+  minUniqueSampledColors: 24,
+  minNonLightRatio: 0.01,
+  minEdgeRatio: 0.002,
+  minLuminanceStdDev: 3,
+  maxDominantColorRatio: 0.985
+};
+const VISUAL_THRESHOLDS_BY_CAPTURE = {
+  "login-mobile": {
+    minPngBytes: 4_000,
+    minUniqueSampledColors: 18,
+    minNonLightRatio: 0.006,
+    minEdgeRatio: 0.001,
+    minLuminanceStdDev: 2.5,
+    maxDominantColorRatio: 0.99
+  },
+  "dashboard-mobile": {
+    minPngBytes: 5_000,
+    minUniqueSampledColors: 20,
+    minNonLightRatio: 0.008,
+    minEdgeRatio: 0.001,
+    minLuminanceStdDev: 2.5,
+    maxDominantColorRatio: 0.99
+  },
+  "romania-route-mobile": {
+    minPngBytes: 5_000,
+    minUniqueSampledColors: 20,
+    minNonLightRatio: 0.008,
+    minEdgeRatio: 0.001,
+    minLuminanceStdDev: 2.5,
+    maxDominantColorRatio: 0.99
+  }
+};
 
 if (smokeMode === "ui") {
   await runServedUiSmoke();
@@ -356,6 +393,7 @@ async function runBrowserSmoke() {
         width: 390,
         height: 844,
         expectedText: ["Sign in", "PureSOC internal readiness console"],
+        expectLoginScreen: true,
         expectOperationalConsole: false
       })
     );
@@ -417,6 +455,7 @@ async function runBrowserSmoke() {
       })
     );
 
+    const visualMetricsManifest = writeVisualMetricsManifest(screenshots);
     const browserAuth = await assertBrowserAuthSessionSmoke(browser, context, browserAuthBaseUrl);
     await assertOriginExemptionHttpSmoke({ apiBaseUrl });
 
@@ -449,7 +488,8 @@ async function runBrowserSmoke() {
           },
           artifacts: {
             directory: artifactsDir,
-            screenshots
+            screenshots: screenshots.map(formatScreenshotArtifact),
+            visualMetricsManifest
           },
           routeNavigation,
           browserAuth,
@@ -1143,17 +1183,226 @@ async function captureBrowserPage(browser, input) {
   const filePath = join(artifactsDir, `${input.name}-${input.width}x${input.height}.png`);
   writeFileSync(filePath, Buffer.from(screenshot.data, "base64"));
   const analysis = analyzePngScreenshot(filePath);
+  const visualMetrics = createVisualMetrics({
+    input,
+    layout,
+    filePath,
+    analysis
+  });
+  assertVisualThresholds(input.name, visualMetrics);
 
   record(`${input.name}_browser_png_dimensions`, analysis.width === input.width && analysis.height === input.height, `${analysis.width}x${analysis.height}`);
-  record(`${input.name}_browser_png_nonblank`, analysis.uniqueSampledColors >= 24 && analysis.nonLightRatio > 0.01, JSON.stringify(analysis));
+  record(
+    `${input.name}_browser_png_nonblank`,
+    analysis.uniqueSampledColors >= visualMetrics.thresholds.minUniqueSampledColors &&
+      analysis.nonLightRatio >= visualMetrics.thresholds.minNonLightRatio,
+    JSON.stringify(analysis)
+  );
 
   return {
     name: input.name,
     filePath,
     width: analysis.width,
     height: analysis.height,
+    pngBytes: analysis.byteLength,
+    routeId: visualMetrics.route.routeId,
+    thresholdStatus: visualMetrics.result.status,
     uniqueSampledColors: analysis.uniqueSampledColors,
-    nonLightRatio: analysis.nonLightRatio
+    nonLightRatio: analysis.nonLightRatio,
+    edgeRatio: analysis.edgeRatio,
+    luminanceStdDev: analysis.luminanceStdDev,
+    visualMetrics
+  };
+}
+
+function createVisualMetrics({ input, layout, filePath, analysis }) {
+  const expectedRouteId = expectedRouteIdForCapture(input);
+  const thresholds = visualThresholdsForCapture(input.name);
+  const routePath = safeRoutePath(layout.url);
+  const checks = [
+    {
+      id: "viewport_width",
+      expected: input.width,
+      actual: layout.innerWidth,
+      passed: layout.innerWidth === input.width
+    },
+    {
+      id: "viewport_height",
+      expected: input.height,
+      actual: layout.innerHeight,
+      passed: layout.innerHeight === input.height
+    },
+    {
+      id: "png_width",
+      expected: input.width,
+      actual: analysis.width,
+      passed: analysis.width === input.width
+    },
+    {
+      id: "png_height",
+      expected: input.height,
+      actual: analysis.height,
+      passed: analysis.height === input.height
+    },
+    {
+      id: "png_size",
+      minimum: thresholds.minPngBytes,
+      actual: analysis.byteLength,
+      passed: analysis.byteLength >= thresholds.minPngBytes
+    },
+    {
+      id: "color_diversity",
+      minimum: thresholds.minUniqueSampledColors,
+      actual: analysis.uniqueSampledColors,
+      passed: analysis.uniqueSampledColors >= thresholds.minUniqueSampledColors
+    },
+    {
+      id: "non_light_pixels",
+      minimum: thresholds.minNonLightRatio,
+      actual: analysis.nonLightRatio,
+      passed: analysis.nonLightRatio >= thresholds.minNonLightRatio
+    },
+    {
+      id: "edge_ratio",
+      minimum: thresholds.minEdgeRatio,
+      actual: analysis.edgeRatio,
+      passed: analysis.edgeRatio >= thresholds.minEdgeRatio
+    },
+    {
+      id: "luminance_std_dev",
+      minimum: thresholds.minLuminanceStdDev,
+      actual: analysis.luminanceStdDev,
+      passed: analysis.luminanceStdDev >= thresholds.minLuminanceStdDev
+    },
+    {
+      id: "dominant_color_ratio",
+      maximum: thresholds.maxDominantColorRatio,
+      actual: analysis.dominantColorRatio,
+      passed: analysis.dominantColorRatio <= thresholds.maxDominantColorRatio
+    }
+  ];
+
+  if (expectedRouteId) {
+    checks.push({
+      id: "route_id",
+      expected: expectedRouteId,
+      actual: layout.routeId,
+      passed: layout.routeId === expectedRouteId
+    });
+  }
+
+  return {
+    schema: VISUAL_METRICS_SCHEMA,
+    thresholdVersion: VISUAL_THRESHOLD_VERSION,
+    captureId: input.name,
+    route: {
+      routeId: layout.routeId,
+      expectedRouteId,
+      path: routePath
+    },
+    viewport: {
+      expectedWidth: input.width,
+      expectedHeight: input.height,
+      actualWidth: layout.innerWidth,
+      actualHeight: layout.innerHeight,
+      devicePixelRatio: 1
+    },
+    png: {
+      fileName: basename(filePath),
+      byteLength: analysis.byteLength,
+      width: analysis.width,
+      height: analysis.height
+    },
+    metrics: {
+      sampledPixelCount: analysis.sampledPixelCount,
+      uniqueSampledColors: analysis.uniqueSampledColors,
+      dominantColorRatio: analysis.dominantColorRatio,
+      nonLightRatio: analysis.nonLightRatio,
+      edgeRatio: analysis.edgeRatio,
+      luminanceMean: analysis.luminanceMean,
+      luminanceStdDev: analysis.luminanceStdDev
+    },
+    thresholds,
+    result: {
+      status: checks.every((check) => check.passed) ? "passed" : "failed",
+      checks
+    }
+  };
+}
+
+function assertVisualThresholds(captureId, visualMetrics) {
+  for (const check of visualMetrics.result.checks) {
+    record(`${captureId}_visual_threshold_${check.id}`, check.passed, JSON.stringify(check));
+  }
+}
+
+function visualThresholdsForCapture(captureId) {
+  return {
+    ...DEFAULT_VISUAL_THRESHOLDS,
+    ...(VISUAL_THRESHOLDS_BY_CAPTURE[captureId] ?? {})
+  };
+}
+
+function expectedRouteIdForCapture(input) {
+  if (input.expectOperationalConsole) {
+    return "operational-console";
+  }
+
+  if (input.expectRomaniaRoute) {
+    return "romania-onboarding-route";
+  }
+
+  if (input.expectLoginScreen) {
+    return "login-screen";
+  }
+
+  return "";
+}
+
+function safeRoutePath(url) {
+  try {
+    const parsed = new URL(url);
+    return `${parsed.pathname}${parsed.search}`;
+  } catch {
+    return "unknown";
+  }
+}
+
+function writeVisualMetricsManifest(screenshots) {
+  const manifestPath = join(artifactsDir, "visual-metrics-manifest.json");
+  const captures = screenshots.map((screenshot) => screenshot.visualMetrics);
+  const manifest = {
+    schema: VISUAL_METRICS_SCHEMA,
+    thresholdVersion: VISUAL_THRESHOLD_VERSION,
+    status: captures.every((capture) => capture.result.status === "passed") ? "passed" : "failed",
+    captureCount: captures.length,
+    captures,
+    nonLiveGuarantees: nonLiveGuarantees()
+  };
+
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
+  record("browser_visual_metrics_manifest_written", true);
+  record("browser_visual_metrics_manifest_capture_count", captures.length === 7, String(captures.length));
+  record("browser_visual_metrics_all_thresholds_passed", manifest.status === "passed", manifest.status);
+
+  return manifestPath;
+}
+
+function formatScreenshotArtifact(screenshot) {
+  return {
+    name: screenshot.name,
+    filePath: screenshot.filePath,
+    width: screenshot.width,
+    height: screenshot.height,
+    pngBytes: screenshot.pngBytes,
+    routeId: screenshot.routeId,
+    thresholdStatus: screenshot.thresholdStatus,
+    metrics: {
+      uniqueSampledColors: screenshot.uniqueSampledColors,
+      nonLightRatio: screenshot.nonLightRatio,
+      edgeRatio: screenshot.edgeRatio,
+      luminanceStdDev: screenshot.luminanceStdDev
+    }
   };
 }
 
@@ -1178,6 +1427,7 @@ async function readBrowserLayout(browser, context) {
         const rect = element.getBoundingClientRect();
         return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
       };
+      const routeElement = document.querySelector("[data-ui-smoke]");
       const overlapArea = (a, b) => {
         const width = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
         const height = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
@@ -1209,6 +1459,9 @@ async function readBrowserLayout(browser, context) {
         title: document.title,
         text: bodyText,
         documentLang: document.documentElement.lang,
+        routeId:
+          routeElement?.getAttribute("data-ui-smoke") ??
+          (document.querySelector('form[action="/auth/login"]') ? "login-screen" : "unknown"),
         innerWidth: window.innerWidth,
         innerHeight: window.innerHeight,
         scrollY: window.scrollY,
@@ -1248,8 +1501,12 @@ async function readBrowserLayout(browser, context) {
 }
 
 function assertBrowserLayout(name, layout, input) {
+  const expectedRouteId = expectedRouteIdForCapture(input);
   record(`${name}_browser_viewport_width`, layout.innerWidth === input.width, `${layout.innerWidth}`);
   record(`${name}_browser_viewport_height`, layout.innerHeight === input.height, `${layout.innerHeight}`);
+  if (expectedRouteId) {
+    record(`${name}_browser_route_id`, layout.routeId === expectedRouteId, `${layout.routeId}`);
+  }
   const minimumReadableTextLength = input.expectOperationalConsole || input.expectRomaniaRoute ? 100 : 40;
   record(`${name}_browser_has_readable_text`, layout.text.length > minimumReadableTextLength, `${layout.text.length}`);
   record(`${name}_browser_has_no_certification_claims`, layout.certificationClaim === false);
@@ -1276,6 +1533,9 @@ function assertBrowserLayout(name, layout, input) {
     record(`${name}_browser_romania_route_no_direct_dnsc_submit_command`, layout.romania.directDnscSubmitCommand === false);
   } else {
     record(`${name}_browser_login_without_console_marker`, layout.hasOperationalConsole === false);
+    if (input.expectLoginScreen) {
+      record(`${name}_browser_login_route_marker`, layout.routeId === "login-screen", layout.routeId);
+    }
   }
 
   for (const expected of input.expectedText ?? []) {
@@ -2302,9 +2562,11 @@ function analyzePngScreenshot(filePath) {
   }
 
   const sampleStride = Math.max(1, Math.floor((width * height) / 6_000));
-  const uniqueColors = new Set();
+  const uniqueColors = new Map();
   let nonLightSamples = 0;
   let samples = 0;
+  let luminanceSum = 0;
+  let luminanceSquaredSum = 0;
 
   for (let pixelIndex = 0; pixelIndex < width * height; pixelIndex += sampleStride) {
     const offsetForPixel = pixelIndex * bytesPerPixel;
@@ -2316,20 +2578,58 @@ function analyzePngScreenshot(filePath) {
       continue;
     }
 
-    uniqueColors.add(`${red >> 4}-${green >> 4}-${blue >> 4}`);
-    const lightness = (red + green + blue) / 3;
+    const colorBucket = `${red >> 4}-${green >> 4}-${blue >> 4}`;
+    uniqueColors.set(colorBucket, (uniqueColors.get(colorBucket) ?? 0) + 1);
+    const lightness = luminance(red, green, blue);
     if (lightness < 238) {
       nonLightSamples += 1;
     }
+    luminanceSum += lightness;
+    luminanceSquaredSum += lightness * lightness;
     samples += 1;
   }
 
+  const edgeStepX = Math.max(1, Math.floor(width / 120));
+  const edgeStepY = Math.max(1, Math.floor(height / 80));
+  let edgeComparisons = 0;
+  let edgeTransitions = 0;
+  for (let y = 0; y < height - 1; y += edgeStepY) {
+    for (let x = 0; x < width - 1; x += edgeStepX) {
+      const current = pixelLuminance(pixels, bytesPerPixel, width, x, y);
+      const right = pixelLuminance(pixels, bytesPerPixel, width, Math.min(width - 1, x + edgeStepX), y);
+      const down = pixelLuminance(pixels, bytesPerPixel, width, x, Math.min(height - 1, y + edgeStepY));
+      if (Math.abs(current - right) > 10 || Math.abs(current - down) > 10) {
+        edgeTransitions += 1;
+      }
+      edgeComparisons += 1;
+    }
+  }
+
+  const luminanceMean = samples > 0 ? luminanceSum / samples : 0;
+  const luminanceVariance = samples > 0 ? Math.max(0, luminanceSquaredSum / samples - luminanceMean * luminanceMean) : 0;
+  const dominantColorCount = Math.max(0, ...uniqueColors.values());
+
   return {
+    byteLength: png.length,
     width,
     height,
+    sampledPixelCount: samples,
     uniqueSampledColors: uniqueColors.size,
-    nonLightRatio: samples > 0 ? Number((nonLightSamples / samples).toFixed(4)) : 0
+    dominantColorRatio: samples > 0 ? Number((dominantColorCount / samples).toFixed(4)) : 1,
+    nonLightRatio: samples > 0 ? Number((nonLightSamples / samples).toFixed(4)) : 0,
+    edgeRatio: edgeComparisons > 0 ? Number((edgeTransitions / edgeComparisons).toFixed(4)) : 0,
+    luminanceMean: Number(luminanceMean.toFixed(2)),
+    luminanceStdDev: Number(Math.sqrt(luminanceVariance).toFixed(2))
   };
+}
+
+function pixelLuminance(pixels, bytesPerPixel, width, x, y) {
+  const offsetForPixel = (y * width + x) * bytesPerPixel;
+  return luminance(pixels[offsetForPixel] ?? 0, pixels[offsetForPixel + 1] ?? 0, pixels[offsetForPixel + 2] ?? 0);
+}
+
+function luminance(red, green, blue) {
+  return 0.2126 * red + 0.7152 * green + 0.0722 * blue;
 }
 
 function pngFilterPrediction(filterType, left, up, upLeft) {

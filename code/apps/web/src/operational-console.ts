@@ -136,7 +136,7 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
-    '<main class="ps-content" id="content" tabindex="-1">',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="login-screen">',
     '<section class="ps-section" aria-labelledby="login-title">',
     '<div class="ps-section__header">',
     `<div><h1 class="ps-section__title" id="login-title">${escapeHtml(copy.signIn)}</h1><p class="ps-muted">${escapeHtml(copy.internalReadinessConsole)}</p></div>`,
