@@ -25,7 +25,7 @@ pnpm drift:regulatory
 
 `drift:schema` parses `packages/database/prisma/schema.prisma` and checks selected high-risk persisted models against explicit field expectations for audit, provider telemetry, compliance outputs, evidence, evidence links, billing, regulatory review, remediation actions, generated reports, report exports, dashboard snapshots, dashboard widgets, and notification drafts. This is deliberately selected drift coverage, not exhaustive validation for every Prisma model.
 
-`drift:regulatory` regenerates Romania NIS2 seed and source-map artifacts in memory from `data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx` and compares them with the checked-in generated JSON. It does not fetch public regulatory URLs or activate legal logic.
+`drift:regulatory` regenerates Romania NIS2 seed, source-map, and import-report artifacts in memory from `data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx` and compares them with the checked-in generated JSON. It does not fetch public regulatory URLs or activate legal logic.
 
 ## Prisma
 

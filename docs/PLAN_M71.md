@@ -4,8 +4,9 @@
 
 Decide and encode whether the generated Romania workbook import report is lint-gated drift output or an explicitly diagnostic artifact.
 
-Status: staged.
+Status: completed.
 Created: 2026-05-04.
+Completed: 2026-05-04.
 
 ## Source Inputs
 
@@ -94,4 +95,57 @@ If `pnpm` is not available, run host-node/npm equivalents and record the substit
 
 ## Completion Log
 
-Not started.
+Completed 2026-05-04.
+
+Decision:
+
+- `ro-nis2-import-report.generated.json` is deterministic enough to be lint-gated with the Romania generated seed and source-map artifacts.
+- The report remains reviewer/import evidence only. This work does not activate Romania legal logic, approve Romanian legal/regulatory copy, fetch public regulatory URLs, or prepare DNSC submission.
+
+Implementation summary:
+
+- Extended `code/scripts/check-generated-regulatory-drift.ts` so `pnpm drift:regulatory` regenerates and compares the Romania generated import report in memory.
+- Updated `code/tests/drift-checks.spec.ts` to expect three checked Romania artifacts and to prove import-report content mismatches are treated as generated-data drift.
+- Updated `code/README.md` so lint/drift documentation names the seed, source-map, and import-report artifacts.
+- Updated the plan, prompt queue, gap register, learnings, and Codex status handoff for the M71-M77 batch.
+- Created `docs/PLAN_M72.md` through `docs/PLAN_M77.md` as completed app-side handoff milestones and `docs/PLAN_M78.md` as the next outside-app execution prompt.
+
+Changed files:
+
+- `code/scripts/check-generated-regulatory-drift.ts`
+- `code/tests/drift-checks.spec.ts`
+- `code/README.md`
+- `docs/PLAN.md`
+- `docs/PLAN_M71.md`
+- `docs/PLAN_M72.md`
+- `docs/PLAN_M73.md`
+- `docs/PLAN_M74.md`
+- `docs/PLAN_M75.md`
+- `docs/PLAN_M76.md`
+- `docs/PLAN_M77.md`
+- `docs/PLAN_M78.md`
+- `docs/codex-prompts.md`
+- `docs/codex_status.md`
+- `docs/implementation-gaps.md`
+- `docs/LEARNINGS.md`
+
+Validation results:
+
+- `npm run drift:regulatory`: passed, 3 artifacts checked.
+- `npm run test -- drift-checks.spec.ts`: passed, 1 file / 7 tests.
+- `npm run lint`: passed, schema drift 32 models / 464 fields and regulatory drift 3 artifacts.
+- `npm run test`: passed, 83 files / 359 tests.
+- `docker compose -f infra/compose/docker-compose.yml config`: passed.
+- `npm run external-smoke:readiness`: passed in dry-run metadata mode, `ready_for_disposable_smoke=0`.
+- `npm run external-smoke:select-target`: passed with `outcome=no_ready_path`, `selectedPathId=null`, `readyCandidateCount=0`.
+- `git diff --check`: passed.
+
+Gap updates:
+
+- GAP-041 narrowed for lint-gated Romania import-report drift coverage.
+- GAP-006, GAP-012, GAP-028, GAP-029, GAP-040, and GAP-044 were updated with app-side handoff/remediation notes while preserving their open production/external blockers.
+
+Residual risk:
+
+- No live Stripe, Microsoft 365, OIDC, object-storage/scanner, KMS/HSM/secret-manager, public regulatory URL, production deployment, or provider write path was called.
+- The next milestone must move outside the app with operator-provided disposable/test resources instead of adding more internal readiness scaffolding.

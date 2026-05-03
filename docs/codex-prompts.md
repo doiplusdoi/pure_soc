@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing PLAN_M70, narrowing selected output metadata schema drift coverage, and staging Prompt 70 / `docs/PLAN_M71.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing the M71-M77 batch, lint-gating the Romania import report, recording app-side operator handoffs, and staging Prompt 77 / `docs/PLAN_M78.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -100,6 +100,8 @@ The repository currently contains:
 - PLAN_M68 browser smoke artifact index baseline: `@browser-smoke` writes `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` when Firefox WebDriver BiDi is available, summarizing screenshot filenames, visual metrics, M67 anchor-driven section captures, M66 keyboard/pointer anchor workflows, route traversal, browser auth/session status, checks, and no-live-call guarantees without embedding PNG bytes, raw session values, secrets, endpoint URLs, provider payloads, storage URIs, or full user emails.
 - PLAN_M69 served UI smoke artifact index baseline: `@ui-smoke` writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` beside deterministic HTML snapshots, summarizing dashboard/workspace/Romania snapshot filenames and hashes, route/source metadata, API-backed dashboard proof, auth/cookie/Origin/callback-exemption checks, check status, and no-live-call guarantees without embedding HTML bodies, session cookies, raw emails, local port-bearing URLs, secrets, provider payloads, storage URIs, external URLs, direct DNSC submission, or certification claims.
 - PLAN_M70 selected output drift coverage expansion: `pnpm lint` now checks selected Prisma field/type/map expectations for `EvidenceLink`, `ReportExport`, and `DashboardWidget` output metadata, raising the schema drift check to 32 selected models and 464 fields without changing Prisma schema, migrations, runtime repositories, UI, live databases, external services, or provider writes.
+- PLAN_M71 Romania import report drift posture: `pnpm lint` now checks the generated Romania seed, source-map, and import-report artifacts against deterministic in-memory importer output without fetching public regulatory URLs or activating legal logic.
+- PLAN_M72-M77 app-side product-finish handoffs: Stripe test-mode target selection, Romania legal review SOP, customer-shaped Romania readiness flow, billing product decision template, evidence runtime disposable smoke, and Microsoft 365 read-only disposable tenant smoke are documented as operator/product handoffs. No live Stripe, Microsoft Graph, object storage, scanner, KMS/HSM/secret-manager, OIDC provider, public regulatory URL, production deployment, or provider write path was called.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -177,7 +179,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 67 / `docs/PLAN_M68.md` is completed.
 - Prompt 68 / `docs/PLAN_M69.md` is completed.
 - Prompt 69 / `docs/PLAN_M70.md` is completed.
-- Prompt 70 / `docs/PLAN_M71.md` is staged as the next active implementation prompt.
+- Prompt 70 / `docs/PLAN_M71.md` through Prompt 76 / `docs/PLAN_M77.md` are completed.
+- Prompt 77 / `docs/PLAN_M78.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -192,11 +195,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 70 / `docs/PLAN_M71.md`: Romania Import Report Drift Posture.
+1. Prompt 77 / `docs/PLAN_M78.md`: Outside-App Stripe, Microsoft 365, And KMS Target Execution.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, or customer-impacting external calls by default. M71 must stay fully in-repo: decide and implement or explicitly document the deterministic drift posture for the generated Romania workbook import report artifact without invoking live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, provider write executors, or Prisma migrations.
+Do not enable live provider writes, Microsoft Graph write/remediation actions, direct authority submission, production/customer targets, or broad multi-target external execution. M78 must configure and run exactly one approved outside-app target only when the existing selector chooses a single ready path, or record the concrete blocker if no target is ready. Stripe test-mode, Microsoft 365 read-only tenant smoke, and provider-token custody/KMS are the candidate tracks; the current repository does not contain a real KMS/HSM/secret-manager adapter, so KMS work must not be claimed as live custody proof unless a real adapter and non-production custody target are explicitly implemented and selected.
 
-## Active Prompt 70 / PLAN_M71: Romania Import Report Drift Posture
+## Active Prompt 77 / PLAN_M78: Outside-App Stripe, Microsoft 365, And KMS Target Execution
 
 Read:
 
@@ -205,79 +208,158 @@ Read:
 - `docs/implementation-gaps.md`
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
-- `docs/prompt-tests.md`
-- `docs/PLAN_M70.md`
-- `docs/threat-model.md`
-- `code/scripts/check-generated-regulatory-drift.ts`
-- `code/apps/regulatory-importer/src/ro`
-- `code/data/regulatory/countries/ro/ro-nis2-import-report.generated.json`
-- `code/data/regulatory/countries/ro/ro-nis2.seed.generated.json`
-- `code/data/regulatory/countries/ro/ro-nis2-source-map.generated.json`
-- `code/tests/drift-checks.spec.ts`
+- `docs/codex_status.md`
+- `docs/PLAN_M72.md`
+- `docs/PLAN_M77.md`
+- `docs/PLAN_M48.md`
 - `code/package.json`
-- `code/README.md`
+- `code/scripts/external-smoke-readiness.ts`
+- `code/scripts/external-smoke-target-selection.ts`
+- `code/scripts/stripe-test-mode-smoke.ts`
+- `code/scripts/microsoft365-read-only-smoke.ts`
+- `code/scripts/provider-token-rotation-smoke.ts`
 
 Goal:
 
-Narrow GAP-041 by deciding whether the generated Romania workbook import report should be lint-gated like the seed/source-map artifacts or remain an explicitly diagnostic artifact, then encode that posture in deterministic checks and docs.
+Break the current external-proof deadlock by using operator-provided external resources to configure, select, and run exactly one approved disposable/test outside-app target, or document why no target can run yet.
 
 Deliverables:
 
-- Inspect the current Romania importer output path and determine if `ro-nis2-import-report.generated.json` is deterministic enough to become part of `pnpm drift:regulatory`.
-- If deterministic, extend `code/scripts/check-generated-regulatory-drift.ts` and tests so the import report artifact is compared without public URL fetches or legal activation.
-- If not deterministic or intentionally diagnostic, add an explicit documented exclusion and a focused regression test that prevents accidental silent claims of lint coverage.
-- Update GAP-041 and handoff docs with the chosen posture.
-- Create `docs/PLAN_M72.md` from the next selected active prompt before final response.
+- Confirm which single target is actually prepared outside the app: Stripe test-mode, Microsoft 365 read-only disposable tenant, or provider-token custody/KMS.
+- Set only that target's guardrail environment variables.
+- Run `npm run external-smoke:readiness` and `npm run external-smoke:select-target` from `code/`.
+- If and only if the selector chooses exactly one ready path, run only the selected smoke command.
+- Capture a redacted result or blocker in `docs/codex_status.md`, `docs/PLAN_M78.md`, `docs/implementation-gaps.md`, and `docs/LEARNINGS.md`.
+- If KMS is selected but no real adapter exists, write the concrete real-custody adapter/runbook prompt instead of claiming live KMS proof.
 
 Expected files:
 
-- `code/scripts/check-generated-regulatory-drift.ts`
-- `code/tests/drift-checks.spec.ts`
-- `code/README.md`
-- `docs/PLAN.md`
-- `docs/PLAN_M71.md`
-- `docs/PLAN_M72.md`
-- `docs/codex-prompts.md`
+- `docs/PLAN_M78.md`
+- `docs/codex_status.md`
 - `docs/implementation-gaps.md`
 - `docs/LEARNINGS.md`
+- Code files only if the selected outside-app target exposes a concrete defect that must be fixed.
 
 Negative constraints:
 
-- Do not change workbook-derived legal logic, Romania classifier behavior, country-pack activation status, or source-map semantics.
-- Do not fetch public regulatory URLs or treat generated Romania legal logic as active.
-- Do not add new migrations, live database access, generated Prisma client changes, runtime repository rewrites, UI changes, or external smoke calls.
-- Do not broaden generated-data drift coverage beyond the Romania import report posture decision.
-- Do not call live PostgreSQL, Redis, Microsoft Graph, Stripe, OIDC/OAuth providers, object storage, scanners, KMS/HSM/secret-manager/cloud APIs, public regulatory URLs, production/staging/customer deployments, external smoke commands, or provider write executors.
-- Do not weaken existing Romania seed/source-map drift checks, generated source maps, legal caveats, review-required activation posture, or no-live-call assertions.
+- Do not run more than one live candidate in one pass.
+- Do not use production, staging, customer, public-unknown, or long-lived shared targets.
+- Do not print secrets, tokens, tenant IDs, webhook secrets, endpoint URLs, storage URIs, object keys, full provider IDs, authorization codes, cookies, or key material.
+- Do not enable provider writes or Microsoft Graph write scopes.
+- Do not call KMS/HSM/secret-manager APIs unless a real non-production custody target and adapter are explicitly selected and guarded.
+- Do not treat dry-run readiness as live proof.
 
 Tests and acceptance commands:
 
 Run from `code/`:
 
 ```sh
-pnpm lint
-pnpm test -- regulatory drift ro import report
+npm run external-smoke:readiness
+npm run external-smoke:select-target
+```
+
+Then run exactly one selected command only if the selector chooses a single ready path:
+
+```sh
+npm run stripe:smoke:test-mode
+npm run microsoft365:smoke:read-only
+npm run provider-token:smoke
+```
+
+Run normal repository acceptance after any code changes:
+
+```sh
+npm run lint
+npm run test
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If `pnpm` is not available, use host-node/npm equivalents and record the substitution in `docs/PLAN_M71.md`.
-
 Expected gap movement:
 
-- Narrow GAP-041 for the generated Romania import report artifact posture.
-- Preserve GAP-006, GAP-031, GAP-042, and GAP-044; this prompt must not change legal activation/reviewer policy, UI smoke/browser behavior, legal/regulatory copy, or external live-smoke posture.
+- GAP-044 should move only if one selected external smoke actually runs.
+- GAP-028 moves if Stripe test-mode runs.
+- The deferred Microsoft live-smoke portion of GAP-007 moves if Microsoft 365 read-only tenant smoke runs.
+- GAP-040 moves only if a real custody backend or concrete adapter/runbook decision is implemented; local/fake custody must not be described as KMS proof.
 
 Final response must include:
 
-- Changed files
-- Tests run
-- Acceptance status
+- Selected target or blocker
+- Commands run
+- Whether any live external call was made
+- Redaction posture
 - Gaps updated
-- `PLAN_M71` updated
-- `PLAN_M72` created
-- Codex prompts updated
-- Residual risk
+- Residual risk and next milestone
+
+## Completed Prompt 76 / PLAN_M77: Microsoft 365 Read-Only Disposable Tenant Smoke Handoff
+
+Completed on 2026-05-04.
+
+Summary:
+- Added the outside-app Microsoft 365 read-only disposable tenant checklist with app registration, read-only admin consent, known license/service-plan state, selector-first execution, module degradation expectations, and no Graph write scopes.
+- No Microsoft Graph call, tenant consent, token exchange, or provider write path was executed.
+
+GAP-044 and the deferred Microsoft live-smoke portion of GAP-007 remain open until an approved disposable/test tenant is configured, selected, and executed. GAP-033 remains open for collaboration/Purview read-module expansion.
+
+## Completed Prompt 75 / PLAN_M76: Evidence Runtime Disposable Smoke Handoff
+
+Completed on 2026-05-04.
+
+Summary:
+- Added the outside-app evidence runtime checklist for disposable MinIO/S3-compatible storage, restricted credentials, scanner endpoint, report renderer, cleanup policy, generated-report evidence, access logging, CSV status, and binary bundle status.
+- No object storage, scanner, report renderer, or browser/PDF service was called.
+
+GAP-029 and GAP-044 remain open until approved disposable runtime services are configured, selected, and executed.
+
+## Completed Prompt 74 / PLAN_M75: Billing Product Decision Handoff
+
+Completed on 2026-05-04.
+
+Summary:
+- Added a product decision template for plan names, billing intervals, limits, entitlements, trial policy, upgrade/downgrade behavior, Stripe price mappings, portal policy, and launch support.
+- No production pricing or Stripe product truth was invented.
+
+GAP-012 remains open until product approves packaging and Stripe mappings.
+
+## Completed Prompt 73 / PLAN_M74: Customer-Shaped Romania Readiness Flow Handoff
+
+Completed on 2026-05-04.
+
+Summary:
+- Defined the V1 customer-shaped Romania readiness path from login/workspace selection through onboarding, classification, readiness plan, read-only Microsoft posture, gaps, evidence, report/export, billing state, and audit trail.
+- Identified remaining app gaps for persisted wizard state, report/export UI flow, billing entitlement visibility, and customer-grade frontend runtime.
+
+## Completed Prompt 72 / PLAN_M73: Romania Legal Review SOP And Activation Checklist
+
+Completed on 2026-05-04.
+
+Summary:
+- Added the reviewer roles, required review evidence, approval delegation, escalation, activation acceptance, and rollback/supersession checklist for Romania source-derived country-pack/control changes.
+- No Romania legal logic was activated and no Romanian legal/regulatory copy was approved.
+
+GAP-006 remains open until product/legal assigns reviewers, approves the SOP, and production activation UI/operations are ready.
+
+## Completed Prompt 71 / PLAN_M72: Live-Smoke Target Selection And Stripe Test-Mode Handoff
+
+Completed on 2026-05-04.
+
+Summary:
+- Added the Stripe test-mode outside-app checklist with `sk_test_*`, webhook secret, test price IDs, portal setup, selector-first execution, disposable target confirmation, and no-live-key constraints.
+- No live Stripe account, webhook delivery, or customer portal was exercised.
+
+GAP-028 and GAP-044 remain open until approved Stripe test-mode resources are configured, selected, and executed.
+
+## Completed Prompt 70 / PLAN_M71: Romania Import Report Drift Posture
+
+Completed on 2026-05-04.
+
+Summary:
+- Added `ro-nis2-import-report.generated.json` to the deterministic Romania generated-data drift check.
+- `pnpm lint` now checks Romania generated seed, source-map, and import-report artifacts against in-memory importer output.
+- Added focused tests for three checked artifacts and import-report mismatch detection.
+- No public regulatory URLs were fetched and no source-derived Romania legal logic was activated.
+
+GAP-041 is narrowed for lint-gated Romania import-report drift coverage.
 
 ## Completed Prompt 69 / PLAN_M70: Selected Output Drift Coverage Expansion
 

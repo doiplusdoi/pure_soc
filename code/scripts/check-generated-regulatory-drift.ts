@@ -64,6 +64,10 @@ export const checkRoNis2GeneratedDataDrift = (input: {
     {
       artifactPath: join(outputDirectory, "ro-nis2-source-map.generated.json"),
       expectedText: stableStringify(artifacts.sourceMap)
+    },
+    {
+      artifactPath: join(outputDirectory, "ro-nis2-import-report.generated.json"),
+      expectedText: stableStringify(artifacts.report)
     }
   ];
 

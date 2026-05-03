@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-04, M1-M70 are implemented at contract/runtime-baseline level.
+As of 2026-05-04, M1-M77 are implemented at contract/runtime-baseline or app-side handoff level, with outside-app Stripe, Microsoft 365, and KMS work staged for M78.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -79,8 +79,15 @@ As of 2026-05-04, M1-M70 are implemented at contract/runtime-baseline level.
 - M68 adds a secret-free Firefox browser-smoke artifact index beside the visual metrics manifest. When Firefox WebDriver BiDi is available, `@browser-smoke` writes `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` with screenshot filenames, visual threshold status, M67 anchor-driven section capture summaries, M66 keyboard/pointer anchor workflows, route traversal summaries, browser auth/session status, passed check count/names, and no-live-call guarantees without embedding PNG bytes, raw session values, secrets, raw provider payloads, storage URIs, external endpoint URLs, or full user emails.
 - M69 adds a secret-free served UI smoke artifact index beside deterministic HTML snapshots. `@ui-smoke` now writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json` with dashboard/workspace/Romania snapshot filenames and hashes, route/source metadata, API-backed dashboard proof, auth/cookie/Origin/callback-exemption summaries, passed check count/names, and no-live-call guarantees without embedding HTML bodies, session cookies, raw emails, local port-bearing endpoint URLs, secrets, raw provider payloads, storage URIs, external URLs, direct DNSC submission, or certification claims.
 - M70 expands selected Prisma schema drift coverage for already-modeled output metadata. `pnpm lint` now checks `EvidenceLink`, `ReportExport`, and `DashboardWidget` field mappings and types in addition to the existing audit, provider, compliance, evidence, billing, regulatory review, remediation, generated report, dashboard snapshot, and notification-draft surfaces. The check covers 32 selected models and 464 fields without changing the Prisma schema, generating migrations, calling live databases, or broadening into exhaustive schema coverage.
+- M71 adds the generated Romania workbook import report to the deterministic generated-data drift gate. `pnpm lint` now checks `ro-nis2.seed.generated.json`, `ro-nis2-source-map.generated.json`, and `ro-nis2-import-report.generated.json` against in-memory importer output without fetching public regulatory URLs or activating legal logic.
+- M72 records the Stripe test-mode outside-app handoff: one disposable/test Stripe target, `sk_test_*` only, real webhook signing secret, non-placeholder test price IDs, selector gate first, and no live-key or production/customer data usage.
+- M73 records the Romania legal review SOP and activation checklist: reviewer roles, evidence requirements, approval delegation, escalation, audited activation, and no self-approval by the technical importer owner.
+- M74 records the customer-shaped Romania readiness flow for V1: login/workspace, Romania onboarding, classification/draft/readiness plan, read-only Microsoft posture, gaps/evidence/report/billing/audit, and remaining app runtime gaps.
+- M75 records the billing product decision template for packaging, entitlements, limits, trial/downgrade rules, Stripe price mappings, portal policy, and launch support before production billing activation.
+- M76 records the evidence runtime disposable-smoke handoff for MinIO/S3-compatible storage, scanner, report renderer, generated-report evidence, access logs, CSV status, and binary bundle status.
+- M77 records the Microsoft 365 read-only disposable tenant smoke handoff with read-only permission bundles only, module degradation expectations, no production tenant, and no provider remediation or Graph write scopes.
 - Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, committed golden-image/pixel-diff review, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M71.md`, focused on deciding and implementing or documenting the drift posture for the generated Romania workbook import report artifact without live services or legal activation.
+- Next planned milestone: `docs/PLAN_M78.md`, focused on moving outside the app with exactly one approved disposable/test target for Stripe test-mode, Microsoft 365 read-only tenant smoke, or a real provider-token custody/KMS path without live provider writes.
 
 ## Milestones
 
@@ -101,8 +108,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M70.md` record completed incremental milestones.
-- `docs/PLAN_M71.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M77.md` record completed incremental milestones or completed app-side handoffs.
+- `docs/PLAN_M78.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

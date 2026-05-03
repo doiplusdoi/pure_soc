@@ -96,12 +96,12 @@ model Fixture {
     expect(formatPrismaContractDriftResult(result)).toContain("Fixture.count has type Int");
   });
 
-  it("passes Romania generated seed and source-map drift checks against importer output", () => {
+  it("passes Romania generated seed, source-map, and import-report drift checks against importer output", () => {
     const result = checkRoNis2GeneratedDataDrift();
 
     expect(formatGeneratedDataDriftResult(result)).toContain("Romania generated regulatory drift check passed");
     expect(result).toMatchObject({
-      checkedArtifacts: 2,
+      checkedArtifacts: 3,
       issues: [],
       valid: true
     });
@@ -119,5 +119,19 @@ model Fixture {
       kind: "content_mismatch"
     });
     expect(issue?.actualHash).not.toBe(issue?.expectedHash);
+  });
+
+  it("treats the Romania import report as a lint-gated generated-data artifact", () => {
+    const issue = compareGeneratedArtifactText({
+      actualText: "{\n  \"status\": \"changed\"\n}\n",
+      artifactPath: "data/regulatory/countries/ro/ro-nis2-import-report.generated.json",
+      expectedText: "{\n  \"status\": \"validated\"\n}\n"
+    });
+
+    expect(issue).toMatchObject({
+      artifactPath: "data/regulatory/countries/ro/ro-nis2-import-report.generated.json",
+      kind: "content_mismatch"
+    });
+    expect(issue?.message).toContain("does not match deterministic importer output");
   });
 });
