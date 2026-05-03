@@ -461,13 +461,13 @@ const resolveOperationalConsoleCopy = (locale?: string | null): OperationalConso
 
 const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string => {
   const items = [
-    [copy.dashboard, "#dashboard"],
-    ["Onboarding", "#onboarding"],
-    ["Romania onboarding", "/onboarding/romania?locale=ro-RO"],
-    ["Microsoft 365", "#microsoft365"],
-    ["Gaps", "#gaps"],
-    [copy.evidenceReports, "#evidence"],
-    [copy.approvalQueue, "#approvals"]
+    { label: copy.dashboard, href: "#dashboard", action: "open-dashboard-anchor" },
+    { label: "Onboarding", href: "#onboarding", action: "open-onboarding-anchor" },
+    { label: "Romania onboarding", href: "/onboarding/romania?locale=ro-RO", action: "open-romania-onboarding" },
+    { label: "Microsoft 365", href: "#microsoft365", action: "open-microsoft365-anchor" },
+    { label: "Gaps", href: "#gaps", action: "open-gaps-anchor" },
+    { label: copy.evidenceReports, href: "#evidence", action: "open-evidence-reports-anchor" },
+    { label: copy.approvalQueue, href: "#approvals", action: "open-approval-queue-anchor" }
   ] as const;
 
   return [
@@ -477,10 +477,10 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
     renderStatusPill({ label: copy.internalReadiness, tone: "accent" }),
     "</div>",
     '<nav class="ps-nav">',
-    ...items.map(([label, href], index) => {
-      const action = href.startsWith("/onboarding/romania") ? ' data-ui-action="open-romania-onboarding"' : "";
-      return `<a class="ps-nav__link" href="${href}"${index === 0 ? ' aria-current="page"' : ""}${action}><span>${escapeHtml(label)}</span><span aria-hidden="true">&rsaquo;</span></a>`;
-    }),
+    ...items.map(
+      (item, index) =>
+        `<a class="ps-nav__link" href="${item.href}"${index === 0 ? ' aria-current="page"' : ""} data-ui-action="${item.action}"><span>${escapeHtml(item.label)}</span><span aria-hidden="true">&rsaquo;</span></a>`
+    ),
     "</nav>",
     "</aside>"
   ].join("");
@@ -859,7 +859,7 @@ const renderFactPanel = (title: string, value: string): string =>
 
 const renderSection = ({ id, title, eyebrow, body }: { id: string; title: string; eyebrow: string; body: string }): string =>
   [
-    `<section class="ps-section" id="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-title">`,
+    `<section class="ps-section" id="${escapeHtml(id)}" data-ui-section="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-title">`,
     '<div class="ps-section__header">',
     `<h2 class="ps-section__title" id="${escapeHtml(id)}-title">${escapeHtml(title)}</h2>`,
     eyebrow,

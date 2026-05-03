@@ -54,6 +54,56 @@ const VISUAL_THRESHOLDS_BY_CAPTURE = {
     maxDominantColorRatio: 0.99
   }
 };
+const OPERATIONAL_CONSOLE_ANCHORS = [
+  {
+    id: "dashboard",
+    action: "open-dashboard-anchor",
+    href: "#dashboard",
+    sectionSelector: "#dashboard",
+    hash: "#dashboard",
+    expectedText: ["Overall internal readiness", "dashboard_snapshots"]
+  },
+  {
+    id: "onboarding",
+    action: "open-onboarding-anchor",
+    href: "#onboarding",
+    sectionSelector: "#onboarding",
+    hash: "#onboarding",
+    expectedText: ["Onboarding And Country Packs", "Country pack status"]
+  },
+  {
+    id: "microsoft365",
+    action: "open-microsoft365-anchor",
+    href: "#microsoft365",
+    sectionSelector: "#microsoft365",
+    hash: "#microsoft365",
+    expectedText: ["Microsoft 365 Connection Health", "Microsoft module health"]
+  },
+  {
+    id: "gaps",
+    action: "open-gaps-anchor",
+    href: "#gaps",
+    sectionSelector: "#gaps",
+    hash: "#gaps",
+    expectedText: ["Gaps And Recommendations", "Recommendation backlog"]
+  },
+  {
+    id: "evidence",
+    action: "open-evidence-reports-anchor",
+    href: "#evidence",
+    sectionSelector: "#evidence",
+    hash: "#evidence",
+    expectedText: ["Evidence And Reports", "Internal readiness report"]
+  },
+  {
+    id: "approvals",
+    action: "open-approval-queue-anchor",
+    href: "#approvals",
+    sectionSelector: "#approvals",
+    hash: "#approvals",
+    expectedText: ["Approval Queue", "Provider write execution remains disabled"]
+  }
+];
 
 if (smokeMode === "ui") {
   await runServedUiSmoke();
@@ -355,6 +405,10 @@ async function runBrowserSmoke() {
     browser = await startFirefoxBidiBrowser(firefoxPath);
     const context = await createBrowserContext(browser);
     await assertBrowserWebRuntimeLogin(browser, context, webBaseUrl, apiBackedDashboard);
+    const anchorNavigation = {
+      keyboard: await assertBrowserOperationalConsoleAnchorKeyboardNavigation(browser, context, webBaseUrl),
+      pointer: await assertBrowserOperationalConsoleAnchorPointerNavigation(browser, context, webBaseUrl)
+    };
     const keyboardNavigation = await assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl);
     const pointerNavigation = await assertBrowserRoutePointerNavigation(browser, context, webBaseUrl);
     const routeNavigation = {
@@ -491,6 +545,7 @@ async function runBrowserSmoke() {
             screenshots: screenshots.map(formatScreenshotArtifact),
             visualMetricsManifest
           },
+          anchorNavigation,
           routeNavigation,
           browserAuth,
           checks: checkNames(),
@@ -1547,6 +1602,211 @@ function assertBrowserLayout(name, layout, input) {
   }
 }
 
+async function assertBrowserOperationalConsoleAnchorKeyboardNavigation(browser, context, webBaseUrl) {
+  await prepareOperationalConsoleAnchorStart(browser, context, webBaseUrl, "keyboard_anchor_skip_start");
+
+  await resetBrowserFocus(browser, context);
+  await pressBrowserKey(browser, context, "Tab");
+  const dashboardSkipFocused = await readBrowserFocusSnapshot(browser, context);
+  record(
+    "browser_keyboard_anchor_dashboard_skip_link_focused_by_tab",
+    dashboardSkipFocused.dataAction === "skip-to-content" && dashboardSkipFocused.href.endsWith("#content"),
+    JSON.stringify(dashboardSkipFocused)
+  );
+  await pressBrowserKey(browser, context, "Enter");
+  const dashboardSkipTarget = await waitForBrowserState(
+    browser,
+    context,
+    `(() => {
+      const active = document.activeElement;
+      return JSON.stringify({
+        hash: location.hash,
+        activeId: active?.id ?? "",
+        routeMarker: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+        documentScrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+        certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(document.body.innerText)
+      });
+    })()`,
+    (candidate) => candidate.hash === "#content" && candidate.activeId === "content" && candidate.routeMarker === true,
+    "dashboard skip link operational-console anchor keyboard focus target",
+    5_000
+  );
+  record("browser_keyboard_anchor_dashboard_skip_link_moves_focus_to_content", dashboardSkipTarget.activeId === "content", JSON.stringify(dashboardSkipTarget));
+  record(
+    "browser_keyboard_anchor_dashboard_skip_link_no_horizontal_overflow",
+    dashboardSkipTarget.documentScrollWidth <= dashboardSkipTarget.innerWidth + 2,
+    JSON.stringify(dashboardSkipTarget)
+  );
+  record("browser_keyboard_anchor_dashboard_skip_link_no_certification_claims", dashboardSkipTarget.certificationClaim === false, JSON.stringify(dashboardSkipTarget));
+
+  const anchors = [];
+  for (const anchor of OPERATIONAL_CONSOLE_ANCHORS) {
+    await prepareOperationalConsoleAnchorStart(browser, context, webBaseUrl, `keyboard_anchor_${anchor.id}_start`);
+    const selector = operationalAnchorSelector(anchor);
+    const visibleTarget = await readBrowserPointerTarget(browser, context, selector, { ensureInViewport: false });
+    record(`browser_keyboard_anchor_${anchor.id}_visible_nav_link_present`, visibleTarget.visible === true, JSON.stringify(visibleTarget));
+    record(`browser_keyboard_anchor_${anchor.id}_visible_nav_link_not_script_scrolled`, visibleTarget.scrolledIntoView === false, JSON.stringify(visibleTarget));
+
+    const focused = await focusBrowserElement(browser, context, selector);
+    record(
+      `browser_keyboard_anchor_${anchor.id}_nav_link_focused`,
+      focused.dataAction === anchor.action && focused.href.endsWith(anchor.href),
+      JSON.stringify(focused)
+    );
+    record(`browser_keyboard_anchor_${anchor.id}_focus_target_has_bounds`, focused.bounds.width > 0 && focused.bounds.height > 0, JSON.stringify(focused));
+
+    await pressBrowserKey(browser, context, "Enter");
+    const state = await waitForOperationalConsoleAnchorState(browser, context, anchor, "keyboard");
+    assertOperationalConsoleAnchorState("keyboard", anchor, state);
+    anchors.push({
+      id: anchor.id,
+      action: focused.dataAction,
+      hash: state.hash,
+      scrollY: state.scrollY,
+      sectionTitle: state.sectionTitle
+    });
+  }
+
+  record("browser_keyboard_operational_anchor_navigation_preserves_no_live_call_posture", true);
+
+  return {
+    dashboardSkip: {
+      focusedByTab: dashboardSkipFocused.dataAction,
+      targetId: dashboardSkipTarget.activeId
+    },
+    anchors
+  };
+}
+
+async function assertBrowserOperationalConsoleAnchorPointerNavigation(browser, context, webBaseUrl) {
+  const anchors = [];
+
+  for (const anchor of OPERATIONAL_CONSOLE_ANCHORS) {
+    await prepareOperationalConsoleAnchorStart(browser, context, webBaseUrl, `pointer_anchor_${anchor.id}_start`);
+    const target = await clickBrowserElement(browser, context, operationalAnchorSelector(anchor), `anchor_${anchor.id}_nav_link`, {
+      ensureInViewport: false
+    });
+    record(
+      `browser_pointer_anchor_${anchor.id}_nav_link_clicked`,
+      target.dataAction === anchor.action && target.href.endsWith(anchor.href),
+      JSON.stringify(target)
+    );
+    record(`browser_pointer_anchor_${anchor.id}_click_used_visible_control_without_script_scroll`, target.scrolledIntoView === false, JSON.stringify(target));
+
+    const state = await waitForOperationalConsoleAnchorState(browser, context, anchor, "pointer");
+    assertOperationalConsoleAnchorState("pointer", anchor, state);
+    anchors.push({
+      id: anchor.id,
+      action: target.dataAction,
+      hash: state.hash,
+      scrollY: state.scrollY,
+      targetBounds: target.bounds,
+      sectionTitle: state.sectionTitle
+    });
+  }
+
+  record("browser_pointer_operational_anchor_navigation_preserves_no_live_call_posture", true);
+
+  return {
+    anchors
+  };
+}
+
+async function prepareOperationalConsoleAnchorStart(browser, context, webBaseUrl, label) {
+  await browser.command("browsingContext.setViewport", {
+    context,
+    viewport: {
+      width: 1024,
+      height: 760
+    },
+    devicePixelRatio: 1
+  });
+  await browser.command("browsingContext.navigate", {
+    context,
+    url: `${webBaseUrl}/`,
+    wait: "complete"
+  });
+  await waitForBrowserPaint(browser, context);
+
+  const layout = await readBrowserLayout(browser, context);
+  assertBrowserLayout(label, layout, {
+    width: 1024,
+    height: 760,
+    expectedText: ["Overall internal readiness", "Onboarding And Country Packs", "Approval Queue"],
+    expectOperationalConsole: true
+  });
+}
+
+function operationalAnchorSelector(anchor) {
+  return `[data-ui-action="${anchor.action}"]`;
+}
+
+async function waitForOperationalConsoleAnchorState(browser, context, anchor, inputMode) {
+  return waitForBrowserState(
+    browser,
+    context,
+    operationalConsoleAnchorStateExpression(anchor),
+    (candidate) =>
+      candidate.routeMarker === true &&
+      candidate.hash === anchor.hash &&
+      candidate.sectionFound === true &&
+      candidate.sectionVisible === true &&
+      anchor.expectedText.every((expected) => candidate.sectionText.includes(expected)),
+    `${inputMode} operational-console ${anchor.id} anchor navigation`,
+    5_000
+  );
+}
+
+function operationalConsoleAnchorStateExpression(anchor) {
+  return `(() => {
+    const section = document.querySelector(${JSON.stringify(anchor.sectionSelector)});
+    const rect = section?.getBoundingClientRect();
+    const sectionText = section?.innerText ?? "";
+    const title = section?.querySelector(".ps-section__title")?.textContent?.trim() ?? "";
+    const bodyText = document.body.innerText;
+    return JSON.stringify({
+      url: location.href,
+      path: location.pathname,
+      hash: location.hash,
+      routeId: document.querySelector("[data-ui-smoke]")?.getAttribute("data-ui-smoke") ?? "unknown",
+      routeMarker: Boolean(document.querySelector('[data-ui-smoke="operational-console"]')),
+      sectionFound: Boolean(section),
+      sectionId: section?.id ?? "",
+      sectionMarker: section?.getAttribute("data-ui-section") ?? "",
+      sectionTitle: title,
+      sectionText,
+      sectionTextLength: sectionText.length,
+      sectionVisible: Boolean(rect && rect.bottom > 12 && rect.top < window.innerHeight - 12),
+      sectionTop: rect ? Math.round(rect.top) : null,
+      sectionBottom: rect ? Math.round(rect.bottom) : null,
+      scrollY: Math.round(window.scrollY),
+      innerWidth: window.innerWidth,
+      innerHeight: window.innerHeight,
+      documentScrollWidth: document.documentElement.scrollWidth,
+      certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(bodyText)
+    });
+  })()`;
+}
+
+function assertOperationalConsoleAnchorState(inputMode, anchor, state) {
+  const prefix = `browser_${inputMode}_anchor_${anchor.id}`;
+  record(`${prefix}_route_marker`, state.routeMarker === true && state.routeId === "operational-console", JSON.stringify(state));
+  record(`${prefix}_hash_matches_target`, state.hash === anchor.hash, JSON.stringify(state));
+  record(`${prefix}_section_found`, state.sectionFound === true && state.sectionId === anchor.id, JSON.stringify(state));
+  record(`${prefix}_section_marker_matches`, state.sectionMarker === anchor.id, JSON.stringify(state));
+  record(`${prefix}_section_enters_view`, state.sectionVisible === true, JSON.stringify(state));
+  record(`${prefix}_section_has_readable_text`, state.sectionTextLength > 80, JSON.stringify(state));
+  for (const expected of anchor.expectedText) {
+    record(`${prefix}_section_text_${slug(expected)}`, state.sectionText.includes(expected), JSON.stringify(state));
+  }
+  record(`${prefix}_has_no_document_horizontal_overflow`, state.documentScrollWidth <= state.innerWidth + 2, JSON.stringify(state));
+  record(`${prefix}_has_no_certification_claims`, state.certificationClaim === false, JSON.stringify(state));
+  if (anchor.id !== "dashboard") {
+    record(`${prefix}_scroll_position_changed`, state.scrollY > 0, JSON.stringify(state));
+  }
+}
+
 async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl) {
   await browser.command("browsingContext.setViewport", {
     context,
@@ -1876,8 +2136,8 @@ async function resetBrowserFocus(browser, context) {
   );
 }
 
-async function clickBrowserElement(browser, context, selector, label) {
-  const target = await readBrowserPointerTarget(browser, context, selector);
+async function clickBrowserElement(browser, context, selector, label, options = {}) {
+  const target = await readBrowserPointerTarget(browser, context, selector, options);
   record(`browser_pointer_${label}_target_found`, target.found === true, JSON.stringify(target));
   record(`browser_pointer_${label}_target_visible`, target.visible === true, JSON.stringify(target));
   record(`browser_pointer_${label}_target_has_bounds`, target.bounds.width > 0 && target.bounds.height > 0, JSON.stringify(target));
@@ -1924,7 +2184,9 @@ async function clickBrowserElement(browser, context, selector, label) {
   return target;
 }
 
-async function readBrowserPointerTarget(browser, context, selector) {
+async function readBrowserPointerTarget(browser, context, selector, options = {}) {
+  const ensureInViewport = options.ensureInViewport !== false;
+
   return evaluateBrowserJson(
     browser,
     context,
@@ -1934,28 +2196,40 @@ async function readBrowserPointerTarget(browser, context, selector) {
         return JSON.stringify({
           found: false,
           selector: ${JSON.stringify(selector)},
+          scrolledIntoView: false,
           visible: false,
           bounds: { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 },
           center: { x: -1, y: -1 },
           viewport: { width: window.innerWidth, height: window.innerHeight }
         });
       }
-      element.scrollIntoView({ block: "center", inline: "center" });
-      const style = getComputedStyle(element);
-      const rect = element.getBoundingClientRect();
-      const center = {
-        x: Math.round(rect.left + rect.width / 2),
-        y: Math.round(rect.top + rect.height / 2)
+      const measure = () => {
+        const style = getComputedStyle(element);
+        const rect = element.getBoundingClientRect();
+        const center = {
+          x: Math.round(rect.left + rect.width / 2),
+          y: Math.round(rect.top + rect.height / 2)
+        };
+        const visible =
+          style.display !== "none" &&
+          style.visibility !== "hidden" &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          center.x >= 0 &&
+          center.x <= window.innerWidth &&
+          center.y >= 0 &&
+          center.y <= window.innerHeight;
+        return { style, rect, center, visible };
       };
-      const visible =
-        style.display !== "none" &&
-        style.visibility !== "hidden" &&
-        rect.width > 0 &&
-        rect.height > 0 &&
-        center.x >= 0 &&
-        center.x <= window.innerWidth &&
-        center.y >= 0 &&
-        center.y <= window.innerHeight;
+      let scrolledIntoView = false;
+      let measured = measure();
+      if (${JSON.stringify(ensureInViewport)} && !measured.visible) {
+        element.scrollIntoView({ block: "center", inline: "center" });
+        scrolledIntoView = true;
+        measured = measure();
+      }
+      const rect = measured.rect;
+      const center = measured.center;
       return JSON.stringify({
         found: true,
         selector: ${JSON.stringify(selector)},
@@ -1963,7 +2237,8 @@ async function readBrowserPointerTarget(browser, context, selector) {
         text: element.textContent?.trim() ?? "",
         dataAction: element.getAttribute("data-ui-action") ?? "",
         href: element instanceof HTMLAnchorElement ? element.href : "",
-        visible,
+        scrolledIntoView,
+        visible: measured.visible,
         bounds: {
           top: Math.round(rect.top),
           right: Math.round(rect.right),
@@ -1997,6 +2272,25 @@ async function focusBrowserElement(browser, context, selector) {
       }
       element.focus();
       const active = document.activeElement;
+      const rect = active?.getBoundingClientRect();
+      const style = active ? getComputedStyle(active) : null;
+      const center = rect
+        ? {
+            x: Math.round(rect.left + rect.width / 2),
+            y: Math.round(rect.top + rect.height / 2)
+          }
+        : { x: -1, y: -1 };
+      const visible = Boolean(
+        rect &&
+          rect.width > 0 &&
+          rect.height > 0 &&
+          center.x >= 0 &&
+          center.x <= window.innerWidth &&
+          center.y >= 0 &&
+          center.y <= window.innerHeight &&
+          style?.visibility !== "hidden" &&
+          style?.display !== "none"
+      );
       return JSON.stringify({
         found: true,
         selector: ${JSON.stringify(selector)},
@@ -2005,6 +2299,18 @@ async function focusBrowserElement(browser, context, selector) {
         activeText: active?.textContent?.trim() ?? "",
         dataAction: active?.getAttribute("data-ui-action") ?? "",
         href: active instanceof HTMLAnchorElement ? active.href : "",
+        visible,
+        bounds: rect
+          ? {
+              top: Math.round(rect.top),
+              right: Math.round(rect.right),
+              bottom: Math.round(rect.bottom),
+              left: Math.round(rect.left),
+              width: Math.round(rect.width),
+              height: Math.round(rect.height)
+            }
+          : { top: 0, right: 0, bottom: 0, left: 0, width: 0, height: 0 },
+        center,
         path: location.pathname
       });
     })()`

@@ -61,6 +61,18 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('data-ui-action="skip-to-content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain('aria-label="Primary navigation"');
+    expect(html).toContain('href="#dashboard" aria-current="page" data-ui-action="open-dashboard-anchor"');
+    expect(html).toContain('href="#onboarding" data-ui-action="open-onboarding-anchor"');
+    expect(html).toContain('href="#microsoft365" data-ui-action="open-microsoft365-anchor"');
+    expect(html).toContain('href="#gaps" data-ui-action="open-gaps-anchor"');
+    expect(html).toContain('href="#evidence" data-ui-action="open-evidence-reports-anchor"');
+    expect(html).toContain('href="#approvals" data-ui-action="open-approval-queue-anchor"');
+    expect(html).toContain('id="dashboard" data-ui-section="dashboard"');
+    expect(html).toContain('id="onboarding" data-ui-section="onboarding"');
+    expect(html).toContain('id="microsoft365" data-ui-section="microsoft365"');
+    expect(html).toContain('id="gaps" data-ui-section="gaps"');
+    expect(html).toContain('id="evidence" data-ui-section="evidence"');
+    expect(html).toContain('id="approvals" data-ui-section="approvals"');
     expect(html).toContain('data-ui-action="open-romania-onboarding"');
     expect(login).toContain('<label for="email">Email</label>');
     expect(login).toContain('data-ui-smoke="login-screen"');
@@ -92,6 +104,23 @@ describe("web dashboard reports operational UI", () => {
     expect(smokeScript).toContain("romania-route-desktop");
     expect(smokeScript).toContain("romania-route-mobile");
     expect(smokeScript).not.toContain("golden-image");
+  });
+
+  it("wires browser operational-console section anchor workflow coverage", () => {
+    const smokeScript = readFileSync(new URL("../../../../scripts/run-ui-smoke.mjs", import.meta.url), "utf8");
+
+    expect(smokeScript).toContain("OPERATIONAL_CONSOLE_ANCHORS");
+    expect(smokeScript).toContain("assertBrowserOperationalConsoleAnchorKeyboardNavigation");
+    expect(smokeScript).toContain("assertBrowserOperationalConsoleAnchorPointerNavigation");
+    expect(smokeScript).toContain("open-dashboard-anchor");
+    expect(smokeScript).toContain("open-onboarding-anchor");
+    expect(smokeScript).toContain("open-microsoft365-anchor");
+    expect(smokeScript).toContain("open-gaps-anchor");
+    expect(smokeScript).toContain("open-evidence-reports-anchor");
+    expect(smokeScript).toContain("open-approval-queue-anchor");
+    expect(smokeScript).toContain("section_enters_view");
+    expect(smokeScript).toContain("click_used_visible_control_without_script_scroll");
+    expect(smokeScript).toContain("anchorNavigation");
   });
 
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {

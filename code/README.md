@@ -102,13 +102,13 @@ pnpm test:e2e -- --grep @ui-smoke
 
 This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
 
-When host Firefox WebDriver BiDi is available, the browser smoke also selects the visible workspace after login and proves keyboard and pointer route traversal after the selected dashboard is established:
+When host Firefox WebDriver BiDi is available, the browser smoke also selects the visible workspace after login, proves operational-console section-anchor traversal, and proves keyboard and pointer route traversal after the selected dashboard is established:
 
 ```sh
 pnpm test:e2e -- --grep @browser-smoke
 ```
 
-It clicks the visible workspace control, asserts the browser session and dashboard reflect the selected organization snapshot, tabs to the dashboard skip link, activates the visible Romania onboarding navigation link, tabs to the Romania route skip link, and activates the Romania "Back to dashboard" link. It then clicks the visible dashboard-to-Romania and Romania back-to-dashboard links with browser pointer actions after checking target bounds. The command records URL changes, focus targets, pointer target bounds, route markers, no horizontal overflow, no certification claims, no direct DNSC submit command, and the same no-live-call posture as the HTTP fallback.
+It clicks the visible workspace control, asserts the browser session and dashboard reflect the selected organization snapshot, tabs to the dashboard skip link, activates the visible dashboard, onboarding/country-pack, Microsoft 365, gaps, evidence/reports, and approval queue anchors with keyboard input, and clicks the same visible anchor controls with browser pointer actions while recording target bounds and section text. It then activates the visible Romania onboarding navigation link and the Romania "Back to dashboard" link through keyboard and pointer paths. The command records URL/hash changes, scroll positions, focus targets, pointer target bounds, route markers, readable section text, no horizontal overflow, no certification claims, no direct DNSC submit command, and the same no-live-call posture as the HTTP fallback.
 
 This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, a persistent Romania onboarding wizard, golden-image/pixel-diff review, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
