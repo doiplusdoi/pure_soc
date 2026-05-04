@@ -23,7 +23,7 @@ This document adapts the shared AI project template plan to PureSOC. The detaile
 
 ## Current Status
 
-As of 2026-05-04, M1-M77 are implemented at contract/runtime-baseline or app-side handoff level, with outside-app Stripe, Microsoft 365, and KMS work staged for M78.
+As of 2026-05-04, M1-M78 are implemented at contract/runtime-baseline, app-side handoff, or local product-slice level. M78 completed the local deployable Romania readiness workflow, and M79 is staged for local workflow hardening.
 
 - Contract-complete foundations exist for schema/data contracts, auth/org/RBAC, EU and Romania regulatory flows, provider connector contracts, Microsoft read-only modules, compliance evaluation, recommendations, readiness plans, evidence, reports, dashboards, billing, safe remediation metadata, UI primitives, OIDC/social login callbacks, request size limits, and regulatory source monitoring.
 - M18 adds a runtime truth baseline: `PURESOC_PERSISTENCE_MODE=memory|prisma`, startup config validation, shared Prisma client selection for implemented adapters, and Docker entrypoints that execute workspace code instead of inline `node -e` stubs.
@@ -86,8 +86,9 @@ As of 2026-05-04, M1-M77 are implemented at contract/runtime-baseline or app-sid
 - M75 records the billing product decision template for packaging, entitlements, limits, trial/downgrade rules, Stripe price mappings, portal policy, and launch support before production billing activation.
 - M76 records the evidence runtime disposable-smoke handoff for MinIO/S3-compatible storage, scanner, report renderer, generated-report evidence, access logs, CSV status, and binary bundle status.
 - M77 records the Microsoft 365 read-only disposable tenant smoke handoff with read-only permission bundles only, module degradation expectations, no production tenant, and no provider remediation or Graph write scopes.
+- M78 implements the local deployable Romania readiness product slice: local register/workspace creation, saved organization-owned Romania onboarding answers, memory/Prisma onboarding/classification persistence, classification and notification draft generation from saved answers, local readiness/evidence/report/dashboard/billing/audit workflow surfaces, and UI/browser smoke coverage without external calls, DNSC submission, provider writes, or fabricated product data.
 - Runtime readiness is still partial. WORM/immutable audit export writers, real external audit signing/notarization, live KMS/secret-manager custody, deployed provider-token rotation/backfill operations, cross-browser Playwright/Chromium/WebKit screenshot coverage, committed golden-image/pixel-diff review, approved deployed TLS/CORS/proxy browser smoke, live provider/OIDC operational smoke, and live provider-write execution remain explicitly deferred in the gap register.
-- Next planned milestone: `docs/PLAN_M78.md`, focused on moving outside the app with exactly one approved disposable/test target for Stripe test-mode, Microsoft 365 read-only tenant smoke, or a real provider-token custody/KMS path without live provider writes.
+- Next planned milestone: `docs/PLAN_M79.md`, focused on hardening the local Romania workflow around form errors, action-result continuity, first-run states, export ergonomics, and operator documentation without external service dependency.
 
 ## Milestones
 
@@ -108,8 +109,8 @@ The historic phase roadmap remains useful context:
 Active work now uses incremental milestone files:
 
 - `docs/PLAN_M1.md` records the completed template-aligned skeleton milestone.
-- `docs/PLAN_M2.md` through `docs/PLAN_M77.md` record completed incremental milestones or completed app-side handoffs.
-- `docs/PLAN_M78.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
+- `docs/PLAN_M2.md` through `docs/PLAN_M78.md` record completed incremental milestones, completed app-side handoffs, or the completed local product slice.
+- `docs/PLAN_M79.md` is staged as the next active milestone and corresponds to the next prompt in `docs/codex-prompts.md`.
 - Each subsequent prompt gets the next number unless `docs/codex-prompts.md` is intentionally reordered.
 
 ## Incremental PLAN_Mx Workflow

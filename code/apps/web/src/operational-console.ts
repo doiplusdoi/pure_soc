@@ -44,6 +44,12 @@ export interface RenderLoginScreenOptions {
   productName?: string;
 }
 
+export interface RenderRegisterScreenOptions {
+  errorMessage?: string;
+  locale?: string | null;
+  productName?: string;
+}
+
 export interface RuntimeMessageScreenInput {
   actionHref?: string;
   actionLabel?: string;
@@ -154,6 +160,44 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
       : "",
     renderCommandButton({ label: copy.signIn, ariaLabel: `${copy.signIn} PureSOC`, tone: "primary", type: "submit" }),
     "</form>",
+    '<p class="ps-muted">Need a local account? <a class="ps-command" href="/register" data-ui-action="open-register">Register</a></p>',
+    "</div>",
+    "</section>",
+    "</main>",
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}): string => {
+  const productName = options.productName ?? "PureSOC";
+  const copy = resolveOperationalConsoleCopy(options.locale);
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>Register local account | ${escapeHtml(productName)}</title>`,
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="register-screen">',
+    '<section class="ps-section" aria-labelledby="register-title">',
+    '<div class="ps-section__header">',
+    '<div><h1 class="ps-section__title" id="register-title">Register Local Account</h1><p class="ps-muted">Create a local PureSOC account for the in-a-box Romania readiness workflow.</p></div>',
+    renderStatusPill({ label: "local auth", tone: "info" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    options.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(options.errorMessage)}</p>` : "",
+    '<form class="ps-form" action="/auth/register" method="post">',
+    '<div class="ps-field"><label for="displayName">Display name</label><input id="displayName" name="displayName" type="text" autocomplete="name" required></div>',
+    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email" required></div>`,
+    `<div class="ps-field"><label for="password">${escapeHtml(copy.password)}</label><input id="password" name="password" type="password" autocomplete="new-password" required></div>`,
+    renderCommandButton({ label: "Register", ariaLabel: "Register local PureSOC account", tone: "primary", type: "submit" }),
+    "</form>",
+    '<p class="ps-muted"><a class="ps-command" href="/login" data-ui-action="back-to-login">Back to sign in</a></p>',
     "</div>",
     "</section>",
     "</main>",
@@ -217,6 +261,18 @@ export const renderWorkspaceSelectionScreen = (
           ...model.organizations.map((organization) => renderWorkspaceSelectionPanel(organization, activeOrganizationId)),
           "</div>"
         ].join(""),
+    '<section class="ps-section ps-stack-top" aria-labelledby="workspace-create-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<h2 class="ps-section__title" id="workspace-create-title">Create Workspace</h2>',
+    renderStatusPill({ label: "local organization", tone: "accent" }),
+    "</div>",
+    '<form class="ps-form" action="/organizations" method="post" data-ui-action="create-local-workspace">',
+    '<div class="ps-field"><label for="name">Workspace name</label><input id="name" name="name" type="text" required></div>',
+    '<div class="ps-field"><label for="legalName">Legal name</label><input id="legalName" name="legalName" type="text"></div>',
+    '<div class="ps-field"><label for="primaryCountryCode">Primary country</label><input id="primaryCountryCode" name="primaryCountryCode" type="text" value="RO" maxlength="2" required></div>',
+    renderCommandButton({ label: "Create workspace", ariaLabel: "Create local workspace", tone: "primary", type: "submit" }),
+    "</form>",
+    "</section>",
     '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
     "</div>",
     "</section>",
@@ -260,15 +316,19 @@ export const renderRomaniaOnboardingRoute = (
       title: "Romania NIS2 Onboarding",
       eyebrow: renderStatusPill({ label: model.countryPack.countryPackStatus.replaceAll("_", " "), tone: "warning" }),
       body: [
+        model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
         '<div class="ps-grid">',
         '<article class="ps-panel">',
         '<h3 class="ps-panel__title">Workbook-backed progress</h3>',
-        `<p>${escapeHtml(model.progress.completedSteps.length)} of ${escapeHtml(model.steps.length)} steps have contract data on this served route.</p>`,
+        `<p>${escapeHtml(model.progress.completedSteps.length)} of ${escapeHtml(model.steps.length)} steps are saved for this workspace.</p>`,
         renderMeter({
           label: "Required field coverage",
           value: Math.round((completedRequiredFieldCount / requiredFieldCount) * 100),
           source: "roNis2OnboardingSchema"
         }),
+        renderStatusPill({ label: model.hasSavedProgress ? "saved organization data" : "empty state", tone: model.hasSavedProgress ? "success" : "warning" }),
+        model.progressRecordId ? renderSourceChip({ label: "Progress", detail: model.progressRecordId }) : "",
+        model.assessmentId ? renderSourceChip({ label: "Assessment", detail: model.assessmentId }) : "",
         renderSourceChip({ label: "Source version", detail: model.progress.sourceVersion }),
         servicesSourceMap
           ? renderSourceChip({ label: "Services source", detail: servicesSourceMap.workbookRange ?? servicesSourceMap.sourceMapId })
@@ -278,6 +338,11 @@ export const renderRomaniaOnboardingRoute = (
         '<h3 class="ps-panel__title">Preliminary classification</h3>',
         renderStatusPill({ label: model.classification.result.replaceAll("_", " "), tone: "warning" }),
         `<p>${escapeHtml(model.classification.reasons[0] ?? "Classification awaits more source-mapped answers.")}</p>`,
+        renderStatusPill({
+          label: model.classificationPersisted ? "stored classification run" : "preview from saved answers",
+          tone: model.classificationPersisted ? "success" : "info"
+        }),
+        model.classificationRunId ? renderSourceChip({ label: "Classification run", detail: model.classificationRunId }) : "",
         renderSourceChip({ label: "Matched rules", detail: `${model.classification.matchedRules.length}` }),
         "</article>",
         '<article class="ps-panel">',
@@ -290,8 +355,25 @@ export const renderRomaniaOnboardingRoute = (
         }),
         `<p class="ps-muted">${escapeHtml(labelFallbackCount)} notification labels currently use fallback metadata for this locale.</p>`,
         "</article>",
+        '<article class="ps-panel">',
+        '<h3 class="ps-panel__title">Local product state</h3>',
+        renderStatusPill({ label: `Evidence ${model.evidence.count}`, tone: "info" }),
+        renderStatusPill({ label: `Reports ${model.evidence.generatedReportCount}`, tone: "accent" }),
+        renderStatusPill({ label: `Entitlements ${model.billing.entitlementCount}`, tone: "success" }),
+        renderStatusPill({ label: `Audit checkpoints ${model.audit.checkpointCount}`, tone: "neutral" }),
+        model.dashboard
+          ? renderSourceChip({ label: model.dashboard.readinessScoreLabel, detail: `${model.dashboard.readinessScores.overallInternalReadiness}` })
+          : renderStatusPill({ label: "dashboard not generated", tone: "warning" }),
+        model.latestNotificationDraftId ? renderSourceChip({ label: "Notification draft", detail: model.latestNotificationDraftId }) : "",
+        "</article>",
         "</div>"
       ].join("")
+    }),
+    renderSection({
+      id: "romania-workflow",
+      title: "Local Workflow",
+      eyebrow: renderStatusPill({ label: "saved data only", tone: "accent" }),
+      body: renderRomaniaWorkflowForms(model)
     }),
     renderSection({
       id: "romania-unsupported",
@@ -306,6 +388,11 @@ export const renderRomaniaOnboardingRoute = (
               tone: signal.tone
             })}<p>${escapeHtml(signal.detail)}</p></article>`
         ),
+        "</div>",
+        '<div class="ps-chip-row ps-stack-top">',
+        renderStatusPill({ label: model.billing.planLabel, tone: "success" }),
+        renderSourceChip({ label: "Billing provider", detail: model.billing.providerKey }),
+        renderSourceChip({ label: "Audit export", detail: model.audit.guarantees }),
         "</div>",
         renderLegalCaveat(model.notificationDraft.legalCaveat)
       ].join("")
@@ -438,6 +525,151 @@ export const renderRomaniaOnboardingRoute = (
     "</html>"
   ].join("");
 };
+
+const renderRomaniaWorkflowForms = (model: RomaniaOnboardingRouteModel): string =>
+  [
+    '<div class="ps-grid">',
+    '<article class="ps-panel">',
+    '<h3 class="ps-panel__title">Save Romania answers</h3>',
+    '<form class="ps-form" action="/onboarding/romania/save" method="post" data-ui-action="save-romania-onboarding">',
+    renderTextInput("legalName", "Legal name", answerText(model, "entity.legalName"), true),
+    renderTextInput("cui", "CUI", answerText(model, "entity.cui"), true),
+    renderTextInput("nationalRegistrationNumber", "National registration number", answerText(model, "entity.nationalRegistrationNumber"), true),
+    renderTextInput("country", "Country", answerText(model, "address.country") || "Romania", true),
+    renderTextInput("county", "County", answerText(model, "address.county"), true),
+    renderTextInput("city", "City", answerText(model, "address.city"), true),
+    renderTextInput("street", "Street", answerText(model, "address.street"), true),
+    renderTextInput("email", "Security contact email", answerText(model, "contact.email"), true, "email"),
+    renderTextInput("mainNaceCode", "Main NACE code", answerText(model, "activity.mainNaceCode"), true),
+    renderTextInput("employeeCount", "Employee count", answerText(model, "size.employeeCount"), false, "number"),
+    renderSelect("sizeCategory", "Size category", answerText(model, "size.sizeCategory"), [
+      ["", "Select size"],
+      ["small_micro", "Small or micro"],
+      ["medium", "Medium"],
+      ["large", "Large"]
+    ]),
+    renderTextInput("serviceCode", "Romania service code", firstStringAnswer(model, "selectedServiceTypeCodes"), true),
+    renderTextarea("systemsDescription", "Network and information systems", answerText(model, "network.systemsDescription")),
+    renderCheckbox("establishedInRomania", "Established in Romania", answerBoolean(model, "relationship.establishedInRomania")),
+    renderCheckbox("mainOfficeInRomania", "Main office in Romania", answerBoolean(model, "relationship.mainOfficeInRomania")),
+    renderCheckbox("providesServicesInRomania", "Provides services in Romania", answerBoolean(model, "relationship.providesServicesInRomania")),
+    renderCheckbox(
+      "providesServicesInAnotherEuMemberState",
+      "Provides services in another EU member state",
+      answerBoolean(model, "relationship.providesServicesInAnotherEuMemberState")
+    ),
+    renderCheckbox(
+      "criticalEntityInRomaniaLaw294",
+      "Critical entity under Romania Law 294/2024",
+      answerBoolean(model, "relationship.criticalEntityInRomaniaLaw294")
+    ),
+    renderCommandButton({ label: "Save progress", ariaLabel: "Save Romania onboarding progress", tone: "primary", type: "submit" }),
+    "</form>",
+    "</article>",
+    '<article class="ps-panel">',
+    '<h3 class="ps-panel__title">Generate readiness outputs</h3>',
+    '<div class="ps-action-list">',
+    renderWorkflowActionForm("/onboarding/romania/classify", "Run classification", "run-romania-classification", !model.hasSavedProgress),
+    renderWorkflowActionForm("/onboarding/romania/notification-draft", "Generate draft", "generate-romania-notification-draft", !model.hasSavedProgress),
+    renderWorkflowActionForm("/onboarding/romania/evaluate", "Evaluate readiness", "evaluate-romania-readiness", !model.hasSavedProgress),
+    renderWorkflowActionForm(
+      "/onboarding/romania/reports/internal-readiness",
+      "Readiness export",
+      "generate-internal-readiness-export",
+      !model.assessmentId
+    ),
+    renderWorkflowActionForm(
+      "/onboarding/romania/reports/notification-draft",
+      "Draft export",
+      "generate-romania-draft-export",
+      !model.latestNotificationDraftId
+    ),
+    renderWorkflowActionForm("/onboarding/romania/audit/checkpoint", "Record checkpoint", "record-audit-checkpoint", false),
+    "</div>",
+    '<form class="ps-form ps-stack-top" action="/onboarding/romania/evidence" method="post" data-ui-action="upload-local-evidence">',
+    renderTextInput("evidenceTitle", "Evidence title", "Romania readiness note", true),
+    renderTextInput("controlId", "Control ID", "nis2.governance.risk-management", false),
+    renderTextarea("evidenceContent", "Evidence text", "Describe the local evidence or paste a short policy excerpt."),
+    renderCommandButton({ label: "Attach evidence", ariaLabel: "Attach local evidence", tone: "primary", type: "submit" }),
+    "</form>",
+    "</article>",
+    "</div>",
+    '<div class="ps-chip-row ps-stack-top">',
+    model.evidence.latestTitles.length > 0
+      ? model.evidence.latestTitles.map((title) => renderSourceChip({ label: "Latest evidence", detail: title })).join("")
+      : renderStatusPill({ label: "No evidence attached yet", tone: "warning" }),
+    "</div>"
+  ].join("");
+
+const renderWorkflowActionForm = (action: string, label: string, uiAction: string, disabled: boolean): string =>
+  [
+    `<form action="${escapeHtml(action)}" method="post" data-ui-action="${escapeHtml(uiAction)}">`,
+    renderCommandButton({
+      label,
+      ariaLabel: label,
+      disabled,
+      tone: disabled ? "secondary" : "primary",
+      type: "submit"
+    }),
+    "</form>"
+  ].join("");
+
+const renderTextInput = (
+  name: string,
+  label: string,
+  value: string,
+  required = false,
+  type: "email" | "number" | "text" = "text"
+): string =>
+  `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><input id="${escapeHtml(
+    name
+  )}" name="${escapeHtml(name)}" type="${type}" value="${escapeHtml(value)}"${required ? " required" : ""}></div>`;
+
+const renderTextarea = (name: string, label: string, value: string): string =>
+  `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><textarea id="${escapeHtml(
+    name
+  )}" name="${escapeHtml(name)}" rows="4">${escapeHtml(value)}</textarea></div>`;
+
+const renderSelect = (name: string, label: string, value: string, options: Array<readonly [string, string]>): string =>
+  [
+    `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><select id="${escapeHtml(
+      name
+    )}" name="${escapeHtml(name)}" required>`,
+    ...options.map(
+      ([optionValue, optionLabel]) =>
+        `<option value="${escapeHtml(optionValue)}"${optionValue === value ? " selected" : ""}>${escapeHtml(optionLabel)}</option>`
+    ),
+    "</select></div>"
+  ].join("");
+
+const renderCheckbox = (name: string, label: string, checked: boolean): string =>
+  `<label class="ps-field ps-field--checkbox"><input name="${escapeHtml(name)}" type="checkbox" value="true"${
+    checked ? " checked" : ""
+  }> ${escapeHtml(label)}</label>`;
+
+const answerText = (model: RomaniaOnboardingRouteModel, path: string): string => {
+  const value = valueAtPath(model.progress.answers, path);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return typeof value === "string" ? value : "";
+};
+
+const firstStringAnswer = (model: RomaniaOnboardingRouteModel, path: string): string => {
+  const value = valueAtPath(model.progress.answers, path);
+  return Array.isArray(value) && typeof value[0] === "string" ? value[0] : "";
+};
+
+const answerBoolean = (model: RomaniaOnboardingRouteModel, path: string): boolean =>
+  valueAtPath(model.progress.answers, path) === true;
+
+const valueAtPath = (value: unknown, path: string): unknown =>
+  path.split(".").reduce<unknown>((current, part) => {
+    if (current && typeof current === "object" && part in current) {
+      return (current as Record<string, unknown>)[part];
+    }
+    return undefined;
+  }, value);
 
 const resolveOperationalConsoleCopy = (locale?: string | null): OperationalConsoleCopy => {
   const resolvedLocale = resolvePureSocLocale(locale).locale;
@@ -793,6 +1025,9 @@ const renderApprovalSection = (runs: readonly ActionRun[], copy: OperationalCons
     title: copy.approvalQueue,
     eyebrow: renderSourceChip({ label: "Safety model", detail: "preflight + approval + snapshots" }),
     body: [
+      runs.length === 0
+        ? '<p class="ps-muted">Provider write execution remains disabled. No approval queue items exist for this local workspace.</p>'
+        : "",
       '<div class="ps-action-list">',
       ...runs.map(renderActionRun),
       "</div>"
@@ -889,8 +1124,8 @@ const formatKeyLabel = (key: string): string =>
     .map((part) => (part.length === 0 ? part : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`))
     .join(" ");
 
-const formatRoSourceReferences = (references: readonly { cell?: string; range?: string; sheet: string }[]): string =>
-  references.map((reference) => [reference.sheet, reference.cell ?? reference.range].filter(Boolean).join("!")).join(", ");
+const formatRoSourceReferences = (references?: readonly { cell?: string; range?: string; sheet: string }[]): string =>
+  (references ?? []).map((reference) => [reference.sheet, reference.cell ?? reference.range].filter(Boolean).join("!")).join(", ");
 
 const toneForStatus = (status: OperationalStatus): PureSocUiTone => {
   if (status === "ready") {

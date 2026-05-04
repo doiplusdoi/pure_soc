@@ -8,6 +8,7 @@ import {
   toRoNis2ClassificationInput,
   type Nis2Classification,
   type RoNis2NotificationDraftJson,
+  type RoNis2OnboardingAnswers,
   type RoNis2OnboardingProgress,
   type RoNis2OnboardingStepSchema,
   type RoNis2SourceMapLink
@@ -158,10 +159,33 @@ export interface RomaniaOnboardingUnsupportedSignal {
 }
 
 export interface RomaniaOnboardingRouteModel {
+  actionMessage?: string;
   classification: Nis2Classification;
+  classificationPersisted: boolean;
+  classificationRunId?: string;
   countryPack: typeof romaniaCountryPackStatus;
+  assessmentId?: string;
+  audit: {
+    checkpointCount: number;
+    exportAvailable: boolean;
+    guarantees: string;
+  };
+  billing: {
+    entitlementCount: number;
+    planLabel: string;
+    providerKey: string;
+  };
+  dashboard?: DashboardSnapshotContract;
+  evidence: {
+    count: number;
+    generatedReportCount: number;
+    latestTitles: string[];
+  };
+  hasSavedProgress: boolean;
+  latestNotificationDraftId?: string;
   notificationDraft: RoNis2NotificationDraftJson;
   progress: RoNis2OnboardingProgress;
+  progressRecordId?: string;
   requestedLocale?: string;
   resolvedLocale: PureSocLocale;
   sourceMapLinks: readonly RoNis2SourceMapLink[];
@@ -504,70 +528,138 @@ export const createOperationalConsoleRuntimeModel = (input: {
       detail: `GET /organizations/:orgId/dashboards/snapshots/latest | snapshot ${input.dashboard.organizationId}`
     },
     onboarding: {
-      ...base.onboarding,
       eu: {
         ...base.onboarding.eu,
-        summary: "Dashboard shell is authenticated through the API; complete EU onboarding details remain a follow-up flow."
+        completeness: input.dashboard.readinessScores.euApplicability,
+        summary: "EU Article 21 readiness is calculated from stored local assessment outputs for this workspace."
+      },
+      countryPacks: [
+        {
+          countryCode: "RO",
+          countryName: "Romania",
+          status: "review_required",
+          classification: "Use the Romania workflow for saved-answer classification.",
+          completeness: input.dashboard.readinessScores.countryPackCompleteness,
+          sourceReview: "Workbook-derived Romania logic awaits product/legal review before production activation.",
+          unsupportedAreas: ["Direct DNSC submission", "Production legal activation"],
+          sourceReferences: [roWorkbookSource]
+        }
+      ],
+      romania: {
+        title: "Romania readiness workflow",
+        status: "in_progress",
+        completeness: input.dashboard.readinessScores.countryPackCompleteness,
+        summary: "Open the Romania workflow to save answers, classify, create drafts, attach evidence, and generate exports.",
+        sourceReferences: [roWorkbookSource]
       }
-    }
+    },
+    microsoft365: {
+      status: "attention",
+      tenantDisplayName: "No Microsoft 365 provider connected",
+      tenantId: "local-only",
+      lastSyncAt: input.dashboard.generatedAt,
+      permissionBundles: ["read-only connector not configured"],
+      modules: [
+        {
+          moduleKey: "provider.local",
+          label: "Provider telemetry",
+          status: "attention",
+          coverage: "No real provider connection is attached to this local product path.",
+          sourceQuery: "provider_connections:none"
+        }
+      ]
+    },
+    gaps: [],
+    recommendations: [],
+    evidence: [],
+    reports: [],
+    actionRuns: [],
+    legalCaveat: PURESOC_LEGAL_CAVEAT
   };
 };
 
-export const createRomaniaOnboardingRouteModel = (input: { locale?: string | null } = {}): RomaniaOnboardingRouteModel => {
+export interface RomaniaOnboardingRouteInput {
+  actionMessage?: string | null;
+  auditCheckpointCount?: number;
+  billingEntitlementCount?: number;
+  billingProviderKey?: string;
+  classificationRun?: {
+    article9Required: boolean;
+    id: string;
+    matchedRules: string[];
+    missingRequiredFields: string[];
+    notificationRecommended: boolean;
+    reasonSourceMapLinks?: Record<string, unknown>[];
+    reasons: string[];
+    result: string;
+    sourceMapLinks?: Record<string, unknown>[];
+    sourceVersion: string;
+  } | null;
+  dashboard?: DashboardSnapshotContract | null;
+  evidenceArtifacts?: Array<{
+    sourceType?: string;
+    title?: string;
+  }>;
+  latestNotificationDraft?: {
+    id: string;
+    payload?: unknown;
+  } | null;
+  locale?: string | null;
+  progress?: {
+    answers: Record<string, unknown>;
+    assessmentId?: string;
+    completedSteps: string[];
+    currentStep: string;
+    id: string;
+    missingRequiredFields: string[];
+    savedAt: string;
+    sourceMapLinks?: Record<string, unknown>[];
+    sourceVersion: string;
+    status: RoNis2OnboardingProgress["status"];
+  } | null;
+}
+
+export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteInput = {}): RomaniaOnboardingRouteModel => {
   const requestedLocale = input.locale ?? "ro-RO";
   const resolvedLocale = resolvePureSocLocale(requestedLocale);
-  const answers = {
-    activity: {
-      mainNaceCode: "6201"
-    },
-    address: {
-      city: "Bucuresti",
-      country: "Romania",
-      county: "Bucuresti",
-      street: "Strada Exemplu"
-    },
-    contact: {
-      email: "security@example.test"
-    },
-    entity: {
-      cui: "RO12345678",
-      legalName: "Example Manufacturing SRL",
-      nationalRegistrationNumber: "J40/1234/2026"
-    },
-    network: {
-      systemsDescription: "Microsoft 365, identity, collaboration, and production support systems."
-    },
-    relationship: {
-      criticalEntityInRomaniaLaw294: false,
-      establishedInRomania: true,
-      mainOfficeInRomania: true,
-      providesServicesInAnotherEuMemberState: false,
-      providesServicesInRomania: true,
-      publicAdministrationEstablishedByRomania: false
-    },
-    selectedServiceTypeCodes: ["108004"],
-    size: {
-      employeeCount: 85,
-      sizeCategory: "medium" as const
-    }
-  };
-  const progress = buildRoNis2OnboardingProgress({
-    answers,
-    completedSteps: [
-      "organization_identity",
-      "entity_address_contact",
-      "activity_nace",
-      "entity_size",
-      "services",
-      "relationship_with_romania",
-      "network_system_data",
-      "law294"
-    ],
-    currentStep: "cybersecurity_responsible",
-    savedAt: romaniaRouteGeneratedAt,
-    status: "in_progress"
-  });
-  const classification = classifyRoNis2Entity(toRoNis2ClassificationInput(answers));
+  const hasSavedProgress = Boolean(input.progress);
+  const answers = (input.progress?.answers ?? {}) as RoNis2OnboardingAnswers;
+  const progress =
+    input.progress
+      ? ({
+          answers,
+          completedSteps: input.progress.completedSteps as RoNis2OnboardingProgress["completedSteps"],
+          currentStep: input.progress.currentStep as RoNis2OnboardingProgress["currentStep"],
+          frameworkKey: "nis2",
+          jurisdiction: "RO",
+          missingRequiredFields: input.progress.missingRequiredFields,
+          savedAt: input.progress.savedAt,
+          sourceMapLinks: (input.progress.sourceMapLinks ?? []) as unknown as RoNis2SourceMapLink[],
+          sourceVersion: input.progress.sourceVersion,
+          status: input.progress.status
+        } satisfies RoNis2OnboardingProgress)
+      : buildRoNis2OnboardingProgress({
+          answers,
+          completedSteps: [],
+          currentStep: "organization_identity",
+          savedAt: romaniaRouteGeneratedAt,
+          status: "draft"
+        });
+  const derivedClassification = classifyRoNis2Entity(toRoNis2ClassificationInput(answers));
+  const classification = input.classificationRun
+    ? ({
+        article9Required: input.classificationRun.article9Required,
+        jurisdiction: "RO",
+        matchedRules: input.classificationRun.matchedRules,
+        missingRequiredFields: input.classificationRun.missingRequiredFields,
+        notificationRecommended: input.classificationRun.notificationRecommended,
+        reasonSourceMapLinks: (input.classificationRun.reasonSourceMapLinks ?? []) as never,
+        reasons: input.classificationRun.reasons,
+        result: input.classificationRun.result as Nis2Classification["result"],
+        sourceMapLinks: (input.classificationRun.sourceMapLinks ?? []) as never,
+        sourceVersion: input.classificationRun.sourceVersion
+      } satisfies Nis2Classification)
+    : derivedClassification;
   const notificationDraft = buildRoNis2NotificationDraft({
     answers,
     classification,
@@ -577,10 +669,37 @@ export const createRomaniaOnboardingRouteModel = (input: { locale?: string | nul
   });
 
   return {
+    actionMessage: input.actionMessage ?? undefined,
+    assessmentId: input.progress?.assessmentId,
+    audit: {
+      checkpointCount: input.auditCheckpointCount ?? 0,
+      exportAvailable: true,
+      guarantees: "Database hash-chain export metadata only. Not WORM storage, external notarization, certification, or legal opinion."
+    },
+    billing: {
+      entitlementCount: input.billingEntitlementCount ?? 0,
+      planLabel: input.billingProviderKey === "none" ? "Provider none local entitlement" : "Configured entitlement",
+      providerKey: input.billingProviderKey ?? "none"
+    },
     classification,
+    classificationPersisted: Boolean(input.classificationRun),
+    classificationRunId: input.classificationRun?.id,
     countryPack: romaniaCountryPackStatus,
+    dashboard: input.dashboard ?? undefined,
+    evidence: {
+      count: input.evidenceArtifacts?.length ?? 0,
+      generatedReportCount:
+        input.evidenceArtifacts?.filter((artifact) => artifact.sourceType === "generated_report").length ?? 0,
+      latestTitles: (input.evidenceArtifacts ?? [])
+        .map((artifact) => artifact.title)
+        .filter((title): title is string => typeof title === "string" && title.length > 0)
+        .slice(0, 3)
+    },
+    hasSavedProgress,
+    latestNotificationDraftId: input.latestNotificationDraft?.id,
     notificationDraft,
     progress,
+    progressRecordId: input.progress?.id,
     requestedLocale: resolvedLocale.requestedLocale,
     resolvedLocale: resolvedLocale.locale,
     sourceMapLinks: dedupeSourceMapLinks([...progress.sourceMapLinks, ...classification.sourceMapLinks, ...notificationDraft.sourceMapLinks]),
@@ -608,7 +727,9 @@ export const createRomaniaOnboardingRouteModel = (input: { locale?: string | nul
       },
       {
         label: "Frontend runtime",
-        detail: "This is a small served route, not a full React or Next.js onboarding wizard.",
+        detail: hasSavedProgress
+          ? "This served local workflow is API-backed by saved organization data in the current workspace."
+          : "No saved Romania onboarding progress exists yet for this workspace.",
         tone: "info"
       }
     ]

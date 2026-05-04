@@ -1,6 +1,4 @@
-import { once } from "node:events";
 import { readFileSync } from "node:fs";
-import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -11,10 +9,10 @@ import {
   createRomaniaOnboardingRouteModel,
   renderLoginScreen,
   renderOperationalConsole,
+  renderRegisterScreen,
   renderRomaniaOnboardingRoute,
   renderWorkspaceSelectionScreen
 } from "../index";
-import { startWebServer } from "../server";
 
 describe("web dashboard reports operational UI", () => {
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
@@ -190,7 +188,7 @@ describe("web dashboard reports operational UI", () => {
 
   it("renders browser-traversable route anchors for keyboard and pointer smoke", () => {
     const dashboardHtml = renderOperationalConsole(createOperationalConsoleDemoModel());
-    const romaniaHtml = renderRomaniaOnboardingRoute(createRomaniaOnboardingRouteModel({ locale: "ro-RO" }));
+    const romaniaHtml = renderRomaniaOnboardingRoute(createSavedRomaniaRouteModel());
 
     expect(dashboardHtml).toContain(
       '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
@@ -240,6 +238,8 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Primary Workspace");
     expect(html).toContain("Selected Workspace");
     expect(html).toContain('action="/workspaces/select"');
+    expect(html).toContain('action="/organizations"');
+    expect(html).toContain('data-ui-action="create-local-workspace"');
     expect(html).toContain('name="organizationId" value="org_secondary"');
     expect(html).toContain("Open active workspace");
     expect(html).toContain('data-ui-action="back-to-dashboard"');
@@ -291,6 +291,9 @@ describe("web dashboard reports operational UI", () => {
     const login = renderLoginScreen({
       locale: "ro-RO"
     });
+    const register = renderRegisterScreen({
+      locale: "ro-RO"
+    });
 
     expect(html).toContain('<html lang="ro">');
     expect(html).toContain("Tablou de bord");
@@ -302,13 +305,14 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain("Autentificare");
     expect(login).toContain("Sesiune API");
     expect(login).toContain('<label for="password">Parola</label>');
+    expect(login).toContain('href="/register"');
+    expect(register).toContain('data-ui-smoke="register-screen"');
+    expect(register).toContain('action="/auth/register"');
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
   it("renders the Romania onboarding route from country-pack contracts with fallback and no-submission metadata", () => {
-    const model = createRomaniaOnboardingRouteModel({
-      locale: "ro-RO"
-    });
+    const model = createSavedRomaniaRouteModel();
     const html = renderRomaniaOnboardingRoute(model);
 
     expect(html).toContain('data-ui-smoke="romania-onboarding-route"');
@@ -320,6 +324,12 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('data-ui-action="skip-to-content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain("Romania NIS2 Onboarding");
+    expect(html).toContain("Local Workflow");
+    expect(html).toContain('data-ui-action="save-romania-onboarding"');
+    expect(html).toContain('data-ui-action="run-romania-classification"');
+    expect(html).toContain('data-ui-action="generate-romania-notification-draft"');
+    expect(html).toContain('data-ui-action="evaluate-romania-readiness"');
+    expect(html).toContain('data-ui-action="upload-local-evidence"');
     expect(html).toContain("roNis2OnboardingSchema");
     expect(html).toContain("ro-nis2-entity_fields-entity_field_12_name_of_the_entity");
     expect(html).toContain("Entity assessment!D66:D142");
@@ -336,30 +346,133 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('id="romania-unsupported"');
     expect(html).toContain('id="romania-draft"');
     expect(html).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
-    expect(html).toContain("not a full React or Next.js onboarding wizard");
+    expect(html).toContain("API-backed by saved organization data");
+    expect(html).toContain("Billing provider");
+    expect(html).toContain("Audit export");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
     expect(html).not.toContain("Submitted to DNSC true");
   });
 
-  it("serves GET /onboarding/romania without requiring live API or external integrations", async () => {
-    const server = startWebServer(0, {
-      apiBaseUrl: "http://127.0.0.1:1",
-      publicBaseUrl: "http://127.0.0.1"
-    });
-    await once(server, "listening");
-    const address = server.address() as AddressInfo;
+  it("renders an empty Romania workflow state without fabricated customer answers", () => {
+    const html = renderRomaniaOnboardingRoute(
+      createRomaniaOnboardingRouteModel({
+        locale: "ro-RO"
+      })
+    );
 
-    try {
-      const response = await fetch(`http://127.0.0.1:${address.port}/onboarding/romania?locale=ro-RO`);
-      const html = await response.text();
-
-      expect(response.status).toBe(200);
-      expect(html).toContain("Romania NIS2 Onboarding");
-      expect(html).toContain("missing_translation");
-      expect(html).toContain("no DNSC submission");
-      expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
-    } finally {
-      await new Promise<void>((resolve) => server.close(() => resolve()));
-    }
+    expect(html).toContain("empty state");
+    expect(html).toContain("No saved Romania onboarding progress exists yet for this workspace.");
+    expect(html).toContain('value=""');
+    expect(html).not.toContain("Example Manufacturing SRL");
+    expect(html).not.toContain("security@example.test");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 });
+
+const createSavedRomaniaRouteModel = () =>
+  createRomaniaOnboardingRouteModel({
+    auditCheckpointCount: 1,
+    billingEntitlementCount: 4,
+    billingProviderKey: "none",
+    classificationRun: {
+      id: "classification_m78_saved",
+      article9Required: false,
+      matchedRules: ["classification_rule_8"],
+      missingRequiredFields: [],
+      notificationRecommended: true,
+      reasons: ["Cloud service provider matched the Romania workbook rule."],
+      result: "important_entity",
+      sourceMapLinks: [
+        {
+          sourceMapId:
+            "ro-nis2-classification_rules-classification_rule_8_furnizorii_de_servicii_de_cloud_computing_furnizorii_de_servicii_de_centre_de_date_furnizorii_de_retele_de_furnizare_de_continut_furnizorii_de_servicii_gestionate"
+        }
+      ],
+      sourceVersion: "Entity data V2.1 ENG_45915; Entity assessment V2.0_45898"
+    },
+    dashboard: createOperationalConsoleDemoModel().dashboard,
+    evidenceArtifacts: [
+      {
+        sourceType: "manual_upload",
+        title: "Risk policy note"
+      },
+      {
+        sourceType: "generated_report",
+        title: "Internal readiness JSON export"
+      }
+    ],
+    latestNotificationDraft: {
+      id: "notification_draft_m78_saved"
+    },
+    locale: "ro-RO",
+    progress: {
+      id: "progress_m78_saved",
+      assessmentId: "assessment_m78_saved",
+      answers: {
+        activity: {
+          mainNaceCode: "6201"
+        },
+        address: {
+          city: "Bucuresti",
+          country: "Romania",
+          county: "Bucuresti",
+          street: "Strada Exemplu"
+        },
+        contact: {
+          email: "security@m78.example.test"
+        },
+        entity: {
+          cui: "RO12345678",
+          legalName: "M78 Saved SRL",
+          nationalRegistrationNumber: "J40/1234/2026"
+        },
+        network: {
+          systemsDescription: "Local identity, collaboration, and production support systems."
+        },
+        relationship: {
+          criticalEntityInRomaniaLaw294: false,
+          establishedInRomania: true,
+          mainOfficeInRomania: true,
+          providesServicesInAnotherEuMemberState: false,
+          providesServicesInRomania: true,
+          publicAdministrationEstablishedByRomania: false
+        },
+        selectedServiceTypeCodes: ["108004"],
+        size: {
+          employeeCount: 85,
+          sizeCategory: "medium"
+        }
+      },
+      completedSteps: [
+        "organization_identity",
+        "entity_address_contact",
+        "activity_nace",
+        "entity_size",
+        "services",
+        "relationship_with_romania",
+        "network_system_data",
+        "law294"
+      ],
+      currentStep: "cybersecurity_responsible",
+      missingRequiredFields: [],
+      savedAt: "2026-05-04T08:00:00.000Z",
+      sourceMapLinks: [
+        {
+          sourceMapId: "ro-nis2-entity_fields-entity_field_12_name_of_the_entity",
+          sourceReferences: [{ cell: "D12", sheet: "Entity data" }],
+          targetCollection: "entity_fields",
+          targetKey: "entity_field_12_name_of_the_entity",
+          workbookRange: "Entity data!D12"
+        },
+        {
+          sourceMapId: "ro-nis2-service_options-none_of_oug_155_2024_services",
+          sourceReferences: [{ range: "D66:D142", sheet: "Entity assessment" }],
+          targetCollection: "service_options",
+          targetKey: "selected_service_type_codes",
+          workbookRange: "Entity assessment!D66:D142"
+        }
+      ],
+      sourceVersion: "Entity data V2.1 ENG_45915; Entity assessment V2.0_45898",
+      status: "ready_for_classification"
+    }
+  });

@@ -496,7 +496,9 @@ a {
   font-weight: 750;
 }
 
-.ps-field input {
+.ps-field input,
+.ps-field select,
+.ps-field textarea {
   min-height: 2.65rem;
   border: 1px solid var(--ps-color-border);
   border-radius: var(--ps-radius-sm);
@@ -506,7 +508,22 @@ a {
   font: inherit;
 }
 
-:where(a, button, input, [tabindex]):focus-visible {
+.ps-field textarea {
+  resize: vertical;
+}
+
+.ps-field--checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+}
+
+.ps-field--checkbox input {
+  min-height: auto;
+  margin-top: 0.25rem;
+}
+
+:where(a, button, input, select, textarea, [tabindex]):focus-visible {
   outline: 3px solid var(--ps-color-focus);
   outline-offset: 2px;
 }

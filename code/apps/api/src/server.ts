@@ -15,9 +15,13 @@ import { countryPackStatusRoute } from "./compliance/nis2/routes";
 import { evaluateComplianceAssessmentRoute } from "./compliance/routes";
 import {
   roNis2ClassificationRoute,
+  classifyOrganizationRoNis2OnboardingRoute,
+  createOrganizationRoNis2NotificationDraftFromOnboardingRoute,
+  getOrganizationRoNis2OnboardingRoute,
   roNis2NotificationDraftRoute,
   roNis2OnboardingProgressRoute,
-  roNis2OnboardingSchemaRoute
+  roNis2OnboardingSchemaRoute,
+  saveOrganizationRoNis2OnboardingRoute
 } from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, parseRawBody, sendJson, toJsonResultError, type JsonResult } from "./http";
@@ -77,7 +81,7 @@ import {
   recordAuditCheckpointRoute
 } from "./audit/routes";
 
-type ApiRouteMethod = "GET" | "POST";
+type ApiRouteMethod = "GET" | "POST" | "PUT";
 
 interface ApiRouteDispatchInput {
   request: IncomingMessage;
@@ -132,6 +136,14 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
   route("GET", /^\/compliance\/nis2\/country-packs\/status$/, "public_read", () => countryPackStatusRoute()),
   route("POST", /^\/organizations\/([^/]+)\/compliance\/evaluate$/, "compliance", ({ params, body, request, context, services }) =>
     evaluateComplianceAssessmentRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/onboarding$/, "compliance", ({ params, request, services }) =>
+    getOrganizationRoNis2OnboardingRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("PUT", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/onboarding$/, "compliance", ({ params, body, request, context, services }) =>
+    saveOrganizationRoNis2OnboardingRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/classification$/, "compliance", ({ params, request, context, services }) =>
+    classifyOrganizationRoNis2OnboardingRoute(params[0] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/notification-draft\/from-onboarding$/, "compliance", ({ params, body, request, context, services }) =>
+    createOrganizationRoNis2NotificationDraftFromOnboardingRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/recommendations\/generate$/, "compliance", ({ params, body, request, context, services }) =>
     generateRecommendationsRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/, "compliance", ({ params, url, request, services }) =>
@@ -409,7 +421,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       }
 
       const body =
-        request.method === "POST"
+        request.method === "POST" || request.method === "PUT"
           ? await parseJsonBody(request, {
               maxBytes: requestLimits.jsonBodyMaxBytes
             })

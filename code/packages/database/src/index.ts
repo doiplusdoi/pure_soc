@@ -42,6 +42,14 @@ export {
   type PrismaOutputRecordClient
 } from "./repositories/output-records";
 export {
+  InMemoryRoNis2ReadinessRepository,
+  PrismaRoNis2ReadinessRepository,
+  type PrismaRoNis2ReadinessClient,
+  type RoNis2ClassificationRunRecord,
+  type RoNis2OnboardingProgressRecord,
+  type RoNis2ReadinessRepository
+} from "./repositories/ro-nis2-readiness";
+export {
   PrismaIdentityOrganizationRbacRepository,
   type OrganizationMembershipRecordContract,
   type OrganizationRecordContract,

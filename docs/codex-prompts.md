@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing the M71-M77 batch, lint-gating the Romania import report, recording app-side operator handoffs, and staging Prompt 77 / `docs/PLAN_M78.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing M78, implementing the local deployable Romania readiness product slice, and staging Prompt 78 / `docs/PLAN_M79.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -102,6 +102,7 @@ The repository currently contains:
 - PLAN_M70 selected output drift coverage expansion: `pnpm lint` now checks selected Prisma field/type/map expectations for `EvidenceLink`, `ReportExport`, and `DashboardWidget` output metadata, raising the schema drift check to 32 selected models and 464 fields without changing Prisma schema, migrations, runtime repositories, UI, live databases, external services, or provider writes.
 - PLAN_M71 Romania import report drift posture: `pnpm lint` now checks the generated Romania seed, source-map, and import-report artifacts against deterministic in-memory importer output without fetching public regulatory URLs or activating legal logic.
 - PLAN_M72-M77 app-side product-finish handoffs: Stripe test-mode target selection, Romania legal review SOP, customer-shaped Romania readiness flow, billing product decision template, evidence runtime disposable smoke, and Microsoft 365 read-only disposable tenant smoke are documented as operator/product handoffs. No live Stripe, Microsoft Graph, object storage, scanner, KMS/HSM/secret-manager, OIDC provider, public regulatory URL, production deployment, or provider write path was called.
+- PLAN_M78 local deployable Romania product slice: local register/workspace creation, authenticated saved Romania onboarding progress, memory/Prisma onboarding/classification repositories, classification from saved answers, notification draft from saved answers, local readiness/evidence/report/dashboard/billing/audit web workflow, and UI/browser smoke coverage are implemented without external calls, DNSC submission, provider writes, or fabricated product data.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -180,7 +181,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 68 / `docs/PLAN_M69.md` is completed.
 - Prompt 69 / `docs/PLAN_M70.md` is completed.
 - Prompt 70 / `docs/PLAN_M71.md` through Prompt 76 / `docs/PLAN_M77.md` are completed.
-- Prompt 77 / `docs/PLAN_M78.md` is staged as the next active implementation prompt.
+- Prompt 77 / `docs/PLAN_M78.md` is completed.
+- Prompt 78 / `docs/PLAN_M79.md` is staged as the next active implementation prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -195,11 +197,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 77 / `docs/PLAN_M78.md`: Outside-App Stripe, Microsoft 365, And KMS Target Execution.
+1. Prompt 78 / `docs/PLAN_M79.md`: Local Romania Workflow Hardening And Handoff.
 
-Do not enable live provider writes, Microsoft Graph write/remediation actions, direct authority submission, production/customer targets, or broad multi-target external execution. M78 must configure and run exactly one approved outside-app target only when the existing selector chooses a single ready path, or record the concrete blocker if no target is ready. Stripe test-mode, Microsoft 365 read-only tenant smoke, and provider-token custody/KMS are the candidate tracks; the current repository does not contain a real KMS/HSM/secret-manager adapter, so KMS work must not be claimed as live custody proof unless a real adapter and non-production custody target are explicitly implemented and selected.
+M78 implemented the deployable local Romania workflow. M79 should harden that path without returning to outside-app smoke: improve workflow error/result handling, local export ergonomics, first-run/manual/unsupported states, and operator documentation while keeping Microsoft, Stripe, OIDC providers, object-storage clouds, KMS/HSM/secret-manager APIs, public regulatory fetches, DNSC/authority submission, provider writes, and fabricated customer/provider data out of the product path.
 
-## Active Prompt 77 / PLAN_M78: Outside-App Stripe, Microsoft 365, And KMS Target Execution
+## Active Prompt 78 / PLAN_M79: Local Romania Workflow Hardening And Handoff
 
 Read:
 
@@ -209,87 +211,97 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/codex_status.md`
-- `docs/PLAN_M72.md`
-- `docs/PLAN_M77.md`
-- `docs/PLAN_M48.md`
+- `docs/PLAN_M79.md`
+- `docs/PLAN_M78.md`
+- `code/README.md`
 - `code/package.json`
-- `code/scripts/external-smoke-readiness.ts`
-- `code/scripts/external-smoke-target-selection.ts`
-- `code/scripts/stripe-test-mode-smoke.ts`
-- `code/scripts/microsoft365-read-only-smoke.ts`
-- `code/scripts/provider-token-rotation-smoke.ts`
 
 Goal:
 
-Break the current external-proof deadlock by using operator-provided external resources to configure, select, and run exactly one approved disposable/test outside-app target, or document why no target can run yet.
+Harden the M78 local Romania workflow so it is easier to operate and review in an in-a-box deployment. Keep the existing `node:http` runtime and saved-data product path. Improve local form error rendering, action result continuity, first-run empty/manual states, export/download ergonomics where existing report APIs already support it, and documentation for the local operator path. Do not add live integrations or broad frontend framework migration.
 
 Deliverables:
 
-- Confirm which single target is actually prepared outside the app: Stripe test-mode, Microsoft 365 read-only disposable tenant, or provider-token custody/KMS.
-- Set only that target's guardrail environment variables.
-- Run `npm run external-smoke:readiness` and `npm run external-smoke:select-target` from `code/`.
-- If and only if the selector chooses exactly one ready path, run only the selected smoke command.
-- Capture a redacted result or blocker in `docs/codex_status.md`, `docs/PLAN_M78.md`, `docs/implementation-gaps.md`, and `docs/LEARNINGS.md`.
-- If KMS is selected but no real adapter exists, write the concrete real-custody adapter/runbook prompt instead of claiming live KMS proof.
+- Clear web error/success rendering for failed and successful Romania workflow POST actions without leaking private answers, cookies, storage paths, report bodies, or endpoint URLs.
+- Better continuity after save/classify/draft/evaluate/evidence/report/audit actions, showing the relevant stored IDs/statuses already available from local API responses.
+- First-run states that guide a new local user from register/workspace creation to saved Romania answers without seeding fake customer/provider data.
+- Local export/report affordances backed by existing authenticated report APIs; defer browser-grade PDF, CSV, and binary bundles if they require new runtime services.
+- Updated tests, UI smoke/browser smoke expectations, `code/README.md`, `docs/PLAN_M79.md`, `docs/codex_status.md`, `docs/codex-prompts.md`, `docs/implementation-gaps.md`, and `docs/LEARNINGS.md`.
 
 Expected files:
 
-- `docs/PLAN_M78.md`
-- `docs/codex_status.md`
-- `docs/implementation-gaps.md`
-- `docs/LEARNINGS.md`
-- Code files only if the selected outside-app target exposes a concrete defect that must be fixed.
+Likely areas are served web routes/renderers/model data, API response/error handling only if needed, focused tests, UI smoke/browser smoke, README, and milestone/gap/status docs. Avoid schema changes unless a concrete local hardening issue proves they are required.
 
 Negative constraints:
 
-- Do not run more than one live candidate in one pass.
-- Do not use production, staging, customer, public-unknown, or long-lived shared targets.
-- Do not print secrets, tokens, tenant IDs, webhook secrets, endpoint URLs, storage URIs, object keys, full provider IDs, authorization codes, cookies, or key material.
-- Do not enable provider writes or Microsoft Graph write scopes.
-- Do not call KMS/HSM/secret-manager APIs unless a real non-production custody target and adapter are explicitly selected and guarded.
-- Do not treat dry-run readiness as live proof.
+- Do not call Microsoft Graph, Stripe, Microsoft/Google/GitHub OIDC/OAuth providers, object-storage clouds, scanner services, KMS/HSM/secret-manager APIs, external signing services, public regulatory URLs, DNSC, or any national authority.
+- Do not run `external-smoke:*`, `stripe:smoke:*`, `microsoft365:smoke:*`, `oidc:smoke:*`, `evidence:smoke:runtime`, `auth:smoke:deployment`, or `provider-token:smoke` as acceptance for this prompt.
+- Do not use mock Microsoft/provider scenarios as product data.
+- Do not seed fake customer organizations, fake tenant posture, fake evidence, fake invoices, fake legal approval, or fake source review into product routes.
+- Do not add direct authority submission, certification claims, or provider write remediation.
+- Do not rewrite the runtime into Next.js/React or add Playwright unless the prompt is explicitly changed to cover that migration.
 
 Tests and acceptance commands:
 
 Run from `code/`:
 
 ```sh
-npm run external-smoke:readiness
-npm run external-smoke:select-target
-```
-
-Then run exactly one selected command only if the selector chooses a single ready path:
-
-```sh
-npm run stripe:smoke:test-mode
-npm run microsoft365:smoke:read-only
-npm run provider-token:smoke
-```
-
-Run normal repository acceptance after any code changes:
-
-```sh
 npm run lint
-npm run test
+npm run test -- ro onboarding notification compliance evidence reports dashboards audit billing auth organization
+npm run test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
+If Firefox/WebDriver BiDi is available:
+
+```sh
+npm run test:e2e -- --grep @browser-smoke
+```
+
+If Prisma schema, migrations, or Prisma adapters change:
+
+```sh
+npm run prisma:validate
+npm run prisma:generate
+```
+
 Expected gap movement:
 
-- GAP-044 should move only if one selected external smoke actually runs.
-- GAP-028 moves if Stripe test-mode runs.
-- The deferred Microsoft live-smoke portion of GAP-007 moves if Microsoft 365 read-only tenant smoke runs.
-- GAP-040 moves only if a real custody backend or concrete adapter/runbook decision is implemented; local/fake custody must not be described as KMS proof.
+- GAP-031 narrows only for concrete workflow hardening, browser/UI coverage, or first-run UX improvements.
+- GAP-029 narrows only for actual local evidence/report/export functionality implemented.
+- GAP-006, GAP-021, GAP-030, GAP-042, and GAP-044 remain open unless their explicit product/legal/external conditions are truly satisfied.
 
 Final response must include:
 
-- Selected target or blocker
+- Local workflow hardening implemented
 - Commands run
-- Whether any live external call was made
-- Redaction posture
+- Whether any external call was made
+- Whether any fabricated product data remains
 - Gaps updated
-- Residual risk and next milestone
+- Residual risk and next local-only milestone
+
+## Completed Prompt 77 / PLAN_M78: Local Deployable Romania Readiness Product Slice
+
+Completed on 2026-05-04.
+
+Summary:
+- Added memory and Prisma Romania onboarding/classification persistence and org-scoped API routes for saved onboarding, classification, and notification draft generation from saved answers.
+- Added register/workspace creation screens plus an authenticated active-workspace Romania workflow for save, classify, draft, evaluate, local evidence upload, report exports, billing-provider-none state, dashboard state, and audit checkpoint metadata.
+- Removed fabricated customer answers, fake Microsoft/provider posture, fake evidence, fake reports, and fake billing data from product route defaults; synthetic data remains only in tests and smokes.
+- Updated UI and browser smokes so the saved-data route remains source-mapped, caveated, no-DNSC, no-certification, and no-live-call.
+
+Validation:
+- `flatpak-spawn --host npm run lint` passed.
+- `flatpak-spawn --host npm run test -- ro onboarding notification compliance evidence reports dashboards audit billing auth organization` passed, 55 files / 229 tests.
+- `flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke` passed.
+- `flatpak-spawn --host npm run test:e2e -- --grep @browser-smoke` passed with Firefox WebDriver BiDi.
+- `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
+- `flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
+- `flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:generate` passed.
+
+No external calls, DNSC submission, provider writes, or legal activation were performed. GAP-029, GAP-031, and GAP-041 narrowed; GAP-006, GAP-021, GAP-030, GAP-042, and GAP-044 remain open.
 
 ## Completed Prompt 76 / PLAN_M77: Microsoft 365 Read-Only Disposable Tenant Smoke Handoff
 

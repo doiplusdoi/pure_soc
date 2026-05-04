@@ -3,6 +3,7 @@ export {
   createOperationalConsoleRuntimeModel,
   createRomaniaOnboardingRouteModel,
   type OperationalConsoleModel,
+  type RomaniaOnboardingRouteInput,
   type RomaniaOnboardingRouteModel,
   type RuntimeSessionSurface,
   type WorkspaceSelectionModel
@@ -10,11 +11,13 @@ export {
 export {
   renderLoginScreen,
   renderOperationalConsole,
+  renderRegisterScreen,
   renderRomaniaOnboardingRoute,
   renderRuntimeMessageScreen,
   renderWorkspaceSelectionScreen,
   type RenderLoginScreenOptions,
   type RenderOperationalConsoleOptions,
+  type RenderRegisterScreenOptions,
   type RenderRomaniaOnboardingRouteOptions,
   type RenderWorkspaceSelectionOptions,
   type RuntimeMessageScreenInput

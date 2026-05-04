@@ -1,8 +1,8 @@
 ---
-title: PureSOC Codex Status, Remediation, And Near-Live Test Plan
+title: PureSOC Codex Status, Remediation, And Local Product Progress
 date: 2026-05-04
 author: Codex
-scope: Repository-level product-finish status after M71-M77, with outside-app Stripe, Microsoft 365, and KMS work staged for M78.
+scope: Repository-level product-finish status after M71-M78, with local deployable Romania readiness implemented and M79 staged.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -13,6 +13,12 @@ aligned_with:
 ---
 
 # PureSOC Codex Status - 2026-05-04
+
+## Current Direction Override
+
+M78 is now implemented as a local/in-a-box product slice rather than an outside-app Stripe/Microsoft 365/KMS smoke path. The repository now has an authenticated Romania readiness workflow that uses local auth, active workspaces, saved organization-owned onboarding answers, stored classification runs, source-linked notification drafts, internal readiness evaluation, local evidence/report/dashboard surfaces, billing-provider-none state, and audit metadata.
+
+External-smoke work remains useful later, but it is still not the immediate product path until one approved disposable/test target is selected.
 
 ## Executive Position
 
@@ -32,22 +38,38 @@ Codex agrees with the central diagnosis in `docs/claude_status.md`:
 
 Codex nuance:
 
-- The served web runtime has moved beyond the older static stub: it now proxies login/logout/session to the API, supports workspace selection, renders from latest dashboard snapshots, and serves the Romania onboarding/readiness route.
+- The served web runtime has moved beyond the older static stub: it now proxies register/login/logout/session to the API, supports workspace creation/selection, renders from latest dashboard snapshots, and serves the saved-data Romania onboarding/readiness workflow.
 - It is still framework-light `node:http`, not the full Next.js/React product shell from the master plan. It is acceptable for local smoke and internal demonstration, but not yet the final customer-grade frontend.
-- M72-M77 deliberately did not fake live proof. They turn Stripe, Microsoft 365, evidence runtime, legal review, billing packaging, and the Romania customer flow into concrete handoffs so the next move can happen outside the app with real disposable/test resources.
+- M72-M77 deliberately did not fake live proof. M78 then converted the local Romania customer flow from handoff into an executable local product path without calling external services.
 
 ## Current Validation Snapshot
 
-Fresh local validation on 2026-05-04, using host `npm` because sandbox-local `npm`/`pnpm` is unavailable:
+Fresh local validation on 2026-05-04, using host `npm`/Docker because the sandbox cannot create a namespace for local command execution:
 
 ```txt
-npm run lint                                      passed
-npm run test                                      passed, 83 files / 359 tests
-npm run test -- drift-checks.spec.ts              passed, 1 file / 7 tests
-docker compose -f infra/compose/docker-compose.yml config  passed
-npm run external-smoke:readiness                  dry_run, ready_for_disposable_smoke=0
-npm run external-smoke:select-target              no_ready_path, readyCandidateCount=0
-git diff --check                                  passed
+flatpak-spawn --host npm run lint
+passed
+
+flatpak-spawn --host npm run test -- ro onboarding notification compliance evidence reports dashboards audit billing auth organization
+passed, 55 files / 229 tests
+
+flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke
+passed
+
+flatpak-spawn --host npm run test:e2e -- --grep @browser-smoke
+passed with Firefox WebDriver BiDi
+
+flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config
+passed
+
+git diff --check
+passed
+
+flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate
+passed
+
+flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:generate
+passed
 ```
 
 No live external calls were made. No provider write actions were enabled. No DNSC submission path exists or should be added for V1.
@@ -77,14 +99,14 @@ Provider write/remediation automation should remain post-V1 unless the product e
 | Local auth, sessions, organizations, RBAC | Strong | Customer workspace fundamentals exist, with Prisma adapters and tests. |
 | OIDC/social login | Contract-complete | Live Microsoft/Google/GitHub apps still need approved smoke. |
 | Regulatory model | Strong contract | EU baseline and source activation lifecycle exist. |
-| Romania country pack | Strong engineering baseline | Workbook import, source map, classifier, onboarding schema, and notification draft exist; legal activation still needs review. |
+| Romania country pack | Strong local product baseline | Workbook import, source map, classifier, onboarding schema, saved onboarding/classification persistence, and notification draft flow exist; legal activation still needs review. |
 | Microsoft 365 provider | Read-only fixture-complete | Permissions and modules are modeled; no approved live tenant smoke yet. |
 | Compliance engine | Strong contract | Article 21 controls, gaps, recommendations, readiness plan, and scoring exist; calibration needs product/legal approval. |
-| Evidence/reports/dashboard | Strong JSON/metadata baseline | Browser-grade PDF, CSV, real bundles, and live object storage/scanner need runtime smoke. |
+| Evidence/reports/dashboard | Strong local JSON/metadata baseline | Local Romania evidence/report/dashboard surfaces exist; browser-grade PDF, CSV, real bundles, and live object storage/scanner need runtime smoke. |
 | Billing | Strong contract | Stripe adapter/webhook/entitlements exist; products/prices/live test-mode still missing. |
 | Audit | Good database-level tamper evidence | WORM/export/notarized external anchor remains deferred. |
 | Jobs/queues | Good local/disposable baseline | Production multi-container queue operations remain open. |
-| Web UI | Good internal served console | Full Next.js/React/cross-browser product runtime remains open. |
+| Web UI | Good local served product console | Register, workspace creation/selection, dashboard, and saved-data Romania workflow run locally; full Next.js/React/cross-browser product runtime remains open. |
 
 ## Open Gaps That Matter Most
 
@@ -122,23 +144,15 @@ Provider write/remediation automation should remain post-V1 unless the product e
 
 ## Remediation Plan
 
-### Track A - Outside-App Proof
+### Track A - Local Product Hardening
 
-M71 is complete. The next useful engineering motion is M78:
+M78 is complete. The next useful engineering motion is M79:
 
-- Configure exactly one approved disposable/test target outside the app.
-- Run readiness and selector first.
-- Run only the selected command if exactly one path is ready.
-- Record a redacted result or blocker.
+- Tighten the local Romania workflow around form errors, success/result continuity, first-run empty states, and export ergonomics.
+- Document the in-a-box operator path from register through saved Romania readiness outputs.
+- Keep the route saved-data-only, local-only, and explicit about unsupported provider writes, DNSC submission, legal activation, and external services.
 
-Acceptance:
-
-```txt
-cd code
-npm run external-smoke:readiness
-npm run external-smoke:select-target
-# one selected command only, if ready
-```
+Acceptance stays local: lint, focused tests, UI smoke, optional Firefox browser smoke, Compose config, and diff hygiene.
 
 ### Track B - Product Scope Cut
 
@@ -464,7 +478,7 @@ These are the concrete external resources required to break the current no-live-
 
 ## Milestone Batch Status
 
-M71-M77 are now complete inside the repository:
+M71-M78 are now complete inside the repository:
 
 | Milestone | Result | Still external or human-owned |
 |---|---|---|
@@ -475,18 +489,19 @@ M71-M77 are now complete inside the repository:
 | M75 | Billing product decision template is written. | Product-approved packaging, pricing, trial/downgrade policy. |
 | M76 | Evidence runtime disposable-smoke handoff is ready. | Disposable storage/scanner/renderer execution and PDF/CSV/bundle completion. |
 | M77 | Microsoft 365 read-only tenant handoff is ready. | Disposable tenant, app registration, read-only consent, live run. |
+| M78 | Local deployable Romania readiness product slice is implemented. | Legal activation/copy approval, score calibration, cross-browser/full frontend runtime, live external smoke. |
 
 ## Recommended Next Milestone
 
-### M78 - Outside-App Stripe, Microsoft 365, And KMS Target Execution
+### M79 - Local Romania Workflow Hardening And Handoff
 
-Move outside the app and configure exactly one target:
+Harden the local/in-a-box path that M78 made usable:
 
-- Preferred first target: Stripe test-mode.
-- Second target: Microsoft 365 read-only disposable tenant.
-- KMS/custody target only after a real custody backend and adapter/runbook path are selected; local key-ring and fake test custody are not KMS proof.
-
-Run readiness and selector first. If the selector chooses one path, run only that command and record the redacted result. If the selector does not choose a path, record the blocker and stop.
+- improve workflow form error rendering and success/result continuity,
+- add clearer local export/download links where existing report APIs support them,
+- tighten empty/manual/provider-unsupported states for first-run customers,
+- document the local operator runbook for using the M78 path,
+- keep all external integrations, DNSC submission, provider writes, and legal activation out of scope.
 
 ## Stop-Doing List
 
@@ -541,10 +556,10 @@ Known unsupported country/provider/runtime areas visible to users
 
 The project does not need more generic scaffolding. It needs a controlled transition from contract confidence to product proof.
 
-The next useful move is:
+The next useful move is now:
 
 ```txt
-Run M78: configure exactly one approved disposable outside-app target, preferably Stripe test-mode, then run only the selector-approved command.
+Run M79: harden the local Romania workflow handoff around form errors, export ergonomics, first-run states, and operator documentation, with no external service dependency.
 ```
 
-After that, shift the result into the Romania legal/product workflow and the customer-shaped readiness path. That is the route from "impressive repo" to "finishable product."
+After that, shift the result into Romania legal/product review and only then return to external-smoke proof for Stripe, Microsoft 365, OIDC, evidence runtime, or custody.

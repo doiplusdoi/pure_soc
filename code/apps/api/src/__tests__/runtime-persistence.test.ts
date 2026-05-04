@@ -38,6 +38,7 @@ describe("API runtime persistence selection", () => {
       "regulatory_sources",
       "remediation_actions",
       "notification_drafts",
+      "ro_nis2_onboarding_classification",
       "provider_connections_and_telemetry",
       "stored_analysis_reports_dashboards",
       "oidc_transient_state"
@@ -70,6 +71,8 @@ const createPrismaClientFixture = () =>
     providerActionRun: {},
     notificationDraft: {},
     roNis2NotificationDraft: {},
+    roNis2OnboardingProgress: {},
+    roNis2ClassificationRun: {},
     generatedReport: {},
     dashboardSnapshot: {},
     emailVerificationToken: {},

@@ -115,7 +115,7 @@ const OPERATIONAL_CONSOLE_ANCHORS = [
     href: "#evidence",
     sectionSelector: "#evidence",
     hash: "#evidence",
-    expectedText: ["Evidence And Reports", "Internal readiness report"]
+    expectedText: ["Evidence And Reports", "Report exports"]
   },
   {
     id: "approvals",
@@ -251,7 +251,11 @@ async function runServedUiSmoke() {
       }
     });
     assertApiBackedDashboardHtml(consoleHtml, apiBackedDashboard);
-    const romaniaRouteHtml = await fetchText(`${webBaseUrl}/onboarding/romania?locale=ro-RO`);
+    const romaniaRouteHtml = await fetchText(`${webBaseUrl}/onboarding/romania?locale=ro-RO`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
     assertRomaniaOnboardingRoute(romaniaRouteHtml);
 
     const desktopSnapshot = writeViewportSnapshot({
@@ -582,7 +586,7 @@ async function runBrowserSmoke() {
         width: 1440,
         height: 900,
         anchorActivation: operationalConsoleAnchorById("evidence"),
-        expectedText: ["Evidence And Reports", "Internal readiness report"],
+        expectedText: ["Evidence And Reports", "Report exports"],
         expectOperationalConsole: true
       })
     );
@@ -984,11 +988,17 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
     requestHeaders,
     seedCookie,
     name: "M64 Selected Workspace",
-    countryCode: "DE",
+    countryCode: "RO",
     assessmentSuffix: "selected",
     warning: "M64 selected workspace smoke",
     countryPackCompleteness: 86,
     findingSeverity: "high"
+  });
+  await seedRomaniaReadinessProductSlice({
+    apiBaseUrl,
+    requestHeaders,
+    seedCookie,
+    organizationId: selectedOrganization.organizationId
   });
 
   return {
@@ -999,6 +1009,127 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
     selectedOrganization,
     expectedDashboardText: "Open gaps"
   };
+}
+
+async function seedRomaniaReadinessProductSlice({ apiBaseUrl, requestHeaders, seedCookie, organizationId }) {
+  const headers = {
+    ...requestHeaders,
+    cookie: seedCookie
+  };
+  const onboarding = await putJson(
+    `${apiBaseUrl}/organizations/${organizationId}/compliance/nis2/ro/onboarding`,
+    {
+      answers: {
+        activity: {
+          mainNaceCode: "6201"
+        },
+        address: {
+          city: "Bucuresti",
+          country: "Romania",
+          county: "Bucuresti",
+          street: "Strada M78"
+        },
+        contact: {
+          email: "security@m78-ui.example.test"
+        },
+        entity: {
+          cui: "RO78000001",
+          legalName: "M78 UI Saved SRL",
+          nationalRegistrationNumber: "J40/7800/2026"
+        },
+        network: {
+          systemsDescription: "Local identity, collaboration, and customer-support systems."
+        },
+        relationship: {
+          criticalEntityInRomaniaLaw294: false,
+          establishedInRomania: true,
+          mainOfficeInRomania: true,
+          providesServicesInAnotherEuMemberState: false,
+          providesServicesInRomania: true,
+          publicAdministrationEstablishedByRomania: false
+        },
+        selectedServiceTypeCodes: ["108004"],
+        size: {
+          employeeCount: 88,
+          sizeCategory: "medium"
+        }
+      }
+    },
+    headers
+  );
+  record("web_runtime_api_ro_onboarding_saved", onboarding.status === 200, String(onboarding.status));
+  const onboardingBody = await onboarding.json();
+  const assessmentId = onboardingBody.progress?.assessmentId;
+  record("web_runtime_api_ro_onboarding_assessment_id_present", typeof assessmentId === "string" && assessmentId.length > 0);
+
+  const classification = await postJson(
+    `${apiBaseUrl}/organizations/${organizationId}/compliance/nis2/ro/classification`,
+    {},
+    headers
+  );
+  record("web_runtime_api_ro_classification_created", classification.status === 201, String(classification.status));
+
+  const draft = await postJson(
+    `${apiBaseUrl}/organizations/${organizationId}/compliance/nis2/ro/notification-draft/from-onboarding`,
+    {
+      locale: "ro-RO"
+    },
+    headers
+  );
+  record("web_runtime_api_ro_notification_draft_created", draft.status === 201, String(draft.status));
+
+  const evidence = await postJson(
+    `${apiBaseUrl}/organizations/${organizationId}/evidence/upload`,
+    {
+      content: Buffer.from("M78 local evidence from saved Romania workflow.", "utf8").toString("base64"),
+      contentEncoding: "base64",
+      controlId: "nis2.governance.risk-management",
+      jurisdiction: "EU",
+      linkedAssessmentId: assessmentId,
+      linkedSourceRecordId: "eu-nis2-art-21",
+      mimeType: "text/plain",
+      requirementKey: "m78-local-evidence",
+      sourceType: "manual_upload",
+      title: "M78 local Romania readiness evidence"
+    },
+    headers
+  );
+  record("web_runtime_api_ro_evidence_uploaded", evidence.status === 201, String(evidence.status));
+
+  if (typeof assessmentId === "string" && assessmentId.length > 0) {
+    const evaluation = await postJson(
+      `${apiBaseUrl}/organizations/${organizationId}/compliance/evaluate`,
+      {
+        assessmentId,
+        countryPack: {
+          countryCode: "RO",
+          completeness: "planned_full_pack",
+          countryPackStatus: "planned_full_pack",
+          unsupportedFeatures: [
+            {
+              featureKey: "dnsc_direct_submission",
+              reason: "PureSOC prepares an internal draft only."
+            }
+          ]
+        },
+        jurisdiction: "EU"
+      },
+      headers
+    );
+    record("web_runtime_api_ro_readiness_evaluated", evaluation.status === 200, String(evaluation.status));
+
+    const report = await postJson(
+      `${apiBaseUrl}/organizations/${organizationId}/reports/internal-readiness`,
+      {
+        assessmentId
+      },
+      headers
+    );
+    record("web_runtime_api_ro_internal_report_generated", report.status === 201, String(report.status));
+  }
+
+  const checkpoint = await postJson(`${apiBaseUrl}/organizations/${organizationId}/audit/checkpoints`, {}, headers);
+  record("web_runtime_api_ro_audit_checkpoint_metadata_available", checkpoint.status === 201 || checkpoint.status === 409, String(checkpoint.status));
 }
 
 async function seedWorkspaceDashboard({
@@ -2106,7 +2237,7 @@ async function readBrowserLayout(browser, context) {
             bodyText.includes("Boundaries And Unsupported States") &&
             bodyText.includes("Direct DNSC submission") &&
             bodyText.includes("Legal activation") &&
-            bodyText.includes("not a full React or Next.js onboarding wizard"),
+            bodyText.includes("API-backed by saved organization data"),
           noDnscSubmissionVisible:
             bodyText.includes("no DNSC submission") &&
             bodyText.includes("Submitted to DNSC") &&
@@ -3308,7 +3439,11 @@ function assertOperationalConsole(consoleHtml, loginHtml) {
   record("first_screen_is_operational_console", consoleHtml.includes('data-ui-smoke="operational-console"'));
   record("dashboard_readiness_copy_is_present", text.includes("Overall internal readiness"));
   record("legal_caveat_is_present", text.includes("not a legal opinion"));
-  record("provider_write_execution_not_exposed", !consoleHtml.includes(">Apply<") && consoleHtml.includes("Queue unavailable"));
+  record(
+    "provider_write_execution_not_exposed",
+    !consoleHtml.includes(">Apply<") &&
+      (consoleHtml.includes("Queue unavailable") || consoleHtml.includes("Provider write execution remains disabled"))
+  );
   record("login_form_has_accessible_labels", loginHtml.includes('<label for="email">Email</label>') && loginHtml.includes('autocomplete="current-password"'));
   record("ui_does_not_make_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));
   record("html_has_no_undefined_or_object_leaks", !/(undefined|\[object Object\])/.test(consoleHtml));
@@ -3356,7 +3491,7 @@ function assertRomaniaOnboardingRoute(html) {
     text.includes("Boundaries And Unsupported States") &&
       text.includes("Direct DNSC submission") &&
       text.includes("Legal activation") &&
-      text.includes("not a full React or Next.js onboarding wizard")
+      text.includes("API-backed by saved organization data")
   );
   record(
     "romania_route_no_dnsc_submission_visible",
@@ -3414,6 +3549,17 @@ async function fetchJson(url, options = {}) {
 function postJson(url, body, headers = {}) {
   return fetch(url, {
     method: "POST",
+    headers: {
+      "content-type": "application/json",
+      ...headers
+    },
+    body: JSON.stringify(body)
+  });
+}
+
+function putJson(url, body, headers = {}) {
+  return fetch(url, {
+    method: "PUT",
     headers: {
       "content-type": "application/json",
       ...headers

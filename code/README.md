@@ -85,22 +85,34 @@ If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_AP
 
 Implemented web paths:
 
+- `GET /register`: renders a local account creation form.
+- `POST /auth/register`: forwards local registration to API `/auth/register`, logs the new user in through API `/auth/login`, preserves the API-issued `puresoc_session` cookie, and redirects to `/workspaces`.
 - `GET /login`: renders the local email/password sign-in form.
 - `POST /auth/login`: forwards form credentials to API `/auth/login`, preserves the API-issued `puresoc_session` cookie, and redirects to `/`.
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
 - `GET /workspaces`: lists the authenticated user's active organization memberships from API `/organizations` and renders a visible workspace selector.
+- `POST /organizations`: creates a local organization through API `/organizations`, keeps the user in the workspace-selection flow, and does not seed provider or customer data.
 - `POST /workspaces/select`: forwards the selected organization to API `/auth/session/active-organization`; the API only accepts active memberships for the current user.
 - `GET /`: resolves the API session and active organization, renders the workspace selector when no organization is active, and otherwise renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
-- `GET /onboarding/romania`: renders a compact Romania NIS2 onboarding/readiness route from the checked-in Romania country-pack onboarding schema, classification helper, notification draft metadata, source-map links, and message-catalog fallback metadata. The route is an internal readiness view only; it prepares no DNSC submission, makes no live external calls, and does not claim legal certification.
+- `GET /onboarding/romania`: requires an API session plus an active organization, reads saved organization-scoped Romania onboarding/classification/draft/dashboard/evidence/billing/audit state from API routes, and renders an internal readiness workflow from checked-in Romania source maps and stored customer-entered data.
+- `POST /onboarding/romania/save`: saves partial Romania onboarding answers to the active organization.
+- `POST /onboarding/romania/classify`: runs preliminary Romania classification from the saved onboarding answers.
+- `POST /onboarding/romania/notification-draft`: creates a source-linked Romania notification draft from saved answers and the latest stored classification run.
+- `POST /onboarding/romania/evaluate`: evaluates internal Article 21 readiness for the active organization and writes a dashboard snapshot.
+- `POST /onboarding/romania/evidence`: uploads local text evidence for the saved Romania assessment through authenticated evidence APIs.
+- `POST /onboarding/romania/reports/internal-readiness` and `POST /onboarding/romania/reports/notification-draft`: generate local JSON exports through authenticated report APIs.
+- `POST /onboarding/romania/audit/checkpoint`: records local audit checkpoint metadata when the checkpoint cadence allows it.
 
-The local UI smoke seeds a synthetic in-memory API user, two organizations, compliance evaluations, and dashboard snapshots before logging in through the web server without an active workspace:
+The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification.
+
+The local UI smoke seeds a synthetic in-memory API user, two organizations, compliance evaluations, dashboard snapshots, saved Romania answers, classification, draft, evidence, report metadata, and audit checkpoint metadata before logging in through the web server without an active workspace:
 
 ```sh
 pnpm test:e2e -- --grep @ui-smoke
 ```
 
-This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the route-specific source-map, legal caveat, fallback, unsupported-state, no-DNSC-submission, responsive, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
+This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the saved-data Romania route, source-map links, legal caveat, fallback metadata, unsupported-state messaging, no-DNSC-submission posture, local workflow forms, responsive behavior, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
 
 The served UI smoke also writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json`. The index is the reviewer entrypoint for the dashboard, workspace-selection, and Romania HTML snapshot filenames; route and source metadata; API-backed dashboard proof; auth/cookie/Origin/callback-exemption summaries; check names; and no-live-call guarantees. It references snapshot files and hashes without embedding HTML bodies, session cookies, passwords, session tokens, authorization headers, full user emails, local port-bearing endpoint URLs, provider secrets, raw provider payloads, object-storage URIs, or external URLs.
 
@@ -114,7 +126,7 @@ It clicks the visible workspace control, asserts the browser session and dashboa
 
 When Firefox runs, the browser smoke also writes `/tmp/puresoc-browser-smoke-*/browser-smoke-artifact-index.json` beside `visual-metrics-manifest.json`. The index summarizes screenshot file names, visual threshold status, M67 anchor-driven section captures, M66 keyboard/pointer anchor workflows, Romania route traversal, browser auth/session status, check count/status, and no-live-call guarantees without embedding PNG bytes, session values, passwords, tokens, authorization headers, full user emails, provider secrets, endpoint secrets, raw provider payloads, storage URIs, or external URLs.
 
-This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, or provider write executors. Full Next.js/React routing, a persistent Romania onboarding wizard, golden-image/pixel-diff review, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
+This smoke stays local and does not call Microsoft Graph, Stripe, OIDC providers, object storage, scanners, KMS/secret-manager, public regulatory URLs, DNSC, national authorities, or provider write executors. Full Next.js/React routing, richer inline form-error handling, golden-image/pixel-diff review, and cross-browser Playwright screenshot parity remain future frontend-runtime work.
 
 ### Message Catalog Runtime
 
