@@ -13,6 +13,15 @@ const dockerfiles = [
   ["Dockerfile.report-renderer", "start:report-renderer"]
 ] as const;
 
+const runtimeComposeFiles = [
+  "docker-compose.yml",
+  "docker-compose.webservices.yml",
+  "docker-compose.jobs.yml",
+  "docker-compose.connectors.yml",
+  "docker-compose.reports.yml",
+  "docker-compose.config.yml"
+] as const;
+
 describe("Docker runtime command shape", () => {
   it("rejects inline placeholder command patterns", () => {
     for (const [dockerfile] of dockerfiles) {
@@ -32,11 +41,21 @@ describe("Docker runtime command shape", () => {
     }
   });
 
-  it("keeps the compose catalog wired to the service Dockerfiles", () => {
+  it("keeps runtime compose catalogs image-only", () => {
+    for (const composeFile of runtimeComposeFiles) {
+      const compose = readWorkspaceFile("infra/compose", composeFile);
+
+      expect(compose, composeFile).not.toContain("build:");
+    }
+  });
+
+  it("keeps the optional build override wired to the service Dockerfiles", () => {
     const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+    const buildCompose = readWorkspaceFile("infra/compose", "docker-compose.build.yml");
 
     for (const [dockerfile] of dockerfiles) {
-      expect(compose).toContain(`dockerfile: infra/docker/${dockerfile}`);
+      expect(compose).not.toContain(`dockerfile: infra/docker/${dockerfile}`);
+      expect(buildCompose).toContain(`dockerfile: infra/docker/${dockerfile}`);
     }
   });
 

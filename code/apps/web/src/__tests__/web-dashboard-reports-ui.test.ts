@@ -13,6 +13,7 @@ import {
   renderRomaniaOnboardingRoute,
   renderWorkspaceSelectionScreen
 } from "../index";
+import { resolvePublicRequestOrigin } from "../server";
 
 describe("web dashboard reports operational UI", () => {
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
@@ -77,6 +78,7 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain('<label for="password">Password</label>');
     expect(login).toContain('autocomplete="current-password"');
     expect(login).toContain('type="submit"');
+    expect(renderRegisterScreen()).toContain('minlength="12"');
 
     const buttonLabels = [...html.matchAll(/<button[^>]*>\s*(?:<span[^>]*>[^<]*<\/span>)?<span>([^<]+)<\/span>/g)].map(
       (match) => match[1] ?? ""
@@ -194,6 +196,8 @@ describe("web dashboard reports operational UI", () => {
       '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
     );
     expect(dashboardHtml).toContain('<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>');
+    expect(dashboardHtml).toContain('action="/auth/logout"');
+    expect(dashboardHtml).toContain('data-ui-action="sign-out"');
     expect(dashboardHtml).not.toContain('onclick="');
     expect(romaniaHtml).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(romaniaHtml).not.toContain('onclick="');
@@ -240,6 +244,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('action="/workspaces/select"');
     expect(html).toContain('action="/organizations"');
     expect(html).toContain('data-ui-action="create-local-workspace"');
+    expect(html).toContain('pattern="[A-Za-z]{2}"');
     expect(html).toContain('name="organizationId" value="org_secondary"');
     expect(html).toContain("Open active workspace");
     expect(html).toContain('data-ui-action="back-to-dashboard"');
@@ -308,7 +313,36 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain('href="/register"');
     expect(register).toContain('data-ui-smoke="register-screen"');
     expect(register).toContain('action="/auth/register"');
+    expect(register).toContain("create a workspace to become its owner");
+    expect(register).toContain('minlength="12"');
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("derives public request origin from proxy headers for API origin checks", () => {
+    expect(resolvePublicRequestOrigin({ headers: { host: "internal:3000" } }, 3000)).toBe("http://internal:3000");
+    expect(
+      resolvePublicRequestOrigin(
+        {
+          headers: {
+            host: "internal:3000",
+            "x-forwarded-host": "app.example.test",
+            "x-forwarded-proto": "https"
+          }
+        },
+        3000
+      )
+    ).toBe("https://app.example.test");
+    expect(
+      resolvePublicRequestOrigin(
+        {
+          headers: {
+            forwarded: 'proto=https;host="puresoc.example.test"',
+            host: "internal:3000"
+          }
+        },
+        3000
+      )
+    ).toBe("https://puresoc.example.test");
   });
 
   it("renders the Romania onboarding route from country-pack contracts with fallback and no-submission metadata", () => {

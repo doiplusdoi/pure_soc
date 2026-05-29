@@ -81,7 +81,7 @@ The current web runtime is the lightweight `node:http` server documented in ADR-
 PURESOC_WEB_API_BASE_URL=http://127.0.0.1:3001 pnpm start:web
 ```
 
-If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. `PURESOC_WEB_PUBLIC_BASE_URL` can be set when the web server needs a stable Origin value for proxied browser state-changing API calls.
+If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. For proxied browser state-changing API calls, the web server sends an Origin derived from `PURESOC_WEB_PUBLIC_BASE_URL`, then `PURESOC_PUBLIC_BASE_URL`, then forwarded proxy headers (`X-Forwarded-Proto`/`X-Forwarded-Host` or `Forwarded`), and finally the request `Host`. Public deployments should set `PURESOC_WEB_PUBLIC_BASE_URL` to the same HTTPS origin configured in `PURESOC_API_TRUSTED_ORIGINS`.
 
 Implemented web paths:
 
@@ -92,7 +92,7 @@ Implemented web paths:
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
 - `GET /workspaces`: lists the authenticated user's active organization memberships from API `/organizations` and renders a visible workspace selector.
-- `POST /organizations`: creates a local organization through API `/organizations`, keeps the user in the workspace-selection flow, and does not seed provider or customer data.
+- `POST /organizations`: creates a local organization through API `/organizations`, grants the creator the organization-scoped `owner` role, selects that organization as the active API session workspace, redirects to the Romania workflow, and does not seed provider or customer data.
 - `POST /workspaces/select`: forwards the selected organization to API `/auth/session/active-organization`; the API only accepts active memberships for the current user.
 - `GET /`: resolves the API session and active organization, renders the workspace selector when no organization is active, and otherwise renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
 - `GET /onboarding/romania`: requires an API session plus an active organization, reads saved organization-scoped Romania onboarding/classification/draft/dashboard/evidence/billing/audit state from API routes, and renders an internal readiness workflow from checked-in Romania source maps and stored customer-entered data.
@@ -105,6 +105,8 @@ Implemented web paths:
 - `POST /onboarding/romania/audit/checkpoint`: records local audit checkpoint metadata when the checkpoint cadence allows it.
 
 The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification.
+
+Self-service signup is currently open in the local auth surface. A newly registered user is signed in, then creating a workspace makes that user the owner of that organization. Email verification delivery/enforcement, invite-only signup policy, owner-managed invitations, and platform-admin operations remain release-hardening work before broad public SaaS use.
 
 The local UI smoke seeds a synthetic in-memory API user, two organizations, compliance evaluations, dashboard snapshots, saved Romania answers, classification, draft, evidence, report metadata, and audit checkpoint metadata before logging in through the web server without an active workspace:
 
@@ -351,6 +353,8 @@ M45 adds a Microsoft 365 read-only disposable tenant smoke harness:
 ```sh
 pnpm microsoft365:smoke:read-only
 ```
+
+For real Microsoft 365 tenant validation, follow `../docs/real-tenant-testing.md`, use `../docs/microsoft365-read-only-smoke.env.example` as the environment shape, and record each run with `../docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, then friendly/internal pilot, then customer pilot only with written authorization.
 
 The default command is a dry-run. It first evaluates the M42 readiness matrix, then prints planned app-only token, encrypted credential envelope, provider-neutral storage, and read-only Graph module operations without calling Microsoft Graph or Microsoft identity endpoints. Output includes configured/missing environment variable names, read-only permission bundle metadata, module metadata, disabled write bundle metadata, and guardrail statuses; it does not print client secrets, provider tokens, refresh tokens, OAuth codes, tenant IDs, raw tenant payloads, user emails from live tenants, endpoint URLs, session cookies, Stripe secrets, object-storage credentials, or key material.
 

@@ -41,9 +41,7 @@ services:
 
   puresoc-web:
     image: puresoc-web:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.web
+    pull_policy: never
     env_file:
       - ../../.env.example
     environment:
@@ -56,9 +54,7 @@ services:
 
   puresoc-api:
     image: puresoc-api:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.api
+    pull_policy: never
     env_file:
       - ../../.env.example
     environment:
@@ -75,9 +71,7 @@ services:
 
   puresoc-worker:
     image: puresoc-worker:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.worker
+    pull_policy: never
     env_file:
       - ../../.env.example
     depends_on:
@@ -88,9 +82,7 @@ services:
 
   puresoc-scheduler:
     image: puresoc-scheduler:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.scheduler
+    pull_policy: never
     env_file:
       - ../../.env.example
     depends_on:
@@ -101,9 +93,7 @@ services:
 
   puresoc-connector-runner:
     image: puresoc-connector-runner:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.connector-runner
+    pull_policy: never
     env_file:
       - ../../.env.example
     depends_on:
@@ -114,9 +104,7 @@ services:
 
   puresoc-regulatory-importer:
     image: puresoc-regulatory-importer:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.regulatory-importer
+    pull_policy: never
     env_file:
       - ../../.env.example
     profiles:
@@ -124,9 +112,7 @@ services:
 
   puresoc-report-renderer:
     image: puresoc-report-renderer:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.report-renderer
+    pull_policy: never
     env_file:
       - ../../.env.example
     environment:

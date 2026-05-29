@@ -1,4 +1,4 @@
-import { createServer } from "node:http";
+import { createServer, type IncomingHttpHeaders } from "node:http";
 
 import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
@@ -43,6 +43,13 @@ interface OrganizationListResponse {
   }>;
 }
 
+interface CreateOrganizationWebResponse {
+  organization?: {
+    id?: string;
+    name?: string;
+  };
+}
+
 interface RomaniaOnboardingStateResponse {
   classificationRun: RomaniaOnboardingRouteInput["classificationRun"];
   latestNotificationDraft: {
@@ -79,6 +86,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
   );
 
   const server = createServer(async (request, response) => {
+    try {
     const url = new URL(request.url ?? "/", "http://localhost");
 
     if (request.method === "GET" && url.pathname === "/health") {
@@ -160,7 +168,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
-    const requestOrigin = options.publicBaseUrl ?? process.env.PURESOC_WEB_PUBLIC_BASE_URL ?? originFromRequest(request, port);
+    const requestOrigin =
+      options.publicBaseUrl ??
+      process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
+      process.env.PURESOC_PUBLIC_BASE_URL ??
+      resolvePublicRequestOrigin(request, port);
 
     if (request.method === "POST" && url.pathname === "/auth/login") {
       const form = await readFormBody(request);
@@ -226,6 +238,16 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           password: form.get("password") ?? ""
         }
       });
+      if (login.statusCode !== 200 || !login.setCookie) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Account created, but automatic sign-in failed. Sign in with the same email and password."
+          }),
+          login.statusCode === 200 ? 502 : login.statusCode
+        );
+        return;
+      }
       if (login.setCookie) {
         response.setHeader("set-cookie", login.setCookie);
       }
@@ -307,7 +329,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     if (request.method === "POST" && url.pathname === "/organizations") {
       const form = await readFormBody(request);
-      const created = await apiJson<unknown>(apiBaseUrl, "/organizations", {
+      const created = await apiJson<CreateOrganizationWebResponse>(apiBaseUrl, "/organizations", {
         method: "POST",
         cookie: request.headers.cookie,
         origin: requestOrigin,
@@ -334,8 +356,52 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
+      const createdOrganizationId = created.body.organization?.id;
+      if (!createdOrganizationId) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Workspace Created Without Selection",
+            summary: "The API created a workspace but did not return an organization identifier for the browser session.",
+            statusLabel: "Selection blocked",
+            statusTone: "warning",
+            actionHref: "/workspaces",
+            actionLabel: "Choose workspace"
+          }),
+          502
+        );
+        return;
+      }
+
+      const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          organizationId: createdOrganizationId
+        }
+      });
+      if (selected.statusCode !== 200) {
+        const selection = await loadWorkspaceSelectionModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Workspace was created, but this browser session could not select it automatically."
+        });
+        sendHtml(
+          response,
+          selection
+            ? renderWorkspaceSelectionScreen(selection)
+            : renderLoginScreen({ errorMessage: "Sign in to select the new workspace." }),
+          selected.statusCode
+        );
+        return;
+      }
+
       response.statusCode = 303;
-      response.setHeader("location", "/workspaces");
+      response.setHeader(
+        "location",
+        `/onboarding/romania?locale=ro-RO&message=${encodeURIComponent("Workspace created and selected.")}`
+      );
       response.end();
       return;
     }
@@ -458,6 +524,24 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
     response.statusCode = 404;
     response.setHeader("content-type", "text/plain; charset=utf-8");
     response.end("not found");
+    } catch (error) {
+      if (!response.headersSent) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Service Temporarily Unavailable",
+            summary: webRequestErrorMessage(error),
+            statusLabel: "Request failed",
+            statusTone: "warning",
+            actionHref: "/login",
+            actionLabel: "Return to sign in"
+          }),
+          502
+        );
+        return;
+      }
+      response.end();
+    }
   });
 
   server.listen(port, () => {
@@ -489,10 +573,54 @@ if (process.argv.some((argument) => argument.endsWith("apps/web/src/server.ts"))
 
 const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, "");
 
-const originFromRequest = (request: { headers: { host?: string | string[] } }, port: number): string => {
-  const host = Array.isArray(request.headers.host) ? request.headers.host[0] : request.headers.host;
-  return `http://${host ?? `127.0.0.1:${port}`}`;
+export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeaders }, port: number): string => {
+  const forwarded = parseForwardedHeader(singleHeader(request.headers.forwarded));
+  const forwardedHost = firstCommaSeparatedHeaderValue(singleHeader(request.headers["x-forwarded-host"]));
+  const forwardedProto = firstCommaSeparatedHeaderValue(singleHeader(request.headers["x-forwarded-proto"]));
+  const host = forwardedHost ?? forwarded.host ?? singleHeader(request.headers.host) ?? `127.0.0.1:${port}`;
+  const protocol = normalizePublicProtocol(forwardedProto ?? forwarded.proto);
+
+  return `${protocol}://${host}`;
 };
+
+const singleHeader = (value: string | string[] | undefined): string | null =>
+  Array.isArray(value) ? value[0] ?? null : value ?? null;
+
+const firstCommaSeparatedHeaderValue = (value: string | null): string | null => {
+  const first = value?.split(",")[0]?.trim();
+  return first && first.length > 0 ? first : null;
+};
+
+const parseForwardedHeader = (value: string | null): { host?: string; proto?: string } => {
+  const first = firstCommaSeparatedHeaderValue(value);
+  if (!first) {
+    return {};
+  }
+
+  const entries = first.split(";").map((part) => part.trim());
+  const result: { host?: string; proto?: string } = {};
+  for (const entry of entries) {
+    const [rawKey, ...rawValueParts] = entry.split("=");
+    const key = rawKey?.trim().toLowerCase();
+    const rawValue = rawValueParts.join("=").trim().replace(/^"|"$/g, "");
+    if (key === "host" && rawValue.length > 0) {
+      result.host = rawValue;
+    }
+    if (key === "proto" && rawValue.length > 0) {
+      result.proto = rawValue;
+    }
+  }
+
+  return result;
+};
+
+const normalizePublicProtocol = (value: string | null | undefined): "http" | "https" =>
+  value?.toLowerCase() === "https" ? "https" : "http";
+
+const webRequestErrorMessage = (error: unknown): string =>
+  error instanceof Error && error.message === "Form body is too large."
+    ? "The submitted form is too large for the current public web runtime."
+    : "The web runtime could not complete this request against the API. Check the API health and public origin configuration.";
 
 const optionalFormValue = (value: string | null): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;

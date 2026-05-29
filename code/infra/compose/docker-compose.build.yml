@@ -1,0 +1,35 @@
+services:
+  puresoc-web:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
+
+  puresoc-api:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+
+  puresoc-worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
+
+  puresoc-scheduler:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scheduler
+
+  puresoc-connector-runner:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.connector-runner
+
+  puresoc-regulatory-importer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.regulatory-importer
+
+  puresoc-report-renderer:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.report-renderer

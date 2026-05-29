@@ -1,8 +1,8 @@
 ---
 title: PureSOC Codex Status, Remediation, And Local Product Progress
-date: 2026-05-04
+date: 2026-05-29
 author: Codex
-scope: Repository-level product-finish status after M71-M78, with local deployable Romania readiness implemented and M79 staged.
+scope: Repository-level current status after docs/repo inspection on 2026-05-28 and real-tenant testing runbook work on 2026-05-29, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -12,7 +12,97 @@ aligned_with:
   - docs/LEARNINGS.md
 ---
 
-# PureSOC Codex Status - 2026-05-04
+# PureSOC Codex Status - 2026-05-29
+
+## Current Snapshot
+
+PureSOC is in a strong local product/proof state, but it is not launch-ready.
+
+The repository has moved well beyond scaffolding: the `code/` monorepo contains API, web, worker, scheduler, connector-runner, regulatory-importer, and report-renderer apps; typed packages for auth, providers, compliance, billing, evidence, audit, jobs, reports, dashboards, database, shared contracts, and UI; Prisma migrations; generated regulatory seed data; split Docker Compose files; and local smoke scripts.
+
+The current executable product path is still the local/in-a-box Romania readiness workflow:
+
+- local registration/login and organization/workspace selection,
+- organization-scoped saved Romania onboarding answers,
+- workbook-derived Romania source maps and classification service,
+- source-linked notification-draft generation,
+- Article 21 internal readiness evaluation,
+- local evidence/report/dashboard/audit surfaces,
+- billing-provider-none state,
+- explicit no-DNSC-submission, no-certification, and no-provider-write posture.
+
+The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and customer-grade UX polish.
+
+## Repo Inspection
+
+Inspected on 2026-05-28:
+
+- Required project docs were read in order: `docs/puresoc_vision.md`, `docs/master-plan.md`, `docs/implementation-gaps.md`, `docs/codex-prompts.md`, and `docs/LEARNINGS.md`.
+- `docs/PLAN_M79.md` is the next active milestone and is still marked `not started`.
+- `docs/real-tenant-testing.md` was added on 2026-05-29 as the Microsoft 365 real-tenant testing runbook, with `docs/real-tenant-test-record-template.md` for sanitized evidence capture and `docs/microsoft365-read-only-smoke.env.example` for placeholder-only environment shape.
+- `git status --short` was clean before this status update.
+- `git diff --check` passed.
+- The workspace has 367 files under `code/` according to `rg --files code`.
+- The app layout and package layout match the docs' `code/` convention.
+- `docs/implementation-gaps.md` still shows the major launch/runtime gaps open; no new blocker was discovered during this status review.
+
+Validation note: this shell does not expose `npm`, `pnpm`, `npx`, `docker`, or the older `flatpak-spawn` host bridge referenced by the May 4 status. Because of that, I did not rerun `npm run lint`, `npm run test`, `npm run test:e2e`, Docker Compose validation, Prisma generation, Redis smoke, or PostgreSQL smoke in this environment. Treat the May 4 validation block below as the last recorded full local validation, not as a fresh May 28 run.
+
+## Implementation Baseline
+
+| Area | Current status | Notes |
+|---|---|---|
+| Monorepo and service catalog | Strong local baseline | `code/` contains app services, packages, config defaults, Dockerfiles, Compose service catalog, scripts, and regulatory data. |
+| Runtime stack | Lightweight and documented | Current API/web runtime is custom `node:http`, not NestJS/Next.js. ADR-017 records this deviation. |
+| Auth, sessions, orgs, RBAC | Strong contract/runtime baseline | Local auth, session, organization creation/selection, RBAC, OIDC callback contracts, and Prisma adapters exist. Live OIDC provider smoke remains open. |
+| Regulatory model | Strong data/guardrail baseline | EU member states, NIS2 seed data, country-pack model, source maps, review tasks, and no-auto-activation guardrails exist. |
+| Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, classification, onboarding schema, notification draft envelope, saved progress, and local workflow exist. Legal activation/copy approval remain open. |
+| Microsoft 365 | Read-only contract/fixture baseline | Permission bundles and read modules are modeled. No approved disposable tenant/live Graph smoke has run. Write executor remains disabled. |
+| Compliance engine | Strong internal-readiness baseline | Article 21 catalog, gaps, recommendations, readiness plan, checklist and dashboard/report integration exist. Score calibration still needs product/legal approval. |
+| Evidence/reports/dashboard | Good local JSON/metadata baseline | Local authenticated evidence and report metadata path exists. Browser-grade PDF, CSV, binary bundles, and live storage/scanner smoke remain open. |
+| Billing | Contract-complete, product-incomplete | Stripe adapter/webhook/entitlements exist. Pricing, plan packaging, and real test-mode smoke remain product/operator work. |
+| Audit | Tamper-evident database baseline | Hash chain/checkpoint/export metadata exists. WORM storage, external signing, and legal-grade retention are deferred. |
+| Jobs/queues | Local/disposable baseline | Job runtime and Redis adapter exist. Production multi-container queue orchestration remains open. |
+| Frontend | Useful local served console | Register/login/workspaces/dashboard/Romania route and UI/browser smoke coverage exist. Customer-grade frontend polish and cross-browser/frontend framework work remain open. |
+
+## Highest-Priority Open Gaps
+
+Launch/product gates:
+
+- `GAP-006`: legal review process and Romania activation ownership remain open.
+- `GAP-012`: billing products, prices, trial/downgrade policy, and entitlement packaging need product approval.
+- `GAP-021`: readiness score weights, stale-evidence policy, accepted-risk credit, and customer-facing copy need product/legal approval.
+- `GAP-042`: Romanian legal caveat and regulatory notification copy remain English/source-mapped fallback until approved.
+- `GAP-044`: no approved live/disposable external smoke target has been selected or run.
+
+Runtime/production proof gates:
+
+- `GAP-028`: real Stripe test-mode runtime and webhook delivery are deferred.
+- `GAP-029`: live object storage/scanner/report-renderer smoke, browser PDF, CSV, and binary evidence bundles are deferred.
+- `GAP-030`: live provider write execution remains intentionally deferred.
+- `GAP-032`: live Microsoft/Google/GitHub OIDC callback smoke is deferred.
+- `GAP-033`: Microsoft Exchange/SharePoint/Teams/Purview read modules are deferred.
+- `GAP-035`: deployed TLS/proxy/browser auth smoke is deferred.
+- `GAP-038`: deployed/shared rate-limit/proxy/CSRF hardening remains open.
+- `GAP-039`: WORM/external audit signing and retention export remain open.
+- `GAP-040`: real KMS/HSM/secret-manager custody and live rotation smoke remain open.
+- `GAP-043`: production multi-process queue orchestration remains open.
+
+## Recommended Next Step
+
+Run M79 as written in `docs/PLAN_M79.md`:
+
+```txt
+Local Romania Workflow Hardening And Handoff
+```
+
+The useful work is to tighten the existing local product path: error/success rendering, first-run states, stored-result continuity, local export affordances, and operator documentation. Keep Microsoft Graph, Stripe, OIDC providers, object storage clouds, scanner services, KMS/HSM/secret-manager APIs, public regulatory fetches, DNSC submission, legal activation, provider writes, and fabricated customer/provider data out of scope.
+
+After M79, the next strategic move should be a human/product decision: either approve Romania legal/product review work, or select exactly one disposable live-smoke target and run its guarded command.
+
+For Microsoft 365 real-life tenant testing, use `docs/real-tenant-testing.md`, prepare local environment values from `docs/microsoft365-read-only-smoke.env.example`, and record each run with `docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, friendly/internal pilot second, customer pilot only with written authorization, and production customer testing only after earlier evidence exists. The current runner remains read-only and selector-gated.
+
+## Historical Snapshot - 2026-05-04
 
 ## Current Direction Override
 

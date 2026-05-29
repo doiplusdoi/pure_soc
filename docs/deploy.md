@@ -19,7 +19,7 @@ Provider writes and remediation execution remain disabled. Microsoft 365 is read
 
 ## Service Topology
 
-The main service catalog is `code/infra/compose/docker-compose.yml`.
+The main service catalog is `code/infra/compose/docker-compose.yml`. It is runtime-only and uses local image tags without `build:` entries, so ordinary Compose starts do not invoke Docker Buildx/Bake. Local image build metadata lives in the opt-in `code/infra/compose/docker-compose.build.yml` override.
 
 | Service | Purpose | Notes |
 |---|---|---|
@@ -92,20 +92,29 @@ pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
 The current Compose catalog does not include a dedicated migrator container, so migration execution is operator/pipeline owned.
 
-5. Start the Compose catalog:
+5. Build local application images when the deployment pipeline has not already produced them:
 
 ```sh
-docker compose -f infra/compose/docker-compose.yml up --build -d
+COMPOSE_BAKE=false docker compose \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.build.yml \
+  build
 ```
 
-6. Verify health:
+6. Start the Compose catalog without a build step:
+
+```sh
+docker compose -f infra/compose/docker-compose.yml up -d
+```
+
+7. Verify health:
 
 ```sh
 curl -fsS http://localhost:3001/health
 curl -fsS http://localhost:3000/health
 ```
 
-7. Exercise the local product path:
+8. Exercise the local product path:
 
 - open `http://localhost:3000/register`;
 - create a local user;

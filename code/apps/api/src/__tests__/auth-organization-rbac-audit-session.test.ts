@@ -148,6 +148,59 @@ describe("auth organization rbac audit session integration", () => {
     expect(services.auditSink.findByAction("logout")).toHaveLength(1);
   });
 
+  it("normalizes public workspace creation fields and rejects invalid organization input", async () => {
+    const owner = await registerAndLogin("public-workspace@example.test");
+
+    const normalizedResponse = await postJson(
+      "/organizations",
+      {
+        name: "  Public Workspace  ",
+        legalName: "  Public Workspace SRL  ",
+        primaryCountryCode: " ro ",
+        headquartersCountryCode: "de"
+      },
+      owner.cookie
+    );
+    expect(normalizedResponse.status).toBe(201);
+    await expect(
+      readJson<{
+        organization: {
+          headquartersCountryCode: string;
+          legalName: string;
+          name: string;
+          primaryCountryCode: string;
+        };
+      }>(normalizedResponse)
+    ).resolves.toMatchObject({
+      organization: {
+        headquartersCountryCode: "DE",
+        legalName: "Public Workspace SRL",
+        name: "Public Workspace",
+        primaryCountryCode: "RO"
+      }
+    });
+
+    const invalidCountryResponse = await postJson(
+      "/organizations",
+      {
+        name: "Invalid Country",
+        primaryCountryCode: "Romania"
+      },
+      owner.cookie
+    );
+    expect(invalidCountryResponse.status).toBe(400);
+
+    const blankNameResponse = await postJson(
+      "/organizations",
+      {
+        name: "   ",
+        primaryCountryCode: "RO"
+      },
+      owner.cookie
+    );
+    expect(blankNameResponse.status).toBe(400);
+  });
+
   it("rejects cross-organization access through the RBAC guard", async () => {
     const owner = await registerAndLogin("owner@example.test");
     const otherUser = await registerAndLogin("other@example.test");

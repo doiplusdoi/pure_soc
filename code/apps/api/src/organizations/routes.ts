@@ -5,16 +5,30 @@ import type { ApiServices } from "../auth/services";
 
 const requireString = (body: Record<string, unknown>, field: string): string => {
   const value = body[field];
-  if (typeof value !== "string" || value.length === 0) {
+  if (typeof value !== "string" || value.trim().length === 0) {
     throw new AuthError("invalid_request", `Missing required string field: ${field}`, 400);
   }
 
-  return value;
+  return value.trim();
 };
 
 const optionalString = (body: Record<string, unknown>, field: string): string | null => {
   const value = body[field];
-  return typeof value === "string" && value.length > 0 ? value : null;
+  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
+};
+
+const optionalCountryCode = (body: Record<string, unknown>, field: string): string | null => {
+  const value = optionalString(body, field);
+  if (value === null) {
+    return null;
+  }
+
+  const normalized = value.toUpperCase();
+  if (!/^[A-Z]{2}$/.test(normalized)) {
+    throw new AuthError("invalid_request", `${field} must be a two-letter ISO country code.`, 400);
+  }
+
+  return normalized;
 };
 
 export const createOrganizationRoute = async (
@@ -32,8 +46,8 @@ export const createOrganizationRoute = async (
       actorUserId: session.user.id,
       name: requireString(body, "name"),
       legalName: optionalString(body, "legalName"),
-      primaryCountryCode: optionalString(body, "primaryCountryCode"),
-      headquartersCountryCode: optionalString(body, "headquartersCountryCode"),
+      primaryCountryCode: optionalCountryCode(body, "primaryCountryCode"),
+      headquartersCountryCode: optionalCountryCode(body, "headquartersCountryCode"),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })

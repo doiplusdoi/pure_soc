@@ -487,6 +487,11 @@ a {
   gap: 0.85rem;
 }
 
+.ps-inline-form {
+  margin: 0;
+  display: inline-flex;
+}
+
 .ps-field {
   display: grid;
   gap: 0.35rem;
