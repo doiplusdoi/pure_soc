@@ -95,7 +95,7 @@ Implemented web paths:
 - `POST /organizations`: creates a local organization through API `/organizations`, grants the creator the organization-scoped `owner` role, selects that organization as the active API session workspace, redirects to the Romania workflow, and does not seed provider or customer data.
 - `POST /workspaces/select`: forwards the selected organization to API `/auth/session/active-organization`; the API only accepts active memberships for the current user.
 - `GET /`: resolves the API session and active organization, renders the workspace selector when no organization is active, and otherwise renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
-- `GET /onboarding/romania`: requires an API session plus an active organization, reads saved organization-scoped Romania onboarding/classification/draft/dashboard/evidence/billing/audit state from API routes, and renders an internal readiness workflow from checked-in Romania source maps and stored customer-entered data.
+- `GET /onboarding/romania`: requires an API session plus an active organization, reads saved organization-scoped Romania onboarding/classification/draft/dashboard/evidence/billing/audit state from API routes, and renders an internal readiness workflow from generated Romania country-pack data and stored customer-entered data. Workbook/source-map provenance remains internal and is not shown in the normal customer workflow.
 - `POST /onboarding/romania/save`: saves partial Romania onboarding answers to the active organization.
 - `POST /onboarding/romania/classify`: runs preliminary Romania classification from the saved onboarding answers.
 - `POST /onboarding/romania/notification-draft`: creates a source-linked Romania notification draft from saved answers and the latest stored classification run.
@@ -104,7 +104,7 @@ Implemented web paths:
 - `POST /onboarding/romania/reports/internal-readiness` and `POST /onboarding/romania/reports/notification-draft`: generate local JSON exports through authenticated report APIs.
 - `POST /onboarding/romania/audit/checkpoint`: records local audit checkpoint metadata when the checkpoint cadence allows it.
 
-The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification.
+The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification. The service selector is a searchable grouped control backed by the generated Romania service catalog, including the none-of-services option, while storing selected service codes internally.
 
 Self-service signup is currently open in the local auth surface. A newly registered user is signed in, then creating a workspace makes that user the owner of that organization. Email verification delivery/enforcement, invite-only signup policy, owner-managed invitations, and platform-admin operations remain release-hardening work before broad public SaaS use.
 
@@ -114,7 +114,7 @@ The local UI smoke seeds a synthetic in-memory API user, two organizations, comp
 pnpm test:e2e -- --grep @ui-smoke
 ```
 
-This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the saved-data Romania route, source-map links, legal caveat, fallback metadata, unsupported-state messaging, no-DNSC-submission posture, local workflow forms, responsive behavior, and focus metadata, and writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
+This smoke fetches the workspace selector, posts a selection through the web/API session contract, proves the selected organization controls the dashboard snapshot, and writes deterministic workspace desktop/mobile HTML snapshots. It also fetches `GET /onboarding/romania?locale=ro-RO`, checks the saved-data Romania route, generated service catalog selector, legal caveat, review-required copy state, unsupported-state messaging, no-DNSC-submission posture, local workflow forms, responsive behavior, focus metadata, and absence of workbook/debug terms in the customer UI, then writes deterministic Romania desktop/mobile HTML snapshots beside the dashboard snapshots.
 
 The served UI smoke also writes `/tmp/puresoc-ui-smoke-*/ui-smoke-artifact-index.json`. The index is the reviewer entrypoint for the dashboard, workspace-selection, and Romania HTML snapshot filenames; route and source metadata; API-backed dashboard proof; auth/cookie/Origin/callback-exemption summaries; check names; and no-live-call guarantees. It references snapshot files and hashes without embedding HTML bodies, session cookies, passwords, session tokens, authorization headers, full user emails, local port-bearing endpoint URLs, provider secrets, raw provider payloads, object-storage URIs, or external URLs.
 

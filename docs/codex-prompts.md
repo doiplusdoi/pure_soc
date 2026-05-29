@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-04 after completing M78, implementing the local deployable Romania readiness product slice, and staging Prompt 78 / `docs/PLAN_M79.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-30 after completing M79, hardening the Romania/DNSC readiness workflow, and staging Prompt 79 / `docs/PLAN_M80.md`.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -27,7 +27,7 @@ The repository currently contains:
 - Prisma schema and TypeScript data contracts for identity, organizations, providers, regulatory sources, compliance, evidence, reports, dashboards, and billing.
 - Local auth, session, organization, RBAC, and audit foundations using in-memory repositories for API tests.
 - EU NIS2 foundation, all 27 member-state country-pack statuses, and source activation skeleton.
-- Romania workbook importer outputs, source maps, classification service, onboarding schema, and notification-draft contracts.
+- Romania workbook importer outputs, source maps, generated runtime catalog model, classification service, onboarding schema, and complete notification-draft contracts.
 - Provider-neutral connector contracts, connector runner, mock provider scenarios, and Microsoft 365 consent/read-only baseline with documented permission bundles.
 - Compliance evaluator, gap generation, recommendation generation, readiness plan, checklist generation, and representative control catalog.
 - Evidence metadata, access audit, JSON report/export builders, dashboard aggregation, and API routes backed by stored in-memory analysis records.
@@ -103,6 +103,7 @@ The repository currently contains:
 - PLAN_M71 Romania import report drift posture: `pnpm lint` now checks the generated Romania seed, source-map, and import-report artifacts against deterministic in-memory importer output without fetching public regulatory URLs or activating legal logic.
 - PLAN_M72-M77 app-side product-finish handoffs: Stripe test-mode target selection, Romania legal review SOP, customer-shaped Romania readiness flow, billing product decision template, evidence runtime disposable smoke, and Microsoft 365 read-only disposable tenant smoke are documented as operator/product handoffs. No live Stripe, Microsoft Graph, object storage, scanner, KMS/HSM/secret-manager, OIDC provider, public regulatory URL, production deployment, or provider write path was called.
 - PLAN_M78 local deployable Romania product slice: local register/workspace creation, authenticated saved Romania onboarding progress, memory/Prisma onboarding/classification repositories, classification from saved answers, notification draft from saved answers, local readiness/evidence/report/dashboard/billing/audit web workflow, and UI/browser smoke coverage are implemented without external calls, DNSC submission, provider writes, or fabricated product data.
+- PLAN_M79 Romania readiness-flow hardening: the Romania route now reads like a standalone compliance product rather than a workbook/source-map inspector, uses the generated service catalog through a searchable grouped selector, captures the expanded required onboarding fields, generates drafts from all 74 imported notification mapping rows, preserves source provenance internally, and UI smoke proves the customer route hides workbook/sheet/cell/source-map/raw-trace/schema internals without DNSC submission.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -182,7 +183,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 69 / `docs/PLAN_M70.md` is completed.
 - Prompt 70 / `docs/PLAN_M71.md` through Prompt 76 / `docs/PLAN_M77.md` are completed.
 - Prompt 77 / `docs/PLAN_M78.md` is completed.
-- Prompt 78 / `docs/PLAN_M79.md` is staged as the next active implementation prompt.
+- Prompt 78 / `docs/PLAN_M79.md` is completed.
+- Prompt 79 / `docs/PLAN_M80.md` is staged as a decision-gated handoff prompt.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -197,11 +199,11 @@ During each prompt run:
 
 Recommended next sequence:
 
-1. Prompt 78 / `docs/PLAN_M79.md`: Local Romania Workflow Hardening And Handoff.
+1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
 
-M78 implemented the deployable local Romania workflow. M79 should harden that path without returning to outside-app smoke: improve workflow error/result handling, local export ergonomics, first-run/manual/unsupported states, and operator documentation while keeping Microsoft, Stripe, OIDC providers, object-storage clouds, KMS/HSM/secret-manager APIs, public regulatory fetches, DNSC/authority submission, provider writes, and fabricated customer/provider data out of the product path.
+M79 completed the Romania/DNSC readiness-flow hardening pass. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
-## Active Prompt 78 / PLAN_M79: Local Romania Workflow Hardening And Handoff
+## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
 Read:
 
@@ -211,75 +213,80 @@ Read:
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
 - `docs/codex_status.md`
+- `docs/PLAN_M80.md`
 - `docs/PLAN_M79.md`
-- `docs/PLAN_M78.md`
 - `code/README.md`
 - `code/package.json`
 
 Goal:
 
-Harden the M78 local Romania workflow so it is easier to operate and review in an in-a-box deployment. Keep the existing `node:http` runtime and saved-data product path. Improve local form error rendering, action result continuity, first-run empty/manual states, export/download ergonomics where existing report APIs already support it, and documentation for the local operator path. Do not add live integrations or broad frontend framework migration.
+Continue only after the user/product owner selects one M80 path. Either prepare Romanian legal/product activation review operations without claiming approval, run exactly one approved disposable external proof target through the selector-first smoke discipline, or document the concrete blocker and stop.
 
 Deliverables:
 
-- Clear web error/success rendering for failed and successful Romania workflow POST actions without leaking private answers, cookies, storage paths, report bodies, or endpoint URLs.
-- Better continuity after save/classify/draft/evaluate/evidence/report/audit actions, showing the relevant stored IDs/statuses already available from local API responses.
-- First-run states that guide a new local user from register/workspace creation to saved Romania answers without seeding fake customer/provider data.
-- Local export/report affordances backed by existing authenticated report APIs; defer browser-grade PDF, CSV, and binary bundles if they require new runtime services.
-- Updated tests, UI smoke/browser smoke expectations, `code/README.md`, `docs/PLAN_M79.md`, `docs/codex_status.md`, `docs/codex-prompts.md`, `docs/implementation-gaps.md`, and `docs/LEARNINGS.md`.
+- Path A: reviewer-facing/admin-only Romania review summaries and docs for GAP-006/GAP-042, while normal customer UI remains source-safe.
+- Path B: one selected disposable/test external smoke target, using the relevant readiness selector and guarded command only after explicit confirmation.
+- Path C: blocker-only updates to gap/status/learning docs, with no product code churn.
 
 Expected files:
 
-Likely areas are served web routes/renderers/model data, API response/error handling only if needed, focused tests, UI smoke/browser smoke, README, and milestone/gap/status docs. Avoid schema changes unless a concrete local hardening issue proves they are required.
+Likely files depend on the chosen path. Always update `docs/PLAN_M80.md`, `docs/codex_status.md`, `docs/codex-prompts.md`, `docs/implementation-gaps.md`, and `docs/LEARNINGS.md` when the decision or blocker changes. Avoid schema/runtime changes unless the selected path truly requires them.
 
 Negative constraints:
 
-- Do not call Microsoft Graph, Stripe, Microsoft/Google/GitHub OIDC/OAuth providers, object-storage clouds, scanner services, KMS/HSM/secret-manager APIs, external signing services, public regulatory URLs, DNSC, or any national authority.
-- Do not run `external-smoke:*`, `stripe:smoke:*`, `microsoft365:smoke:*`, `oidc:smoke:*`, `evidence:smoke:runtime`, `auth:smoke:deployment`, or `provider-token:smoke` as acceptance for this prompt.
-- Do not use mock Microsoft/provider scenarios as product data.
-- Do not seed fake customer organizations, fake tenant posture, fake evidence, fake invoices, fake legal approval, or fake source review into product routes.
-- Do not add direct authority submission, certification claims, or provider write remediation.
-- Do not rewrite the runtime into Next.js/React or add Playwright unless the prompt is explicitly changed to cover that migration.
+- Do not mark Romania legal logic active or add approved Romanian legal/regulatory copy unless product/legal supplies the exact approved text.
+- Do not add direct DNSC/national-authority submission, legal certification claims, provider write remediation, public regulatory fetches, or fabricated product data.
+- Do not run live Microsoft Graph, Stripe, OIDC provider, object-storage/scanner, KMS/HSM/secret-manager, deployed-auth, or provider-token smoke unless Path B is explicitly selected with a safe disposable/test target and the existing guardrails are satisfied.
+- Do not select more than one external proof target.
 
 Tests and acceptance commands:
 
-Run from `code/`:
+For Path A, run from `code/`:
 
 ```sh
 npm run lint
-npm run test -- ro onboarding notification compliance evidence reports dashboards audit billing auth organization
+npm run test -- ro regulatory-import web notification dashboards reports
 npm run test:e2e -- --grep @ui-smoke
 docker compose -f infra/compose/docker-compose.yml config
 git diff --check
 ```
 
-If Firefox/WebDriver BiDi is available:
-
-```sh
-npm run test:e2e -- --grep @browser-smoke
-```
-
-If Prisma schema, migrations, or Prisma adapters change:
-
-```sh
-npm run prisma:validate
-npm run prisma:generate
-```
+For Path B, run the relevant dry-run readiness/selector command first, then only the one selected guarded smoke command with explicit disposable/test confirmation.
 
 Expected gap movement:
 
-- GAP-031 narrows only for concrete workflow hardening, browser/UI coverage, or first-run UX improvements.
-- GAP-029 narrows only for actual local evidence/report/export functionality implemented.
-- GAP-006, GAP-021, GAP-030, GAP-042, and GAP-044 remain open unless their explicit product/legal/external conditions are truly satisfied.
+- GAP-006 and GAP-042 narrow only for real review operations, approved copy, or activation workflow work.
+- GAP-044 narrows only if one approved disposable target is selected or run.
+- GAP-030 remains open unless a future prompt explicitly funds provider-write safety and live write proof.
 
 Final response must include:
 
-- Local workflow hardening implemented
+- Selected M80 path, or the fact that no path was selected
 - Commands run
 - Whether any external call was made
-- Whether any fabricated product data remains
 - Gaps updated
-- Residual risk and next local-only milestone
+- Residual risk and remaining blockers
+
+## Completed Prompt 78 / PLAN_M79: Romania Readiness Flow Hardening
+
+Completed on 2026-05-30.
+
+Summary:
+- Added a generated Romania runtime model that loads the checked-in seed, exposes all 77 generated service options as grouped product labels, and supplies strict internal provenance for notification draft envelope validation.
+- Replaced the customer-facing workbook/source-map/debug route with a product-safe guided workflow, expanded onboarding capture, and a searchable grouped service selector while preserving source provenance internally.
+- Updated the Romania notification draft builder to cover all 74 imported registration notification mapping rows and keep `submittedToDnsc=false`.
+- Expanded classification scenario tests and web/API/UI smoke coverage so normal customer UI hides workbook, sheet/cell, source-map, raw-trace, and implementation-schema terms.
+
+Validation:
+- `npm run lint` passed.
+- `npm run drift:regulatory` passed.
+- `npm run test -- ro regulatory-import web notification dashboards reports` passed, 32 files / 144 tests.
+- `npm run test -- ro notification web-dashboard-reports-ui` passed, 26 files / 128 tests.
+- `npm run test:e2e -- --grep @ui-smoke` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `git diff --check` passed.
+
+No external calls, DNSC submission, provider writes, legal activation, or certification claims were added. GAP-031 and GAP-042 narrowed; GAP-006, GAP-021, GAP-029, GAP-030, and GAP-044 remain open.
 
 ## Completed Prompt 77 / PLAN_M78: Local Deployable Romania Readiness Product Slice
 

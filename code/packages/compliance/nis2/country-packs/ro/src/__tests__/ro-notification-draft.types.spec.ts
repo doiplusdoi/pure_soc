@@ -70,6 +70,9 @@ describe("ro notification draft data contract", () => {
       noticeReviewStatus: "source_approved"
     });
     expect(notificationDraftHasSourceMappedFields(draft)).toBe(true);
+    expect(draft.fields).toHaveLength(74);
+    expect(draft.sourceMapLinks).toHaveLength(74);
+    expect(draft.submission.notice).not.toMatch(/workbook|sheet|cell/i);
     expect(draft.fields.find((field) => field.key === "notification_c10")).toMatchObject({
       labelMessageKey: "country_pack.ro.nis2.notification.notification_c10.label",
       labelFallbackUsed: false,

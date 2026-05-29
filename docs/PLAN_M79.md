@@ -4,8 +4,10 @@
 
 Harden the M78 local/in-a-box Romania readiness workflow so the saved-data path is easier to operate, review, and hand off without adding external services, DNSC submission, provider writes, legal activation, or a frontend framework migration.
 
-Status: not started.
+Status: completed.
 Created: 2026-05-04.
+Started: 2026-05-30.
+Completed: 2026-05-30.
 Depends on: completed `docs/PLAN_M78.md`.
 
 ## Single Codex Prompt
@@ -101,4 +103,75 @@ npm run prisma:generate
 
 ## Completion Log
 
-Not started.
+- 2026-05-30: Started against the broader Romania/DNSC readiness-flow request. Initial discovery found three concrete M79/M80-level gaps to close in this pass: customer-visible debug/source-map/workbook language on the Romania route, a hardcoded service-code datalist instead of the generated service catalog, and a notification draft builder that still covers only a subset of the imported mapping.
+- 2026-05-30: Completed the Romania readiness-flow hardening slice. The Romania route now presents a product workflow instead of a workbook/debug inspector, uses a searchable grouped service selector backed by the generated catalog, captures the expanded onboarding fields required by the country pack, preserves source provenance internally, and keeps direct DNSC submission unavailable. The notification draft builder now covers all 74 imported mapping rows, and tests/smoke assertions prove customer UI hides workbook/source-map/cell/range internals.
+
+## Actual Files Touched
+
+```txt
+code/apps/api/src/__tests__/ro-nis2-api-routes.test.ts
+code/apps/api/src/compliance/nis2/ro/routes.ts
+code/apps/web/src/__tests__/web-dashboard-reports-ui.test.ts
+code/apps/web/src/app-data.ts
+code/apps/web/src/operational-console.ts
+code/apps/web/src/server.ts
+code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-classification.service.spec.ts
+code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-notification-draft.types.spec.ts
+code/packages/compliance/nis2/country-packs/ro/src/__tests__/ro-onboarding.schema.spec.ts
+code/packages/compliance/nis2/country-packs/ro/src/index.ts
+code/packages/compliance/nis2/country-packs/ro/src/notification-draft.types.ts
+code/packages/compliance/nis2/country-packs/ro/src/onboarding.schema.ts
+code/packages/compliance/nis2/country-packs/ro/src/runtime-model.ts
+code/scripts/run-ui-smoke.mjs
+code/README.md
+docs/PLAN_M79.md
+docs/PLAN_M80.md
+docs/codex-prompts.md
+docs/codex_status.md
+docs/implementation-gaps.md
+docs/LEARNINGS.md
+```
+
+Pre-existing unrelated local changes in `.DS_Store`, `code/infra/compose/docker-compose.yml`, `code/packages/ui/src/index.ts`, `code/pnpm-lock.yaml`, and `.impeccable/` were left in place.
+
+## Validation Results
+
+Run from `code/` with npm equivalents because this environment used npm rather than pnpm:
+
+```txt
+npm run lint
+passed
+
+npm run drift:regulatory
+passed
+
+npm run test -- ro regulatory-import web notification dashboards reports
+passed, 32 files / 144 tests
+
+npm run test -- ro notification web-dashboard-reports-ui
+passed, 26 files / 128 tests
+
+npm run test:e2e -- --grep @ui-smoke
+passed
+
+docker compose -f infra/compose/docker-compose.yml config
+passed
+
+git diff --check
+passed
+```
+
+The Vitest selections that start local API servers were run outside the sandbox after sandboxed execution hit `listen EPERM` for ephemeral localhost listeners.
+
+## Gap Movement
+
+- GAP-031 narrowed for the customer-shaped Romania workflow, generated-catalog service selector, source-safe UI assertions, and route smoke coverage without claiming Next.js/React, Playwright, or cross-browser parity.
+- GAP-042 narrowed for complete imported notification mapping coverage and product-safe fallback display. It remains open because approved Romanian legal/regulatory copy was not added.
+- GAP-006, GAP-021, GAP-029, GAP-030, and GAP-044 remain open. No legal activation, score calibration approval, browser-grade PDF/CSV/binary bundle, provider write execution, public regulatory fetch, DNSC submission, or live external smoke was added.
+
+## Residual Risk
+
+- The route is still a lightweight server-rendered local workflow, not a full multi-page frontend wizard.
+- Generated source provenance remains in internal country-pack/API payloads and reports; the normal customer route hides it.
+- Browser-grade PDF, CSV, and binary evidence bundles remain deferred under GAP-029.
+- Romanian legal caveat and regulatory notification labels remain unapproved fallback content under GAP-042.

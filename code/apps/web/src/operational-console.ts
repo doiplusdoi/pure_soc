@@ -122,6 +122,7 @@ export const renderOperationalConsole = (
     "</head>",
     '<body class="ps-body">',
     content,
+    renderRomaniaServiceSearchScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -142,10 +143,12 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
-    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="login-screen">',
+    '<main class="ps-content ps-content--auth" id="content" tabindex="-1" data-ui-smoke="login-screen">',
     '<section class="ps-section" aria-labelledby="login-title">',
     '<div class="ps-section__header">',
-    `<div><h1 class="ps-section__title" id="login-title">${escapeHtml(copy.signIn)}</h1><p class="ps-muted">${escapeHtml(copy.internalReadinessConsole)}</p></div>`,
+    `<div><h1 class="ps-section__title" id="login-title">${escapeHtml(copy.signIn)}</h1><p class="ps-muted">${escapeHtml(
+      copy.internalReadinessConsole
+    )}</p></div>`,
     renderStatusPill({ label: copy.apiSession, tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
@@ -183,18 +186,20 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
-    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="register-screen">',
+    '<main class="ps-content ps-content--auth" id="content" tabindex="-1" data-ui-smoke="register-screen">',
     '<section class="ps-section" aria-labelledby="register-title">',
     '<div class="ps-section__header">',
-    '<div><h1 class="ps-section__title" id="register-title">Register Local Account</h1><p class="ps-muted">Create a PureSOC account, then create a workspace to become its owner.</p></div>',
+    '<div><h1 class="ps-section__title" id="register-title">Register local account</h1><p class="ps-muted">Create a PureSOC account, then create a workspace to become its owner.</p></div>',
     renderStatusPill({ label: "local auth", tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
     options.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(options.errorMessage)}</p>` : "",
     '<form class="ps-form" action="/auth/register" method="post">',
-    '<div class="ps-field"><label for="displayName">Display name</label><input id="displayName" name="displayName" type="text" autocomplete="name" required></div>',
+    '<div class="ps-field"><label for="displayName">Display name</label><input id="displayName" name="displayName" type="text" autocomplete="name" required><span class="ps-help">Use the name your teammates will recognize in audit history.</span></div>',
     `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email" required></div>`,
-    `<div class="ps-field"><label for="password">${escapeHtml(copy.password)}</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required></div>`,
+    `<div class="ps-field"><label for="password">${escapeHtml(
+      copy.password
+    )}</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required><span class="ps-help">Minimum 12 characters for local development accounts.</span></div>`,
     renderCommandButton({ label: "Register", ariaLabel: "Register local PureSOC account", tone: "primary", type: "submit" }),
     "</form>",
     '<p class="ps-muted"><a class="ps-command" href="/login" data-ui-action="back-to-login">Back to sign in</a></p>',
@@ -249,30 +254,32 @@ export const renderWorkspaceSelectionScreen = (
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="workspace-selection">',
     '<section class="ps-section" aria-labelledby="workspace-selection-title">',
     '<div class="ps-section__header">',
-    `<div><h1 class="ps-section__title" id="workspace-selection-title">Select A Workspace</h1><p class="ps-muted">${escapeHtml(model.session.user.displayName ?? model.session.user.email)}</p></div>`,
+    `<div><h1 class="ps-section__title" id="workspace-selection-title">Select a workspace</h1><p class="ps-muted">${escapeHtml(
+      model.session.user.displayName ?? model.session.user.email
+    )}</p></div>`,
     renderStatusPill({ label: copy.apiSession, tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
     model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
     model.organizations.length === 0
-      ? '<p class="ps-muted">No active workspace memberships are available for this session.</p>'
+      ? '<div class="ps-empty-state"><p class="ps-muted">No active workspace memberships are available for this session.</p></div>'
       : [
           '<div class="ps-grid">',
           ...model.organizations.map((organization) => renderWorkspaceSelectionPanel(organization, activeOrganizationId)),
           "</div>"
         ].join(""),
-    '<section class="ps-section ps-stack-top" aria-labelledby="workspace-create-title">',
+    '<article class="ps-panel ps-panel--quiet ps-stack-top" aria-labelledby="workspace-create-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<h2 class="ps-section__title" id="workspace-create-title">Create Workspace</h2>',
+    '<div><h2 class="ps-section__title" id="workspace-create-title">Create workspace</h2><p class="ps-muted">Start with the country because it decides which onboarding route appears first.</p></div>',
     renderStatusPill({ label: "local organization", tone: "accent" }),
     "</div>",
     '<form class="ps-form" action="/organizations" method="post" data-ui-action="create-local-workspace">',
-    '<div class="ps-field"><label for="name">Workspace name</label><input id="name" name="name" type="text" required></div>',
-    '<div class="ps-field"><label for="legalName">Legal name</label><input id="legalName" name="legalName" type="text"></div>',
-    '<div class="ps-field"><label for="primaryCountryCode">Primary country</label><input id="primaryCountryCode" name="primaryCountryCode" type="text" value="RO" maxlength="2" pattern="[A-Za-z]{2}" autocapitalize="characters" spellcheck="false" required></div>',
+    '<div class="ps-field"><label for="name">Workspace name</label><input id="name" name="name" type="text" required><span class="ps-help">Use a short operational name, for example the business unit or legal entity.</span></div>',
+    '<div class="ps-field"><label for="legalName">Legal name</label><input id="legalName" name="legalName" type="text"><span class="ps-help">Optional now. Romania onboarding asks for the legal name later.</span></div>',
+    '<div class="ps-field"><label for="primaryCountryCode">Primary country</label><input id="primaryCountryCode" name="primaryCountryCode" type="text" value="RO" maxlength="2" pattern="[A-Za-z]{2}" autocapitalize="characters" spellcheck="false" required><span class="ps-help">Two-letter ISO code. Use RO for the Romania NIS2 route.</span></div>',
     renderCommandButton({ label: "Create workspace", ariaLabel: "Create local workspace", tone: "primary", type: "submit" }),
     "</form>",
-    "</section>",
+    "</article>",
     '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
     "</div>",
     "</section>",
@@ -306,202 +313,27 @@ export const renderRomaniaOnboardingRoute = (
   const completedSteps = new Set(model.progress.completedSteps);
   const requiredFieldCount = model.steps.reduce((total, step) => total + step.requiredFieldPaths.length, 0);
   const completedRequiredFieldCount = requiredFieldCount - model.progress.missingRequiredFields.length;
+  const requiredFieldCoverage =
+    requiredFieldCount === 0 ? 100 : Math.round((completedRequiredFieldCount / requiredFieldCount) * 100);
   const labelFallbackCount = model.notificationDraft.fields.filter((field) => field.labelFallbackUsed).length;
-  const servicesSourceMap = model.sourceMapLinks.find((link) => link.targetCollection === "service_options");
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
-    renderSection({
-      id: "romania-onboarding",
-      title: "Romania NIS2 Onboarding",
-      eyebrow: renderStatusPill({ label: model.countryPack.countryPackStatus.replaceAll("_", " "), tone: "warning" }),
-      body: [
-        model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
-        '<div class="ps-grid">',
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Workbook-backed progress</h3>',
-        `<p>${escapeHtml(model.progress.completedSteps.length)} of ${escapeHtml(model.steps.length)} steps are saved for this workspace.</p>`,
-        renderMeter({
-          label: "Required field coverage",
-          value: Math.round((completedRequiredFieldCount / requiredFieldCount) * 100),
-          source: "roNis2OnboardingSchema"
-        }),
-        renderStatusPill({ label: model.hasSavedProgress ? "saved organization data" : "empty state", tone: model.hasSavedProgress ? "success" : "warning" }),
-        model.progressRecordId ? renderSourceChip({ label: "Progress", detail: model.progressRecordId }) : "",
-        model.assessmentId ? renderSourceChip({ label: "Assessment", detail: model.assessmentId }) : "",
-        renderSourceChip({ label: "Source version", detail: model.progress.sourceVersion }),
-        servicesSourceMap
-          ? renderSourceChip({ label: "Services source", detail: servicesSourceMap.workbookRange ?? servicesSourceMap.sourceMapId })
-          : "",
-        "</article>",
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Preliminary classification</h3>',
-        renderStatusPill({ label: model.classification.result.replaceAll("_", " "), tone: "warning" }),
-        `<p>${escapeHtml(model.classification.reasons[0] ?? "Classification awaits more source-mapped answers.")}</p>`,
-        renderStatusPill({
-          label: model.classificationPersisted ? "stored classification run" : "preview from saved answers",
-          tone: model.classificationPersisted ? "success" : "info"
-        }),
-        model.classificationRunId ? renderSourceChip({ label: "Classification run", detail: model.classificationRunId }) : "",
-        renderSourceChip({ label: "Matched rules", detail: `${model.classification.matchedRules.length}` }),
-        "</article>",
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Locale and fallback</h3>',
-        renderStatusPill({ label: `requested ${model.requestedLocale ?? model.resolvedLocale}`, tone: "info" }),
-        renderStatusPill({ label: `caveat ${model.notificationDraft.legalCaveatLocale}`, tone: "warning" }),
-        renderStatusPill({
-          label: model.notificationDraft.legalCaveatFallbackReason ?? "no caveat fallback",
-          tone: model.notificationDraft.legalCaveatFallbackUsed ? "warning" : "success"
-        }),
-        `<p class="ps-muted">${escapeHtml(labelFallbackCount)} notification labels currently use fallback metadata for this locale.</p>`,
-        "</article>",
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Local product state</h3>',
-        renderStatusPill({ label: `Evidence ${model.evidence.count}`, tone: "info" }),
-        renderStatusPill({ label: `Reports ${model.evidence.generatedReportCount}`, tone: "accent" }),
-        renderStatusPill({ label: `Entitlements ${model.billing.entitlementCount}`, tone: "success" }),
-        renderStatusPill({ label: `Audit checkpoints ${model.audit.checkpointCount}`, tone: "neutral" }),
-        model.dashboard
-          ? renderSourceChip({ label: model.dashboard.readinessScoreLabel, detail: `${model.dashboard.readinessScores.overallInternalReadiness}` })
-          : renderStatusPill({ label: "dashboard not generated", tone: "warning" }),
-        model.latestNotificationDraftId ? renderSourceChip({ label: "Notification draft", detail: model.latestNotificationDraftId }) : "",
-        "</article>",
-        "</div>"
-      ].join("")
+    renderRomaniaRouteHero({
+      completedRequiredFieldCount,
+      labelFallbackCount,
+      model,
+      requiredFieldCount,
+      requiredFieldCoverage
     }),
     renderSection({
       id: "romania-workflow",
-      title: "Local Workflow",
+      title: "Guided Workflow",
       eyebrow: renderStatusPill({ label: "saved data only", tone: "accent" }),
       body: renderRomaniaWorkflowForms(model)
     }),
-    renderSection({
-      id: "romania-unsupported",
-      title: "Boundaries And Unsupported States",
-      eyebrow: renderStatusPill({ label: "internal readiness only", tone: "accent" }),
-      body: [
-        '<div class="ps-grid">',
-        ...model.unsupportedSignals.map(
-          (signal) =>
-            `<article class="ps-panel"><h3 class="ps-panel__title">${escapeHtml(signal.label)}</h3>${renderStatusPill({
-              label: signal.tone === "warning" ? "unsupported" : "documented",
-              tone: signal.tone
-            })}<p>${escapeHtml(signal.detail)}</p></article>`
-        ),
-        "</div>",
-        '<div class="ps-chip-row ps-stack-top">',
-        renderStatusPill({ label: model.billing.planLabel, tone: "success" }),
-        renderSourceChip({ label: "Billing provider", detail: model.billing.providerKey }),
-        renderSourceChip({ label: "Audit export", detail: model.audit.guarantees }),
-        "</div>",
-        renderLegalCaveat(model.notificationDraft.legalCaveat)
-      ].join("")
-    }),
-    renderSection({
-      id: "romania-steps",
-      title: "Onboarding Contract Steps",
-      eyebrow: renderSourceChip({ label: "Schema", detail: "roNis2OnboardingSchema" }),
-      body: renderDataTable(
-        "Romania onboarding steps",
-        [
-          {
-            header: "Step",
-            render: (step) => `<strong>${escapeHtml(formatKeyLabel(step.key))}</strong><br><span class="ps-muted">${escapeHtml(step.key)}</span>`
-          },
-          {
-            header: "Status",
-            render: (step) =>
-              renderStatusPill({
-                label: completedSteps.has(step.key) ? "source-mapped" : step.key === model.progress.currentStep ? "current" : "pending",
-                tone: completedSteps.has(step.key) ? "success" : step.key === model.progress.currentStep ? "info" : "neutral"
-              })
-          },
-          {
-            header: "Required fields",
-            render: (step) =>
-              step.requiredFieldPaths.length === 0
-                ? '<span class="ps-muted">None in current contract</span>'
-                : step.requiredFieldPaths.map((field) => escapeHtml(field)).join("<br>")
-          },
-          {
-            header: "Source maps",
-            render: (step) => escapeHtml(`${step.sourceMapIds.length} source map ids`)
-          }
-        ],
-        model.steps
-      )
-    }),
-    renderSection({
-      id: "romania-draft",
-      title: "Notification Draft Metadata",
-      eyebrow: renderStatusPill({ label: "no DNSC submission", tone: "warning" }),
-      body: [
-        '<div class="ps-grid">',
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Draft envelope</h3>',
-        renderStatusPill({ label: model.notificationDraft.status, tone: "info" }),
-        renderSourceChip({ label: "Payload schema", detail: model.notificationDraft.payloadSchemaKey }),
-        renderSourceChip({ label: "Submitted to DNSC", detail: String(model.notificationDraft.submission.submittedToDnsc) }),
-        "</article>",
-        '<article class="ps-panel">',
-        '<h3 class="ps-panel__title">Submission notice</h3>',
-        `<p>${escapeHtml(model.notificationDraft.submission.notice)}</p>`,
-        renderStatusPill({
-          label: model.notificationDraft.submission.noticeFallbackReason ?? "source approved",
-          tone: model.notificationDraft.submission.noticeFallbackUsed ? "warning" : "success"
-        }),
-        "</article>",
-        "</div>",
-        renderDataTable(
-          "First source-mapped draft fields",
-          [
-            {
-              header: "Field",
-              render: (field) => `<strong>${escapeHtml(field.label)}</strong><br><span class="ps-muted">${escapeHtml(field.key)}</span>`
-            },
-            {
-              header: "Locale",
-              render: (field) =>
-                [
-                  renderStatusPill({ label: field.labelLocale, tone: field.labelFallbackUsed ? "warning" : "success" }),
-                  field.labelFallbackReason ? renderStatusPill({ label: field.labelFallbackReason, tone: "warning" }) : ""
-                ].join(" ")
-            },
-            {
-              header: "Source",
-              render: (field) =>
-                `${renderSourceChip({ label: field.sourceMapId, detail: `Notification form!${field.targetCell}` })}<br>${escapeHtml(
-                  formatRoSourceReferences(field.sourceReferences)
-                )}`
-            }
-          ],
-          model.notificationDraft.fields.slice(0, 6)
-        )
-      ].join("")
-    }),
-    renderSection({
-      id: "romania-source-map",
-      title: "Source Map Sample",
-      eyebrow: renderSourceChip({ label: "Workbook-derived mappings", detail: `${model.sourceMapLinks.length} unique ids` }),
-      body: renderDataTable(
-        "Source map links",
-        [
-          {
-            header: "Target",
-            render: (link) => `<strong>${escapeHtml(link.targetCollection)}</strong><br><span class="ps-muted">${escapeHtml(link.targetKey)}</span>`
-          },
-          {
-            header: "Workbook range",
-            render: (link) => escapeHtml(link.workbookRange ?? formatRoSourceReferences(link.sourceReferences))
-          },
-          {
-            header: "Source map id",
-            render: (link) => escapeHtml(link.sourceMapId)
-          }
-        ],
-        model.sourceMapLinks.slice(0, 8)
-      )
-    }),
+    renderRomaniaOutputsSection(model, labelFallbackCount),
+    renderRomaniaBoundariesSection(model),
     '<p><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
     "</main>"
   ].join("");
@@ -526,30 +358,313 @@ export const renderRomaniaOnboardingRoute = (
   ].join("");
 };
 
-const renderRomaniaWorkflowForms = (model: RomaniaOnboardingRouteModel): string =>
+type RomaniaGuidedStepState = "active" | "blocked" | "complete";
+
+interface RomaniaRouteHeroInput {
+  completedRequiredFieldCount: number;
+  labelFallbackCount: number;
+  model: RomaniaOnboardingRouteModel;
+  requiredFieldCount: number;
+  requiredFieldCoverage: number;
+}
+
+const renderRomaniaRouteHero = ({
+  completedRequiredFieldCount,
+  labelFallbackCount,
+  model,
+  requiredFieldCount,
+  requiredFieldCoverage
+}: RomaniaRouteHeroInput): string =>
   [
-    '<div class="ps-grid">',
-    '<article class="ps-panel">',
-    '<h3 class="ps-panel__title">Save Romania answers</h3>',
-    '<form class="ps-form" action="/onboarding/romania/save" method="post" data-ui-action="save-romania-onboarding">',
-    renderTextInput("legalName", "Legal name", answerText(model, "entity.legalName"), true),
-    renderTextInput("cui", "CUI", answerText(model, "entity.cui"), true),
-    renderTextInput("nationalRegistrationNumber", "National registration number", answerText(model, "entity.nationalRegistrationNumber"), true),
+    '<section class="ps-route-hero" id="romania-onboarding" data-ui-section="romania-onboarding" aria-labelledby="romania-route-title">',
+    '<div class="ps-route-hero__body">',
+    '<div>',
+    '<p class="ps-route-hero__eyebrow">Guided local workflow</p>',
+    '<h1 class="ps-route-hero__title" id="romania-route-title">Romania NIS2 Onboarding</h1>',
+    '<p class="ps-route-hero__lede">Capture entity facts, run preliminary classification, generate internal readiness outputs, and keep DNSC submission outside PureSOC.</p>',
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-route-hero__actions">',
+    '<a class="ps-command ps-command--primary" href="#romania-workflow" data-ui-action="focus-romania-guided-workflow">Continue workflow</a>',
+    '<a class="ps-command" href="#romania-boundaries" data-ui-action="open-romania-boundaries">Review boundaries</a>',
+    "</div>",
+    "</div>",
+    '<div class="ps-route-hero__facts">',
+    renderStatusPill({ label: model.countryPack.countryPackStatus.replaceAll("_", " "), tone: "warning" }),
+    renderStatusPill({
+      label: model.hasSavedProgress ? "saved organization data" : "empty state",
+      tone: model.hasSavedProgress ? "success" : "warning"
+    }),
+    renderStatusPill({ label: `requested ${model.requestedLocale ?? model.resolvedLocale}`, tone: "info" }),
+    renderStatusPill({ label: `caveat ${model.notificationDraft.legalCaveatLocale}`, tone: "warning" }),
+    renderStatusPill({
+      label: model.notificationDraft.legalCaveatFallbackReason ?? "no caveat fallback",
+      tone: model.notificationDraft.legalCaveatFallbackUsed ? "warning" : "success"
+    }),
+    renderStatusPill({ label: `classification ${model.classification.result.replaceAll("_", " ")}`, tone: "warning" }),
+    `<p class="ps-muted">${escapeHtml(model.progress.completedSteps.length)} of ${escapeHtml(
+      model.steps.length
+    )} contract steps are saved for this workspace.</p>`,
+    labelFallbackCount > 0
+      ? `<p class="ps-muted">${escapeHtml(labelFallbackCount)} draft labels still need approved Romanian legal copy.</p>`
+      : '<p class="ps-muted">Draft labels are available for the selected locale.</p>',
+    renderMeter({
+      label: "Required field coverage",
+      value: requiredFieldCoverage,
+      source: "saved Romania answers"
+    }),
+    `<span class="ps-source-detail">${escapeHtml(completedRequiredFieldCount)} of ${escapeHtml(
+      requiredFieldCount
+    )} required fields currently have saved answers.</span>`,
+    '<div class="ps-chip-row">',
+    model.progressRecordId ? renderSourceChip({ label: "Progress", detail: model.progressRecordId }) : "",
+    model.assessmentId ? renderSourceChip({ label: "Assessment", detail: model.assessmentId }) : "",
+    model.latestNotificationDraftId ? renderSourceChip({ label: "Notification draft", detail: model.latestNotificationDraftId }) : "",
+    renderStatusPill({ label: `${model.serviceCatalogGroups.reduce((total, group) => total + group.options.length, 0)} service options`, tone: "info" }),
+    "</div>",
+    "</div>",
+    "</div>",
+    renderRomaniaGuidedStepper(model, labelFallbackCount),
+    "</section>"
+  ].join("");
+
+const renderRomaniaOutputsSection = (model: RomaniaOnboardingRouteModel, labelFallbackCount: number): string =>
+  renderSection({
+    id: "romania-outputs",
+    title: "Readiness Outputs",
+    eyebrow: renderStatusPill({ label: "draft package only", tone: "warning" }),
+    body: [
+      '<div class="ps-grid">',
+      '<article class="ps-panel">',
+      '<h3 class="ps-panel__title">Preliminary classification</h3>',
+      renderStatusPill({ label: model.classification.result.replaceAll("_", " "), tone: "warning" }),
+      `<p>${escapeHtml(formatRomaniaClassificationReason(model.classification.reasons[0]))}</p>`,
+      renderStatusPill({
+        label: model.classificationPersisted ? "stored classification run" : "preview from saved answers",
+        tone: model.classificationPersisted ? "success" : "info"
+      }),
+      model.classificationRunId ? renderSourceChip({ label: "Run", detail: model.classificationRunId }) : "",
+      "</article>",
+      '<article class="ps-panel">',
+      '<h3 class="ps-panel__title">Notification draft</h3>',
+      renderStatusPill({ label: model.notificationDraft.status.replaceAll("_", " "), tone: "info" }),
+      renderStatusPill({ label: model.notificationDraft.submission.submittedToDnsc ? "submitted" : "not submitted", tone: "warning" }),
+      `<p>${escapeHtml(model.notificationDraft.submission.notice)}</p>`,
+      `<p class="ps-muted">${escapeHtml(model.notificationDraft.fields.length)} draft fields are prepared for reviewer export.</p>`,
+      model.latestNotificationDraftId ? renderSourceChip({ label: "Draft", detail: model.latestNotificationDraftId }) : "",
+      "</article>",
+      '<article class="ps-panel">',
+      '<h3 class="ps-panel__title">Locale review</h3>',
+      renderStatusPill({ label: model.resolvedLocale, tone: "info" }),
+      renderStatusPill({
+        label: labelFallbackCount > 0 ? "Romanian legal copy pending" : "localized copy ready",
+        tone: labelFallbackCount > 0 ? "warning" : "success"
+      }),
+      `<p>${escapeHtml(
+        labelFallbackCount > 0
+          ? "The workflow keeps legal and regulatory wording conservative until approved Romanian copy exists."
+          : "The selected locale has approved draft labels."
+      )}</p>`,
+      "</article>",
+      '<article class="ps-panel">',
+      '<h3 class="ps-panel__title">Readiness state</h3>',
+      renderStatusPill({ label: `Evidence ${model.evidence.count}`, tone: "info" }),
+      renderStatusPill({ label: `Reports ${model.evidence.generatedReportCount}`, tone: "accent" }),
+      model.dashboard
+        ? renderMeter({
+            label: model.dashboard.readinessScoreLabel,
+            value: model.dashboard.readinessScores.overallInternalReadiness,
+            source: "stored readiness outputs"
+          })
+        : renderStatusPill({ label: "dashboard not generated", tone: "warning" }),
+      "</article>",
+      "</div>"
+    ].join("")
+  });
+
+const formatRomaniaClassificationReason = (reason?: string): string =>
+  (reason ?? "Classification awaits more saved answers.")
+    .replace(/workbook option/gi, "service option")
+    .replace(/workbook rule/gi, "Romania NIS2 rule")
+    .replace(/source map/gi, "internal reference")
+    .replace(/Entity assessment![A-Z0-9:]+/gi, "the Romania readiness criteria")
+    .replace(/Notification form![A-Z0-9:]+/gi, "the Romania notification draft");
+
+const renderRomaniaBoundariesSection = (model: RomaniaOnboardingRouteModel): string =>
+  renderSection({
+    id: "romania-boundaries",
+    title: "Review Boundaries",
+    eyebrow: renderStatusPill({ label: "internal readiness only", tone: "accent" }),
+    body: [
+      '<div class="ps-grid">',
+      ...model.unsupportedSignals.map(
+        (signal) =>
+          `<article class="ps-panel"><h3 class="ps-panel__title">${escapeHtml(signal.label)}</h3>${renderStatusPill({
+            label: signal.tone === "warning" ? "not available" : "documented",
+            tone: signal.tone
+          })}<p>${escapeHtml(signal.detail)}</p></article>`
+      ),
+      "</div>",
+      '<div class="ps-chip-row ps-stack-top">',
+      renderStatusPill({ label: model.billing.planLabel, tone: "success" }),
+      renderSourceChip({ label: "Billing", detail: model.billing.providerKey }),
+      renderSourceChip({ label: "Audit", detail: model.audit.guarantees }),
+      "</div>",
+      renderLegalCaveat(model.notificationDraft.legalCaveat)
+    ].join("")
+  });
+
+const renderRomaniaGuidedStepper = (model: RomaniaOnboardingRouteModel, labelFallbackCount: number): string => {
+  const steps = resolveRomaniaGuidedSteps(model, labelFallbackCount);
+
+  return [
+    '<ol class="ps-stepper" aria-label="Romania onboarding guided steps">',
+    ...steps.map(
+      (step) =>
+        `<li class="ps-step ps-step--${step.state}"><div class="ps-step__header"><span class="ps-step__index">${escapeHtml(
+          step.index
+        )}</span><span>${escapeHtml(step.label)}</span></div><p class="ps-muted">${escapeHtml(step.summary)}</p></li>`
+    ),
+    "</ol>"
+  ].join("");
+};
+
+const resolveRomaniaGuidedSteps = (
+  model: RomaniaOnboardingRouteModel,
+  labelFallbackCount: number
+): Array<{ index: number; label: string; state: RomaniaGuidedStepState; summary: string }> => {
+  const completedSteps = new Set(model.progress.completedSteps);
+  const businessComplete = completedSteps.has("organization_identity") && completedSteps.has("entity_address_contact");
+  const scopeComplete =
+    completedSteps.has("activity_nace") &&
+    completedSteps.has("entity_size") &&
+    completedSteps.has("services") &&
+    completedSteps.has("relationship_with_romania") &&
+    completedSteps.has("network_system_data");
+  const outputsComplete = model.classificationPersisted && Boolean(model.latestNotificationDraftId) && Boolean(model.assessmentId);
+  const evidenceComplete = model.evidence.count > 0 && model.evidence.generatedReportCount > 0;
+  const definitions = [
+    {
+      complete: businessComplete,
+      label: "Business details",
+      summary: model.hasSavedProgress ? "Entity, CUI, address, and contact saved." : "Start with legal identity and contact fields."
+    },
+    {
+      complete: scopeComplete,
+      label: "Scope and services",
+      summary: "NACE, service code, size, relationships, and systems."
+    },
+    {
+      complete: outputsComplete,
+      label: "Readiness outputs",
+      summary: model.classificationPersisted ? "Classification, draft, and assessment are ready." : "Run local outputs after answers are saved."
+    },
+    {
+      complete: evidenceComplete,
+      label: "Evidence and trace",
+      summary:
+        labelFallbackCount > 0
+          ? `${labelFallbackCount} draft labels still use fallback metadata.`
+          : "Attach evidence and review the boundaries."
+    }
+  ];
+  const firstIncompleteIndex = definitions.findIndex((definition) => !definition.complete);
+
+  return definitions.map((definition, index) => ({
+    index: index + 1,
+    label: definition.label,
+    state: definition.complete ? "complete" : index === firstIncompleteIndex ? "active" : "blocked",
+    summary: definition.summary
+  }));
+};
+
+interface RomaniaNextAction {
+  key: "boundaries" | "classify" | "draft" | "evaluate" | "evidence" | "save";
+  label: string;
+  summary: string;
+  tone: PureSocUiTone;
+}
+
+const renderRomaniaWorkflowForms = (model: RomaniaOnboardingRouteModel): string => {
+  const nextAction = resolveRomaniaNextAction(model);
+  const saveButtonTone = nextAction.key === "save" ? "primary" : "secondary";
+  const evidenceButtonTone = nextAction.key === "evidence" ? "primary" : "secondary";
+
+  return [
+    '<div class="ps-next-action">',
+    `<div><h3>${escapeHtml(nextAction.label)}</h3><p>${escapeHtml(nextAction.summary)}</p></div>`,
+    renderStatusPill({ label: "guided step", tone: nextAction.tone }),
+    "</div>",
+    '<div class="ps-grid ps-stack-top">',
+    '<article class="ps-panel ps-panel--wide">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h3 class="ps-panel__title">Steps 1 and 2: Save organization answers</h3><p class="ps-muted">The form stays explicit so reviewers can understand exactly what the organization provided.</p></div>',
+    renderStatusPill({ label: "15-step Romania workflow", tone: "info" }),
+    "</div>",
+    '<form class="ps-form ps-form--wide" action="/onboarding/romania/save" method="post" data-ui-action="save-romania-onboarding">',
+    '<fieldset class="ps-fieldset">',
+    '<legend class="ps-fieldset__legend">Business details</legend>',
+    '<p class="ps-help">Required fields can stay blank in the empty state. PureSOC will not fabricate customer answers.</p>',
+    '<div class="ps-form-grid">',
+    renderTextInput("legalName", "Legal name", answerText(model, "entity.legalName"), true, "text", "Use the entity name as it appears in official registration records."),
+    renderTextInput("cui", "CUI", answerText(model, "entity.cui"), true, "text", "Use the Romanian fiscal identifier, with or without the RO prefix."),
+    renderTextInput(
+      "nationalRegistrationNumber",
+      "National registration number",
+      answerText(model, "entity.nationalRegistrationNumber"),
+      true,
+      "text",
+      "Use the trade register value when available."
+    ),
     renderTextInput("country", "Country", answerText(model, "address.country") || "Romania", true),
     renderTextInput("county", "County", answerText(model, "address.county"), true),
     renderTextInput("city", "City", answerText(model, "address.city"), true),
     renderTextInput("street", "Street", answerText(model, "address.street"), true),
-    renderTextInput("email", "Security contact email", answerText(model, "contact.email"), true, "email"),
-    renderTextInput("mainNaceCode", "Main NACE code", answerText(model, "activity.mainNaceCode"), true),
-    renderTextInput("employeeCount", "Employee count", answerText(model, "size.employeeCount"), false, "number"),
-    renderSelect("sizeCategory", "Size category", answerText(model, "size.sizeCategory"), [
-      ["", "Select size"],
-      ["small_micro", "Small or micro"],
-      ["medium", "Medium"],
-      ["large", "Large"]
+    renderTextInput("number", "Street number", answerText(model, "address.number"), false),
+    renderTextInput("postalCode", "Postal code", answerText(model, "address.postalCode"), false),
+    renderTextInput("email", "Security contact email", answerText(model, "contact.email"), true, "email", "This contact appears in local notification draft metadata."),
+    renderTextInput("phone", "Telephone", answerText(model, "contact.phone"), false),
+    renderTextInput("mobilePhone", "Mobile phone", answerText(model, "contact.mobilePhone"), false),
+    renderTextInput("websiteUrl", "Website URL", answerText(model, "contact.websiteUrl"), false),
+    "</div>",
+    "</fieldset>",
+    '<fieldset class="ps-fieldset">',
+    '<legend class="ps-fieldset__legend">Scope and relationships</legend>',
+    '<p class="ps-help">These answers drive local classification and readiness outputs only.</p>',
+    '<div class="ps-form-grid">',
+    renderTextInput("mainNaceCode", "Main NACE code", answerText(model, "activity.mainNaceCode"), true, "text", "Use the main NACE activity code from source records."),
+    renderTextInput(
+      "secondaryNaceCodes",
+      "Secondary NACE codes",
+      answerArrayText(model, "activity.secondaryNaceCodes"),
+      false,
+      "text",
+      "Separate multiple codes with commas."
+    ),
+    renderTextInput("employeeCount", "Employee count", answerText(model, "size.employeeCount"), false, "number", "Optional. Helps explain size classification.", [
+      'min="0"',
+      'inputmode="numeric"'
     ]),
-    renderTextInput("serviceCode", "Romania service code", firstStringAnswer(model, "selectedServiceTypeCodes"), true),
-    renderTextarea("systemsDescription", "Network and information systems", answerText(model, "network.systemsDescription")),
+    renderTextInput("annualTurnoverEur", "Annual turnover (EUR)", answerText(model, "size.annualTurnoverEur"), false, "number", "Optional size evidence.", [
+      'min="0"',
+      'inputmode="decimal"'
+    ]),
+    renderTextInput("balanceSheetTotalEur", "Balance sheet total (EUR)", answerText(model, "size.balanceSheetTotalEur"), false, "number", "Optional size evidence.", [
+      'min="0"',
+      'inputmode="decimal"'
+    ]),
+    renderSelect(
+      "sizeCategory",
+      "Size category",
+      answerText(model, "size.sizeCategory"),
+      [
+        ["", "Select size"],
+        ["small_micro", "Small or micro"],
+        ["medium", "Medium"],
+        ["large", "Large"]
+      ],
+      "Used with employee count for local scope checks."
+    ),
+    renderRomaniaServiceSelector(model),
     renderCheckbox("establishedInRomania", "Established in Romania", answerBoolean(model, "relationship.establishedInRomania")),
     renderCheckbox("mainOfficeInRomania", "Main office in Romania", answerBoolean(model, "relationship.mainOfficeInRomania")),
     renderCheckbox("providesServicesInRomania", "Provides services in Romania", answerBoolean(model, "relationship.providesServicesInRomania")),
@@ -559,59 +674,309 @@ const renderRomaniaWorkflowForms = (model: RomaniaOnboardingRouteModel): string 
       answerBoolean(model, "relationship.providesServicesInAnotherEuMemberState")
     ),
     renderCheckbox(
+      "publicAdministrationEstablishedByRomania",
+      "Public administration entity established by Romania",
+      answerBoolean(model, "relationship.publicAdministrationEstablishedByRomania")
+    ),
+    renderCheckbox(
       "criticalEntityInRomaniaLaw294",
       "Critical entity under Romania Law 294/2024",
       answerBoolean(model, "relationship.criticalEntityInRomaniaLaw294")
     ),
-    renderCommandButton({ label: "Save progress", ariaLabel: "Save Romania onboarding progress", tone: "primary", type: "submit" }),
+    "</div>",
+    "</fieldset>",
+    renderRomaniaPeopleNetworkFields(model),
+    renderRomaniaArticle9AndDocumentsFields(model),
+    '<div class="ps-command-row ps-stack-top">',
+    renderCommandButton({
+      label: "Save progress",
+      ariaLabel: "Save Romania onboarding progress",
+      tone: saveButtonTone,
+      type: "submit"
+    }),
+    renderStatusPill({ label: model.hasSavedProgress ? "updates saved data" : "creates local progress", tone: model.hasSavedProgress ? "success" : "warning" }),
+    "</div>",
     "</form>",
     "</article>",
     '<article class="ps-panel">',
-    '<h3 class="ps-panel__title">Generate readiness outputs</h3>',
+    '<h3 class="ps-panel__title">Step 3: Generate readiness outputs</h3>',
+    '<p class="ps-muted">Actions use saved organization data and never send anything to DNSC.</p>',
     '<div class="ps-action-list">',
-    renderWorkflowActionForm("/onboarding/romania/classify", "Run classification", "run-romania-classification", !model.hasSavedProgress),
-    renderWorkflowActionForm("/onboarding/romania/notification-draft", "Generate draft", "generate-romania-notification-draft", !model.hasSavedProgress),
-    renderWorkflowActionForm("/onboarding/romania/evaluate", "Evaluate readiness", "evaluate-romania-readiness", !model.hasSavedProgress),
-    renderWorkflowActionForm(
-      "/onboarding/romania/reports/internal-readiness",
-      "Readiness export",
-      "generate-internal-readiness-export",
-      !model.assessmentId
-    ),
-    renderWorkflowActionForm(
-      "/onboarding/romania/reports/notification-draft",
-      "Draft export",
-      "generate-romania-draft-export",
-      !model.latestNotificationDraftId
-    ),
-    renderWorkflowActionForm("/onboarding/romania/audit/checkpoint", "Record checkpoint", "record-audit-checkpoint", false),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/classify",
+      disabled: !model.hasSavedProgress,
+      isPrimary: nextAction.key === "classify",
+      label: "Run classification",
+      reason: model.hasSavedProgress ? "Creates a local classification run." : "Save progress first.",
+      uiAction: "run-romania-classification"
+    }),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/notification-draft",
+      disabled: !model.hasSavedProgress,
+      isPrimary: nextAction.key === "draft",
+      label: "Generate draft",
+      reason: model.hasSavedProgress ? "Builds a local notification draft. PureSOC does not submit it." : "Save progress first.",
+      uiAction: "generate-romania-notification-draft"
+    }),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/evaluate",
+      disabled: !model.hasSavedProgress,
+      isPrimary: nextAction.key === "evaluate",
+      label: "Evaluate readiness",
+      reason: model.hasSavedProgress ? "Refreshes the dashboard snapshot for this workspace." : "Save progress first.",
+      uiAction: "evaluate-romania-readiness"
+    }),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/reports/internal-readiness",
+      disabled: !model.assessmentId,
+      label: "Readiness export",
+      reason: model.assessmentId ? "Exports the current internal readiness report." : "Evaluate readiness first.",
+      uiAction: "generate-internal-readiness-export"
+    }),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/reports/notification-draft",
+      disabled: !model.latestNotificationDraftId,
+      label: "Draft export",
+      reason: model.latestNotificationDraftId ? "Exports the local notification draft." : "Generate draft first.",
+      uiAction: "generate-romania-draft-export"
+    }),
+    renderWorkflowActionForm({
+      action: "/onboarding/romania/audit/checkpoint",
+      disabled: false,
+      label: "Record checkpoint",
+      reason: "Records local audit state without provider writes.",
+      uiAction: "record-audit-checkpoint"
+    }),
     "</div>",
-    '<form class="ps-form ps-stack-top" action="/onboarding/romania/evidence" method="post" data-ui-action="upload-local-evidence">',
-    renderTextInput("evidenceTitle", "Evidence title", "Romania readiness note", true),
-    renderTextInput("controlId", "Control ID", "nis2.governance.risk-management", false),
-    renderTextarea("evidenceContent", "Evidence text", "Describe the local evidence or paste a short policy excerpt."),
-    renderCommandButton({ label: "Attach evidence", ariaLabel: "Attach local evidence", tone: "primary", type: "submit" }),
+    "</article>",
+    '<article class="ps-panel">',
+    '<h3 class="ps-panel__title">Step 4: Attach evidence</h3>',
+    '<p class="ps-muted">Keep the evidence trail next to readiness outputs for review.</p>',
+    '<form class="ps-form ps-form--wide" action="/onboarding/romania/evidence" method="post" data-ui-action="upload-local-evidence">',
+    renderTextInput("evidenceTitle", "Evidence title", "Romania readiness note", true, "text", "Use a human-readable title for later review."),
+    renderTextInput("controlId", "Control ID", "nis2.governance.risk-management", false, "text", "Optional control link for the evidence vault."),
+    renderTextarea("evidenceContent", "Evidence text", "Describe the local evidence or paste a short policy excerpt.", "Keep secrets out of local evidence text."),
+    renderCommandButton({ label: "Attach evidence", ariaLabel: "Attach local evidence", tone: evidenceButtonTone, type: "submit" }),
     "</form>",
     "</article>",
     "</div>",
     '<div class="ps-chip-row ps-stack-top">',
     model.evidence.latestTitles.length > 0
       ? model.evidence.latestTitles.map((title) => renderSourceChip({ label: "Latest evidence", detail: title })).join("")
-      : renderStatusPill({ label: "No evidence attached yet", tone: "warning" }),
+      : '<div class="ps-empty-state">' + renderStatusPill({ label: "No evidence attached yet", tone: "warning" }) + "</div>",
     "</div>"
   ].join("");
+};
 
-const renderWorkflowActionForm = (action: string, label: string, uiAction: string, disabled: boolean): string =>
+const resolveRomaniaNextAction = (model: RomaniaOnboardingRouteModel): RomaniaNextAction => {
+  if (!model.hasSavedProgress) {
+    return {
+      key: "save",
+      label: "Start with saved answers",
+      summary: "Save entity, scope, and contact fields before generating outputs.",
+      tone: "warning"
+    };
+  }
+  if (!model.classificationPersisted) {
+    return {
+      key: "classify",
+      label: "Run classification",
+      summary: "Persist the preliminary classification so later outputs have a traceable source.",
+      tone: "info"
+    };
+  }
+  if (!model.latestNotificationDraftId) {
+    return {
+      key: "draft",
+      label: "Generate draft",
+      summary: "Create the local notification draft while keeping DNSC submission outside PureSOC.",
+      tone: "info"
+    };
+  }
+  if (!model.assessmentId) {
+    return {
+      key: "evaluate",
+      label: "Evaluate readiness",
+      summary: "Refresh the internal dashboard snapshot from the saved Romania route.",
+      tone: "info"
+    };
+  }
+  if (model.evidence.count === 0) {
+    return {
+      key: "evidence",
+      label: "Attach evidence",
+      summary: "Add at least one review artifact so the readiness report has local support.",
+      tone: "accent"
+    };
+  }
+  return {
+    key: "boundaries",
+    label: "Review boundaries",
+    summary: "The guided flow is populated. Check unsupported states and export metadata.",
+    tone: "success"
+  };
+};
+
+interface WorkflowActionFormInput {
+  action: string;
+  disabled: boolean;
+  isPrimary?: boolean;
+  label: string;
+  reason: string;
+  uiAction: string;
+}
+
+const renderWorkflowActionForm = ({ action, disabled, isPrimary = false, label, reason, uiAction }: WorkflowActionFormInput): string =>
   [
-    `<form action="${escapeHtml(action)}" method="post" data-ui-action="${escapeHtml(uiAction)}">`,
+    `<form class="ps-action-form" action="${escapeHtml(action)}" method="post" data-ui-action="${escapeHtml(uiAction)}">`,
     renderCommandButton({
       label,
       ariaLabel: label,
       disabled,
-      tone: disabled ? "secondary" : "primary",
+      tone: disabled || !isPrimary ? "secondary" : "primary",
       type: "submit"
     }),
+    `<p class="ps-help">${escapeHtml(reason)}</p>`,
     "</form>"
+  ].join("");
+
+const renderRomaniaServiceSelector = (model: RomaniaOnboardingRouteModel): string => {
+  const selectedCodes = new Set(arrayStringAnswer(model, "selectedServiceTypeCodes"));
+
+  return [
+    '<div class="ps-field ps-field--full">',
+    '<label for="serviceCodes">Services by sector and subsector</label>',
+    '<input id="serviceSearch" type="search" placeholder="Search services" autocomplete="off" aria-controls="serviceCodes" data-ui-action="search-romania-services">',
+    '<select id="serviceCodes" name="serviceCodes" multiple size="12" required aria-describedby="serviceCodes-help">',
+    ...model.serviceCatalogGroups.map(
+      (group) =>
+        `<optgroup label="${escapeHtml([group.categoryLabel, group.sectorLabel].filter(Boolean).join(" / "))}">${group.options
+          .map((option) => {
+            const suffix = option.subsectorLabel ? ` (${option.subsectorLabel})` : "";
+            return `<option value="${escapeHtml(option.code)}"${selectedCodes.has(option.code) ? " selected" : ""}>${escapeHtml(
+              `${option.label}${suffix}`
+            )}</option>`;
+          })
+          .join("")}</optgroup>`
+    ),
+    "</select>",
+    '<span class="ps-help" id="serviceCodes-help">Filter by sector, subsector, or service label. Hold Command or Ctrl to select more than one service.</span>',
+    "</div>"
+  ].join("");
+};
+
+const renderRomaniaServiceSearchScript = (): string =>
+  `<script>
+(() => {
+  const search = document.getElementById("serviceSearch");
+  const select = document.getElementById("serviceCodes");
+  if (!(search instanceof HTMLInputElement) || !(select instanceof HTMLSelectElement)) {
+    return;
+  }
+
+  const groups = Array.from(select.querySelectorAll("optgroup"));
+  const update = () => {
+    const query = search.value.trim().toLowerCase();
+    groups.forEach((group) => {
+      const options = Array.from(group.querySelectorAll("option"));
+      let visibleCount = 0;
+      options.forEach((option) => {
+        const match = query.length === 0 || option.textContent?.toLowerCase().includes(query) === true;
+        option.hidden = !match && !option.selected;
+        if (!option.hidden) {
+          visibleCount += 1;
+        }
+      });
+      group.hidden = visibleCount === 0;
+    });
+  };
+
+  search.addEventListener("input", update);
+  update();
+})();
+</script>`;
+
+const renderRomaniaPeopleNetworkFields = (model: RomaniaOnboardingRouteModel): string =>
+  [
+    '<fieldset class="ps-fieldset">',
+    '<legend class="ps-fieldset__legend">Responsible people and monitoring</legend>',
+    '<div class="ps-form-grid">',
+    renderTextInput("cybersecurityName", "Cybersecurity responsible person", answerText(model, "cybersecurityResponsible.name"), true),
+    renderTextInput("cybersecurityRole", "Cybersecurity role", answerText(model, "cybersecurityResponsible.role"), true),
+    renderTextInput("cybersecurityEmail", "Cybersecurity email", answerText(model, "cybersecurityResponsible.email"), true, "email"),
+    renderTextInput("cybersecurityPhone", "Cybersecurity phone", answerText(model, "cybersecurityResponsible.phone"), true),
+    renderTextInput("monitoringName", "Permanent monitoring contact", answerText(model, "permanentMonitoringContact.name"), true),
+    renderTextInput("monitoringRole", "Monitoring role", answerText(model, "permanentMonitoringContact.role"), false),
+    renderTextInput("monitoringEmail", "Monitoring email", answerText(model, "permanentMonitoringContact.email"), true, "email"),
+    renderTextInput("monitoringPhone", "Monitoring phone", answerText(model, "permanentMonitoringContact.phone"), true),
+    "</div>",
+    "</fieldset>",
+    '<fieldset class="ps-fieldset">',
+    '<legend class="ps-fieldset__legend">Network and public IP ranges</legend>',
+    '<div class="ps-form-grid">',
+    renderTextarea(
+      "publicIpRanges",
+      "Public IP ranges",
+      answerArrayText(model, "network.publicIpRanges"),
+      "Separate ranges with commas or line breaks.",
+      "ps-field--full"
+    ),
+    renderTextarea(
+      "systemsDescription",
+      "Network and information systems",
+      answerText(model, "network.systemsDescription"),
+      "Summarize the systems that support the selected service category.",
+      "ps-field--full"
+    ),
+    "</div>",
+    "</fieldset>"
+  ].join("");
+
+const renderRomaniaArticle9AndDocumentsFields = (model: RomaniaOnboardingRouteModel): string =>
+  [
+    '<fieldset class="ps-fieldset">',
+    '<legend class="ps-fieldset__legend">Article 9, documents, and legal representative</legend>',
+    '<p class="ps-help">Article 9 answers are used when the classification path requires them.</p>',
+    '<div class="ps-form-grid">',
+    renderCheckbox("soleProviderEssentialService", "Sole provider of an essential supporting service", answerBoolean(model, "article9.soleProviderEssentialService")),
+    renderSelect(
+      "publicSafetySecurityOrHealthImpact",
+      "Public safety/security/health impact",
+      answerText(model, "article9.publicSafetySecurityOrHealthImpact"),
+      [
+        ["", "Not assessed"],
+        ["low", "Low"],
+        ["medium", "Medium"],
+        ["high", "High"]
+      ],
+      "Use the highest known impact level."
+    ),
+    renderSelect(
+      "systemicRisk",
+      "Systemic or cross-border risk",
+      answerText(model, "article9.systemicRisk"),
+      [
+        ["", "Not assessed"],
+        ["low", "Low"],
+        ["medium", "Medium"],
+        ["high", "High"]
+      ],
+      "Use the highest known systemic-risk level."
+    ),
+    renderCheckbox("nationalOrRegionalCriticality", "Critical at national or regional level", answerBoolean(model, "article9.nationalOrRegionalCriticality")),
+    renderTextarea(
+      "attachedDocumentIds",
+      "Attached document references",
+      answerArrayText(model, "attachedDocumentIds"),
+      "List local evidence or document IDs separated by commas or line breaks.",
+      "ps-field--full"
+    ),
+    renderTextInput("legalRepresentativeName", "Legal representative", answerText(model, "legalRepresentative.name"), true),
+    renderTextInput("legalRepresentativeRole", "Legal representative role", answerText(model, "legalRepresentative.role"), true),
+    renderTextInput("legalRepresentativeEmail", "Legal representative email", answerText(model, "legalRepresentative.email"), true, "email"),
+    renderTextInput("legalRepresentativePhone", "Legal representative phone", answerText(model, "legalRepresentative.phone"), true),
+    "</div>",
+    "</fieldset>"
   ].join("");
 
 const renderTextInput = (
@@ -619,28 +984,53 @@ const renderTextInput = (
   label: string,
   value: string,
   required = false,
-  type: "email" | "number" | "text" = "text"
-): string =>
-  `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><input id="${escapeHtml(
-    name
-  )}" name="${escapeHtml(name)}" type="${type}" value="${escapeHtml(value)}"${required ? " required" : ""}></div>`;
+  type: "email" | "number" | "text" = "text",
+  help = "",
+  attributes: readonly string[] = []
+): string => {
+  const fieldId = escapeHtml(name);
+  const helpId = `${fieldId}-help`;
+  const describedBy = help ? ` aria-describedby="${helpId}"` : "";
+  const extraAttributes = attributes.length > 0 ? ` ${attributes.join(" ")}` : "";
 
-const renderTextarea = (name: string, label: string, value: string): string =>
-  `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><textarea id="${escapeHtml(
-    name
-  )}" name="${escapeHtml(name)}" rows="4">${escapeHtml(value)}</textarea></div>`;
+  return `<div class="ps-field"><label for="${fieldId}">${escapeHtml(label)}</label><input id="${fieldId}" name="${fieldId}" type="${type}" value="${escapeHtml(
+    value
+  )}"${required ? " required" : ""}${describedBy}${extraAttributes}>${
+    help ? `<span class="ps-help" id="${helpId}">${escapeHtml(help)}</span>` : ""
+  }</div>`;
+};
 
-const renderSelect = (name: string, label: string, value: string, options: Array<readonly [string, string]>): string =>
-  [
-    `<div class="ps-field"><label for="${escapeHtml(name)}">${escapeHtml(label)}</label><select id="${escapeHtml(
-      name
-    )}" name="${escapeHtml(name)}" required>`,
+const renderTextarea = (name: string, label: string, value: string, help = "", className = ""): string => {
+  const fieldId = escapeHtml(name);
+  const helpId = `${fieldId}-help`;
+  const describedBy = help ? ` aria-describedby="${helpId}"` : "";
+  const classes = ["ps-field", className].filter(Boolean).join(" ");
+
+  return `<div class="${classes}"><label for="${fieldId}">${escapeHtml(label)}</label><textarea id="${fieldId}" name="${fieldId}" rows="4"${describedBy}>${escapeHtml(
+    value
+  )}</textarea>${help ? `<span class="ps-help" id="${helpId}">${escapeHtml(help)}</span>` : ""}</div>`;
+};
+
+const renderSelect = (
+  name: string,
+  label: string,
+  value: string,
+  options: Array<readonly [string, string]>,
+  help = ""
+): string => {
+  const fieldId = escapeHtml(name);
+  const helpId = `${fieldId}-help`;
+  const describedBy = help ? ` aria-describedby="${helpId}"` : "";
+
+  return [
+    `<div class="ps-field"><label for="${fieldId}">${escapeHtml(label)}</label><select id="${fieldId}" name="${fieldId}" required${describedBy}>`,
     ...options.map(
       ([optionValue, optionLabel]) =>
         `<option value="${escapeHtml(optionValue)}"${optionValue === value ? " selected" : ""}>${escapeHtml(optionLabel)}</option>`
     ),
-    "</select></div>"
+    `</select>${help ? `<span class="ps-help" id="${helpId}">${escapeHtml(help)}</span>` : ""}</div>`
   ].join("");
+};
 
 const renderCheckbox = (name: string, label: string, checked: boolean): string =>
   `<label class="ps-field ps-field--checkbox"><input name="${escapeHtml(name)}" type="checkbox" value="true"${
@@ -655,10 +1045,12 @@ const answerText = (model: RomaniaOnboardingRouteModel, path: string): string =>
   return typeof value === "string" ? value : "";
 };
 
-const firstStringAnswer = (model: RomaniaOnboardingRouteModel, path: string): string => {
+const arrayStringAnswer = (model: RomaniaOnboardingRouteModel, path: string): string[] => {
   const value = valueAtPath(model.progress.answers, path);
-  return Array.isArray(value) && typeof value[0] === "string" ? value[0] : "";
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : [];
 };
+
+const answerArrayText = (model: RomaniaOnboardingRouteModel, path: string): string => arrayStringAnswer(model, path).join(", ");
 
 const answerBoolean = (model: RomaniaOnboardingRouteModel, path: string): boolean =>
   valueAtPath(model.progress.answers, path) === true;
@@ -749,10 +1141,13 @@ const renderWorkspaceSelectionPanel = (
     )} workspace | ${escapeHtml(roleSummary)}</p></div>`,
     renderStatusPill({ label: selected ? "active" : organization.membershipStatus, tone: selected ? "success" : "info" }),
     "</div>",
-    '<div class="ps-chip-row">',
+    '<details class="ps-disclosure ps-trace">',
+    '<summary>Trace</summary>',
+    '<div class="ps-chip-row ps-stack-top">',
     renderSourceChip({ label: "Organization", detail: organization.id }),
     renderStatusPill({ label: `Billing ${organization.billingStatus}`, tone: "neutral" }),
     "</div>",
+    "</details>",
     `<form class="ps-form ps-stack-top" action="/workspaces/select" method="post" data-organization-id="${escapeHtml(
       organization.id
     )}">`,
@@ -783,6 +1178,7 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     title: copy.dashboard,
     eyebrow: renderSourceChip({ label: copy.storedAggregate, detail: model.dashboard.snapshotType }),
     body: [
+      renderDashboardNextAction(model),
       '<div class="ps-score-grid">',
       ...scoreMeters.map(([label, value]) => `<div class="ps-panel">${renderMeter({ label, value, source: "dashboard_snapshots" })}</div>`),
       "</div>",
@@ -791,6 +1187,25 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
       "</div>"
     ].join("")
   });
+};
+
+const renderDashboardNextAction = (model: OperationalConsoleModel): string => {
+  const readiness = model.dashboard.readinessScores.overallInternalReadiness;
+  const romaniaCompleteness = model.onboarding.romania.completeness;
+  const label = romaniaCompleteness < 100 ? "Continue Romania" : "Review evidence";
+  const href = romaniaCompleteness < 100 ? "/onboarding/romania?locale=ro-RO" : "#evidence";
+  const action = romaniaCompleteness < 100 ? "open-romania-onboarding" : "open-evidence-reports-anchor";
+  const summary =
+    readiness >= 75
+      ? "Internal readiness is in a reviewable range. Keep the evidence trail current before sharing exports."
+      : "The fastest path to a useful snapshot is saving Romania answers, then generating readiness outputs.";
+
+  return [
+    '<div class="ps-next-action">',
+    `<div><h3>Next best action</h3><p>${escapeHtml(summary)}</p></div>`,
+    `<a class="ps-command ps-command--primary" href="${escapeHtml(href)}" data-ui-action="${escapeHtml(action)}">${escapeHtml(label)}</a>`,
+    "</div>"
+  ].join("");
 };
 
 const renderDashboardWidget = (widget: DashboardWidgetContract): string =>
@@ -1095,9 +1510,23 @@ const renderPreflightChecks = (run: ActionRun): string => {
 const renderFactPanel = (title: string, value: string): string =>
   `<div class="ps-fact"><h4 class="ps-panel__title">${escapeHtml(title)}</h4><p>${escapeHtml(value)}</p></div>`;
 
-const renderSection = ({ id, title, eyebrow, body }: { id: string; title: string; eyebrow: string; body: string }): string =>
+const renderSection = ({
+  id,
+  title,
+  eyebrow,
+  body,
+  className
+}: {
+  id: string;
+  title: string;
+  eyebrow: string;
+  body: string;
+  className?: string;
+}): string =>
   [
-    `<section class="ps-section" id="${escapeHtml(id)}" data-ui-section="${escapeHtml(id)}" aria-labelledby="${escapeHtml(id)}-title">`,
+    `<section class="${["ps-section", className].filter(Boolean).join(" ")}" id="${escapeHtml(id)}" data-ui-section="${escapeHtml(
+      id
+    )}" aria-labelledby="${escapeHtml(id)}-title">`,
     '<div class="ps-section__header">',
     `<h2 class="ps-section__title" id="${escapeHtml(id)}-title">${escapeHtml(title)}</h2>`,
     eyebrow,
@@ -1126,9 +1555,6 @@ const formatKeyLabel = (key: string): string =>
     .split("_")
     .map((part) => (part.length === 0 ? part : `${part[0]?.toUpperCase() ?? ""}${part.slice(1)}`))
     .join(" ");
-
-const formatRoSourceReferences = (references?: readonly { cell?: string; range?: string; sheet: string }[]): string =>
-  (references ?? []).map((reference) => [reference.sheet, reference.cell ?? reference.range].filter(Boolean).join("!")).join(", ");
 
 const toneForStatus = (status: OperationalStatus): PureSocUiTone => {
   if (status === "ready") {

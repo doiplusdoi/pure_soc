@@ -27,7 +27,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain(PURESOC_LEGAL_CAVEAT);
     expect(html).toContain("not a legal opinion");
     expect(html).toContain("NIS2 Article 21");
-    expect(html).toContain("Romania NIS2 workbook notification form");
+    expect(html).toContain("Romania NIS2 registration workflow");
     expect(html).toContain("Internal readiness report");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
@@ -358,32 +358,30 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('data-ui-action="skip-to-content"');
     expect(html).toContain('id="content" tabindex="-1"');
     expect(html).toContain("Romania NIS2 Onboarding");
-    expect(html).toContain("Local Workflow");
+    expect(html).toContain("Guided Workflow");
     expect(html).toContain('data-ui-action="save-romania-onboarding"');
     expect(html).toContain('data-ui-action="run-romania-classification"');
     expect(html).toContain('data-ui-action="generate-romania-notification-draft"');
     expect(html).toContain('data-ui-action="evaluate-romania-readiness"');
     expect(html).toContain('data-ui-action="upload-local-evidence"');
-    expect(html).toContain("roNis2OnboardingSchema");
-    expect(html).toContain("ro-nis2-entity_fields-entity_field_12_name_of_the_entity");
-    expect(html).toContain("Entity assessment!D66:D142");
-    expect(html).toContain("missing_translation");
-    expect(html).toContain("requested ro-RO");
+    expect(html).toContain("Services by sector and subsector");
+    expect(html).toContain('data-ui-action="search-romania-services"');
+    expect(html).toContain("Cloud computing service providers");
+    expect(html).toContain("None of the services listed in OUG No. 155/2024");
+    expect(html).toContain("Romanian legal copy pending");
     expect(html).toContain(PURESOC_LEGAL_CAVEAT);
     expect(html).toContain("not a legal opinion");
     expect(html).toContain("Direct DNSC submission");
     expect(html).toContain("Not performed by PureSOC");
-    expect(html).toContain("Submitted to DNSC");
-    expect(html).toContain("false");
     expect(html).toContain("PureSOC does not submit this draft to DNSC.");
-    expect(html).toContain('id="romania-source-map"');
-    expect(html).toContain('id="romania-unsupported"');
-    expect(html).toContain('id="romania-draft"');
+    expect(html).toContain('id="romania-boundaries"');
+    expect(html).toContain('id="romania-outputs"');
     expect(html).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(html).toContain("API-backed by saved organization data");
-    expect(html).toContain("Billing provider");
-    expect(html).toContain("Audit export");
+    expect(html).toContain("Billing");
+    expect(html).toContain("Audit");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+    expect(html).not.toMatch(/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i);
     expect(html).not.toContain("Submitted to DNSC true");
   });
 
@@ -453,15 +451,37 @@ const createSavedRomaniaRouteModel = () =>
           street: "Strada Exemplu"
         },
         contact: {
-          email: "security@m78.example.test"
+          email: "security@m78.example.test",
+          mobilePhone: "+40740000001",
+          phone: "+40210000001",
+          websiteUrl: "https://m78.example.test"
+        },
+        cybersecurityResponsible: {
+          email: "security-lead@m78.example.test",
+          name: "Security Lead",
+          phone: "+40740000002",
+          role: "CISO"
         },
         entity: {
           cui: "RO12345678",
           legalName: "M78 Saved SRL",
           nationalRegistrationNumber: "J40/1234/2026"
         },
+        legalRepresentative: {
+          email: "legal@m78.example.test",
+          name: "Legal Representative",
+          phone: "+40740000004",
+          role: "Administrator"
+        },
         network: {
+          publicIpRanges: ["203.0.113.0/28"],
           systemsDescription: "Local identity, collaboration, and production support systems."
+        },
+        permanentMonitoringContact: {
+          email: "monitoring@m78.example.test",
+          name: "Monitoring Contact",
+          phone: "+40740000003",
+          role: "SOC duty contact"
         },
         relationship: {
           criticalEntityInRomaniaLaw294: false,

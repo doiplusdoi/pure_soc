@@ -314,6 +314,9 @@ importers:
       '@puresoc/evidence':
         specifier: workspace:*
         version: link:../evidence
+      '@puresoc/providers-core':
+        specifier: workspace:*
+        version: link:../providers/core
       '@puresoc/recommendations':
         specifier: workspace:*
         version: link:../recommendations
@@ -327,9 +330,6 @@ importers:
       '@puresoc/dashboards':
         specifier: workspace:*
         version: link:../dashboards
-      '@puresoc/providers-core':
-        specifier: workspace:*
-        version: link:../providers/core
       '@puresoc/reports':
         specifier: workspace:*
         version: link:../reports

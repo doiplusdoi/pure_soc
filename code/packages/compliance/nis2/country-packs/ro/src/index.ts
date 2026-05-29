@@ -58,3 +58,11 @@ export {
   type RoNis2PersonAnswers,
   type RoNis2SizeAnswers
 } from "./onboarding.schema";
+export {
+  roNis2NotificationMappings,
+  roNis2ServiceCatalogGroups,
+  roNis2ServiceCatalogOptions,
+  type RoNis2NotificationMapping,
+  type RoNis2ServiceCatalogGroup,
+  type RoNis2ServiceCatalogOption
+} from "./runtime-model";

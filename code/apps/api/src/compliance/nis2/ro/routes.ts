@@ -89,7 +89,7 @@ export const getOrganizationRoNis2OnboardingRoute = async (
       legalActivation: {
         status: "review_required",
         productionActivated: false,
-        reason: "Romania workbook-derived logic remains gated by regulatory source review and product/legal approval."
+        reason: "Romania country-pack logic remains gated by regulatory source review and product/legal approval."
       }
     }
   };

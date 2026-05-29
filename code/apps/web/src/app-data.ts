@@ -4,6 +4,7 @@ import {
   buildRoNis2OnboardingProgress,
   classifyRoNis2Entity,
   roNis2OnboardingSchema,
+  roNis2ServiceCatalogGroups,
   romaniaCountryPackStatus,
   toRoNis2ClassificationInput,
   type Nis2Classification,
@@ -11,6 +12,7 @@ import {
   type RoNis2OnboardingAnswers,
   type RoNis2OnboardingProgress,
   type RoNis2OnboardingStepSchema,
+  type RoNis2ServiceCatalogGroup,
   type RoNis2SourceMapLink
 } from "@puresoc/country-pack-ro";
 import type { ActionRun } from "@puresoc/recommendations";
@@ -188,6 +190,7 @@ export interface RomaniaOnboardingRouteModel {
   progressRecordId?: string;
   requestedLocale?: string;
   resolvedLocale: PureSocLocale;
+  serviceCatalogGroups: readonly RoNis2ServiceCatalogGroup[];
   sourceMapLinks: readonly RoNis2SourceMapLink[];
   steps: readonly RoNis2OnboardingStepSchema[];
   unsupportedSignals: readonly RomaniaOnboardingUnsupportedSignal[];
@@ -201,11 +204,10 @@ const euArticle21: ReportSourceReference = {
   sourceVersion: "2022/2555"
 };
 
-const roWorkbookSource: ReportSourceReference = {
-  sourceRecordId: "ro-workbook-notification-form",
-  title: "Romania NIS2 workbook notification form",
+const roRegistrationSource: ReportSourceReference = {
+  sourceRecordId: "ro-nis2-registration-workflow",
+  title: "Romania NIS2 registration workflow",
   jurisdiction: "RO",
-  sourceLocation: "Notification form!B4",
   sourceVersion: "nis2ro-tool-v-2-1"
 };
 
@@ -315,7 +317,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
       mimeType: "application/json",
       scanStatus: "pending",
       createdAt: generatedAt,
-      linkedSourceRecordId: roWorkbookSource.sourceRecordId
+      linkedSourceRecordId: roRegistrationSource.sourceRecordId
     }
   ];
 
@@ -331,7 +333,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
     legalCaveatLocale: "en",
     legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
     locale: "en",
-    sourceReferences: [euArticle21, roWorkbookSource],
+    sourceReferences: [euArticle21, roRegistrationSource],
     controlResults: [],
     gaps: [],
     recommendations: [],
@@ -369,9 +371,9 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
           status: "review_required",
           classification: "Important entity, review required",
           completeness: 72,
-          sourceReview: "Workbook-derived logic awaits legal review before activation.",
+          sourceReview: "Generated Romania country-pack logic awaits legal review before activation.",
           unsupportedAreas: ["Direct DNSC submission", "Production reviewer assignment"],
-          sourceReferences: [roWorkbookSource]
+          sourceReferences: [roRegistrationSource]
         },
         {
           countryCode: "DE",
@@ -388,8 +390,8 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         title: "Romania notification draft",
         status: "review_required",
         completeness: 68,
-        summary: "Draft fields are source-mapped to the workbook and remain internal readiness output.",
-        sourceReferences: [roWorkbookSource]
+        summary: "Draft fields are traceable to the reviewed Romania country-pack data and remain internal readiness output.",
+        sourceReferences: [roRegistrationSource]
       }
     },
     microsoft365: {
@@ -442,8 +444,8 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         severity: "medium",
         status: "requires_legal_review",
         confidence: "low",
-        summary: "Workbook-derived classification and draft fields must be reviewed before activation.",
-        sourceReferences: [roWorkbookSource]
+        summary: "Generated Romania classification and draft fields must be reviewed before activation.",
+        sourceReferences: [roRegistrationSource]
       }
     ],
     recommendations: [
@@ -488,7 +490,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         status: "draft",
         format: "JSON",
         generatedAt,
-        sourceReferences: [roWorkbookSource]
+        sourceReferences: [roRegistrationSource]
       }
     ],
     actionRuns: [createMfaActionRun(organizationId, generatedAt, [euArticle21])],
@@ -540,9 +542,9 @@ export const createOperationalConsoleRuntimeModel = (input: {
           status: "review_required",
           classification: "Use the Romania workflow for saved-answer classification.",
           completeness: input.dashboard.readinessScores.countryPackCompleteness,
-          sourceReview: "Workbook-derived Romania logic awaits product/legal review before production activation.",
+          sourceReview: "Generated Romania country-pack logic awaits product/legal review before production activation.",
           unsupportedAreas: ["Direct DNSC submission", "Production legal activation"],
-          sourceReferences: [roWorkbookSource]
+          sourceReferences: [roRegistrationSource]
         }
       ],
       romania: {
@@ -550,7 +552,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
         status: "in_progress",
         completeness: input.dashboard.readinessScores.countryPackCompleteness,
         summary: "Open the Romania workflow to save answers, classify, create drafts, attach evidence, and generate exports.",
-        sourceReferences: [roWorkbookSource]
+        sourceReferences: [roRegistrationSource]
       }
     },
     microsoft365: {
@@ -702,6 +704,7 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
     progressRecordId: input.progress?.id,
     requestedLocale: resolvedLocale.requestedLocale,
     resolvedLocale: resolvedLocale.locale,
+    serviceCatalogGroups: roNis2ServiceCatalogGroups,
     sourceMapLinks: dedupeSourceMapLinks([...progress.sourceMapLinks, ...classification.sourceMapLinks, ...notificationDraft.sourceMapLinks]),
     steps: roNis2OnboardingSchema,
     unsupportedSignals: [
@@ -714,14 +717,14 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
       },
       {
         label: "Legal activation",
-        detail: "Workbook-derived Romania logic stays review-required until source validation and legal/product review are complete.",
+        detail: "Generated Romania country-pack logic stays review-required until source validation and legal/product review are complete.",
         tone: "warning"
       },
       {
         label: "Romanian regulatory copy",
         detail:
           notificationDraft.legalCaveatFallbackUsed || notificationDraft.fields.some((field) => field.labelFallbackUsed)
-            ? "Requested Romanian legal/regulatory text falls back to English/source-mapped labels with missing-translation metadata."
+            ? "Romanian legal/regulatory text remains conservative until product/legal-approved copy is available."
             : "Requested copy resolved without fallback.",
         tone: "info"
       },

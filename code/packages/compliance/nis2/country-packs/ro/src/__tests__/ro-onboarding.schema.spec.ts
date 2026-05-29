@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   buildRoNis2OnboardingProgress,
+  roNis2ServiceCatalogGroups,
+  roNis2ServiceCatalogOptions,
   roNis2OnboardingSchema,
   toRoNis2ClassificationInput,
   validateRoNis2OnboardingProgress
-} from "../onboarding.schema";
+} from "../index";
 
 describe("ro onboarding schema", () => {
   it("keeps the Romania onboarding steps source-mapped", () => {
@@ -53,6 +55,16 @@ describe("ro onboarding schema", () => {
     );
     expect(progress.missingRequiredFields).toContain("answers.entity.cui");
     expect(validation.validForStatus).toBe(true);
+  });
+
+  it("loads the full generated Romania service catalog for runtime selection", () => {
+    expect(roNis2ServiceCatalogOptions).toHaveLength(77);
+    expect(roNis2ServiceCatalogGroups.length).toBeGreaterThan(10);
+    expect(roNis2ServiceCatalogOptions.map((option) => option.code)).toContain("none_of_oug_155_2024_services");
+    expect(roNis2ServiceCatalogOptions.find((option) => option.code === "108004")).toMatchObject({
+      label: "Cloud computing service providers",
+      sectorLabel: "Digital infrastructure"
+    });
   });
 
   it("derives classification input from onboarding answers", () => {

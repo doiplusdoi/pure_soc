@@ -129,6 +129,14 @@ const entityFieldLink = (targetKey: string, sourceMapId: string, cell: string): 
   workbookRange: `Entity data!${cell}`
 });
 
+const entityFieldRangeLink = (targetKey: string, sourceMapId: string, range: string): RoNis2SourceMapLink => ({
+  sourceMapId,
+  sourceReferences: [{ range, sheet: "Entity data" }],
+  targetCollection: "entity_fields",
+  targetKey,
+  workbookRange: `Entity data!${range}`
+});
+
 const questionLink = (
   targetCollection: string,
   targetKey: string,
@@ -148,9 +156,28 @@ const FIELD_SOURCE_LINKS: Record<string, RoNis2SourceMapLink> = {
     "ro-nis2-entity_fields-entity_field_32_main_nace_code",
     "D32"
   ),
+  "answers.activity.secondaryNaceCodes": entityFieldLink(
+    "entity_field_33_secondary_nace_code_s",
+    "ro-nis2-entity_fields-entity_field_33_secondary_nace_code_s",
+    "D33"
+  ),
+  "answers.address.apartmentOrRoom": entityFieldLink(
+    "entity_field_25_apartment_office_room_other",
+    "ro-nis2-entity_fields-entity_field_25_apartment_office_room_other",
+    "D25"
+  ),
+  "answers.address.blockOrBuilding": entityFieldLink(
+    "entity_field_22_block_building_other",
+    "ro-nis2-entity_fields-entity_field_22_block_building_other",
+    "D22"
+  ),
   "answers.address.city": entityFieldLink("entity_field_18_city_town", "ro-nis2-entity_fields-entity_field_18_city_town", "D18"),
   "answers.address.country": entityFieldLink("entity_field_16_country", "ro-nis2-entity_fields-entity_field_16_country", "D16"),
   "answers.address.county": entityFieldLink("entity_field_17_county", "ro-nis2-entity_fields-entity_field_17_county", "D17"),
+  "answers.address.district": entityFieldLink("entity_field_19_district", "ro-nis2-entity_fields-entity_field_19_district", "D19"),
+  "answers.address.floor": entityFieldLink("entity_field_24_floor", "ro-nis2-entity_fields-entity_field_24_floor", "D24"),
+  "answers.address.number": entityFieldLink("entity_field_21_number", "ro-nis2-entity_fields-entity_field_21_number", "D21"),
+  "answers.address.postalCode": entityFieldLink("entity_field_26_postal_code", "ro-nis2-entity_fields-entity_field_26_postal_code", "D26"),
   "answers.address.street": entityFieldLink("entity_field_20_street", "ro-nis2-entity_fields-entity_field_20_street", "D20"),
   "answers.article9.nationalOrRegionalCriticality": questionLink(
     "article9_questions",
@@ -176,7 +203,39 @@ const FIELD_SOURCE_LINKS: Record<string, RoNis2SourceMapLink> = {
     "ro-nis2-article9_questions-article9_171_9c_disruption_to_the_service_provided_by_the_entity_could_generate_significant_systemic_risk_particularly_for_sectors_where_such_disruption_could_have_a_cross_border_impact",
     "D171"
   ),
+  "answers.attachedDocumentIds": entityFieldRangeLink(
+    "entity_field_74_76_attached_documents",
+    "ro-nis2-entity_fields-entity_field_74_attached_documents_certifying_the_company_s_classification_according_to_the_size_criterion",
+    "D74:D76"
+  ),
   "answers.contact.email": entityFieldLink("entity_field_27_email_address", "ro-nis2-entity_fields-entity_field_27_email_address", "D27"),
+  "answers.contact.mobilePhone": entityFieldLink(
+    "entity_field_30_mobile_phone_number",
+    "ro-nis2-entity_fields-entity_field_30_mobile_phone_number",
+    "D30"
+  ),
+  "answers.contact.phone": entityFieldLink(
+    "entity_field_29_telephone_number",
+    "ro-nis2-entity_fields-entity_field_29_telephone_number",
+    "D29"
+  ),
+  "answers.contact.websiteUrl": entityFieldLink("entity_field_28_website_url", "ro-nis2-entity_fields-entity_field_28_website_url", "D28"),
+  "answers.cybersecurityResponsible.email": entityFieldLink(
+    "entity_field_41_email_address",
+    "ro-nis2-entity_fields-entity_field_41_email_address",
+    "D41"
+  ),
+  "answers.cybersecurityResponsible.name": entityFieldRangeLink(
+    "entity_field_38_39_cybersecurity_responsible_name",
+    "ro-nis2-entity_fields-entity_field_38_surname",
+    "D38:D39"
+  ),
+  "answers.cybersecurityResponsible.phone": entityFieldLink(
+    "entity_field_42_mobile_phone_number",
+    "ro-nis2-entity_fields-entity_field_42_mobile_phone_number",
+    "D42"
+  ),
+  "answers.cybersecurityResponsible.role": entityFieldLink("entity_field_40_role", "ro-nis2-entity_fields-entity_field_40_role", "D40"),
   "answers.entity.cui": entityFieldLink(
     "entity_field_13_unique_identification_code_cui",
     "ro-nis2-entity_fields-entity_field_13_unique_identification_code_cui",
@@ -192,11 +251,39 @@ const FIELD_SOURCE_LINKS: Record<string, RoNis2SourceMapLink> = {
     "ro-nis2-entity_fields-entity_field_14_national_registration_number",
     "D14"
   ),
-  "answers.network.systemsDescription": entityFieldLink(
-    "entity_field_54_network_and_information_systems",
-    "ro-nis2-entity_fields-entity_field_54_network_and_information_systems",
+  "answers.legalRepresentative.email": entityFieldLink("entity_field_69_email", "ro-nis2-entity_fields-entity_field_69_email", "D69"),
+  "answers.legalRepresentative.name": entityFieldRangeLink(
+    "entity_field_66_67_legal_representative_name",
+    "ro-nis2-entity_fields-entity_field_66_last_name",
+    "D66:D67"
+  ),
+  "answers.legalRepresentative.phone": entityFieldLink(
+    "entity_field_70_phone_number",
+    "ro-nis2-entity_fields-entity_field_70_phone_number",
+    "D70"
+  ),
+  "answers.legalRepresentative.role": entityFieldLink(
+    "entity_field_83_role",
+    "ro-nis2-entity_fields-entity_field_83_role",
+    "D83"
+  ),
+  "answers.network.publicIpRanges": entityFieldLink(
+    "entity_field_54_public_ip_address_ranges",
+    "ro-nis2-entity_fields-entity_field_54_public_ip_address_ranges",
     "D54"
   ),
+  "answers.permanentMonitoringContact.email": entityFieldLink("entity_field_52_email", "ro-nis2-entity_fields-entity_field_52_email", "D52"),
+  "answers.permanentMonitoringContact.name": entityFieldRangeLink(
+    "entity_field_46_47_monitoring_contact_name",
+    "ro-nis2-entity_fields-entity_field_46_last_name",
+    "D46:D47"
+  ),
+  "answers.permanentMonitoringContact.phone": entityFieldLink(
+    "entity_field_50_mobile_phone_number",
+    "ro-nis2-entity_fields-entity_field_50_mobile_phone_number",
+    "D50"
+  ),
+  "answers.permanentMonitoringContact.role": entityFieldLink("entity_field_48_role", "ro-nis2-entity_fields-entity_field_48_role", "D48"),
   "answers.relationship.criticalEntityInRomaniaLaw294": questionLink(
     "law294_questions",
     "law294_153_is_was_the_entity_identified_as_a_critical_entity_in_romania_in_accordance_with_the_provisions_of_law_no_294_2024",
@@ -261,12 +348,19 @@ export const roNis2OnboardingSchema: readonly RoNis2OnboardingStepSchema[] = [
   },
   {
     key: "entity_address_contact",
-    requiredFieldPaths: ["answers.address.country", "answers.address.county", "answers.address.city", "answers.address.street"],
+    requiredFieldPaths: [
+      "answers.address.country",
+      "answers.address.county",
+      "answers.address.city",
+      "answers.address.street",
+      "answers.contact.email"
+    ],
     sourceMapIds: [
       FIELD_SOURCE_LINKS["answers.address.country"].sourceMapId,
       FIELD_SOURCE_LINKS["answers.address.county"].sourceMapId,
       FIELD_SOURCE_LINKS["answers.address.city"].sourceMapId,
-      FIELD_SOURCE_LINKS["answers.address.street"].sourceMapId
+      FIELD_SOURCE_LINKS["answers.address.street"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.contact.email"].sourceMapId
     ]
   },
   {
@@ -299,12 +393,38 @@ export const roNis2OnboardingSchema: readonly RoNis2OnboardingStepSchema[] = [
       FIELD_SOURCE_LINKS["answers.relationship.providesServicesInAnotherEuMemberState"].sourceMapId
     ]
   },
-  { key: "cybersecurity_responsible", requiredFieldPaths: [], sourceMapIds: [] },
-  { key: "permanent_monitoring_contact", requiredFieldPaths: [], sourceMapIds: [] },
+  {
+    key: "cybersecurity_responsible",
+    requiredFieldPaths: [
+      "answers.cybersecurityResponsible.name",
+      "answers.cybersecurityResponsible.role",
+      "answers.cybersecurityResponsible.email",
+      "answers.cybersecurityResponsible.phone"
+    ],
+    sourceMapIds: [
+      FIELD_SOURCE_LINKS["answers.cybersecurityResponsible.name"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.cybersecurityResponsible.role"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.cybersecurityResponsible.email"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.cybersecurityResponsible.phone"].sourceMapId
+    ]
+  },
+  {
+    key: "permanent_monitoring_contact",
+    requiredFieldPaths: [
+      "answers.permanentMonitoringContact.name",
+      "answers.permanentMonitoringContact.email",
+      "answers.permanentMonitoringContact.phone"
+    ],
+    sourceMapIds: [
+      FIELD_SOURCE_LINKS["answers.permanentMonitoringContact.name"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.permanentMonitoringContact.email"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.permanentMonitoringContact.phone"].sourceMapId
+    ]
+  },
   {
     key: "network_system_data",
-    requiredFieldPaths: ["answers.network.systemsDescription"],
-    sourceMapIds: [FIELD_SOURCE_LINKS["answers.network.systemsDescription"].sourceMapId]
+    requiredFieldPaths: ["answers.network.publicIpRanges"],
+    sourceMapIds: [FIELD_SOURCE_LINKS["answers.network.publicIpRanges"].sourceMapId]
   },
   {
     key: "article9",
@@ -321,8 +441,26 @@ export const roNis2OnboardingSchema: readonly RoNis2OnboardingStepSchema[] = [
     requiredFieldPaths: ["answers.relationship.criticalEntityInRomaniaLaw294"],
     sourceMapIds: [FIELD_SOURCE_LINKS["answers.relationship.criticalEntityInRomaniaLaw294"].sourceMapId]
   },
-  { key: "attached_documents", requiredFieldPaths: [], sourceMapIds: [] },
-  { key: "legal_representative", requiredFieldPaths: [], sourceMapIds: [] },
+  {
+    key: "attached_documents",
+    requiredFieldPaths: [],
+    sourceMapIds: [FIELD_SOURCE_LINKS["answers.attachedDocumentIds"].sourceMapId]
+  },
+  {
+    key: "legal_representative",
+    requiredFieldPaths: [
+      "answers.legalRepresentative.name",
+      "answers.legalRepresentative.role",
+      "answers.legalRepresentative.email",
+      "answers.legalRepresentative.phone"
+    ],
+    sourceMapIds: [
+      FIELD_SOURCE_LINKS["answers.legalRepresentative.name"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.legalRepresentative.role"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.legalRepresentative.email"].sourceMapId,
+      FIELD_SOURCE_LINKS["answers.legalRepresentative.phone"].sourceMapId
+    ]
+  },
   { key: "preliminary_classification", requiredFieldPaths: [], sourceMapIds: [] },
   { key: "notification_export", requiredFieldPaths: [], sourceMapIds: [] }
 ];

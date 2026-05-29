@@ -18,6 +18,11 @@ import {
   type RoNis2SourceReference
 } from "./classification.service";
 import type { RoNis2OnboardingAnswers } from "./onboarding.schema";
+import {
+  roNis2NotificationMappings,
+  roNis2ServiceCatalogOptions,
+  type RoNis2NotificationMapping
+} from "./runtime-model";
 
 export type RoNis2NotificationDraftStatus = "draft" | "ready_for_review" | "exported" | "superseded";
 
@@ -107,129 +112,14 @@ export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_KEY = countryPackNotificationPa
 export const RO_NIS2_NOTIFICATION_PAYLOAD_SCHEMA_VERSION = "1.0.0";
 
 export const RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE =
-  "PureSOC prepares an internal Romania NIS2 notification-form draft from source-mapped workbook fields. PureSOC does not submit this draft to DNSC.";
+  "PureSOC prepares an internal Romania NIS2 notification draft for reviewer export. PureSOC does not submit this draft to DNSC.";
 
 export const RO_NIS2_NOTIFICATION_SUBMISSION_NOTICE_MESSAGE_KEY =
   "country_pack.ro.nis2.notification.submission.notice.v1";
 
 export const RO_NIS2_NOTIFICATION_LEGAL_CAVEAT = resolveLegalCaveatMessage("en").text;
 
-interface NotificationMapping {
-  answerPath?: string;
-  key: string;
-  label: string;
-  labelMessageKey: string;
-  sourceMapId: string;
-  sourceReferences: readonly RoNis2SourceReference[];
-  targetCell: string;
-  value?: string | number | boolean | null;
-}
-
-const notificationMapping = (
-  key: string,
-  label: string,
-  sourceMapId: string,
-  targetCell: string,
-  sourceReferences: readonly RoNis2SourceReference[],
-  answerPath?: string
-): NotificationMapping => ({
-  answerPath,
-  key,
-  label,
-  labelMessageKey: `country_pack.ro.nis2.notification.${key}.label`,
-  sourceMapId,
-  sourceReferences,
-  targetCell
-});
-
-const NOTIFICATION_MAPPINGS: readonly NotificationMapping[] = [
-  notificationMapping(
-    "notification_c9",
-    "Name of the entity",
-    "ro-nis2-notification_draft_mapping-notification_c9",
-    "C9",
-    [{ cell: "D12", sheet: "Entity data" }],
-    "entity.legalName"
-  ),
-  notificationMapping(
-    "notification_c10",
-    "Unique Identification Code (CUI)",
-    "ro-nis2-notification_draft_mapping-notification_c10",
-    "C10",
-    [
-      { cell: "C13", sheet: "Entity data" },
-      { cell: "D13", sheet: "Entity data" }
-    ],
-    "entity.cui"
-  ),
-  notificationMapping(
-    "notification_c11",
-    "National registration number",
-    "ro-nis2-notification_draft_mapping-notification_c11",
-    "C11",
-    [
-      { cell: "C14", sheet: "Entity data" },
-      { cell: "D14", sheet: "Entity data" }
-    ],
-    "entity.nationalRegistrationNumber"
-  ),
-  notificationMapping(
-    "notification_c13",
-    "Headquarters address",
-    "ro-nis2-notification_draft_mapping-notification_c13",
-    "C13",
-    [
-      { cell: "D16", sheet: "Entity data" },
-      { cell: "D17", sheet: "Entity data" },
-      { cell: "D18", sheet: "Entity data" },
-      { cell: "D20", sheet: "Entity data" }
-    ],
-    "address"
-  ),
-  notificationMapping(
-    "notification_c15",
-    "Email address",
-    "ro-nis2-notification_draft_mapping-notification_c15",
-    "C15",
-    [{ cell: "D27", sheet: "Entity data" }],
-    "contact.email"
-  ),
-  notificationMapping(
-    "notification_c20",
-    "Main NACE code",
-    "ro-nis2-notification_draft_mapping-notification_c20",
-    "C20",
-    [{ cell: "D32", sheet: "Entity data" }],
-    "activity.mainNaceCode"
-  ),
-  notificationMapping(
-    "notification_d25",
-    "Average annual number of employees",
-    "ro-nis2-notification_draft_mapping-notification_d25",
-    "D25",
-    [{ cell: "D17", sheet: "Entity assessment" }],
-    "size.employeeCount"
-  ),
-  notificationMapping(
-    "notification_d28",
-    "Size of the entity according to Law No. 346/2004",
-    "ro-nis2-notification_draft_mapping-notification_d28",
-    "D28",
-    [
-      { cell: "D20", sheet: "Entity assessment" },
-      { cell: "D21", sheet: "Entity assessment" }
-    ],
-    "size.sizeCategory"
-  ),
-  notificationMapping(
-    "notification_d104",
-    "Critical entity answer under Law No. 294/2024",
-    "ro-nis2-notification_draft_mapping-notification_d104",
-    "D104",
-    [{ cell: "D153", sheet: "Entity assessment" }],
-    "relationship.criticalEntityInRomaniaLaw294"
-  )
-];
+const NOTIFICATION_MAPPINGS: readonly RoNis2NotificationMapping[] = roNis2NotificationMappings;
 
 const roNis2NotificationMessageCatalog = definePureSocMessageCatalog([
   ...NOTIFICATION_MAPPINGS.map((mapping) => ({
@@ -261,6 +151,52 @@ const resolveRoNis2NotificationMessage = (messageKey: string, locale?: string | 
     messageKey
   });
 
+const NOTIFICATION_ANSWER_PATHS: Record<string, string> = {
+  notification_c9: "entity.legalName",
+  notification_c10: "entity.cui",
+  notification_c11: "entity.nationalRegistrationNumber",
+  notification_c14: "address.postalCode",
+  notification_c15: "contact.email",
+  notification_c16: "contact.websiteUrl",
+  notification_c17: "contact.phone",
+  notification_c18: "contact.mobilePhone",
+  notification_c20: "activity.mainNaceCode",
+  notification_c21: "activity.secondaryNaceCodes",
+  notification_c25: "size.employeeCount",
+  notification_d25: "size.employeeCount",
+  notification_c26: "size.annualTurnoverEur",
+  notification_d26: "size.annualTurnoverEur",
+  notification_c27: "size.balanceSheetTotalEur",
+  notification_d27: "size.balanceSheetTotalEur",
+  notification_c28: "size.sizeCategory",
+  notification_d28: "size.sizeCategory",
+  notification_c60: "cybersecurityResponsible.name",
+  notification_c61: "cybersecurityResponsible.role",
+  notification_c62: "cybersecurityResponsible.email",
+  notification_c63: "cybersecurityResponsible.phone",
+  notification_c69: "permanentMonitoringContact.name",
+  notification_c72: "permanentMonitoringContact.phone",
+  notification_c73: "permanentMonitoringContact.phone",
+  notification_c74: "permanentMonitoringContact.email",
+  notification_c78: "network.publicIpRanges",
+  notification_c89: "legalRepresentative.name",
+  notification_c90: "legalRepresentative.email",
+  notification_c91: "legalRepresentative.phone",
+  notification_c92: "legalRepresentative.role",
+  notification_d97: "article9.soleProviderEssentialService",
+  notification_d98: "article9.publicSafetySecurityOrHealthImpact",
+  notification_d99: "article9.systemicRisk",
+  notification_d100: "article9.nationalOrRegionalCriticality",
+  notification_d104: "relationship.criticalEntityInRomaniaLaw294",
+  notification_d107: "attachedDocumentIds",
+  notification_d108: "attachedDocumentIds",
+  notification_c110: "attachedDocumentIds",
+  notification_c112: "attachedDocumentIds",
+  notification_c114: "attachedDocumentIds",
+  notification_c120: "legalRepresentative.name",
+  notification_c121: "legalRepresentative.role"
+};
+
 export const buildRoNis2NotificationDraft = (input: {
   answers: RoNis2OnboardingAnswers;
   classification: Nis2Classification;
@@ -268,6 +204,7 @@ export const buildRoNis2NotificationDraft = (input: {
   locale?: string | null;
   status?: RoNis2NotificationDraftStatus;
 }): RoNis2NotificationDraftJson => {
+  const generatedAt = input.generatedAt ?? new Date().toISOString();
   const locale = resolvePureSocLocale(input.locale).locale;
   const legalCaveat = resolveLegalCaveatMessage(input.locale);
   const submissionNotice = resolveRoNis2NotificationMessage(
@@ -289,9 +226,7 @@ export const buildRoNis2NotificationDraft = (input: {
       sourceMapId: mapping.sourceMapId,
       sourceReferences: mapping.sourceReferences,
       targetCell: mapping.targetCell,
-      value: mapping.answerPath
-        ? formatNotificationValue(mapping.answerPath, getAnswerValue(input.answers, mapping.answerPath))
-        : mapping.value ?? null
+      value: resolveNotificationMappingValue(mapping.key, input.answers, input.classification, generatedAt)
     };
   });
   const sourceMapLinks = fields.map((field) => ({
@@ -313,7 +248,7 @@ export const buildRoNis2NotificationDraft = (input: {
     },
     fields,
     frameworkKey: "nis2",
-    generatedAt: input.generatedAt ?? new Date().toISOString(),
+    generatedAt,
     jurisdiction: "RO",
     legalCaveat: legalCaveat.text,
     legalCaveatFallbackReason: legalCaveat.fallbackReason,
@@ -395,6 +330,81 @@ export const notificationDraftHasSourceMappedFields = (draft: RoNis2Notification
   draft.sourceMapLinks.length === draft.fields.length &&
   draft.sourceMapLinks.every((link) => link.targetCollection === "notification_draft_mapping");
 
+const resolveNotificationMappingValue = (
+  key: string,
+  answers: RoNis2OnboardingAnswers,
+  classification: Nis2Classification,
+  generatedAt: string
+): string | number | boolean | null => {
+  const answerPath = NOTIFICATION_ANSWER_PATHS[key];
+  if (answerPath) {
+    return formatNotificationValue(answerPath, getAnswerValue(answers, answerPath));
+  }
+
+  switch (key) {
+    case "notification_c8":
+      return answers.entity?.legalName ?? null;
+    case "notification_c13":
+      return formatAddress(answers.address);
+    case "notification_d32":
+      return selectedServiceSectors(answers).length;
+    case "notification_c33":
+      return selectedServiceSectors(answers).join(", ") || null;
+    case "notification_d39":
+      return selectedServiceSubsectors(answers).length;
+    case "notification_c40":
+      return selectedServiceSubsectors(answers).join(", ") || null;
+    case "notification_d46":
+      return answers.selectedServiceTypeCodes?.length ?? 0;
+    case "notification_c47":
+    case "notification_d47":
+      return selectedServiceLabels(answers).join(", ") || null;
+    case "notification_c59":
+      return Boolean(answers.cybersecurityResponsible?.name || answers.cybersecurityResponsible?.email);
+    case "notification_d59":
+      return "Designated cybersecurity contact";
+    case "notification_c68":
+      return sameMonitoringAndCybersecurityContact(answers);
+    case "notification_d68":
+      return "Monitoring contact matches cybersecurity contact";
+    case "notification_d71":
+      return [
+        answers.permanentMonitoringContact?.email,
+        answers.permanentMonitoringContact?.phone
+      ].filter(Boolean).length;
+    case "notification_d77":
+      return answers.network?.publicIpRanges?.length ?? 0;
+    case "notification_d81":
+      return answers.relationship?.providesServicesInAnotherEuMemberState ? 1 : 0;
+    case "notification_c83":
+    case "notification_c85":
+      return null;
+    case "notification_c88":
+    case "notification_d88":
+      return answers.legalRepresentative?.name ? null : "Not applicable";
+    case "notification_c97":
+      return "Article 9 self-assessment";
+    case "notification_c107":
+      return (answers.attachedDocumentIds?.length ?? 0) > 0;
+    case "notification_c108":
+      return "Number of attached documents";
+    case "notification_c109":
+    case "notification_c111":
+    case "notification_c113":
+      return answers.attachedDocumentIds?.join(", ") ?? null;
+    case "notification_c117":
+      return answers.entity?.legalName
+        ? `${answers.entity.legalName} preliminary classification`
+        : "Preliminary classification";
+    case "notification_d117":
+      return classification.result;
+    case "notification_d122":
+      return generatedAt.slice(0, 10);
+    default:
+      return null;
+  }
+};
+
 export const backfillRoNis2NotificationDraftPayload = (payload: unknown): RoNis2NotificationDraftBackfillResult => {
   const existingEnvelope = readExistingRoEnvelope(payload);
   if (existingEnvelope) {
@@ -428,6 +438,52 @@ const getAnswerValue = (answers: RoNis2OnboardingAnswers, fieldPath: string): un
 
     return undefined;
   }, answers);
+
+const serviceOptionByCode = new Map(roNis2ServiceCatalogOptions.map((option) => [option.code, option]));
+
+const selectedServiceOptions = (answers: RoNis2OnboardingAnswers) =>
+  (answers.selectedServiceTypeCodes ?? []).map((code) => serviceOptionByCode.get(code)).filter((option) => option !== undefined);
+
+const selectedServiceLabels = (answers: RoNis2OnboardingAnswers): string[] =>
+  selectedServiceOptions(answers).map((option) => option.label);
+
+const selectedServiceSectors = (answers: RoNis2OnboardingAnswers): string[] => [
+  ...new Set(selectedServiceOptions(answers).map((option) => option.sectorLabel).filter((label): label is string => Boolean(label)))
+];
+
+const selectedServiceSubsectors = (answers: RoNis2OnboardingAnswers): string[] => [
+  ...new Set(
+    selectedServiceOptions(answers).map((option) => option.subsectorLabel).filter((label): label is string => Boolean(label))
+  )
+];
+
+const formatAddress = (address: RoNis2OnboardingAnswers["address"]): string | null => {
+  if (!address) {
+    return null;
+  }
+
+  const parts = [
+    address.street,
+    address.number ? `no. ${address.number}` : undefined,
+    address.blockOrBuilding,
+    address.floor ? `floor ${address.floor}` : undefined,
+    address.apartmentOrRoom,
+    address.district,
+    address.city,
+    address.county,
+    address.country,
+    address.postalCode
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : null;
+};
+
+const sameMonitoringAndCybersecurityContact = (answers: RoNis2OnboardingAnswers): boolean =>
+  Boolean(
+    answers.cybersecurityResponsible?.email &&
+      answers.permanentMonitoringContact?.email &&
+      answers.cybersecurityResponsible.email === answers.permanentMonitoringContact.email
+  );
 
 const formatNotificationValue = (fieldPath: string, value: unknown): string | number | boolean | null => {
   if (value === undefined || value === null || value === "") {

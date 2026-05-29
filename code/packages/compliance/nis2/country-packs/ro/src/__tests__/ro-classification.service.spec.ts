@@ -70,6 +70,72 @@ describe("ro classification service", () => {
     );
   });
 
+  it("classifies DNS and TLD providers with a Romanian main office as essential", () => {
+    const result = classifyRoNis2Entity({
+      relationship: {
+        mainOfficeInRomania: true
+      },
+      selectedServiceTypeCodes: ["108003"],
+      sizeCategory: "small_micro"
+    });
+
+    expect(result.result).toBe("essential_entity");
+    expect(result.matchedRules).toContain("Algoritm clasificare!K4:M4");
+  });
+
+  it("classifies non-qualified trust providers by size", () => {
+    const small = classifyRoNis2Entity({
+      relationship: {
+        establishedInRomania: true
+      },
+      selectedServiceTypeCodes: ["108007"],
+      sizeCategory: "small_micro"
+    });
+    const large = classifyRoNis2Entity({
+      relationship: {
+        establishedInRomania: true
+      },
+      selectedServiceTypeCodes: ["108007"],
+      sizeCategory: "large"
+    });
+
+    expect(small.result).toBe("important_entity");
+    expect(large.result).toBe("essential_entity");
+  });
+
+  it("classifies telecom providers that provide services in Romania", () => {
+    const small = classifyRoNis2Entity({
+      relationship: {
+        providesServicesInRomania: true
+      },
+      selectedServiceTypeCodes: ["108009"],
+      sizeCategory: "small_micro"
+    });
+    const medium = classifyRoNis2Entity({
+      relationship: {
+        providesServicesInRomania: true
+      },
+      selectedServiceTypeCodes: ["108009"],
+      sizeCategory: "medium"
+    });
+
+    expect(small.result).toBe("important_entity");
+    expect(medium.result).toBe("essential_entity");
+  });
+
+  it("classifies medium managed security service providers as essential", () => {
+    const result = classifyRoNis2Entity({
+      relationship: {
+        mainOfficeInRomania: true
+      },
+      selectedServiceTypeCodes: ["109002"],
+      sizeCategory: "medium"
+    });
+
+    expect(result.result).toBe("essential_entity");
+    expect(result.matchedRules).toContain("Algoritm clasificare!K7");
+  });
+
   it("requires Article 9 answers for small cloud/data-centre/CDN/managed-service entities", () => {
     const result = classifyRoNis2Entity({
       relationship: {
@@ -110,6 +176,48 @@ describe("ro classification service", () => {
         "ro-nis2-article9_questions-article9_170_9b_disruption_of_the_service_provided_by_the_entity_could_have_a_significant_impact_on_public_safety_public_security_or_public_health"
       ])
     );
+  });
+
+  it("classifies large cloud, data centre, CDN, and managed-service providers as essential", () => {
+    const result = classifyRoNis2Entity({
+      relationship: {
+        mainOfficeInRomania: true
+      },
+      selectedServiceTypeCodes: ["108005", "108006", "109001"],
+      sizeCategory: "large"
+    });
+
+    expect(result.result).toBe("essential_entity");
+    expect(result.matchedRules).toContain("Algoritm clasificare!K8");
+  });
+
+  it("classifies Annex 2 services as important for medium and large entities", () => {
+    const result = classifyRoNis2Entity({
+      relationship: {
+        establishedInRomania: true
+      },
+      selectedServiceTypeCodes: ["201001"],
+      sizeCategory: "medium"
+    });
+
+    expect(result.result).toBe("important_entity");
+    expect(result.matchedRules).toContain("Algoritm clasificare!H11:J11");
+  });
+
+  it("uses Article 9 escalation for online providers", () => {
+    const result = classifyRoNis2Entity({
+      article9: {
+        nationalOrRegionalCriticality: true
+      },
+      relationship: {
+        mainOfficeInRomania: true
+      },
+      selectedServiceTypeCodes: ["206001"]
+    });
+
+    expect(result.result).toBe("essential_entity");
+    expect(result.article9Required).toBe(true);
+    expect(result.matchedRules).toEqual(expect.arrayContaining(["Algoritm clasificare!C12:K17", "Algoritm clasificare!M14:M17"]));
   });
 
   it("classifies public administration established by Romania as essential", () => {

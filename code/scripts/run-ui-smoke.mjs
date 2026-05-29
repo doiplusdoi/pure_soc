@@ -611,9 +611,9 @@ async function runBrowserSmoke() {
         height: 900,
         expectedText: [
           "Romania NIS2 Onboarding",
-          "Source Map Sample",
+          "Services by sector and subsector",
           "not a legal opinion",
-          "missing_translation",
+          "Romanian legal copy pending",
           "PureSOC does not submit this draft to DNSC."
         ],
         expectRomaniaRoute: true
@@ -629,8 +629,8 @@ async function runBrowserSmoke() {
         expectedText: [
           "Romania NIS2 Onboarding",
           "Direct DNSC submission",
-          "Submitted to DNSC",
-          "false"
+          "not submitted",
+          "Review Boundaries"
         ],
         expectRomaniaRoute: true
       })
@@ -780,11 +780,13 @@ function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authCh
       routePath: "/onboarding/romania?locale=ro-RO",
       localeRequested: "ro-RO",
       resolvedDocumentLanguage: "ro",
-      sourceMapVisible: true,
+      guidedProductWorkflowVisible: true,
+      serviceCatalogVisible: true,
       legalCaveatVisible: true,
-      fallbackMetadataVisible: true,
+      localeReviewVisible: true,
       unsupportedStateVisible: true,
       noDnscSubmissionVisible: true,
+      customerUiHidesWorkbookDebugTerms: true,
       directDnscSubmitCommandPresent: false,
       certificationClaimPresent: false
     },
@@ -2226,22 +2228,24 @@ async function readBrowserLayout(browser, context) {
         approvalFactsNested: Boolean(document.querySelector(".ps-panel .ps-panel .ps-fact")),
         certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(bodyText),
         romania: {
-          sourceMapVisible: bodyText.includes("Source Map Sample") && bodyText.includes("Workbook-derived mappings"),
-          workbookCellsVisible:
-            bodyText.includes("ro-nis2-entity_fields-entity_field_12_name_of_the_entity") &&
-            bodyText.includes("Entity assessment!D66:D142"),
+          guidedProductWorkflowVisible:
+            bodyText.includes("Guided Workflow") && bodyText.includes("Services by sector and subsector"),
+          serviceCatalogVisible:
+            bodyText.includes("Cloud computing service providers") &&
+            bodyText.includes("None of the services listed in OUG No. 155/2024"),
+          customerUiHidesWorkbookDebugTerms:
+            !/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i.test(bodyText),
           legalCaveatVisible: bodyText.includes("not a legal opinion"),
-          fallbackMetadataVisible:
-            bodyText.includes("missing_translation") && bodyText.includes("requested ro-RO") && bodyText.includes("caveat en"),
+          localeReviewVisible:
+            bodyText.includes("Romanian legal copy pending") &&
+            bodyText.includes("conservative until approved Romanian copy exists"),
           unsupportedStateVisible:
-            bodyText.includes("Boundaries And Unsupported States") &&
+            bodyText.includes("Review Boundaries") &&
             bodyText.includes("Direct DNSC submission") &&
             bodyText.includes("Legal activation") &&
             bodyText.includes("API-backed by saved organization data"),
           noDnscSubmissionVisible:
-            bodyText.includes("no DNSC submission") &&
-            bodyText.includes("Submitted to DNSC") &&
-            bodyText.includes("false") &&
+            bodyText.includes("not submitted") &&
             bodyText.includes("PureSOC does not submit this draft to DNSC."),
           directDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(bodyText)
         }
@@ -2274,10 +2278,11 @@ function assertBrowserLayout(name, layout, input) {
     record(`${name}_browser_romania_route_declares_ro_locale`, layout.documentLang === "ro", layout.documentLang);
     record(`${name}_browser_romania_route_skip_link_present`, layout.hasSkipLink === true);
     record(`${name}_browser_romania_route_focus_target_present`, layout.hasContentFocusTarget === true);
-    record(`${name}_browser_romania_route_source_map_visible`, layout.romania.sourceMapVisible === true);
-    record(`${name}_browser_romania_route_workbook_cells_visible`, layout.romania.workbookCellsVisible === true);
+    record(`${name}_browser_romania_route_guided_workflow_visible`, layout.romania.guidedProductWorkflowVisible === true);
+    record(`${name}_browser_romania_route_service_catalog_visible`, layout.romania.serviceCatalogVisible === true);
+    record(`${name}_browser_romania_route_hides_workbook_debug_terms`, layout.romania.customerUiHidesWorkbookDebugTerms === true);
     record(`${name}_browser_romania_route_legal_caveat_visible`, layout.romania.legalCaveatVisible === true);
-    record(`${name}_browser_romania_route_fallback_metadata_visible`, layout.romania.fallbackMetadataVisible === true);
+    record(`${name}_browser_romania_route_locale_review_visible`, layout.romania.localeReviewVisible === true);
     record(`${name}_browser_romania_route_unsupported_state_visible`, layout.romania.unsupportedStateVisible === true);
     record(`${name}_browser_romania_route_no_dnsc_submission_visible`, layout.romania.noDnscSubmissionVisible === true);
     record(`${name}_browser_romania_route_no_direct_dnsc_submit_command`, layout.romania.directDnscSubmitCommand === false);
@@ -2655,7 +2660,7 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
         search: location.search,
         hash: location.hash,
         routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
-        hasSourceMap: text.includes("Source Map Sample"),
+        hasGuidedWorkflow: text.includes("Guided Workflow") && text.includes("Services by sector and subsector"),
         hasNoDnscNotice: text.includes("PureSOC does not submit this draft to DNSC."),
         hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
         hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
@@ -2665,7 +2670,7 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
       candidate.path === "/onboarding/romania" &&
       candidate.search === "?locale=ro-RO" &&
       candidate.routeMarker === true &&
-      candidate.hasSourceMap === true,
+      candidate.hasGuidedWorkflow === true,
     "dashboard to Romania onboarding keyboard navigation",
     5_000
   );
@@ -2680,7 +2685,7 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
   assertBrowserLayout("keyboard_romania_route", romaniaLayout, {
     width: 1024,
     height: 760,
-    expectedText: ["Romania NIS2 Onboarding", "missing_translation", "PureSOC does not submit this draft to DNSC."],
+    expectedText: ["Romania NIS2 Onboarding", "Services by sector and subsector", "PureSOC does not submit this draft to DNSC."],
     expectRomaniaRoute: true
   });
 
@@ -2813,7 +2818,7 @@ async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl)
         search: location.search,
         hash: location.hash,
         routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
-        hasSourceMap: text.includes("Source Map Sample"),
+        hasGuidedWorkflow: text.includes("Guided Workflow") && text.includes("Services by sector and subsector"),
         hasNoDnscNotice: text.includes("PureSOC does not submit this draft to DNSC."),
         hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
         hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
@@ -2823,7 +2828,7 @@ async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl)
       candidate.path === "/onboarding/romania" &&
       candidate.search === "?locale=ro-RO" &&
       candidate.routeMarker === true &&
-      candidate.hasSourceMap === true,
+      candidate.hasGuidedWorkflow === true,
     "dashboard to Romania onboarding pointer navigation",
     5_000
   );
@@ -2838,7 +2843,7 @@ async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl)
   assertBrowserLayout("pointer_romania_route", romaniaLayout, {
     width: 1024,
     height: 760,
-    expectedText: ["Romania NIS2 Onboarding", "missing_translation", "PureSOC does not submit this draft to DNSC."],
+    expectedText: ["Romania NIS2 Onboarding", "Services by sector and subsector", "PureSOC does not submit this draft to DNSC."],
     expectRomaniaRoute: true
   });
 
@@ -3476,29 +3481,31 @@ function assertRomaniaOnboardingRoute(html) {
   record("romania_route_html_is_nonblank", html.length > 14_000, String(html.length));
   record("romania_route_marker_present", html.includes('data-ui-smoke="romania-onboarding-route"'));
   record("romania_route_declares_ro_locale", html.includes('<html lang="ro">'));
-  record("romania_route_source_map_sample_visible", text.includes("Source Map Sample") && text.includes("Workbook-derived mappings"));
+  record("romania_route_guided_product_workflow_visible", text.includes("Guided Workflow") && text.includes("Services by sector and subsector"));
   record(
-    "romania_route_workbook_source_map_cells_visible",
-    html.includes("ro-nis2-entity_fields-entity_field_12_name_of_the_entity") && html.includes("Entity assessment!D66:D142")
+    "romania_route_generated_service_catalog_visible",
+    text.includes("Cloud computing service providers") && text.includes("None of the services listed in OUG No. 155/2024")
   );
   record("romania_route_legal_caveat_visible", text.includes("not a legal opinion"));
   record(
-    "romania_route_locale_fallback_metadata_visible",
-    text.includes("missing_translation") && text.includes("requested ro-RO") && text.includes("caveat en")
+    "romania_route_locale_review_state_visible",
+    text.includes("Romanian legal copy pending") && text.includes("conservative until approved Romanian copy exists")
   );
   record(
     "romania_route_unsupported_states_visible",
-    text.includes("Boundaries And Unsupported States") &&
+    text.includes("Review Boundaries") &&
       text.includes("Direct DNSC submission") &&
       text.includes("Legal activation") &&
       text.includes("API-backed by saved organization data")
   );
   record(
     "romania_route_no_dnsc_submission_visible",
-    text.includes("no DNSC submission") &&
-      text.includes("Submitted to DNSC") &&
-      text.includes("false") &&
+    text.includes("not submitted") &&
       text.includes("PureSOC does not submit this draft to DNSC.")
+  );
+  record(
+    "romania_route_customer_ui_hides_workbook_debug_terms",
+    !/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i.test(text)
   );
   record("romania_route_no_dnsc_direct_submit_command", !/submit\s+(to\s+)?dnsc/i.test(text));
   record("romania_route_has_no_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));

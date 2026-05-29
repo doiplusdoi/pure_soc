@@ -46,6 +46,7 @@ services:
       - ../../.env.example
     environment:
       PORT: "3000"
+      PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
     ports:
       - "3000:3000"
     depends_on:

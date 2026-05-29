@@ -419,7 +419,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      await handleRomaniaWorkflowPost({
+      const actionResult = await handleRomaniaWorkflowPost({
         apiBaseUrl,
         cookie: request.headers.cookie,
         organizationId,
@@ -428,7 +428,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         request
       });
       response.statusCode = 303;
-      response.setHeader("location", `/onboarding/romania?locale=ro-RO&message=${encodeURIComponent(messageForRomaniaAction(url.pathname))}`);
+      response.setHeader("location", `/onboarding/romania?locale=ro-RO&message=${encodeURIComponent(actionResult.message)}`);
       response.end();
       return;
     }
@@ -571,7 +571,9 @@ if (process.argv.some((argument) => argument.endsWith("apps/web/src/server.ts"))
   process.once("SIGTERM", shutdown);
 }
 
-const normalizeBaseUrl = (value: string): string => value.replace(/\/+$/, "");
+function normalizeBaseUrl(value: string): string {
+  return value.replace(/\/+$/, "");
+}
 
 export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeaders }, port: number): string => {
   const forwarded = parseForwardedHeader(singleHeader(request.headers.forwarded));
@@ -773,10 +775,10 @@ const handleRomaniaWorkflowPost = async (input: {
   origin: string;
   path: string;
   request: AsyncIterable<Buffer>;
-}): Promise<void> => {
+}): Promise<{ message: string }> => {
   if (input.path === "/onboarding/romania/save") {
     const form = await readFormBody(input.request);
-    await apiJson<unknown>(
+    const saved = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/ro/onboarding`,
       {
@@ -788,11 +790,11 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
-    return;
+    return { message: messageForRomaniaAction(input.path, saved.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/classify") {
-    await apiJson<unknown>(
+    const classified = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/ro/classification`,
       {
@@ -802,11 +804,11 @@ const handleRomaniaWorkflowPost = async (input: {
         body: {}
       }
     );
-    return;
+    return { message: messageForRomaniaAction(input.path, classified.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/notification-draft") {
-    await apiJson<unknown>(
+    const draft = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/ro/notification-draft/from-onboarding`,
       {
@@ -818,16 +820,16 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
-    return;
+    return { message: messageForRomaniaAction(input.path, draft.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/evaluate") {
     const state = await loadRoState(input);
     const assessmentId = state.progress?.assessmentId;
     if (!assessmentId) {
-      return;
+      return { message: "Save Romania onboarding progress before evaluating readiness." };
     }
-    await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/compliance/evaluate`, {
+    const evaluated = await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/compliance/evaluate`, {
       method: "POST",
       cookie: input.cookie,
       origin: input.origin,
@@ -844,21 +846,23 @@ const handleRomaniaWorkflowPost = async (input: {
             },
             {
               featureKey: "ro_legal_activation",
-              reason: "Romania workbook-derived logic remains review-required until product/legal approval."
+              reason: "Romania country-pack logic remains review-required until product/legal approval."
             }
           ]
         },
         jurisdiction: "EU"
       }
     });
-    await createDashboardSnapshot(input, assessmentId);
-    return;
+    if (apiSucceeded(evaluated.statusCode)) {
+      await createDashboardSnapshot(input, assessmentId);
+    }
+    return { message: messageForRomaniaAction(input.path, evaluated.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/evidence") {
     const form = await readFormBody(input.request);
     const state = await loadRoState(input);
-    await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/evidence/upload`, {
+    const uploaded = await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/evidence/upload`, {
       method: "POST",
       cookie: input.cookie,
       origin: input.origin,
@@ -875,18 +879,18 @@ const handleRomaniaWorkflowPost = async (input: {
         title: optionalFormValue(form.get("evidenceTitle")) ?? "Romania readiness evidence"
       }
     });
-    if (state.progress?.assessmentId) {
+    if (apiSucceeded(uploaded.statusCode) && state.progress?.assessmentId) {
       await createDashboardSnapshot(input, state.progress.assessmentId);
     }
-    return;
+    return { message: messageForRomaniaAction(input.path, uploaded.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/reports/internal-readiness") {
     const state = await loadRoState(input);
     if (!state.progress?.assessmentId) {
-      return;
+      return { message: "Evaluate readiness before generating the internal readiness export." };
     }
-    await apiJson<unknown>(
+    const report = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/reports/internal-readiness`,
       {
@@ -898,16 +902,16 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
-    return;
+    return { message: messageForRomaniaAction(input.path, report.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/reports/notification-draft") {
     const state = await loadRoState(input);
     const reportBody = notificationDraftReportBody(input.organizationId, state);
     if (!reportBody) {
-      return;
+      return { message: "Generate a Romania notification draft before exporting it." };
     }
-    await apiJson<unknown>(
+    const report = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/reports/romania-notification-draft`,
       {
@@ -917,17 +921,20 @@ const handleRomaniaWorkflowPost = async (input: {
         body: reportBody
       }
     );
-    return;
+    return { message: messageForRomaniaAction(input.path, report.statusCode) };
   }
 
   if (input.path === "/onboarding/romania/audit/checkpoint") {
-    await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/audit/checkpoints`, {
+    const checkpoint = await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/audit/checkpoints`, {
       method: "POST",
       cookie: input.cookie,
       origin: input.origin,
       body: {}
     });
+    return { message: messageForRomaniaAction(input.path, checkpoint.statusCode) };
   }
+
+  return { message: "Romania readiness action is not available." };
 };
 
 const loadRoState = async (input: {
@@ -969,27 +976,63 @@ const createDashboardSnapshot = async (
 
 const formToRomaniaAnswers = (form: URLSearchParams): Record<string, unknown> => {
   const employeeCount = Number(form.get("employeeCount") ?? "");
+  const annualTurnoverEur = Number(form.get("annualTurnoverEur") ?? "");
+  const balanceSheetTotalEur = Number(form.get("balanceSheetTotalEur") ?? "");
+  const serviceCodes = form.getAll("serviceCodes").filter((value) => value.length > 0);
+  const legacyServiceCode = optionalFormValue(form.get("serviceCode"));
 
   return {
     activity: {
-      mainNaceCode: optionalFormValue(form.get("mainNaceCode"))
+      mainNaceCode: optionalFormValue(form.get("mainNaceCode")),
+      secondaryNaceCodes: splitList(optionalFormValue(form.get("secondaryNaceCodes")))
     },
     address: {
       city: optionalFormValue(form.get("city")),
       country: optionalFormValue(form.get("country")),
       county: optionalFormValue(form.get("county")),
+      number: optionalFormValue(form.get("number")),
+      postalCode: optionalFormValue(form.get("postalCode")),
       street: optionalFormValue(form.get("street"))
     },
+    article9: {
+      nationalOrRegionalCriticality: form.get("nationalOrRegionalCriticality") === "true",
+      publicSafetySecurityOrHealthImpact: optionalFormValue(form.get("publicSafetySecurityOrHealthImpact")) ?? undefined,
+      soleProviderEssentialService: form.get("soleProviderEssentialService") === "true",
+      systemicRisk: optionalFormValue(form.get("systemicRisk")) ?? undefined
+    },
+    attachedDocumentIds: splitList(optionalFormValue(form.get("attachedDocumentIds"))),
     contact: {
-      email: optionalFormValue(form.get("email"))
+      email: optionalFormValue(form.get("email")),
+      mobilePhone: optionalFormValue(form.get("mobilePhone")),
+      phone: optionalFormValue(form.get("phone")),
+      websiteUrl: optionalFormValue(form.get("websiteUrl"))
+    },
+    cybersecurityResponsible: {
+      email: optionalFormValue(form.get("cybersecurityEmail")),
+      name: optionalFormValue(form.get("cybersecurityName")),
+      phone: optionalFormValue(form.get("cybersecurityPhone")),
+      role: optionalFormValue(form.get("cybersecurityRole"))
     },
     entity: {
       cui: optionalFormValue(form.get("cui")),
       legalName: optionalFormValue(form.get("legalName")),
       nationalRegistrationNumber: optionalFormValue(form.get("nationalRegistrationNumber"))
     },
+    legalRepresentative: {
+      email: optionalFormValue(form.get("legalRepresentativeEmail")),
+      name: optionalFormValue(form.get("legalRepresentativeName")),
+      phone: optionalFormValue(form.get("legalRepresentativePhone")),
+      role: optionalFormValue(form.get("legalRepresentativeRole"))
+    },
     network: {
+      publicIpRanges: splitList(optionalFormValue(form.get("publicIpRanges"))),
       systemsDescription: optionalFormValue(form.get("systemsDescription"))
+    },
+    permanentMonitoringContact: {
+      email: optionalFormValue(form.get("monitoringEmail")),
+      name: optionalFormValue(form.get("monitoringName")),
+      phone: optionalFormValue(form.get("monitoringPhone")),
+      role: optionalFormValue(form.get("monitoringRole"))
     },
     relationship: {
       criticalEntityInRomaniaLaw294: form.get("criticalEntityInRomaniaLaw294") === "true",
@@ -997,15 +1040,25 @@ const formToRomaniaAnswers = (form: URLSearchParams): Record<string, unknown> =>
       mainOfficeInRomania: form.get("mainOfficeInRomania") === "true",
       providesServicesInAnotherEuMemberState: form.get("providesServicesInAnotherEuMemberState") === "true",
       providesServicesInRomania: form.get("providesServicesInRomania") === "true",
-      publicAdministrationEstablishedByRomania: false
+      publicAdministrationEstablishedByRomania: form.get("publicAdministrationEstablishedByRomania") === "true"
     },
-    selectedServiceTypeCodes: [optionalFormValue(form.get("serviceCode"))].filter(Boolean),
+    selectedServiceTypeCodes: serviceCodes.length > 0 ? serviceCodes : [legacyServiceCode].filter(Boolean),
     size: {
+      annualTurnoverEur: Number.isFinite(annualTurnoverEur) && annualTurnoverEur > 0 ? annualTurnoverEur : undefined,
+      balanceSheetTotalEur: Number.isFinite(balanceSheetTotalEur) && balanceSheetTotalEur > 0 ? balanceSheetTotalEur : undefined,
       employeeCount: Number.isFinite(employeeCount) && employeeCount > 0 ? employeeCount : undefined,
       sizeCategory: optionalFormValue(form.get("sizeCategory"))
     }
   };
 };
+
+const splitList = (value: string | null): string[] =>
+  value
+    ? value
+        .split(/[\n,;]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+    : [];
 
 const notificationDraftReportBody = (
   organizationId: string,
@@ -1037,11 +1090,26 @@ const notificationDraftReportBody = (
   };
 };
 
-const messageForRomaniaAction = (path: string): string => {
+const messageForRomaniaAction = (path: string, statusCode = 200): string => {
+  if (!apiSucceeded(statusCode)) {
+    const failures: Record<string, string> = {
+      "/onboarding/romania/save": "Romania onboarding progress was not saved. Check required fields and try again.",
+      "/onboarding/romania/classify": "Classification could not be generated from the saved answers.",
+      "/onboarding/romania/notification-draft": "Notification draft could not be generated from saved answers.",
+      "/onboarding/romania/evaluate": "Internal readiness evaluation could not be generated.",
+      "/onboarding/romania/evidence": "Local evidence could not be attached.",
+      "/onboarding/romania/reports/internal-readiness": "Internal readiness export could not be generated.",
+      "/onboarding/romania/reports/notification-draft": "Notification draft export could not be generated.",
+      "/onboarding/romania/audit/checkpoint": "Audit checkpoint metadata could not be recorded."
+    };
+
+    return failures[path] ?? "Romania readiness action could not be completed.";
+  }
+
   const messages: Record<string, string> = {
     "/onboarding/romania/save": "Romania onboarding progress saved.",
     "/onboarding/romania/classify": "Preliminary Romania classification generated from saved answers.",
-    "/onboarding/romania/notification-draft": "Source-linked Romania notification draft generated. DNSC submission remains unavailable.",
+    "/onboarding/romania/notification-draft": "Romania notification draft generated. DNSC submission remains unavailable.",
     "/onboarding/romania/evaluate": "Internal readiness evaluation and dashboard snapshot generated.",
     "/onboarding/romania/evidence": "Local evidence attached to the workspace.",
     "/onboarding/romania/reports/internal-readiness": "Internal readiness JSON export generated.",
@@ -1051,6 +1119,8 @@ const messageForRomaniaAction = (path: string): string => {
 
   return messages[path] ?? "Romania readiness action completed.";
 };
+
+const apiSucceeded = (statusCode: number): boolean => statusCode >= 200 && statusCode < 300;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));

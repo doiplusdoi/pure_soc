@@ -186,15 +186,37 @@ describe("ro nis2 API routes", () => {
         street: "Strada Memorandumului"
       },
       contact: {
-        email: "security@m78.example.test"
+        email: "security@m78.example.test",
+        mobilePhone: "+40740000001",
+        phone: "+40210000001",
+        websiteUrl: "https://m78.example.test"
+      },
+      cybersecurityResponsible: {
+        email: "security-lead@m78.example.test",
+        name: "Security Lead",
+        phone: "+40740000002",
+        role: "CISO"
       },
       entity: {
         cui: "RO78451230",
         legalName: "M78 Real Data SRL",
         nationalRegistrationNumber: "J12/7845/2026"
       },
+      legalRepresentative: {
+        email: "legal@m78.example.test",
+        name: "Legal Representative",
+        phone: "+40740000004",
+        role: "Administrator"
+      },
       network: {
+        publicIpRanges: ["198.51.100.0/28"],
         systemsDescription: "Local identity, collaboration, and customer support systems."
+      },
+      permanentMonitoringContact: {
+        email: "monitoring@m78.example.test",
+        name: "Monitoring Contact",
+        phone: "+40740000003",
+        role: "SOC duty contact"
       },
       relationship: {
         criticalEntityInRomaniaLaw294: false,
@@ -280,6 +302,7 @@ describe("ro nis2 API routes", () => {
     expect(draftBody.draft.fields.find((field) => field.key === "notification_c9")?.value).toBe(
       "M78 Real Data SRL"
     );
+    expect(draftBody.draft.fields).toHaveLength(74);
     expect(draftBody.draft.submission.submittedToDnsc).toBe(false);
     expect(draftBody.roNis2CompanionDraft.onboardingProgressId).toBe(saveBody.progress.id);
     expect(parseCountryPackNotificationDraftEnvelope(draftBody.notificationDraft.payload)).toMatchObject({
