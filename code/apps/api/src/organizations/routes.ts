@@ -87,3 +87,56 @@ export const listOrganizationMembersRoute = async (
     body: await services.organizations.listMembers(organizationId)
   };
 };
+
+export const createOrganizationInvitationRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
+  const session = await services.localAuth.getSession(sessionToken ?? "");
+
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: session.user.id,
+    organizationId,
+    allowedRoles: ["owner", "org_admin"]
+  });
+
+  return {
+    statusCode: 201,
+    body: await services.organizations.createInvitation({
+      actorUserId: session.user.id,
+      organizationId,
+      email: requireString(body, "email"),
+      roleKey: optionalString(body, "roleKey"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent,
+      deliverInvitationToken: (delivery) => services.organizationInvitationDelivery.deliver(delivery)
+    })
+  };
+};
+
+export const acceptOrganizationInvitationRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
+  const session = await services.localAuth.getSession(sessionToken ?? "");
+
+  return {
+    statusCode: 200,
+    body: await services.organizations.acceptInvitation({
+      actorUserId: session.user.id,
+      organizationId,
+      plaintextToken: requireString(body, "token"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};

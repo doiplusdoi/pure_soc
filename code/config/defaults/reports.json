@@ -2,5 +2,10 @@
   "legalCaveatRequired": true,
   "renderer": "puresoc-report-renderer",
   "defaultExportFormat": "json",
-  "storeGeneratedReportsAsEvidence": true
+  "storeGeneratedReportsAsEvidence": true,
+  "evidencePackage": {
+    "maxEvidenceFiles": 250,
+    "maxEvidenceFileBytes": 10485760,
+    "maxBundleBytes": 52428800
+  }
 }

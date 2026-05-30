@@ -1,6 +1,16 @@
 import { randomUUID } from "node:crypto";
 
-import { defaultRoleDefinitions, publicUserView, type AuthenticatedUser, type PureSocRoleKey } from "@puresoc/auth-core";
+import {
+  AuthError,
+  defaultRoleDefinitions,
+  isPureSocRoleKey,
+  normalizeEmail,
+  publicUserView,
+  type AuthenticatedUser,
+  type OrganizationMemberStatus,
+  type PureSocRoleKey
+} from "@puresoc/auth-core";
+import { createExpiringSecretToken, hashSecretToken, isTokenExpired } from "@puresoc/auth-local";
 import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import type { OrganizationMembershipRecord, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
@@ -26,12 +36,73 @@ export interface CreateOrganizationInput {
   userAgent?: string | null;
 }
 
+export type OrganizationInvitationStatus = "pending" | "accepted" | "revoked" | "expired";
+
+export interface OrganizationInvitationRecord {
+  id: string;
+  organizationId: string;
+  invitedEmail: string;
+  invitedRoleKey: PureSocRoleKey;
+  tokenHash: string;
+  invitedByUserId: string;
+  status: OrganizationInvitationStatus;
+  expiresAt: Date;
+  acceptedByUserId?: string | null;
+  acceptedAt?: Date | null;
+  revokedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface CreateOrganizationInvitationInput {
+  actorUserId: string;
+  organizationId: string;
+  email: string;
+  roleKey?: string | null;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+  deliverInvitationToken?: (input: {
+    organizationId: string;
+    invitationId: string;
+    email: string;
+    roleKey: PureSocRoleKey;
+    invitedByUserId: string;
+    plaintextToken: string;
+    expiresAt: Date;
+  }) => void;
+}
+
+export interface AcceptOrganizationInvitationInput {
+  actorUserId: string;
+  organizationId: string;
+  plaintextToken: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
 export interface OrganizationRepository {
   findUserById(userId: string): Promise<AuthenticatedUser | null>;
   createOrganization(input: OrganizationRecord): Promise<OrganizationRecord>;
   addOrganizationMember(input: OrganizationMembershipRecord): Promise<OrganizationMembershipRecord>;
+  updateOrganizationMemberStatus(input: {
+    memberId: string;
+    status: OrganizationMemberStatus;
+    updatedAt: Date;
+  }): Promise<OrganizationMembershipRecord>;
   ensureRole(input: Omit<RoleRecord, "id" | "createdAt">): Promise<RoleRecord>;
   bindRole(input: RoleBindingRecord): Promise<RoleBindingRecord>;
+  findMembership(organizationId: string, userId: string): Promise<OrganizationMembershipRecord | null>;
+  createOrganizationInvitation(input: OrganizationInvitationRecord): Promise<OrganizationInvitationRecord>;
+  findOrganizationInvitationByTokenHash(tokenHash: string): Promise<OrganizationInvitationRecord | null>;
+  markOrganizationInvitationAccepted(input: {
+    invitationId: string;
+    acceptedByUserId: string;
+    acceptedAt: Date;
+  }): Promise<OrganizationInvitationRecord>;
+  markOrganizationInvitationExpired(input: {
+    invitationId: string;
+    expiredAt: Date;
+  }): Promise<OrganizationInvitationRecord>;
   listOrganizationMembers(organizationId: string): Promise<Array<OrganizationMembershipRecord & { user: AuthenticatedUser }>>;
   listOrganizationsForUser(userId: string): Promise<
     Array<{
@@ -134,6 +205,177 @@ export class OrganizationService {
     };
   }
 
+  async createInvitation(input: CreateOrganizationInvitationInput) {
+    const actor = await this.repository.findUserById(input.actorUserId);
+    if (!actor) {
+      throw new Error("Cannot create organization invitation for an unknown user.");
+    }
+    if (!actor.emailVerifiedAt) {
+      throw new AuthError("email_not_verified", "Verify your account email before inviting organization members.", 403);
+    }
+
+    const invitedEmail = normalizeEmail(input.email);
+    if (!invitedEmail.includes("@")) {
+      throw new AuthError("invalid_request", "Invitation email must be valid.", 400);
+    }
+
+    const invitedRoleKey = this.parseInviteRole(input.roleKey ?? "auditor");
+    const now = this.now();
+    const token = createExpiringSecretToken({
+      now,
+      ttlMs: 1000 * 60 * 60 * 24 * 7
+    });
+    const invitation = await this.repository.createOrganizationInvitation({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      invitedEmail,
+      invitedRoleKey,
+      tokenHash: token.tokenHash,
+      invitedByUserId: input.actorUserId,
+      status: "pending",
+      expiresAt: token.expiresAt,
+      acceptedByUserId: null,
+      acceptedAt: null,
+      revokedAt: null,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    input.deliverInvitationToken?.({
+      organizationId: input.organizationId,
+      invitationId: invitation.id,
+      email: invitedEmail,
+      roleKey: invitedRoleKey,
+      invitedByUserId: input.actorUserId,
+      plaintextToken: token.plaintextToken,
+      expiresAt: token.expiresAt
+    });
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      targetType: "organization_invitation",
+      targetId: invitation.id,
+      action: "member_invited",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        invitedEmail,
+        roleKey: invitedRoleKey,
+        status: invitation.status,
+        expiresAt: invitation.expiresAt.toISOString()
+      }
+    });
+
+    return {
+      invitation: this.safeInvitationView(invitation)
+    };
+  }
+
+  async acceptInvitation(input: AcceptOrganizationInvitationInput) {
+    const actor = await this.repository.findUserById(input.actorUserId);
+    if (!actor) {
+      throw new AuthError("session_invalid", "Authenticated user was not found.", 401);
+    }
+    if (!actor.emailVerifiedAt) {
+      throw new AuthError("email_not_verified", "Verify the invited email address before accepting an invitation.", 403);
+    }
+
+    const now = this.now();
+    const tokenHash = hashSecretToken(input.plaintextToken);
+    const invitation = await this.repository.findOrganizationInvitationByTokenHash(tokenHash);
+    if (!invitation || invitation.organizationId !== input.organizationId || invitation.status !== "pending") {
+      throw new AuthError("invalid_request", "Invitation token is invalid or no longer usable.", 400);
+    }
+    if (isTokenExpired({ tokenHash: invitation.tokenHash, expiresAt: invitation.expiresAt, usedAt: null }, now)) {
+      await this.repository.markOrganizationInvitationExpired({
+        invitationId: invitation.id,
+        expiredAt: now
+      });
+      throw new AuthError("invalid_request", "Invitation token is expired.", 400);
+    }
+    if (normalizeEmail(actor.email) !== invitation.invitedEmail) {
+      throw new AuthError("forbidden", "Invitation token does not match the authenticated user email.", 403);
+    }
+
+    const existingMembership = await this.repository.findMembership(input.organizationId, actor.id);
+    const membership =
+      existingMembership === null
+        ? await this.repository.addOrganizationMember({
+            id: randomUUID(),
+            organizationId: input.organizationId,
+            userId: actor.id,
+            status: "active",
+            createdAt: now,
+            updatedAt: now
+          })
+        : existingMembership.status === "active"
+          ? existingMembership
+          : await this.repository.updateOrganizationMemberStatus({
+              memberId: existingMembership.id,
+              status: "active",
+              updatedAt: now
+            });
+
+    const roleDefinition = defaultRoleDefinitions.find((role) => role.key === invitation.invitedRoleKey);
+    if (!roleDefinition) {
+      throw new Error(`Invitation references unknown role: ${invitation.invitedRoleKey}`);
+    }
+    const role = await this.repository.ensureRole(roleDefinition);
+    await this.repository.bindRole({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      userId: actor.id,
+      roleId: role.id,
+      roleKey: role.key,
+      scopeJson: {},
+      createdAt: now
+    });
+    const acceptedInvitation = await this.repository.markOrganizationInvitationAccepted({
+      invitationId: invitation.id,
+      acceptedByUserId: actor.id,
+      acceptedAt: now
+    });
+
+    await this.auditWriter.write({
+      actorUserId: actor.id,
+      organizationId: input.organizationId,
+      targetType: "organization_invitation",
+      targetId: invitation.id,
+      action: "member_invitation_accepted",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        invitedEmail: invitation.invitedEmail,
+        roleKey: invitation.invitedRoleKey,
+        status: acceptedInvitation.status
+      }
+    });
+    await this.auditWriter.write({
+      actorUserId: actor.id,
+      organizationId: input.organizationId,
+      targetType: "role_binding",
+      targetId: actor.id,
+      action: "role_changed",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        roleKey: role.key
+      }
+    });
+
+    return {
+      invitation: this.safeInvitationView(acceptedInvitation),
+      member: {
+        id: membership.id,
+        organizationId: membership.organizationId,
+        user: publicUserView(actor),
+        status: membership.status,
+        roleKeys: [role.key]
+      }
+    };
+  }
+
   async listMembers(organizationId: string) {
     const members = await this.repository.listOrganizationMembers(organizationId);
 
@@ -175,4 +417,35 @@ export class OrganizationService {
       updatedAt: organization.updatedAt.toISOString()
     };
   }
+
+  private parseInviteRole(roleKey: string): PureSocRoleKey {
+    if (!isPureSocRoleKey(roleKey) || !inviteableOrganizationRoleKeys.includes(roleKey)) {
+      throw new AuthError("invalid_request", "Invitation role is not supported for owner-managed invites.", 400);
+    }
+
+    return roleKey;
+  }
+
+  private safeInvitationView(invitation: OrganizationInvitationRecord) {
+    return {
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      invitedEmail: invitation.invitedEmail,
+      roleKey: invitation.invitedRoleKey,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt.toISOString(),
+      acceptedAt: invitation.acceptedAt?.toISOString() ?? null,
+      createdAt: invitation.createdAt.toISOString(),
+      updatedAt: invitation.updatedAt.toISOString()
+    };
+  }
 }
+
+const inviteableOrganizationRoleKeys: PureSocRoleKey[] = [
+  "org_admin",
+  "compliance_manager",
+  "security_operator",
+  "remediation_approver",
+  "auditor",
+  "billing_admin"
+];

@@ -24,6 +24,7 @@ import type {
   GapSurface,
   Microsoft365ModuleSurface,
   OnboardingSurface,
+  OrganizationInvitationScreenModel,
   OperationalConsoleModel,
   OperationalStatus,
   RomaniaOnboardingRouteModel,
@@ -50,6 +51,13 @@ export interface RenderRegisterScreenOptions {
   productName?: string;
 }
 
+export interface RenderEmailVerificationScreenOptions {
+  errorMessage?: string;
+  locale?: string | null;
+  productName?: string;
+  successMessage?: string;
+}
+
 export interface RuntimeMessageScreenInput {
   actionHref?: string;
   actionLabel?: string;
@@ -61,6 +69,11 @@ export interface RuntimeMessageScreenInput {
 }
 
 export interface RenderWorkspaceSelectionOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
+}
+
+export interface RenderOrganizationInvitationsOptions {
   includeDocumentShell?: boolean;
   locale?: string | null;
 }
@@ -189,7 +202,7 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     '<main class="ps-content ps-content--auth" id="content" tabindex="-1" data-ui-smoke="register-screen">',
     '<section class="ps-section" aria-labelledby="register-title">',
     '<div class="ps-section__header">',
-    '<div><h1 class="ps-section__title" id="register-title">Register local account</h1><p class="ps-muted">Create a PureSOC account, then create a workspace to become its owner.</p></div>',
+    '<div><h1 class="ps-section__title" id="register-title">Register local account</h1><p class="ps-muted">Create a PureSOC account, verify the email address, then continue to workspace setup.</p></div>',
     renderStatusPill({ label: "local auth", tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
@@ -203,6 +216,42 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     renderCommandButton({ label: "Register", ariaLabel: "Register local PureSOC account", tone: "primary", type: "submit" }),
     "</form>",
     '<p class="ps-muted"><a class="ps-command" href="/login" data-ui-action="back-to-login">Back to sign in</a></p>',
+    "</div>",
+    "</section>",
+    "</main>",
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+export const renderEmailVerificationScreen = (options: RenderEmailVerificationScreenOptions = {}): string => {
+  const productName = options.productName ?? "PureSOC";
+  const locale = resolvePureSocLocale(options.locale).locale;
+
+  return [
+    "<!doctype html>",
+    `<html lang="${locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>Verify email | ${escapeHtml(productName)}</title>`,
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    '<main class="ps-content ps-content--auth" id="content" tabindex="-1" data-ui-smoke="email-verification-screen">',
+    '<section class="ps-section" aria-labelledby="email-verification-title">',
+    '<div class="ps-section__header">',
+    '<div><h1 class="ps-section__title" id="email-verification-title">Verify email</h1><p class="ps-muted">Enter the verification token from the configured local auth email delivery path before relying on this account for launch testing.</p></div>',
+    renderStatusPill({ label: "verification required", tone: "warning" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    options.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(options.errorMessage)}</p>` : "",
+    options.successMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(options.successMessage)}</p>` : "",
+    '<form class="ps-form" action="/auth/email/verify" method="post">',
+    '<div class="ps-field"><label for="token">Verification token</label><input id="token" name="token" type="text" autocomplete="one-time-code" required><span class="ps-help">The token is submitted to the API and is not echoed back into this page.</span></div>',
+    renderCommandButton({ label: "Verify email", ariaLabel: "Verify local account email", tone: "primary", type: "submit" }),
+    "</form>",
+    '<p class="ps-muted"><a class="ps-command" href="/workspaces" data-ui-action="continue-to-workspaces">Continue to workspace setup</a></p>',
     "</div>",
     "</section>",
     "</main>",
@@ -242,6 +291,55 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     "</html>"
     ].join("");
   };
+
+export const renderOrganizationInvitationsScreen = (
+  model: OrganizationInvitationScreenModel,
+  options: RenderOrganizationInvitationsOptions = {}
+): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
+  const activeOrganization = model.activeOrganization;
+  const canCreate = model.canCreateInvitations && Boolean(activeOrganization);
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="organization-invitations">',
+    '<section class="ps-section" aria-labelledby="organization-invitations-title">',
+    '<div class="ps-section__header">',
+    '<div><h1 class="ps-section__title" id="organization-invitations-title">Organization invitations</h1><p class="ps-muted">Invite verified teammates into the active workspace, or accept an invitation token from a configured delivery path.</p></div>',
+    renderStatusPill({ label: "local invitation flow", tone: "info" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-grid">',
+    renderInvitationCreatePanel(model, canCreate),
+    renderInvitationAcceptPanel(model),
+    "</div>",
+    renderInvitationWorkspacePanel(model),
+    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Organization invitations | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
 
 export const renderWorkspaceSelectionScreen = (
   model: WorkspaceSelectionModel,
@@ -1115,6 +1213,7 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     '<header class="ps-topbar">',
     `<div><p class="ps-topbar__title">${escapeHtml(model.organization.name)}</p><span class="ps-muted">${escapeHtml(model.user.displayName)} | ${escapeHtml(model.user.role)}</span></div>`,
     '<div class="ps-topbar__actions">',
+    '<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>',
     '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
     '<form class="ps-inline-form" action="/auth/logout" method="post" data-ui-action="sign-out">',
     renderCommandButton({ label: "Sign out", ariaLabel: "Sign out of PureSOC", tone: "secondary", type: "submit" }),
@@ -1124,6 +1223,88 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
     "</div>",
     "</header>"
+  ].join("");
+
+const renderInvitationCreatePanel = (model: OrganizationInvitationScreenModel, canCreate: boolean): string => {
+  const activeOrganization = model.activeOrganization;
+
+  return [
+    '<article class="ps-panel ps-panel--wide" aria-labelledby="create-invitation-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="create-invitation-title">Create invitation</h2><p class="ps-muted">Owners and organization admins can invite one teammate at a time.</p></div>',
+    renderStatusPill({ label: canCreate ? "ready" : "owner or admin required", tone: canCreate ? "success" : "warning" }),
+    "</div>",
+    activeOrganization
+      ? `<p class="ps-muted">Active workspace: ${escapeHtml(activeOrganization.name)}.</p>`
+      : '<p class="ps-muted">Select a workspace before creating invitations.</p>',
+    '<form class="ps-form ps-form--wide" action="/invitations" method="post" data-ui-action="create-organization-invitation">',
+    '<div class="ps-form-grid">',
+    `<div class="ps-field"><label for="inviteEmail">Invitee email</label><input id="inviteEmail" name="email" type="email" autocomplete="email" required${canCreate ? "" : " disabled"}><span class="ps-help">The invited user must accept with this verified account email.</span></div>`,
+    '<div class="ps-field"><label for="inviteRoleKey">Workspace role</label>',
+    `<select id="inviteRoleKey" name="roleKey"${canCreate ? "" : " disabled"}>`,
+    ...model.roleOptions.map(
+      (role) =>
+        `<option value="${escapeHtml(role.key)}"${role.key === "auditor" ? " selected" : ""}>${escapeHtml(role.label)}</option>`
+    ),
+    "</select>",
+    `<span class="ps-help">${escapeHtml(model.roleOptions.map((role) => `${role.label}: ${role.summary}`).join(" "))}</span>`,
+    "</div>",
+    "</div>",
+    renderCommandButton({
+      label: "Create invite",
+      ariaLabel: "Create organization invitation",
+      disabled: !canCreate,
+      tone: canCreate ? "primary" : "secondary",
+      type: "submit"
+    }),
+    '<p class="ps-help">Real invitation email delivery is still deferred. The web response does not expose plaintext invitation tokens.</p>',
+    "</form>",
+    "</article>"
+  ].join("");
+};
+
+const renderInvitationAcceptPanel = (model: OrganizationInvitationScreenModel): string => {
+  const defaultOrganizationId = model.acceptOrganizationId ?? model.activeOrganization?.id ?? "";
+
+  return [
+    '<article class="ps-panel" aria-labelledby="accept-invitation-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="accept-invitation-title">Accept invitation</h2><p class="ps-muted">Sign in with the invited and verified email before accepting.</p></div>',
+    renderStatusPill({ label: "token required", tone: "warning" }),
+    "</div>",
+    '<form class="ps-form" action="/invitations/accept" method="post" data-ui-action="accept-organization-invitation">',
+    `<div class="ps-field"><label for="acceptOrganizationId">Organization ID</label><input id="acceptOrganizationId" name="organizationId" type="text" value="${escapeHtml(
+      defaultOrganizationId
+    )}" required spellcheck="false"><span class="ps-help">Use the organization ID from the invitation delivery path.</span></div>`,
+    '<div class="ps-field"><label for="invitationToken">Invitation token</label><input id="invitationToken" name="token" type="text" autocomplete="one-time-code" required><span class="ps-help">The token is submitted to the API and is not echoed back into this page.</span></div>',
+    renderCommandButton({
+      label: "Accept invite",
+      ariaLabel: "Accept organization invitation",
+      tone: "primary",
+      type: "submit"
+    }),
+    "</form>",
+    "</article>"
+  ].join("");
+};
+
+const renderInvitationWorkspacePanel = (model: OrganizationInvitationScreenModel): string =>
+  [
+    '<article class="ps-panel ps-panel--quiet ps-stack-top" aria-labelledby="invitation-workspace-state-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="invitation-workspace-state-title">Workspace state</h2><p class="ps-muted">Invitation operations keep using API session and RBAC checks.</p></div>',
+    renderStatusPill({ label: model.roleKeys.length > 0 ? model.roleKeys.join(", ") : "no active role", tone: model.roleKeys.length > 0 ? "info" : "warning" }),
+    "</div>",
+    model.activeOrganization
+      ? `<p>${escapeHtml(model.activeOrganization.name)} is selected for this browser session.</p>`
+      : '<p>No active workspace is selected. You can still accept an invitation when you have its organization ID and token.</p>',
+    '<div class="ps-chip-row">',
+    model.activeOrganization ? renderSourceChip({ label: "Organization", detail: model.activeOrganization.id }) : "",
+    renderStatusPill({ label: `${model.organizations.length} active memberships`, tone: "neutral" }),
+    renderStatusPill({ label: "signed-in account", tone: "info" }),
+    "</div>",
+    '<p class="ps-stack-top"><a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Open workspace selector</a></p>',
+    "</article>"
   ].join("");
 
 const renderWorkspaceSelectionPanel = (

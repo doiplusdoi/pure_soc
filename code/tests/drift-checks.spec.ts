@@ -51,8 +51,8 @@ model Example {
 
     expect(formatPrismaContractDriftResult(result)).toContain("Prisma schema/contract drift check passed");
     expect(result.valid).toBe(true);
-    expect(result.checkedModels).toBeGreaterThanOrEqual(32);
-    expect(result.checkedFields).toBeGreaterThan(460);
+    expect(result.checkedModels).toBeGreaterThanOrEqual(35);
+    expect(result.checkedFields).toBeGreaterThan(500);
   });
 
   it("includes selected output metadata surfaces in schema drift coverage", () => {
@@ -60,6 +60,66 @@ model Example {
 
     expect(coveredModels).toEqual(
       expect.arrayContaining(["EvidenceLink", "ReportExport", "DashboardWidget"])
+    );
+  });
+
+  it("includes customer-facing Romania readiness persistence in schema drift coverage", () => {
+    const coveredModels = defaultPrismaDriftExpectations.map((expectation) => expectation.modelName);
+
+    expect(coveredModels).toEqual(
+      expect.arrayContaining(["RoNis2OnboardingProgress", "RoNis2ClassificationRun"])
+    );
+
+    expect(defaultPrismaDriftExpectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "answersJson", type: "Json" }),
+            expect.objectContaining({ isList: true, name: "completedSteps", type: "String" }),
+            expect.objectContaining({ isList: true, name: "missingRequiredFields", type: "String" })
+          ]),
+          modelAttributes: expect.arrayContaining([
+            '@@index([organizationId, status], map: "ro_nis2_onboarding_progress_org_status_idx")'
+          ]),
+          modelName: "RoNis2OnboardingProgress",
+          tableName: "ro_nis2_onboarding_progress"
+        }),
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "inputJson", type: "Json" }),
+            expect.objectContaining({ name: "result", type: "RoNis2ClassificationResult" }),
+            expect.objectContaining({ name: "sourceReferencesJson", type: "Json" })
+          ]),
+          modelAttributes: expect.arrayContaining([
+            '@@index([organizationId, result, classifiedAt], map: "ro_nis2_classification_runs_org_result_idx")'
+          ]),
+          modelName: "RoNis2ClassificationRun",
+          tableName: "ro_nis2_classification_runs"
+        })
+      ])
+    );
+  });
+
+  it("includes owner-managed invitation persistence in schema drift coverage", () => {
+    expect(defaultPrismaDriftExpectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "organizationId", type: "String" }),
+            expect.objectContaining({ name: "invitedEmail", type: "String" }),
+            expect.objectContaining({ name: "invitedRoleKey", type: "String" }),
+            expect.objectContaining({ name: "tokenHash", type: "String" }),
+            expect.objectContaining({ name: "status", type: "OrganizationInvitationStatus" }),
+            expect.objectContaining({ name: "expiresAt", type: "DateTime" })
+          ]),
+          modelAttributes: expect.arrayContaining([
+            '@@unique([tokenHash], map: "organization_invitations_token_hash_key")',
+            '@@index([organizationId, invitedEmail, status], map: "organization_invitations_org_email_status_idx")'
+          ]),
+          modelName: "OrganizationInvitation",
+          tableName: "organization_invitations"
+        })
+      ])
     );
   });
 

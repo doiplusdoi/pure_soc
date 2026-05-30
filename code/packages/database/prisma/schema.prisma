@@ -22,6 +22,13 @@ enum OrganizationMemberStatus {
   removed
 }
 
+enum OrganizationInvitationStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
 enum ProviderConnectionStatus {
   pending
   connected
@@ -435,6 +442,26 @@ model OrganizationMember {
 
   @@unique([organizationId, userId], map: "organization_members_org_user_key")
   @@map("organization_members")
+}
+
+model OrganizationInvitation {
+  id               String                       @id @default(uuid()) @db.Uuid
+  organizationId   String                       @map("organization_id") @db.Uuid
+  invitedEmail     String                       @map("invited_email")
+  invitedRoleKey   String                       @map("invited_role_key")
+  tokenHash        String                       @map("token_hash")
+  invitedByUserId  String                       @map("invited_by_user_id") @db.Uuid
+  status           OrganizationInvitationStatus @default(pending)
+  expiresAt        DateTime                     @map("expires_at")
+  acceptedByUserId String?                      @map("accepted_by_user_id") @db.Uuid
+  acceptedAt       DateTime?                    @map("accepted_at")
+  revokedAt        DateTime?                    @map("revoked_at")
+  createdAt        DateTime                     @default(now()) @map("created_at")
+  updatedAt        DateTime                     @updatedAt @map("updated_at")
+
+  @@unique([tokenHash], map: "organization_invitations_token_hash_key")
+  @@index([organizationId, invitedEmail, status], map: "organization_invitations_org_email_status_idx")
+  @@map("organization_invitations")
 }
 
 model Role {

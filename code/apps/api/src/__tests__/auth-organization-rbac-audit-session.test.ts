@@ -2,7 +2,11 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { loadConfig } from "@puresoc/config";
-import { createApiServices } from "../auth/services";
+import {
+  createApiServices,
+  InMemoryEmailVerificationDelivery,
+  InMemoryOrganizationInvitationDelivery
+} from "../auth/services";
 import { startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
@@ -13,9 +17,15 @@ describe("auth organization rbac audit session integration", () => {
   let server: ReturnType<typeof startApiServer>;
   let baseUrl: string;
   let services: ReturnType<typeof createApiServices>;
+  let emailDelivery: InMemoryEmailVerificationDelivery;
+  let invitationDelivery: InMemoryOrganizationInvitationDelivery;
 
   beforeEach(() => {
+    emailDelivery = new InMemoryEmailVerificationDelivery();
+    invitationDelivery = new InMemoryOrganizationInvitationDelivery();
     services = createApiServices({
+      emailVerificationDelivery: emailDelivery,
+      organizationInvitationDelivery: invitationDelivery,
       now: () => new Date("2026-04-28T12:00:00.000Z")
     });
     server = startApiServer(0, services);
@@ -230,6 +240,174 @@ describe("auth organization rbac audit session integration", () => {
     expect(selectCrossOrgResponse.status).toBe(403);
   });
 
+  it("creates owner-managed invitations and accepts them only for verified matching emails", async () => {
+    const owner = await registerAndLogin("invite-owner@example.test");
+    const organizationResponse = await postJson(
+      "/organizations",
+      {
+        name: "Invite Org"
+      },
+      owner.cookie
+    );
+    expect(organizationResponse.status).toBe(201);
+    const organizationBody = await readJson<{ organization: { id: string } }>(organizationResponse);
+
+    const unverifiedOwnerInviteResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations`,
+      {
+        email: "blocked@example.test",
+        roleKey: "auditor"
+      },
+      owner.cookie
+    );
+    expect(unverifiedOwnerInviteResponse.status).toBe(403);
+    expect(invitationDelivery.deliveries).toHaveLength(0);
+
+    const ownerVerification = emailDelivery.deliveries.find((delivery) => delivery.email === "invite-owner@example.test");
+    if (!ownerVerification) {
+      throw new Error("Expected owner email verification delivery.");
+    }
+    const ownerVerificationResponse = await postJson("/auth/email/verify", {
+      token: ownerVerification.plaintextToken
+    });
+    expect(ownerVerificationResponse.status).toBe(200);
+
+    const unsupportedRoleResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations`,
+      {
+        email: "role-owner@example.test",
+        roleKey: "owner"
+      },
+      owner.cookie
+    );
+    expect(unsupportedRoleResponse.status).toBe(400);
+
+    const invitationResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations`,
+      {
+        email: "Invitee@Example.test",
+        roleKey: "auditor"
+      },
+      owner.cookie
+    );
+    expect(invitationResponse.status).toBe(201);
+    const invitationText = await invitationResponse.text();
+    const invitationBody = JSON.parse(invitationText) as {
+      invitation: { invitedEmail: string; roleKey: string; status: string };
+    };
+    expect(invitationBody.invitation).toMatchObject({
+      invitedEmail: "invitee@example.test",
+      roleKey: "auditor",
+      status: "pending"
+    });
+    expect(invitationDelivery.deliveries).toHaveLength(1);
+    const invitationDeliveryRecord = invitationDelivery.deliveries[0];
+    if (!invitationDeliveryRecord) {
+      throw new Error("Expected local invitation delivery.");
+    }
+    expect(invitationText).not.toContain(invitationDeliveryRecord.plaintextToken);
+    expect(invitationText).not.toContain("tokenHash");
+
+    const wrongUser = await registerAndLogin("wrong-invitee@example.test");
+    const wrongUserVerification = emailDelivery.deliveries.find((delivery) => delivery.email === "wrong-invitee@example.test");
+    if (!wrongUserVerification) {
+      throw new Error("Expected wrong-user email verification delivery.");
+    }
+    const wrongUserVerificationResponse = await postJson("/auth/email/verify", {
+      token: wrongUserVerification.plaintextToken
+    });
+    expect(wrongUserVerificationResponse.status).toBe(200);
+    const mismatchedAcceptResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations/accept`,
+      {
+        token: invitationDeliveryRecord.plaintextToken
+      },
+      wrongUser.cookie
+    );
+    expect(mismatchedAcceptResponse.status).toBe(403);
+
+    const invitee = await registerAndLogin("invitee@example.test");
+    const unverifiedAcceptResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations/accept`,
+      {
+        token: invitationDeliveryRecord.plaintextToken
+      },
+      invitee.cookie
+    );
+    expect(unverifiedAcceptResponse.status).toBe(403);
+
+    const inviteeVerification = emailDelivery.deliveries.find((delivery) => delivery.email === "invitee@example.test");
+    if (!inviteeVerification) {
+      throw new Error("Expected invitee email verification delivery.");
+    }
+    const verificationResponse = await postJson("/auth/email/verify", {
+      token: inviteeVerification.plaintextToken
+    });
+    expect(verificationResponse.status).toBe(200);
+
+    const acceptResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations/accept`,
+      {
+        token: invitationDeliveryRecord.plaintextToken
+      },
+      invitee.cookie
+    );
+    expect(acceptResponse.status).toBe(200);
+    await expect(
+      readJson<{
+        invitation: { status: string; acceptedAt: string };
+        member: { organizationId: string; roleKeys: string[]; status: string; user: { email: string } };
+      }>(acceptResponse)
+    ).resolves.toMatchObject({
+      invitation: {
+        status: "accepted",
+        acceptedAt: "2026-04-28T12:00:00.000Z"
+      },
+      member: {
+        organizationId: organizationBody.organization.id,
+        roleKeys: ["auditor"],
+        status: "active",
+        user: {
+          email: "invitee@example.test"
+        }
+      }
+    });
+
+    const inviteeOrganizations = await fetch(`${baseUrl}/organizations`, {
+      headers: { cookie: invitee.cookie }
+    });
+    expect(inviteeOrganizations.status).toBe(200);
+    await expect(
+      readJson<{ organizations: Array<{ organization: { id: string }; roleKeys: string[] }> }>(inviteeOrganizations)
+    ).resolves.toMatchObject({
+      organizations: [
+        {
+          organization: {
+            id: organizationBody.organization.id
+          },
+          roleKeys: ["auditor"]
+        }
+      ]
+    });
+
+    const reusedResponse = await postJson(
+      `/organizations/${organizationBody.organization.id}/invitations/accept`,
+      {
+        token: invitationDeliveryRecord.plaintextToken
+      },
+      invitee.cookie
+    );
+    expect(reusedResponse.status).toBe(400);
+
+    const serializedAudit = JSON.stringify(services.auditSink.records);
+    expect(services.auditSink.findByAction("member_invited")).toHaveLength(1);
+    expect(services.auditSink.findByAction("member_invitation_accepted")).toHaveLength(1);
+    expect(serializedAudit).not.toContain(invitationDeliveryRecord.plaintextToken);
+    expect(serializedAudit).not.toContain(ownerVerification.plaintextToken);
+    expect(serializedAudit).not.toContain(wrongUserVerification.plaintextToken);
+    expect(serializedAudit).not.toContain(inviteeVerification.plaintextToken);
+  });
+
   it("audits failed logins, rate-limits repeated failures, and keeps secrets out of responses and audit logs", async () => {
     const registrationResponse = await postJson("/auth/register", {
       email: "secret-check@example.test",
@@ -263,6 +441,48 @@ describe("auth organization rbac audit session integration", () => {
     expect(serializedAudit).not.toContain("verificationToken");
     expect(serializedAudit).not.toContain("resetToken");
     expect(serializedAudit).not.toContain("puresoc_session=");
+  });
+
+  it("verifies local account email through a secret-free API route", async () => {
+    const registrationResponse = await postJson("/auth/register", {
+      email: "verify-me@example.test",
+      password,
+      displayName: "Verify Me"
+    });
+    expect(registrationResponse.status).toBe(201);
+    const registrationText = await registrationResponse.text();
+    expect(registrationText).not.toContain("plaintextToken");
+    expect(registrationText).not.toContain("verificationToken");
+
+    expect(emailDelivery.deliveries).toHaveLength(1);
+    const delivery = emailDelivery.deliveries[0];
+    if (!delivery) {
+      throw new Error("Expected local email verification delivery.");
+    }
+    expect(delivery.email).toBe("verify-me@example.test");
+
+    const verificationResponse = await postJson("/auth/email/verify", {
+      token: delivery.plaintextToken
+    });
+    expect(verificationResponse.status).toBe(200);
+    await expect(readJson<{ verified: boolean }>(verificationResponse)).resolves.toEqual({ verified: true });
+
+    const loginResponse = await postJson("/auth/login", {
+      email: "verify-me@example.test",
+      password
+    });
+    expect(loginResponse.status).toBe(200);
+    const loginBody = await readJson<{ user: { emailVerifiedAt: string | null } }>(loginResponse);
+    expect(loginBody.user.emailVerifiedAt).toBe("2026-04-28T12:00:00.000Z");
+
+    const reusedResponse = await postJson("/auth/email/verify", {
+      token: delivery.plaintextToken
+    });
+    expect(reusedResponse.status).toBe(400);
+
+    const serializedAudit = JSON.stringify(services.auditSink.records);
+    expect(services.auditSink.findByAction("email_verified")).toHaveLength(1);
+    expect(serializedAudit).not.toContain(delivery.plaintextToken);
   });
 
   it("sets Secure on session cookies when configured", async () => {

@@ -8,6 +8,7 @@ export const schemaGroups = {
     "oidc_authorization_states",
     "organizations",
     "organization_members",
+    "organization_invitations",
     "roles",
     "role_bindings",
     "audit_logs",
@@ -91,6 +92,7 @@ export const schemaGroups = {
 
 export const tenantOwnedTables = [
   "organization_members",
+  "organization_invitations",
   "role_bindings",
   "audit_logs",
   "audit_checkpoints",

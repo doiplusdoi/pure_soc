@@ -9,7 +9,8 @@ import {
   logoutRoute,
   registerRoute,
   selectActiveOrganizationRoute,
-  sessionRoute
+  sessionRoute,
+  verifyEmailRoute
 } from "./auth/routes";
 import { countryPackStatusRoute } from "./compliance/nis2/routes";
 import { evaluateComplianceAssessmentRoute } from "./compliance/routes";
@@ -26,7 +27,13 @@ import {
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, parseRawBody, sendJson, toJsonResultError, type JsonResult } from "./http";
 import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
-import { createOrganizationRoute, listOrganizationMembersRoute, listOrganizationsRoute } from "./organizations/routes";
+import {
+  acceptOrganizationInvitationRoute,
+  createOrganizationInvitationRoute,
+  createOrganizationRoute,
+  listOrganizationMembersRoute,
+  listOrganizationsRoute
+} from "./organizations/routes";
 import {
   createMockProviderConnectionRoute,
   listProviderConnectionsRoute,
@@ -53,6 +60,8 @@ import {
   rejectRegulatoryReviewTaskRoute
 } from "./regulatory-sources/routes";
 import {
+  buildInternalReadinessCsvExportRoute,
+  buildInternalReadinessEvidencePackageRoute,
   buildInternalReadinessReportRoute,
   buildRomaniaNotificationDraftReportRoute
 } from "./reports/routes";
@@ -121,6 +130,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
       rawBody: true
     }),
   route("POST", /^\/auth\/register$/, "auth", ({ body, context, services }) => registerRoute(body, context, services)),
+  route("POST", /^\/auth\/email\/verify$/, "auth", ({ body, context, services }) =>
+    verifyEmailRoute(body, context, services)),
   route("POST", /^\/auth\/login$/, "auth", ({ body, context, services }) => loginRoute(body, context, services)),
   route("POST", /^\/auth\/logout$/, "auth", ({ request, context, services }) =>
     logoutRoute(request.headers.cookie, context, services)),
@@ -180,6 +191,10 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     downloadEvidenceRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness$/, "compliance", ({ params, body, request, context, services }) =>
     buildInternalReadinessReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness\/csv$/, "compliance", ({ params, body, request, context, services }) =>
+    buildInternalReadinessCsvExportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness\/evidence-package$/, "compliance", ({ params, body, request, context, services }) =>
+    buildInternalReadinessEvidencePackageRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/, "compliance", ({ params, body, request, context, services }) =>
     buildRomaniaNotificationDraftReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/dashboards\/snapshots$/, "compliance", ({ params, body, request, services }) =>
@@ -213,6 +228,10 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     listOrganizationsRoute(request.headers.cookie, services)),
   route("POST", /^\/organizations$/, "organization", ({ body, request, context, services }) =>
     createOrganizationRoute(body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/invitations$/, "organization", ({ params, body, request, context, services }) =>
+    createOrganizationInvitationRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/invitations\/accept$/, "organization", ({ params, body, request, context, services }) =>
+    acceptOrganizationInvitationRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/provider-connections$/, "provider", ({ params, request, services }) =>
     listProviderConnectionsRoute(params[0] ?? "", request.headers.cookie, services)),
   route("POST", /^\/organizations\/([^/]+)\/provider-connections$/, "provider", ({ params, body, request, context, services }) =>

@@ -5,6 +5,7 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 type AuthProviderKey = "local" | "microsoft_entra" | "google" | "github" | "keycloak_broker";
 type OidcSocialProviderKey = Extract<AuthProviderKey, "microsoft_entra" | "google" | "github">;
 type OrganizationMemberStatus = "invited" | "active" | "suspended" | "removed";
+type OrganizationInvitationStatus = "pending" | "accepted" | "revoked" | "expired";
 type PureSocRoleKey =
   | "owner"
   | "org_admin"
@@ -81,6 +82,22 @@ interface PasswordResetTokenRecord {
   createdAt: Date;
 }
 
+export interface OrganizationInvitationRecordContract {
+  id: string;
+  organizationId: string;
+  invitedEmail: string;
+  invitedRoleKey: PureSocRoleKey;
+  tokenHash: string;
+  invitedByUserId: string;
+  status: OrganizationInvitationStatus;
+  expiresAt: Date;
+  acceptedByUserId?: string | null;
+  acceptedAt?: Date | null;
+  revokedAt?: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 interface CreateLocalAccountInput {
   user: LocalAuthUserRecord;
   identityAccount: IdentityAccountRecord;
@@ -94,6 +111,7 @@ type IdentityOrganizationRbacTransaction = Pick<
   | "identityAccount"
   | "localCredential"
   | "organization"
+  | "organizationInvitation"
   | "organizationMember"
   | "passwordResetToken"
   | "role"
@@ -425,6 +443,81 @@ export class PrismaIdentityOrganizationRbacRepository {
     return fromOrganizationMemberRow(row);
   }
 
+  async updateOrganizationMemberStatus(input: {
+    memberId: string;
+    status: OrganizationMemberStatus;
+    updatedAt: Date;
+  }): Promise<OrganizationMembershipRecordContract> {
+    const row = await this.client.organizationMember.update({
+      where: {
+        id: input.memberId
+      },
+      data: {
+        status: input.status,
+        updatedAt: input.updatedAt
+      }
+    });
+
+    return fromOrganizationMemberRow(row);
+  }
+
+  async createOrganizationInvitation(
+    input: OrganizationInvitationRecordContract
+  ): Promise<OrganizationInvitationRecordContract> {
+    const row = await this.client.organizationInvitation.create({
+      data: toOrganizationInvitationCreate(input)
+    });
+
+    return fromOrganizationInvitationRow(row);
+  }
+
+  async findOrganizationInvitationByTokenHash(tokenHash: string): Promise<OrganizationInvitationRecordContract | null> {
+    const row = await this.client.organizationInvitation.findFirst({
+      where: {
+        tokenHash
+      }
+    });
+
+    return row ? fromOrganizationInvitationRow(row) : null;
+  }
+
+  async markOrganizationInvitationAccepted(input: {
+    invitationId: string;
+    acceptedByUserId: string;
+    acceptedAt: Date;
+  }): Promise<OrganizationInvitationRecordContract> {
+    const row = await this.client.organizationInvitation.update({
+      where: {
+        id: input.invitationId
+      },
+      data: {
+        acceptedAt: input.acceptedAt,
+        acceptedByUserId: input.acceptedByUserId,
+        status: "accepted",
+        updatedAt: input.acceptedAt
+      }
+    });
+
+    return fromOrganizationInvitationRow(row);
+  }
+
+  async markOrganizationInvitationExpired(input: {
+    invitationId: string;
+    expiredAt: Date;
+  }): Promise<OrganizationInvitationRecordContract> {
+    const row = await this.client.organizationInvitation.update({
+      where: {
+        id: input.invitationId
+      },
+      data: {
+        status: "expired",
+        updatedAt: input.expiredAt
+      }
+    });
+
+    return fromOrganizationInvitationRow(row);
+  }
+
   async ensureRole(input: Omit<RoleRecordContract, "id" | "createdAt">): Promise<RoleRecordContract> {
     const row = await this.client.role.upsert({
       where: {
@@ -746,6 +839,22 @@ type OrganizationMemberRow = {
   updatedAt: Date | string;
 };
 
+type OrganizationInvitationRow = {
+  id: string;
+  organizationId: string;
+  invitedEmail: string;
+  invitedRoleKey: string;
+  tokenHash: string;
+  invitedByUserId: string;
+  status: OrganizationInvitationStatus;
+  expiresAt: Date | string;
+  acceptedByUserId?: string | null;
+  acceptedAt?: Date | string | null;
+  revokedAt?: Date | string | null;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+};
+
 type RoleRow = {
   id: string;
   key: string;
@@ -849,6 +958,22 @@ const toOrganizationMemberCreate = (member: OrganizationMembershipRecordContract
   updatedAt: member.updatedAt
 });
 
+const toOrganizationInvitationCreate = (invitation: OrganizationInvitationRecordContract) => ({
+  id: invitation.id,
+  organizationId: invitation.organizationId,
+  invitedEmail: invitation.invitedEmail,
+  invitedRoleKey: invitation.invitedRoleKey,
+  tokenHash: invitation.tokenHash,
+  invitedByUserId: invitation.invitedByUserId,
+  status: invitation.status,
+  expiresAt: invitation.expiresAt,
+  acceptedByUserId: invitation.acceptedByUserId ?? null,
+  acceptedAt: invitation.acceptedAt ?? null,
+  revokedAt: invitation.revokedAt ?? null,
+  createdAt: invitation.createdAt,
+  updatedAt: invitation.updatedAt
+});
+
 const toRoleBindingCreate = (binding: RoleBindingRecordContract) => ({
   id: binding.id,
   organizationId: binding.organizationId,
@@ -934,6 +1059,28 @@ const fromOrganizationMemberRow = (row: OrganizationMemberRow): OrganizationMemb
   createdAt: toDate(row.createdAt),
   updatedAt: toDate(row.updatedAt)
 });
+
+const fromOrganizationInvitationRow = (row: OrganizationInvitationRow): OrganizationInvitationRecordContract => {
+  if (!isPureSocRoleKey(row.invitedRoleKey)) {
+    throw new Error(`Unknown PureSOC invitation role key in database: ${row.invitedRoleKey}`);
+  }
+
+  return {
+    id: row.id,
+    organizationId: row.organizationId,
+    invitedEmail: row.invitedEmail,
+    invitedRoleKey: row.invitedRoleKey,
+    tokenHash: row.tokenHash,
+    invitedByUserId: row.invitedByUserId,
+    status: row.status,
+    expiresAt: toDate(row.expiresAt),
+    acceptedByUserId: row.acceptedByUserId ?? null,
+    acceptedAt: toNullableDate(row.acceptedAt),
+    revokedAt: toNullableDate(row.revokedAt),
+    createdAt: toDate(row.createdAt),
+    updatedAt: toDate(row.updatedAt)
+  };
+};
 
 const fromRoleRow = (row: RoleRow): RoleRecordContract => {
   const role = fromRoleRowOrNull(row);

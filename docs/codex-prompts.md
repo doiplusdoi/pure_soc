@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-30 after completing M79, hardening the Romania/DNSC readiness workflow, and staging Prompt 79 / `docs/PLAN_M80.md`.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-30 after completing M89, adding served owner-managed invitation UX, and staging Prompt 89 / `docs/PLAN_M90.md` as the next recursive gap implementation runner.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -104,8 +104,17 @@ The repository currently contains:
 - PLAN_M72-M77 app-side product-finish handoffs: Stripe test-mode target selection, Romania legal review SOP, customer-shaped Romania readiness flow, billing product decision template, evidence runtime disposable smoke, and Microsoft 365 read-only disposable tenant smoke are documented as operator/product handoffs. No live Stripe, Microsoft Graph, object storage, scanner, KMS/HSM/secret-manager, OIDC provider, public regulatory URL, production deployment, or provider write path was called.
 - PLAN_M78 local deployable Romania product slice: local register/workspace creation, authenticated saved Romania onboarding progress, memory/Prisma onboarding/classification repositories, classification from saved answers, notification draft from saved answers, local readiness/evidence/report/dashboard/billing/audit web workflow, and UI/browser smoke coverage are implemented without external calls, DNSC submission, provider writes, or fabricated product data.
 - PLAN_M79 Romania readiness-flow hardening: the Romania route now reads like a standalone compliance product rather than a workbook/source-map inspector, uses the generated service catalog through a searchable grouped selector, captures the expanded required onboarding fields, generates drafts from all 74 imported notification mapping rows, preserves source provenance internally, and UI smoke proves the customer route hides workbook/sheet/cell/source-map/raw-trace/schema internals without DNSC submission.
+- PLAN_M81 recursive gap implementation runner: `docs/recursive-gap-codex-prompt.md` now defines the one-slice-at-a-time implementation loop for selecting an unblocked gap, creating/updating the current milestone plan, implementing, validating, updating gap/status/learning docs, and staging the next recursive milestone.
+- PLAN_M82 Romania readiness persistence drift coverage: `pnpm lint` now includes selected Prisma schema drift expectations for `RoNis2OnboardingProgress` and `RoNis2ClassificationRun`, raising the schema drift check to 34 models and 492 fields for the customer-facing saved Romania onboarding/classification workflow.
+- PLAN_M83 public signup/auth hardening: the existing hashed local email-verification token lifecycle is exposed through `POST /auth/email/verify`, the served web runtime has a `/verify-email` form, web registration redirects there after sign-in, and focused tests prove injected local delivery, one-time token use, `email_verified` audit events, and token redaction from responses/audit logs without real email delivery or launch-ready signup enforcement.
+- PLAN_M84 evidence/report CSV export hardening: `@puresoc/reports` now builds stable internal-readiness CSV output from stored analysis report data, the API exposes an authenticated organization-scoped `/reports/internal-readiness/csv` route, and generated CSV exports are stored as `text/csv` generated-report evidence metadata with legal caveat/source references and redacted audit events when generated-report evidence storage is enabled.
+- PLAN_M85 report-export metadata persistence: `@puresoc/database` now persists local JSON/CSV generated report export metadata rows through the output repository boundary, and report generation records organization-scoped `report_exports` rows with ready status, format, and content hashes without exposing storage URIs.
+- PLAN_M86 binary evidence-package export assembly: `@puresoc/reports` now builds deterministic local internal-readiness tar bundles with manifest, JSON report, CSV export, and locally readable evidence files; the API exposes an authenticated organization-scoped `/reports/internal-readiness/evidence-package` route, stores generated-report evidence metadata, audits redacted export metadata, and records a `binary_evidence_package` report-export row without live storage/scanner/browser PDF calls.
+- PLAN_M87 evidence-package guardrails: local internal-readiness evidence-package exports now enforce configurable maximum evidence file count, per-file bytes, and total bundle bytes; successful manifests record the active limits, and oversized packages return stable API errors without storing generated package evidence artifacts or `binary_evidence_package` export rows.
+- PLAN_M88 owner-managed organization invitations: owners/org admins with verified email can create local organization invitations with hashed tokens and no-op/in-memory delivery ports, invited users must accept with the matching verified account email, acceptance creates active memberships and role bindings, and tests prove audit/token redaction plus selected schema drift coverage without real email delivery or invite-only policy.
+- PLAN_M89 served invitation UX: `apps/web` now exposes `/invitations` and `/invitations/accept` for active-workspace owner/admin invite creation and verified invited-user acceptance by organization ID/token, links the operational console to the workflow, selects the workspace after acceptance, and keeps plaintext invitation tokens out of web responses and UI smoke artifacts without real email delivery or invite-only policy.
 
-Known major remaining work is tracked in `docs/implementation-gaps.md`, `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
+Known major remaining work is tracked in `docs/implementation-gaps.md`, sequenced in `docs/gap-implementation-path.md`, and supplemented by `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
 ## Incremental Milestone Plan Rule
 
@@ -185,6 +194,16 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 77 / `docs/PLAN_M78.md` is completed.
 - Prompt 78 / `docs/PLAN_M79.md` is completed.
 - Prompt 79 / `docs/PLAN_M80.md` is staged as a decision-gated handoff prompt.
+- Prompt 80 / `docs/PLAN_M81.md` staged the recursive gap implementation runner.
+- Prompt 81 / `docs/PLAN_M82.md` is completed.
+- Prompt 82 / `docs/PLAN_M83.md` is completed.
+- Prompt 83 / `docs/PLAN_M84.md` is completed.
+- Prompt 84 / `docs/PLAN_M85.md` is completed.
+- Prompt 85 / `docs/PLAN_M86.md` is completed.
+- Prompt 86 / `docs/PLAN_M87.md` is completed.
+- Prompt 87 / `docs/PLAN_M88.md` is completed.
+- Prompt 88 / `docs/PLAN_M89.md` is completed.
+- Prompt 89 / `docs/PLAN_M90.md` is staged as the next recursive gap implementation runner.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -200,8 +219,11 @@ During each prompt run:
 Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
+2. Prompt 89 / `docs/PLAN_M90.md`: Recursive Gap Implementation Runner.
 
-M79 completed the Romania/DNSC readiness-flow hardening pass. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, and M89 narrowed GAP-046 with served invitation UX. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+
+Use M90 when the goal is to continue implementing remaining gaps one by one. It should select one unblocked local slice from `docs/gap-implementation-path.md`, implement it, validate it, update gap/status docs, and create the next recursive plan stub.
 
 ## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
@@ -266,6 +288,215 @@ Final response must include:
 - Whether any external call was made
 - Gaps updated
 - Residual risk and remaining blockers
+
+## Staged Prompt 80 / PLAN_M81: Recursive Gap Implementation Runner
+
+Read:
+
+- `docs/puresoc_vision.md`
+- `docs/master-plan.md`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/LEARNINGS.md`
+- `docs/gap-implementation-path.md`
+- `docs/codex_status.md`
+- latest `docs/PLAN_M*.md`
+- `code/README.md`
+- `code/package.json`
+
+Goal:
+
+Use `docs/recursive-gap-codex-prompt.md` to implement exactly one unblocked gap slice, then restage the next recursive implementation milestone.
+
+Deliverables:
+
+- One selected gap slice implemented or explicitly blocked.
+- Current `docs/PLAN_Mx.md` updated with scope, validation, changed files, gap movement, residual risk, and deferred work.
+- `docs/implementation-gaps.md` updated without deleting gap history.
+- `docs/codex_status.md`, `docs/codex-prompts.md`, and `docs/LEARNINGS.md` updated only where useful.
+- Next `docs/PLAN_M{x+1}.md` stub created.
+
+Negative constraints:
+
+- Do not implement more than one slice.
+- Do not invent product/legal/operator decisions.
+- Do not mark Romania legal logic active, add direct DNSC submission, claim certification, add provider write scopes, or run live external integrations without explicit disposable/test selection and existing guardrails.
+
+Tests and acceptance commands:
+
+Run the targeted commands listed in `docs/recursive-gap-codex-prompt.md` for the selected slice. Always run:
+
+```sh
+git diff --check
+```
+
+Final response must include:
+
+- Selected gap slice and why it was safe to implement now
+- Files changed
+- Commands run and results
+- Whether any external call was made
+- Gaps narrowed or resolved
+- Next staged prompt/PLAN file
+- Residual blockers
+
+## Active Prompt 89 / PLAN_M90: Recursive Gap Implementation Runner
+
+Read the same required files listed in `docs/recursive-gap-codex-prompt.md`, then choose exactly one unblocked local slice from `docs/gap-implementation-path.md` and `docs/implementation-gaps.md`.
+
+Recommended first candidates:
+
+- Public signup/auth hardening that does not require choosing open versus invite-only registration, real email delivery, or enforcing a launch policy.
+- Frontend workflow polish that preserves the current UI and browser smoke artifacts.
+- Additional selected drift coverage only for newly customer-facing or production-backed surfaces.
+- Evidence/report/export improvements using local or fake adapters only.
+- Microsoft read-only fixture expansion only after checking current official Microsoft documentation and without adding write scopes.
+
+Use the selected slice's targeted commands from `docs/recursive-gap-codex-prompt.md`, and always run `git diff --check`.
+
+## Completed Prompt 88 / PLAN_M89: Served Owner-Managed Invitation UX
+
+Completed on 2026-05-30.
+
+Summary:
+- Added `OrganizationInvitationScreenModel` and inviteable role options for served-web rendering.
+- Added `GET /invitations` and `GET /invitations/accept` served screens for local invitation creation and acceptance.
+- Added `POST /invitations` and `POST /invitations/accept` web proxy flows backed by the existing M88 organization invitation API.
+- Added an operational-console `Invite members` navigation link and token-redaction copy that keeps plaintext invitation tokens out of web responses.
+- Added focused render tests for owner/admin invitation creation, non-admin disabled creation, acceptance form availability, console navigation, and no token/email leaks.
+
+Validation:
+- `npm run test -- apps/web/src/__tests__/web-dashboard-reports-ui.test.ts` passed, 1 file / 17 tests.
+- `npm run test -- auth organization rbac audit web` passed outside the sandbox, 17 files / 85 tests.
+- `npm run test:e2e -- --grep @ui-smoke` passed outside the sandbox and wrote served UI snapshots/artifact index.
+- `npm run lint` passed.
+
+No real email delivery, invite-only registration policy, platform-admin flow, external calls, provider writes, DNSC submission, legal activation, or certification claims were added. GAP-046 narrowed; open-vs-invite-only policy, real delivery, broad verified-email launch gating, platform-admin recovery, and public abuse controls remain open.
+
+## Completed Prompt 87 / PLAN_M88: Owner-Managed Organization Invitations
+
+Completed on 2026-05-30.
+
+Summary:
+- Added `OrganizationInvitation` Prisma schema/migration, memory and Prisma repository support, and selected schema drift coverage.
+- Added no-op and in-memory invitation delivery ports; real invitation email delivery remains deferred.
+- Added API `POST /organizations/:orgId/invitations` for owners/org admins whose account email is verified.
+- Added API `POST /organizations/:orgId/invitations/accept` requiring the authenticated user's verified email to match the invited email before creating/reactivating membership and binding the invited role.
+- Added focused auth/organization tests for unsupported roles, unverified inviter/invitee rejection, token redaction, one-time acceptance, membership/role assignment, and audit coverage.
+
+Validation:
+- `npm run prisma:generate` passed.
+- `npm run test -- auth organization rbac audit web` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 17 files / 83 tests.
+- `npm run test -- drift` passed, 1 file / 9 tests.
+- `npm run lint` passed.
+- `git diff --check` passed.
+
+No real email delivery, invite-only registration policy, served invite management UI, platform-admin flow, external calls, provider writes, DNSC submission, legal activation, or certification claims were added. GAP-046 narrowed; open-vs-invite-only policy, real delivery, broad verified-email launch gating, platform-admin recovery, and public abuse controls remain open.
+
+## Completed Prompt 86 / PLAN_M87: Local Evidence Package Guardrails
+
+Completed on 2026-05-30.
+
+Summary:
+- Added configurable local evidence-package limits for maximum evidence file count, per-evidence-file bytes, and total bundle bytes.
+- Successful evidence-package manifests now include the active limit metadata beside legal caveat/source provenance.
+- Oversized package attempts return stable `ReportExportError` API responses and do not store generated package evidence artifacts or `binary_evidence_package` export rows.
+- Added defaults and env overrides under `reports.evidencePackage` / `PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_*`.
+- Added focused package/API/config tests for file-count, file-size, bundle-size, manifest limit metadata, and no storage/export side effects after limit failures.
+
+Validation:
+- `npm run test -- reports` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 4 files / 28 tests.
+- `npm run test -- evidence reports dashboards config` passed outside the sandbox, 13 files / 73 tests.
+- `npm run lint` passed.
+- `git diff --check` passed.
+
+No live object storage, scanner, report-renderer, browser PDF, DNSC submission, provider write, legal activation, or external call was added. GAP-029 narrowed; live disposable storage/scanner/report-renderer smoke, browser-grade PDF fidelity, streaming package assembly for larger exports, and deployed runtime export proof remain open.
+
+## Completed Prompt 85 / PLAN_M86: Local Binary Evidence Package Export Assembly
+
+Completed on 2026-05-30.
+
+Summary:
+- Added deterministic local internal-readiness evidence package tar assembly in `@puresoc/reports`, including a legal-caveated manifest, stable JSON report, stable CSV export, and locally readable evidence artifact files.
+- Added authenticated API `POST /organizations/:orgId/reports/internal-readiness/evidence-package`.
+- Stored generated package bundles as generated-report evidence metadata when enabled, audited redacted package export metadata, and recorded ready `binary_evidence_package` `report_exports` rows with content hashes.
+- Added focused package/API tests for tar contents, manifest/source/legal caveat metadata, organization-scoped access, no storage URI leakage, generated-report evidence storage, audit metadata, and export-row persistence.
+
+Validation:
+- `npm run test -- reports` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 4 files / 26 tests.
+- `npm run test -- evidence reports dashboards` passed outside the sandbox, 9 files / 43 tests.
+- `npm run lint` passed.
+- `git diff --check` passed.
+
+No live object storage, scanner, report-renderer, browser PDF, DNSC submission, provider write, legal activation, or external call was added. GAP-029 narrowed; live disposable storage/scanner/report-renderer smoke, browser-grade PDF fidelity, production-size/streaming package hardening, and deployed runtime export proof remain open.
+
+## Completed Prompt 84 / PLAN_M85: Report Export Metadata Persistence
+
+Completed on 2026-05-30.
+
+Summary:
+- Added `ReportExportRecordContract` and memory/Prisma output repository support for saving, finding, and listing generated report export metadata rows.
+- Report generation now persists ready JSON export rows, and the internal-readiness CSV route persists ready CSV export rows with content hashes.
+- API and repository tests prove organization-scoped reads and confirm API responses still do not expose storage URIs.
+
+Validation:
+- `npm run test -- output-records reports evidence dashboards` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 10 files / 43 tests.
+- `npm run test -- evidence reports dashboards` passed outside the sandbox, 9 files / 41 tests.
+- `npm run lint` passed.
+- `git diff --check` passed.
+
+No live object storage, scanner, report-renderer, browser PDF, binary evidence bundle, DNSC submission, provider write, legal activation, or external call was added. GAP-029 narrowed; browser-grade PDF, future PDF/bundle report-export rows, binary evidence packages, and live disposable runtime smoke remain open.
+
+## Completed Prompt 83 / PLAN_M84: Internal Readiness CSV Export Hardening
+
+Completed on 2026-05-30.
+
+Summary:
+- Added stable internal-readiness CSV export generation in `@puresoc/reports` for metadata, control results, gaps, recommendations, readiness-plan items, evidence, and source references.
+- Added authenticated API `POST /organizations/:orgId/reports/internal-readiness/csv`.
+- Stored generated CSV exports as `text/csv` generated-report evidence metadata when generated-report evidence storage is enabled, with legal caveat/source-reference metadata and redacted audit events.
+- Added focused package/API tests for deterministic CSV escaping, legal caveat/source references, generated-report evidence metadata, and cross-organization rejection.
+
+Validation:
+- `npm run test -- reports` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 4 files / 24 tests.
+- `npm run test -- evidence reports dashboards` passed outside the sandbox, 9 files / 41 tests.
+- `npm run lint` passed.
+- `git diff --check` passed.
+
+No live object storage, scanner, report-renderer, browser PDF, binary evidence bundle, DNSC submission, provider write, legal activation, or external call was added. GAP-029 narrowed; browser-grade PDF, future report-export rows, binary evidence packages, and live disposable runtime smoke remained open after M84.
+
+## Completed Prompt 82 / PLAN_M83: Local Email Verification API/Web Hardening
+
+Completed on 2026-05-30.
+
+Summary:
+- Added an injectable local email-verification delivery port for API tests while default runtime delivery remains a no-op until a real provider is selected.
+- Added `POST /auth/email/verify` and a served `/verify-email` form; web registration now lands on the verification step after login.
+- Added focused API/UI tests for injected local delivery, one-time token use, `email_verified` audit events, `emailVerifiedAt` session visibility, verification-screen rendering, and token redaction from responses/audit logs.
+
+Validation:
+- `npm run test -- auth organization rbac audit web` passed outside the sandbox after sandboxed execution hit `listen EPERM`, 17 files / 81 tests.
+- `npm run lint` passed.
+- `npm run test:e2e -- --grep @ui-smoke` passed outside the sandbox after sandboxed execution hit `listen EPERM`.
+- `git diff --check` passed.
+
+No real email delivery, verified-email enforcement policy, invite-only signup policy, platform-admin flow, external calls, provider writes, DNSC submission, legal activation, or certification claims were added. GAP-046 narrowed; GAP-032, GAP-035, GAP-038, GAP-044, and the remaining GAP-046 launch blockers remain open.
+
+## Completed Prompt 81 / PLAN_M82: Romania Readiness Persistence Drift Coverage
+
+Completed on 2026-05-30.
+
+Summary:
+- Added selected Prisma schema drift expectations for `RoNis2OnboardingProgress` and `RoNis2ClassificationRun`.
+- Guarded table names, organization mappings, JSON/source fields, missing-field arrays, classification result enum usage, and organization-scoped indexes for the customer-facing saved Romania onboarding/classification workflow.
+- Added focused drift test coverage proving both Romania persistence models are included in the lint-gated selected drift map.
+
+Validation:
+- `npm run test -- drift` passed, 1 file / 8 tests.
+- `npm run lint` passed; schema drift check covered 34 models / 492 fields.
+- `npm run drift:regulatory` passed, 3 artifacts.
+
+No external calls, DNSC submission, provider writes, legal activation, or certification claims were added. GAP-041 narrowed; GAP-006, GAP-021, GAP-042, GAP-044, and GAP-046 remain open.
 
 ## Completed Prompt 78 / PLAN_M79: Romania Readiness Flow Hardening
 

@@ -7,7 +7,9 @@ import {
   createOperationalConsoleDemoModel,
   createOperationalConsoleRuntimeModel,
   createRomaniaOnboardingRouteModel,
+  renderEmailVerificationScreen,
   renderLoginScreen,
+  renderOrganizationInvitationsScreen,
   renderOperationalConsole,
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -196,6 +198,7 @@ describe("web dashboard reports operational UI", () => {
       '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
     );
     expect(dashboardHtml).toContain('<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>');
+    expect(dashboardHtml).toContain('<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>');
     expect(dashboardHtml).toContain('action="/auth/logout"');
     expect(dashboardHtml).toContain('data-ui-action="sign-out"');
     expect(dashboardHtml).not.toContain('onclick="');
@@ -252,6 +255,120 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
+  it("renders owner-managed invitation creation and acceptance screens without token echo", () => {
+    const html = renderOrganizationInvitationsScreen({
+      acceptOrganizationId: "org_invitation",
+      actionMessage: "Invitation created. Delivery remains configured outside the served web runtime.",
+      activeOrganization: {
+        id: "org_invitation",
+        name: "Invitation Workspace",
+        primaryCountryCode: "RO",
+        billingStatus: "none",
+        membershipStatus: "active",
+        roleKeys: ["owner"],
+        isActive: true
+      },
+      canCreateInvitations: true,
+      organizations: [
+        {
+          id: "org_invitation",
+          name: "Invitation Workspace",
+          primaryCountryCode: "RO",
+          billingStatus: "none",
+          membershipStatus: "active",
+          roleKeys: ["owner"],
+          isActive: true
+        }
+      ],
+      roleKeys: ["owner"],
+      roleOptions: [
+        {
+          key: "auditor",
+          label: "Auditor",
+          summary: "Can review readiness data."
+        },
+        {
+          key: "org_admin",
+          label: "Organization admin",
+          summary: "Can invite additional members."
+        }
+      ],
+      session: {
+        user: {
+          id: "user_invitation",
+          email: "inviter@example.test",
+          displayName: "Invitation Owner"
+        },
+        session: {
+          activeOrganizationId: "org_invitation"
+        }
+      }
+    });
+
+    expect(html).toContain('data-ui-smoke="organization-invitations"');
+    expect(html).toContain('action="/invitations"');
+    expect(html).toContain('data-ui-action="create-organization-invitation"');
+    expect(html).toContain('name="roleKey"');
+    expect(html).toContain('value="auditor"');
+    expect(html).toContain('value="org_admin"');
+    expect(html).toContain("The invited user must accept with this verified account email.");
+    expect(html).toContain("Real invitation email delivery is still deferred.");
+    expect(html).toContain('action="/invitations/accept"');
+    expect(html).toContain('data-ui-action="accept-organization-invitation"');
+    expect(html).toContain('autocomplete="one-time-code"');
+    expect(html).toContain("The token is submitted to the API and is not echoed back into this page.");
+    expect(html).toContain('value="org_invitation"');
+    expect(html).toContain("owner");
+    expect(html).toContain("Invitation Workspace");
+    expect(html).toContain("signed-in account");
+    expect(html).not.toContain("plaintextToken");
+    expect(html).not.toContain("tokenHash");
+    expect(html).not.toContain("secret-invitation-token");
+    expect(html).not.toContain("inviter@example.test");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("disables invitation creation for non-admin workspace members while keeping acceptance available", () => {
+    const html = renderOrganizationInvitationsScreen({
+      activeOrganization: {
+        id: "org_audit",
+        name: "Audit Workspace",
+        primaryCountryCode: "RO",
+        billingStatus: "none",
+        membershipStatus: "active",
+        roleKeys: ["auditor"],
+        isActive: true
+      },
+      canCreateInvitations: false,
+      organizations: [],
+      roleKeys: ["auditor"],
+      roleOptions: [
+        {
+          key: "auditor",
+          label: "Auditor",
+          summary: "Can review readiness data."
+        }
+      ],
+      session: {
+        user: {
+          id: "user_auditor",
+          email: "auditor@example.test",
+          displayName: "Audit User"
+        },
+        session: {
+          activeOrganizationId: "org_audit"
+        }
+      }
+    });
+
+    expect(html).toContain("owner or admin required");
+    expect(html).toContain('id="inviteEmail" name="email" type="email" autocomplete="email" required disabled');
+    expect(html).toContain('<select id="inviteRoleKey" name="roleKey" disabled>');
+    expect(html).toContain('data-ui-action="accept-organization-invitation"');
+    expect(html).not.toContain("auditor@example.test");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
   it("can render the console from an API session and dashboard snapshot contract", () => {
     const demo = createOperationalConsoleDemoModel();
     const html = renderOperationalConsole(
@@ -299,6 +416,9 @@ describe("web dashboard reports operational UI", () => {
     const register = renderRegisterScreen({
       locale: "ro-RO"
     });
+    const verification = renderEmailVerificationScreen({
+      locale: "ro-RO"
+    });
 
     expect(html).toContain('<html lang="ro">');
     expect(html).toContain("Tablou de bord");
@@ -313,8 +433,12 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain('href="/register"');
     expect(register).toContain('data-ui-smoke="register-screen"');
     expect(register).toContain('action="/auth/register"');
-    expect(register).toContain("create a workspace to become its owner");
+    expect(register).toContain("verify the email address");
     expect(register).toContain('minlength="12"');
+    expect(verification).toContain('data-ui-smoke="email-verification-screen"');
+    expect(verification).toContain('action="/auth/email/verify"');
+    expect(verification).toContain('autocomplete="one-time-code"');
+    expect(verification).toContain("not echoed back into this page");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 

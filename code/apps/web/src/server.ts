@@ -4,13 +4,17 @@ import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
 import {
   createOperationalConsoleRuntimeModel,
+  organizationInvitationRoleOptions,
   createRomaniaOnboardingRouteModel,
+  type OrganizationInvitationScreenModel,
   type RomaniaOnboardingRouteInput,
   type RuntimeSessionSurface,
   type WorkspaceSelectionModel
 } from "./app-data";
 import {
   renderLoginScreen,
+  renderEmailVerificationScreen,
+  renderOrganizationInvitationsScreen,
   renderOperationalConsole,
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -117,6 +121,33 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/verify-email") {
+      sendHtml(response, renderEmailVerificationScreen());
+      return;
+    }
+
+    if (request.method === "GET" && (url.pathname === "/invitations" || url.pathname === "/invitations/accept")) {
+      const invitationModel = await loadOrganizationInvitationScreenModel({
+        acceptOrganizationId: url.searchParams.get("organizationId"),
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie
+      });
+
+      if (!invitationModel) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to manage organization invitations."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderOrganizationInvitationsScreen(invitationModel));
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/onboarding/romania") {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
         method: "GET",
@@ -173,6 +204,41 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+
+    if (request.method === "POST" && url.pathname === "/auth/email/verify") {
+      const form = await readFormBody(request);
+      const verification = await apiJson<unknown>(apiBaseUrl, "/auth/email/verify", {
+        method: "POST",
+        origin: requestOrigin,
+        body: {
+          token: form.get("token") ?? ""
+        }
+      });
+
+      if (verification.statusCode !== 200) {
+        sendHtml(
+          response,
+          renderEmailVerificationScreen({
+            errorMessage: "Email verification failed. Use the latest unexpired token from the configured delivery path."
+          }),
+          verification.statusCode
+        );
+        return;
+      }
+
+      sendHtml(
+        response,
+        renderRuntimeMessageScreen({
+          title: "Email Verified",
+          summary: "The local account email is verified. Continue to workspace setup for this session.",
+          statusLabel: "verified",
+          statusTone: "success",
+          actionHref: "/workspaces",
+          actionLabel: "Continue to workspace setup"
+        })
+      );
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/auth/login") {
       const form = await readFormBody(request);
@@ -252,7 +318,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response.setHeader("set-cookie", login.setCookie);
       }
       response.statusCode = 303;
-      response.setHeader("location", "/workspaces");
+      response.setHeader("location", "/verify-email");
       response.end();
       return;
     }
@@ -269,6 +335,127 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       }
       response.statusCode = 303;
       response.setHeader("location", "/login");
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/invitations") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        const invitationModel = await loadOrganizationInvitationScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Select an active workspace before creating invitations."
+        });
+        sendHtml(
+          response,
+          invitationModel
+            ? renderOrganizationInvitationsScreen(invitationModel)
+            : renderLoginScreen({ errorMessage: "Sign in to create organization invitations." }),
+          session.statusCode === 200 ? 400 : session.statusCode
+        );
+        return;
+      }
+
+      const form = await readFormBody(request);
+      const invitation = await apiJson<unknown>(apiBaseUrl, `/organizations/${encodeURIComponent(organizationId)}/invitations`, {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          email: form.get("email") ?? "",
+          roleKey: optionalFormValue(form.get("roleKey")) ?? "auditor"
+        }
+      });
+
+      if (invitation.statusCode !== 201) {
+        const invitationModel = await loadOrganizationInvitationScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Invitation was not created. Confirm your email is verified and your role can invite members."
+        });
+        sendHtml(
+          response,
+          invitationModel
+            ? renderOrganizationInvitationsScreen(invitationModel)
+            : renderLoginScreen({ errorMessage: "Sign in to create organization invitations." }),
+          invitation.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/invitations?message=${encodeURIComponent("Invitation created. Delivery remains configured outside the served web runtime.")}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/invitations/accept") {
+      const form = await readFormBody(request);
+      const organizationId = optionalFormValue(form.get("organizationId"));
+      if (!organizationId) {
+        const invitationModel = await loadOrganizationInvitationScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Organization ID is required to accept an invitation."
+        });
+        sendHtml(
+          response,
+          invitationModel
+            ? renderOrganizationInvitationsScreen(invitationModel)
+            : renderLoginScreen({ errorMessage: "Sign in to accept an organization invitation." }),
+          400
+        );
+        return;
+      }
+
+      const accepted = await apiJson<unknown>(apiBaseUrl, `/organizations/${encodeURIComponent(organizationId)}/invitations/accept`, {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          token: form.get("token") ?? ""
+        }
+      });
+
+      if (accepted.statusCode !== 200) {
+        const invitationModel = await loadOrganizationInvitationScreenModel({
+          acceptOrganizationId: organizationId,
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Invitation was not accepted. Sign in with the verified invited email and use the latest token."
+        });
+        sendHtml(
+          response,
+          invitationModel
+            ? renderOrganizationInvitationsScreen(invitationModel)
+            : renderLoginScreen({ errorMessage: "Sign in to accept an organization invitation." }),
+          accepted.statusCode
+        );
+        return;
+      }
+
+      await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          organizationId
+        }
+      });
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/invitations?message=${encodeURIComponent("Invitation accepted. The workspace membership is active for this account.")}`
+      );
       response.end();
       return;
     }
@@ -684,6 +871,39 @@ const loadWorkspaceSelectionModel = async (input: {
         roleKeys: item.roleKeys,
         isActive: item.organization.id === sessionBody.session.activeOrganizationId
       }))
+  };
+};
+
+const loadOrganizationInvitationScreenModel = async (input: {
+  acceptOrganizationId?: string | null;
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  errorMessage?: string;
+}): Promise<OrganizationInvitationScreenModel | null> => {
+  const selection = await loadWorkspaceSelectionModel({
+    apiBaseUrl: input.apiBaseUrl,
+    cookie: input.cookie
+  });
+  if (!selection) {
+    return null;
+  }
+
+  const activeOrganizationId = selection.session.session.activeOrganizationId ?? null;
+  const activeOrganization =
+    selection.organizations.find((organization) => organization.id === activeOrganizationId) ?? null;
+  const roleKeys = activeOrganization?.roleKeys ?? [];
+
+  return {
+    acceptOrganizationId: input.acceptOrganizationId,
+    actionMessage: input.actionMessage ?? undefined,
+    activeOrganization,
+    canCreateInvitations: roleKeys.includes("owner") || roleKeys.includes("org_admin"),
+    errorMessage: input.errorMessage,
+    organizations: selection.organizations,
+    roleKeys,
+    roleOptions: [...organizationInvitationRoleOptions],
+    session: selection.session
   };
 };
 

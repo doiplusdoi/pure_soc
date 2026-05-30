@@ -68,6 +68,7 @@ import { ActionApiService } from "../actions/service";
 import { EvidenceApiService } from "../evidence/service";
 import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
+import type { EvidencePackageLimitConfig } from "@puresoc/reports";
 import { BillingApiService } from "../billing/service";
 import { createInMemoryApiRepositorySet, type InMemoryApiRepositorySet } from "./memory-repository";
 import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
@@ -94,11 +95,73 @@ export interface ApiPersistenceRuntime {
   memoryBackedContexts: string[];
 }
 
+export interface EmailVerificationDelivery {
+  deliver(input: { userId: string; email: string; plaintextToken: string; expiresAt: Date }): void;
+}
+
+export interface OrganizationInvitationDelivery {
+  deliver(input: {
+    organizationId: string;
+    invitationId: string;
+    email: string;
+    roleKey: string;
+    invitedByUserId: string;
+    plaintextToken: string;
+    expiresAt: Date;
+  }): void;
+}
+
+export class NoopEmailVerificationDelivery implements EmailVerificationDelivery {
+  deliver(): void {
+    // Real email delivery is intentionally deferred until a provider is selected.
+  }
+}
+
+export class NoopOrganizationInvitationDelivery implements OrganizationInvitationDelivery {
+  deliver(): void {
+    // Real invitation email delivery is intentionally deferred until a provider is selected.
+  }
+}
+
+export class InMemoryEmailVerificationDelivery implements EmailVerificationDelivery {
+  readonly deliveries: Array<{ userId: string; email: string; plaintextToken: string; expiresAt: Date }> = [];
+
+  deliver(input: { userId: string; email: string; plaintextToken: string; expiresAt: Date }): void {
+    this.deliveries.push(input);
+  }
+}
+
+export class InMemoryOrganizationInvitationDelivery implements OrganizationInvitationDelivery {
+  readonly deliveries: Array<{
+    organizationId: string;
+    invitationId: string;
+    email: string;
+    roleKey: string;
+    invitedByUserId: string;
+    plaintextToken: string;
+    expiresAt: Date;
+  }> = [];
+
+  deliver(input: {
+    organizationId: string;
+    invitationId: string;
+    email: string;
+    roleKey: string;
+    invitedByUserId: string;
+    plaintextToken: string;
+    expiresAt: Date;
+  }): void {
+    this.deliveries.push(input);
+  }
+}
+
 export interface ApiServices {
   config: PureSocConfig;
   persistence: ApiPersistenceRuntime;
   memoryRepositories: InMemoryApiRepositorySet;
   prismaClient?: PureSocPrismaClient;
+  emailVerificationDelivery: EmailVerificationDelivery;
+  organizationInvitationDelivery: OrganizationInvitationDelivery;
   auditSink: RuntimeAuditSink;
   auditWriter: AuditWriter;
   auditCheckpoints: AuditCheckpointService;
@@ -131,6 +194,9 @@ export const createApiServices = (
     config?: PureSocConfig;
     evidenceStorage?: ObjectStorageAdapter;
     uploadScanner?: UploadScanningHook;
+    emailVerificationDelivery?: EmailVerificationDelivery;
+    organizationInvitationDelivery?: OrganizationInvitationDelivery;
+    evidencePackageLimits?: EvidencePackageLimitConfig;
     prismaClient?: PureSocPrismaClient;
     oidcTokenClient?: OidcTokenClient;
     oidcTokenVerifier?: OidcTokenVerifier;
@@ -139,6 +205,9 @@ export const createApiServices = (
 ): ApiServices => {
   const config = options.config ?? loadConfig();
   const billingConfig = options.billingConfig ?? config.billing;
+  const emailVerificationDelivery = options.emailVerificationDelivery ?? new NoopEmailVerificationDelivery();
+  const organizationInvitationDelivery =
+    options.organizationInvitationDelivery ?? new NoopOrganizationInvitationDelivery();
   const memoryRepositories = createInMemoryApiRepositorySet();
   const runtimeRepositories = createRuntimeRepositories({
     config,
@@ -240,6 +309,7 @@ export const createApiServices = (
     evidence,
     auditWriter,
     storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
+    evidencePackageLimits: options.evidencePackageLimits ?? config.reports.evidencePackage,
     now: options.now
   });
   const dashboards = new DashboardApiService({
@@ -273,6 +343,8 @@ export const createApiServices = (
     persistence: runtimeRepositories.persistence,
     memoryRepositories,
     prismaClient: runtimeRepositories.prismaClient,
+    emailVerificationDelivery,
+    organizationInvitationDelivery,
     auditSink: runtimeRepositories.auditSink,
     auditWriter,
     auditCheckpoints,

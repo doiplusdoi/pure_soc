@@ -14,7 +14,7 @@ import type {
   SessionRecord
 } from "@puresoc/auth-local";
 import type { OidcIdentityRepository, OidcSocialProviderKey } from "@puresoc/auth-oidc";
-import type { OrganizationRecord, OrganizationRepository } from "../organizations/service";
+import type { OrganizationInvitationRecord, OrganizationRecord, OrganizationRepository } from "../organizations/service";
 import type { OrganizationMembershipRecord, RbacRepository, RoleBindingRecord, RoleRecord } from "../rbac/index";
 
 export interface InMemoryApiRepositorySet {
@@ -40,6 +40,7 @@ export class InMemoryIdentityOrganizationRbacRepository
   readonly passwordResetTokens = new Map<string, PasswordResetTokenRecord>();
   readonly organizations = new Map<string, OrganizationRecord>();
   readonly organizationMembers = new Map<string, OrganizationMembershipRecord>();
+  readonly organizationInvitations = new Map<string, OrganizationInvitationRecord>();
   readonly roles = new Map<string, RoleRecord>();
   readonly roleBindings = new Map<string, RoleBindingRecord>();
 
@@ -244,6 +245,73 @@ export class InMemoryIdentityOrganizationRbacRepository
     return input;
   }
 
+  async updateOrganizationMemberStatus(input: {
+    memberId: string;
+    status: OrganizationMembershipRecord["status"];
+    updatedAt: Date;
+  }): Promise<OrganizationMembershipRecord> {
+    const member = this.organizationMembers.get(input.memberId);
+    if (!member) {
+      throw new Error(`Unknown organization member: ${input.memberId}`);
+    }
+
+    const updated = {
+      ...member,
+      status: input.status,
+      updatedAt: input.updatedAt
+    };
+    this.organizationMembers.set(input.memberId, updated);
+    return updated;
+  }
+
+  async createOrganizationInvitation(input: OrganizationInvitationRecord): Promise<OrganizationInvitationRecord> {
+    this.organizationInvitations.set(input.id, input);
+    return input;
+  }
+
+  async findOrganizationInvitationByTokenHash(tokenHash: string): Promise<OrganizationInvitationRecord | null> {
+    return [...this.organizationInvitations.values()].find((invitation) => invitation.tokenHash === tokenHash) ?? null;
+  }
+
+  async markOrganizationInvitationAccepted(input: {
+    invitationId: string;
+    acceptedByUserId: string;
+    acceptedAt: Date;
+  }): Promise<OrganizationInvitationRecord> {
+    const invitation = this.organizationInvitations.get(input.invitationId);
+    if (!invitation) {
+      throw new Error(`Unknown organization invitation: ${input.invitationId}`);
+    }
+
+    const updated = {
+      ...invitation,
+      acceptedAt: input.acceptedAt,
+      acceptedByUserId: input.acceptedByUserId,
+      status: "accepted" as const,
+      updatedAt: input.acceptedAt
+    };
+    this.organizationInvitations.set(input.invitationId, updated);
+    return updated;
+  }
+
+  async markOrganizationInvitationExpired(input: {
+    invitationId: string;
+    expiredAt: Date;
+  }): Promise<OrganizationInvitationRecord> {
+    const invitation = this.organizationInvitations.get(input.invitationId);
+    if (!invitation) {
+      throw new Error(`Unknown organization invitation: ${input.invitationId}`);
+    }
+
+    const updated = {
+      ...invitation,
+      status: "expired" as const,
+      updatedAt: input.expiredAt
+    };
+    this.organizationInvitations.set(input.invitationId, updated);
+    return updated;
+  }
+
   async ensureRole(input: Omit<RoleRecord, "id" | "createdAt">): Promise<RoleRecord> {
     const existing = [...this.roles.values()].find((role) => role.key === input.key);
     if (existing) {
@@ -262,6 +330,16 @@ export class InMemoryIdentityOrganizationRbacRepository
   }
 
   async bindRole(input: RoleBindingRecord): Promise<RoleBindingRecord> {
+    const existing = [...this.roleBindings.values()].find(
+      (binding) =>
+        binding.organizationId === input.organizationId &&
+        binding.userId === input.userId &&
+        binding.roleId === input.roleId
+    );
+    if (existing) {
+      return existing;
+    }
+
     this.roleBindings.set(input.id, input);
     return input;
   }

@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import type {
   DashboardSnapshotRecordContract,
   GeneratedReportRecordContract,
+  ReportExportRecordContract,
   StoredAnalysisRecordContract
 } from "../contracts/outputs";
 
@@ -48,15 +49,31 @@ type DashboardSnapshotRow = Omit<
   snapshotJson: unknown;
 };
 
+type ReportExportRow = Omit<
+  ReportExportRecordContract,
+  "contentHashSha256" | "createdAt" | "expiresAt" | "storageUri"
+> & {
+  contentHashSha256?: string | null;
+  createdAt: Date | string;
+  expiresAt?: Date | string | null;
+  storageUri?: string | null;
+};
+
 export interface OutputRecordRepository {
   findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecordContract | null>;
   findLatestDashboardSnapshot(
     organizationId: string,
     assessmentId?: string
   ): Promise<DashboardSnapshotRecordContract | null>;
+  findReportExport(organizationId: string, exportId: string): Promise<ReportExportRecordContract | null>;
   findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null>;
+  listReportExportsForReport(
+    organizationId: string,
+    generatedReportId: string
+  ): Promise<ReportExportRecordContract[]>;
   saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract>;
   saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract>;
+  saveReportExport(record: ReportExportRecordContract): Promise<ReportExportRecordContract>;
   saveStoredAnalysis(record: StoredAnalysisRecordContract): Promise<StoredAnalysisRecordContract>;
 }
 
@@ -64,11 +81,15 @@ export interface PrismaOutputRecordClient {
   complianceResultSnapshot: SnapshotDelegate<StoredAnalysisSnapshotRow>;
   dashboardSnapshot: OutputRecordDelegate<DashboardSnapshotRow>;
   generatedReport: OutputRecordDelegate<GeneratedReportRow>;
+  reportExport: OutputRecordDelegate<ReportExportRow> & {
+    findMany(args: DelegateArgs): Promise<ReportExportRow[]>;
+  };
 }
 
 export class InMemoryOutputRecordRepository implements OutputRecordRepository {
   private readonly dashboardSnapshots = new Map<string, DashboardSnapshotRecordContract>();
   private readonly generatedReports = new Map<string, GeneratedReportRecordContract>();
+  private readonly reportExports = new Map<string, ReportExportRecordContract>();
   private readonly storedAnalyses = new Map<string, StoredAnalysisRecordContract>();
 
   async saveStoredAnalysis(record: StoredAnalysisRecordContract): Promise<StoredAnalysisRecordContract> {
@@ -91,6 +112,27 @@ export class InMemoryOutputRecordRepository implements OutputRecordRepository {
   async findGeneratedReport(organizationId: string, reportId: string): Promise<GeneratedReportRecordContract | null> {
     const record = this.generatedReports.get(reportId);
     return record && record.organizationId === organizationId ? clone(record) : null;
+  }
+
+  async saveReportExport(record: ReportExportRecordContract): Promise<ReportExportRecordContract> {
+    const saved = clone(record);
+    this.reportExports.set(saved.id, saved);
+    return clone(saved);
+  }
+
+  async findReportExport(organizationId: string, exportId: string): Promise<ReportExportRecordContract | null> {
+    const record = this.reportExports.get(exportId);
+    return record && record.organizationId === organizationId ? clone(record) : null;
+  }
+
+  async listReportExportsForReport(
+    organizationId: string,
+    generatedReportId: string
+  ): Promise<ReportExportRecordContract[]> {
+    return [...this.reportExports.values()]
+      .filter((record) => record.organizationId === organizationId && record.generatedReportId === generatedReportId)
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .map((record) => clone(record));
   }
 
   async saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract> {
@@ -192,6 +234,46 @@ export class PrismaOutputRecordRepository implements OutputRecordRepository {
     return row ? fromGeneratedReportRow(row) : null;
   }
 
+  async saveReportExport(record: ReportExportRecordContract): Promise<ReportExportRecordContract> {
+    const row = await this.client.reportExport.upsert({
+      where: {
+        id: record.id
+      },
+      update: toReportExportData(record),
+      create: toReportExportData(record)
+    });
+
+    return fromReportExportRow(row);
+  }
+
+  async findReportExport(organizationId: string, exportId: string): Promise<ReportExportRecordContract | null> {
+    const row = await this.client.reportExport.findFirst({
+      where: {
+        id: exportId,
+        organizationId
+      }
+    });
+
+    return row ? fromReportExportRow(row) : null;
+  }
+
+  async listReportExportsForReport(
+    organizationId: string,
+    generatedReportId: string
+  ): Promise<ReportExportRecordContract[]> {
+    const rows = await this.client.reportExport.findMany({
+      where: {
+        organizationId,
+        generatedReportId
+      },
+      orderBy: {
+        createdAt: "desc"
+      }
+    });
+
+    return rows.map(fromReportExportRow);
+  }
+
   async saveDashboardSnapshot(record: DashboardSnapshotRecordContract): Promise<DashboardSnapshotRecordContract> {
     const row = await this.client.dashboardSnapshot.upsert({
       where: {
@@ -256,6 +338,19 @@ const toGeneratedReportData = (record: GeneratedReportRecordContract): Record<st
     createdAt: toDateTime(record.createdAt)
   });
 
+const toReportExportData = (record: ReportExportRecordContract): Record<string, unknown> =>
+  stripUndefined({
+    id: record.id,
+    organizationId: record.organizationId,
+    generatedReportId: record.generatedReportId,
+    exportFormat: record.exportFormat,
+    status: record.status,
+    storageUri: record.storageUri,
+    contentHashSha256: record.contentHashSha256,
+    createdAt: toDateTime(record.createdAt),
+    expiresAt: record.expiresAt ? toDateTime(record.expiresAt) : undefined
+  });
+
 const toDashboardSnapshotData = (record: DashboardSnapshotRecordContract): Record<string, unknown> =>
   stripUndefined({
     id: record.id,
@@ -301,6 +396,19 @@ const fromGeneratedReportRow = (row: GeneratedReportRow): GeneratedReportRecordC
     createdBy: row.createdBy ?? undefined,
     createdAt: toIso(row.createdAt)
   }) as GeneratedReportRecordContract;
+
+const fromReportExportRow = (row: ReportExportRow): ReportExportRecordContract =>
+  stripUndefined({
+    id: row.id,
+    organizationId: row.organizationId,
+    generatedReportId: row.generatedReportId,
+    exportFormat: row.exportFormat,
+    status: row.status,
+    storageUri: row.storageUri ?? undefined,
+    contentHashSha256: row.contentHashSha256 ?? undefined,
+    createdAt: toIso(row.createdAt),
+    expiresAt: row.expiresAt ? toIso(row.expiresAt) : undefined
+  }) as ReportExportRecordContract;
 
 const fromDashboardSnapshotRow = (row: DashboardSnapshotRow): DashboardSnapshotRecordContract =>
   stripUndefined({

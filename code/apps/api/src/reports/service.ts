@@ -3,9 +3,18 @@ import { createHash, randomUUID } from "node:crypto";
 import type { AuditWriter } from "@puresoc/audit";
 import type { OutputRecordRepository } from "@puresoc/database";
 import {
+  buildInternalReadinessEvidencePackageExport,
+  buildInternalReadinessCsvExport,
   buildInternalReadinessReport,
   buildRomaniaNotificationDraftExport,
+  INTERNAL_READINESS_EVIDENCE_PACKAGE_MIME_TYPE,
+  normalizeEvidencePackageLimits,
+  ReportExportError,
   stableJsonExport,
+  type EvidencePackageEvidenceFileInput,
+  type EvidencePackageLimitConfig,
+  type InternalReadinessCsvExport,
+  type InternalReadinessEvidencePackageExport,
   type InternalReadinessReport,
   type RomaniaNotificationDraftExport,
   type StoredRomaniaNotificationDraftInput
@@ -13,7 +22,10 @@ import {
 import type { EvidenceApiService } from "../evidence/service";
 import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-records";
 
-export type ReportRepository = Pick<OutputRecordRepository, "findStoredAnalysis" | "saveGeneratedReport">;
+export type ReportRepository = Pick<
+  OutputRecordRepository,
+  "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
+>;
 
 export interface ReportApiServiceOptions {
   repository: ReportRepository;
@@ -21,6 +33,7 @@ export interface ReportApiServiceOptions {
   auditWriter?: AuditWriter;
   renderer?: ReportRendererClient;
   storeGeneratedReportsAsEvidence?: boolean;
+  evidencePackageLimits?: EvidencePackageLimitConfig;
   now?: () => Date;
 }
 
@@ -47,6 +60,7 @@ export class ReportApiService {
   private readonly auditWriter?: AuditWriter;
   private readonly renderer: ReportRendererClient;
   private readonly storeGeneratedReportsAsEvidence: boolean;
+  private readonly evidencePackageLimits?: EvidencePackageLimitConfig;
   private readonly now: () => Date;
 
   constructor(options: ReportApiServiceOptions) {
@@ -69,6 +83,7 @@ export class ReportApiService {
         }
       } satisfies ReportRendererClient);
     this.storeGeneratedReportsAsEvidence = options.storeGeneratedReportsAsEvidence ?? false;
+    this.evidencePackageLimits = options.evidencePackageLimits;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -107,6 +122,160 @@ export class ReportApiService {
     return {
       report,
       exportJson: stableJsonExport(reportData)
+    };
+  }
+
+  async buildInternalReadinessCsvExport(input: {
+    organizationId: string;
+    assessmentId: string;
+    actorUserId: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    csvExport: InternalReadinessCsvExport;
+    exportCsv: string;
+    csvArtifactId?: string;
+  }> {
+    const analysis = await this.requireStoredAnalysis(input.organizationId, input.assessmentId);
+    const reportData = buildInternalReadinessReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      jurisdiction: analysis.jurisdiction,
+      generatedAt: this.now().toISOString(),
+      catalogVersion: analysis.catalogVersion,
+      analysisRecordedAt: analysis.recordedAt,
+      controlResults: analysis.results,
+      gaps: analysis.gaps,
+      recommendations: analysis.recommendations,
+      readinessPlan: analysis.readinessPlan,
+      evidence: analysis.evidenceArtifacts
+    });
+    const report = await this.persistReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: "internal_readiness",
+      jurisdiction: analysis.jurisdiction,
+      reportData,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+    const csvExport = buildInternalReadinessCsvExport(reportData);
+    const csvExportContentHashSha256 = createHash("sha256").update(csvExport.csv).digest("hex");
+    const csvArtifactId = await this.storeCsvExportEvidence({
+      reportId: report.id,
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: "internal_readiness",
+      jurisdiction: analysis.jurisdiction,
+      csvExport,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+    await this.repository.saveReportExport({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      generatedReportId: report.id,
+      exportFormat: "csv",
+      status: "ready",
+      contentHashSha256: csvExportContentHashSha256,
+      createdAt: this.now().toISOString()
+    });
+
+    return {
+      report,
+      csvExport,
+      exportCsv: csvExport.csv,
+      csvArtifactId
+    };
+  }
+
+  async buildInternalReadinessEvidencePackage(input: {
+    organizationId: string;
+    assessmentId: string;
+    actorUserId: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    packageExport: Omit<InternalReadinessEvidencePackageExport, "bundle">;
+    bundleBase64: string;
+    packageArtifactId?: string;
+  }> {
+    const analysis = await this.requireStoredAnalysis(input.organizationId, input.assessmentId);
+    const reportData = buildInternalReadinessReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      jurisdiction: analysis.jurisdiction,
+      generatedAt: this.now().toISOString(),
+      catalogVersion: analysis.catalogVersion,
+      analysisRecordedAt: analysis.recordedAt,
+      controlResults: analysis.results,
+      gaps: analysis.gaps,
+      recommendations: analysis.recommendations,
+      readinessPlan: analysis.readinessPlan,
+      evidence: analysis.evidenceArtifacts
+    });
+    const evidencePackageLimits = normalizeEvidencePackageLimits(this.evidencePackageLimits);
+    if (reportData.evidence.length > evidencePackageLimits.maxEvidenceFiles) {
+      throw new ReportExportError(
+        "evidence_package_too_many_evidence_files",
+        `Evidence package includes ${reportData.evidence.length} evidence files, exceeding the configured maximum of ${evidencePackageLimits.maxEvidenceFiles}.`
+      );
+    }
+    const evidenceFiles = await this.collectEvidencePackageFiles({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      evidence: reportData.evidence,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+    const packageExport = buildInternalReadinessEvidencePackageExport({
+      report: reportData,
+      evidenceFiles,
+      limits: evidencePackageLimits
+    });
+    const report = await this.persistReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: "internal_readiness",
+      jurisdiction: analysis.jurisdiction,
+      reportData,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+    const packageArtifactId = await this.storeEvidencePackageExportEvidence({
+      reportId: report.id,
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: "evidence_package",
+      jurisdiction: analysis.jurisdiction,
+      packageExport,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+    await this.repository.saveReportExport({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      generatedReportId: report.id,
+      exportFormat: "binary_evidence_package",
+      status: "ready",
+      contentHashSha256: packageExport.contentHashSha256,
+      createdAt: this.now().toISOString()
+    });
+
+    const { bundle, ...safePackageExport } = packageExport;
+    void bundle;
+
+    return {
+      report,
+      packageExport: safePackageExport,
+      bundleBase64: Buffer.from(packageExport.bundle).toString("base64"),
+      packageArtifactId
     };
   }
 
@@ -184,6 +353,15 @@ export class ReportApiService {
       reportData: input.reportData,
       evidenceArtifactId,
       createdBy: input.createdBy,
+      createdAt: this.now().toISOString()
+    });
+    await this.repository.saveReportExport({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      generatedReportId: report.id,
+      exportFormat: rendered.format,
+      status: "ready",
+      contentHashSha256: rendered.contentHashSha256,
       createdAt: this.now().toISOString()
     });
 
@@ -265,6 +443,172 @@ export class ReportApiService {
         format: input.rendered.format,
         mimeType: input.rendered.mimeType,
         contentHashSha256: input.rendered.contentHashSha256
+      }
+    });
+
+    return upload.artifact.id;
+  }
+
+  private async storeCsvExportEvidence(input: {
+    reportId: string;
+    organizationId: string;
+    assessmentId?: string;
+    reportType: string;
+    jurisdiction?: string;
+    csvExport: InternalReadinessCsvExport;
+    createdBy: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<string | undefined> {
+    if (!this.evidence || !this.storeGeneratedReportsAsEvidence) {
+      return undefined;
+    }
+
+    const body = Buffer.from(input.csvExport.csv, "utf8");
+    const contentHashSha256 = createHash("sha256").update(body).digest("hex");
+    const sourceReferences = input.csvExport.sourceReferences.map((reference) => reference.sourceRecordId);
+    const upload = await this.evidence.upload({
+      organizationId: input.organizationId,
+      actorUserId: input.createdBy,
+      title: `${input.reportType} ${input.reportId} CSV export`,
+      content: body.toString("base64"),
+      contentEncoding: "base64",
+      mimeType: "text/csv",
+      sourceType: "generated_report",
+      sourceProvider: "puresoc-report-csv-builder",
+      jurisdiction: input.jurisdiction,
+      linkedAssessmentId: input.assessmentId,
+      linkedSourceRecordId: sourceReferences[0],
+      links: [
+        {
+          targetType: "report",
+          targetId: input.reportId,
+          relation: "generated_report_csv_export"
+        },
+        ...sourceReferences.slice(1).map((sourceRecordId) => ({
+          targetType: "regulatory_source" as const,
+          targetId: sourceRecordId,
+          relation: "source_reference"
+        }))
+      ],
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    await this.auditWriter?.write({
+      actorUserId: input.createdBy,
+      organizationId: input.organizationId,
+      targetType: "report_export",
+      targetId: upload.artifact.id,
+      action: "report_export_created",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        reportId: input.reportId,
+        reportType: input.reportType,
+        format: input.csvExport.exportFormat,
+        mimeType: "text/csv",
+        contentHashSha256,
+        rowCount: input.csvExport.rowCount,
+        tableNames: input.csvExport.tableNames
+      }
+    });
+
+    return upload.artifact.id;
+  }
+
+  private async collectEvidencePackageFiles(input: {
+    organizationId: string;
+    actorUserId: string;
+    evidence: readonly InternalReadinessReport["evidence"][number][];
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<EvidencePackageEvidenceFileInput[]> {
+    if (!this.evidence) {
+      return [];
+    }
+
+    const files: EvidencePackageEvidenceFileInput[] = [];
+    for (const artifact of input.evidence) {
+      const download = await this.evidence.download({
+        organizationId: input.organizationId,
+        actorUserId: input.actorUserId,
+        evidenceArtifactId: artifact.id,
+        ipAddress: input.ipAddress,
+        userAgent: input.userAgent
+      });
+      files.push({
+        artifactId: artifact.id,
+        title: artifact.title,
+        mimeType: download.mimeType || artifact.mimeType,
+        body: download.body,
+        contentHashSha256: download.contentHashSha256
+      });
+    }
+
+    return files;
+  }
+
+  private async storeEvidencePackageExportEvidence(input: {
+    reportId: string;
+    organizationId: string;
+    assessmentId?: string;
+    reportType: string;
+    jurisdiction?: string;
+    packageExport: InternalReadinessEvidencePackageExport;
+    createdBy: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<string | undefined> {
+    if (!this.evidence || !this.storeGeneratedReportsAsEvidence) {
+      return undefined;
+    }
+
+    const sourceReferences = input.packageExport.manifest.sourceReferences.map((reference) => reference.sourceRecordId);
+    const upload = await this.evidence.upload({
+      organizationId: input.organizationId,
+      actorUserId: input.createdBy,
+      title: `${input.reportType} ${input.reportId} evidence package`,
+      content: Buffer.from(input.packageExport.bundle).toString("base64"),
+      contentEncoding: "base64",
+      mimeType: INTERNAL_READINESS_EVIDENCE_PACKAGE_MIME_TYPE,
+      sourceType: "generated_report",
+      sourceProvider: "puresoc-evidence-package-builder",
+      jurisdiction: input.jurisdiction,
+      linkedAssessmentId: input.assessmentId,
+      linkedSourceRecordId: sourceReferences[0],
+      links: [
+        {
+          targetType: "report",
+          targetId: input.reportId,
+          relation: "generated_report_evidence_package"
+        },
+        ...sourceReferences.slice(1).map((sourceRecordId) => ({
+          targetType: "regulatory_source" as const,
+          targetId: sourceRecordId,
+          relation: "source_reference"
+        }))
+      ],
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    await this.auditWriter?.write({
+      actorUserId: input.createdBy,
+      organizationId: input.organizationId,
+      targetType: "report_export",
+      targetId: upload.artifact.id,
+      action: "report_export_created",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        reportId: input.reportId,
+        reportType: input.reportType,
+        format: input.packageExport.exportFormat,
+        mimeType: input.packageExport.mimeType,
+        contentHashSha256: input.packageExport.contentHashSha256,
+        fileCount: input.packageExport.manifest.files.length,
+        evidenceArtifactCount: input.packageExport.manifest.evidenceArtifacts.length
       }
     });
 

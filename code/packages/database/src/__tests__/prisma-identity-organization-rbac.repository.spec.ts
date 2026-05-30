@@ -231,6 +231,49 @@ describe("Prisma identity/session/organization/RBAC repository", () => {
       }
     ]);
   });
+
+  it("persists organization invitations without plaintext tokens", async () => {
+    const client = new FakePrismaIdentityOrganizationRbacClient();
+    const repository = new PrismaIdentityOrganizationRbacRepository(
+      client as unknown as PrismaIdentityOrganizationRbacClient
+    );
+
+    await repository.createOrganizationInvitation({
+      id: "abababab-abab-4bab-8bab-abababababab",
+      organizationId: ORG_A,
+      invitedEmail: "invited@example.test",
+      invitedRoleKey: "auditor",
+      tokenHash: "sha256:invite-token-hash",
+      invitedByUserId: EXTERNAL_USER_ID,
+      status: "pending",
+      expiresAt: new Date(NOW.getTime() + 60_000),
+      acceptedByUserId: null,
+      acceptedAt: null,
+      revokedAt: null,
+      createdAt: NOW,
+      updatedAt: NOW
+    });
+
+    expect(client.organizationInvitation.rows[0]?.tokenHash).toBe("sha256:invite-token-hash");
+    expect(client.organizationInvitation.rows[0]?.tokenHash).not.toBe("plain-invitation-token");
+
+    await expect(repository.findOrganizationInvitationByTokenHash("sha256:invite-token-hash")).resolves.toMatchObject({
+      invitedEmail: "invited@example.test",
+      invitedRoleKey: "auditor",
+      status: "pending"
+    });
+
+    await expect(
+      repository.markOrganizationInvitationAccepted({
+        invitationId: "abababab-abab-4bab-8bab-abababababab",
+        acceptedByUserId: EXTERNAL_USER_ID,
+        acceptedAt: NOW
+      })
+    ).resolves.toMatchObject({
+      acceptedByUserId: EXTERNAL_USER_ID,
+      status: "accepted"
+    });
+  });
 });
 
 class FakePrismaIdentityOrganizationRbacClient {
@@ -238,6 +281,7 @@ class FakePrismaIdentityOrganizationRbacClient {
   readonly identityAccount = new FakeDelegate();
   readonly localCredential = new FakeDelegate();
   readonly organization = new FakeDelegate();
+  readonly organizationInvitation = new FakeDelegate();
   readonly organizationMember = new FakeDelegate();
   readonly passwordResetToken = new FakeDelegate();
   readonly role = new FakeDelegate();

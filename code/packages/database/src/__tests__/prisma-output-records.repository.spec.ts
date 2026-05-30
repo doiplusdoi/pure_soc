@@ -6,6 +6,7 @@ import {
   type DashboardSnapshotRecordContract,
   type GeneratedReportRecordContract,
   type PrismaOutputRecordClient,
+  type ReportExportRecordContract,
   type StoredAnalysisRecordContract
 } from "../index";
 import { createStoredAnalysisDashboardSnapshot } from "@puresoc/dashboards";
@@ -23,11 +24,13 @@ describe("output record repositories", () => {
     const repository = new InMemoryOutputRecordRepository();
     const analysis = storedAnalysisFixture();
     const report = generatedReportFixture();
+    const reportExport = reportExportFixture(report.id);
     const oldSnapshot = dashboardSnapshotFixture("66666666-6666-4666-8666-666666666666", "2026-05-01T08:00:00.000Z");
     const newSnapshot = dashboardSnapshotFixture("77777777-7777-4777-8777-777777777777", "2026-05-01T10:00:00.000Z");
 
     await repository.saveStoredAnalysis(analysis);
     await repository.saveGeneratedReport(report);
+    await repository.saveReportExport(reportExport);
     await repository.saveDashboardSnapshot(oldSnapshot);
     await repository.saveDashboardSnapshot(newSnapshot);
 
@@ -35,6 +38,10 @@ describe("output record repositories", () => {
     await expect(repository.findStoredAnalysis(ORG_B, ASSESSMENT_ID)).resolves.toBeNull();
     await expect(repository.findGeneratedReport(ORG_A, report.id)).resolves.toEqual(report);
     await expect(repository.findGeneratedReport(ORG_B, report.id)).resolves.toBeNull();
+    await expect(repository.findReportExport(ORG_A, reportExport.id)).resolves.toEqual(reportExport);
+    await expect(repository.findReportExport(ORG_B, reportExport.id)).resolves.toBeNull();
+    await expect(repository.listReportExportsForReport(ORG_A, report.id)).resolves.toEqual([reportExport]);
+    await expect(repository.listReportExportsForReport(ORG_B, report.id)).resolves.toEqual([]);
     await expect(repository.findLatestDashboardSnapshot(ORG_A, ASSESSMENT_ID)).resolves.toMatchObject({
       id: newSnapshot.id,
       organizationId: ORG_A
@@ -46,6 +53,7 @@ describe("output record repositories", () => {
     const repository = new PrismaOutputRecordRepository(client as unknown as PrismaOutputRecordClient);
     const analysis = storedAnalysisFixture();
     const report = generatedReportFixture();
+    const reportExport = reportExportFixture(report.id);
     const oldSnapshot = dashboardSnapshotFixture("66666666-6666-4666-8666-666666666666", "2026-05-01T08:00:00.000Z");
     const newSnapshot = dashboardSnapshotFixture("77777777-7777-4777-8777-777777777777", "2026-05-01T10:00:00.000Z");
 
@@ -62,6 +70,7 @@ describe("output record repositories", () => {
 
     await repository.saveStoredAnalysis(analysis);
     await repository.saveGeneratedReport(report);
+    await repository.saveReportExport(reportExport);
     await repository.saveDashboardSnapshot(oldSnapshot);
     await repository.saveDashboardSnapshot(newSnapshot);
 
@@ -73,6 +82,10 @@ describe("output record repositories", () => {
     await expect(repository.findStoredAnalysis(ORG_B, ASSESSMENT_ID)).resolves.toBeNull();
     await expect(repository.findGeneratedReport(ORG_A, report.id)).resolves.toEqual(report);
     await expect(repository.findGeneratedReport(ORG_B, report.id)).resolves.toBeNull();
+    await expect(repository.findReportExport(ORG_A, reportExport.id)).resolves.toEqual(reportExport);
+    await expect(repository.findReportExport(ORG_B, reportExport.id)).resolves.toBeNull();
+    await expect(repository.listReportExportsForReport(ORG_A, report.id)).resolves.toEqual([reportExport]);
+    await expect(repository.listReportExportsForReport(ORG_B, report.id)).resolves.toEqual([]);
     await expect(repository.findLatestDashboardSnapshot(ORG_A, ASSESSMENT_ID)).resolves.toMatchObject({
       id: newSnapshot.id,
       snapshot: {
@@ -176,6 +189,16 @@ const generatedReportFixture = (): GeneratedReportRecordContract => {
   };
 };
 
+const reportExportFixture = (generatedReportId: string): ReportExportRecordContract => ({
+  id: "99999999-9999-4999-8999-999999999999",
+  organizationId: ORG_A,
+  generatedReportId,
+  exportFormat: "json",
+  status: "ready",
+  contentHashSha256: "abc123",
+  createdAt: RECORDED_AT
+});
+
 const dashboardSnapshotFixture = (id: string, createdAt: string): DashboardSnapshotRecordContract => ({
   id,
   organizationId: ORG_A,
@@ -194,6 +217,7 @@ class FakePrismaOutputRecordClient {
   readonly complianceResultSnapshot = new FakeDelegate();
   readonly dashboardSnapshot = new FakeDelegate();
   readonly generatedReport = new FakeDelegate();
+  readonly reportExport = new FakeDelegate();
 }
 
 class FakeDelegate {
@@ -230,6 +254,18 @@ class FakeDelegate {
     }
 
     return rows[0] ?? null;
+  }
+
+  async findMany(input: {
+    orderBy?: { createdAt?: "asc" | "desc" };
+    where: Record<string, unknown>;
+  }): Promise<Array<Record<string, unknown>>> {
+    const rows = this.rows.filter((row) => matchesWhere(row, input.where));
+    if (input.orderBy?.createdAt === "desc") {
+      rows.sort((left, right) => toDate(right.createdAt).getTime() - toDate(left.createdAt).getTime());
+    }
+
+    return rows;
   }
 
   async findUnique(input: { where: Record<string, unknown> }): Promise<Record<string, unknown> | null> {

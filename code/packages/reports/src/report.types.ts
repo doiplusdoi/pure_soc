@@ -16,7 +16,16 @@ export type ReportType =
   | "evidence_package"
   | "incident_draft";
 
-export type ReportExportFormat = "json" | "pdf" | "csv";
+export type ReportExportFormat = "json" | "pdf" | "csv" | "binary_evidence_package";
+
+export type InternalReadinessCsvTableName =
+  | "metadata"
+  | "control_results"
+  | "gaps"
+  | "recommendations"
+  | "readiness_plan_items"
+  | "evidence"
+  | "source_references";
 
 export interface ReportSourceReference extends SourceReference {
   title?: string;
@@ -152,6 +161,86 @@ export interface RomaniaNotificationDraftExport {
     onboardingProgressId?: string;
     notificationDraftId?: string;
   };
+}
+
+export interface InternalReadinessCsvExport {
+  schemaVersion: "puresoc.export.internal_readiness_csv.v1";
+  organizationId: string;
+  assessmentId: string;
+  jurisdiction: string;
+  reportType: "internal_readiness";
+  exportFormat: "csv";
+  generatedAt: string;
+  legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
+  legalCaveatFallbackUsed: boolean;
+  legalCaveatLocale: PureSocLocale;
+  legalCaveatMessageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus?: PureSocMessageReviewStatus;
+  locale: PureSocLocale;
+  sourceReferences: ReportSourceReference[];
+  tableNames: InternalReadinessCsvTableName[];
+  rowCount: number;
+  csv: string;
+}
+
+export interface EvidencePackageBundleFileSummary {
+  path: string;
+  role: "manifest" | "report_json" | "report_csv" | "evidence_artifact";
+  mimeType: string;
+  sizeBytes: number;
+  contentHashSha256: string;
+  evidenceArtifactId?: string;
+}
+
+export interface EvidencePackageLimitSummary {
+  maxEvidenceFiles: number;
+  maxEvidenceFileBytes: number;
+  maxBundleBytes: number;
+}
+
+export interface InternalReadinessEvidencePackageManifest {
+  schemaVersion: "puresoc.export.internal_readiness_evidence_package_manifest.v1";
+  organizationId: string;
+  assessmentId: string;
+  jurisdiction: string;
+  reportType: "evidence_package";
+  exportFormat: "binary_evidence_package";
+  generatedAt: string;
+  legalCaveat: string;
+  legalCaveatFallbackReason?: PureSocMessageFallbackReason;
+  legalCaveatFallbackUsed: boolean;
+  legalCaveatLocale: PureSocLocale;
+  legalCaveatMessageKey: typeof LEGAL_CAVEAT_MESSAGE_KEY;
+  legalCaveatRequestedLocale?: string;
+  legalCaveatReviewStatus?: PureSocMessageReviewStatus;
+  locale: PureSocLocale;
+  sourceReferences: ReportSourceReference[];
+  exportLimits: EvidencePackageLimitSummary;
+  files: EvidencePackageBundleFileSummary[];
+  evidenceArtifacts: ReportEvidenceSummary[];
+  provenance: {
+    source: "stored_analysis";
+    internalReadinessReportSchemaVersion: InternalReadinessReport["schemaVersion"];
+  };
+}
+
+export interface InternalReadinessEvidencePackageExport {
+  schemaVersion: "puresoc.export.internal_readiness_evidence_package.v1";
+  organizationId: string;
+  assessmentId: string;
+  jurisdiction: string;
+  reportType: "evidence_package";
+  exportFormat: "binary_evidence_package";
+  generatedAt: string;
+  mimeType: "application/x-tar";
+  fileName: string;
+  sizeBytes: number;
+  contentHashSha256: string;
+  manifest: InternalReadinessEvidencePackageManifest;
+  manifestJson: string;
+  bundle: Uint8Array;
 }
 
 export const createReportShell = (organizationId: string, jurisdiction = "eu"): InternalReadinessReport => ({

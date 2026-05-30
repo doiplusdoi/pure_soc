@@ -90,6 +90,11 @@ export interface PureSocConfig {
     renderer: string;
     defaultExportFormat: "json" | "pdf";
     storeGeneratedReportsAsEvidence: boolean;
+    evidencePackage: {
+      maxEvidenceFiles: number;
+      maxEvidenceFileBytes: number;
+      maxBundleBytes: number;
+    };
   };
   audit: {
     retention: {
@@ -483,7 +488,22 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       storeGeneratedReportsAsEvidence: readBoolean(
         env.PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE,
         config.reports.storeGeneratedReportsAsEvidence
-      )
+      ),
+      evidencePackage: {
+        ...config.reports.evidencePackage,
+        maxEvidenceFiles: readPositiveInteger(
+          env.PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILES,
+          config.reports.evidencePackage.maxEvidenceFiles
+        ),
+        maxEvidenceFileBytes: readPositiveInteger(
+          env.PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILE_BYTES,
+          config.reports.evidencePackage.maxEvidenceFileBytes
+        ),
+        maxBundleBytes: readPositiveInteger(
+          env.PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_BUNDLE_BYTES,
+          config.reports.evidencePackage.maxBundleBytes
+        )
+      }
     },
     audit: {
       ...config.audit,

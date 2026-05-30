@@ -84,6 +84,24 @@ export interface WorkspaceSelectionModel {
   session: RuntimeSessionSurface;
 }
 
+export interface OrganizationInvitationRoleOption {
+  key: string;
+  label: string;
+  summary: string;
+}
+
+export interface OrganizationInvitationScreenModel {
+  acceptOrganizationId?: string | null;
+  actionMessage?: string;
+  activeOrganization: WorkspaceSelectionOrganizationSurface | null;
+  canCreateInvitations: boolean;
+  errorMessage?: string;
+  organizations: WorkspaceSelectionOrganizationSurface[];
+  roleKeys: string[];
+  roleOptions: OrganizationInvitationRoleOption[];
+  session: RuntimeSessionSurface;
+}
+
 export interface OnboardingSurface {
   title: string;
   status: OperationalStatus;
@@ -212,6 +230,39 @@ const roRegistrationSource: ReportSourceReference = {
 };
 
 const romaniaRouteGeneratedAt = "2026-05-03T09:00:00.000Z";
+
+export const organizationInvitationRoleOptions: readonly OrganizationInvitationRoleOption[] = [
+  {
+    key: "auditor",
+    label: "Auditor",
+    summary: "Can review readiness data and evidence without changing operations."
+  },
+  {
+    key: "compliance_manager",
+    label: "Compliance manager",
+    summary: "Can manage readiness work and country-pack progress."
+  },
+  {
+    key: "security_operator",
+    label: "Security operator",
+    summary: "Can operate security posture workflows without owning billing."
+  },
+  {
+    key: "remediation_approver",
+    label: "Remediation approver",
+    summary: "Can approve controlled remediation workflows when enabled."
+  },
+  {
+    key: "billing_admin",
+    label: "Billing admin",
+    summary: "Can manage billing-facing tasks without full workspace ownership."
+  },
+  {
+    key: "org_admin",
+    label: "Organization admin",
+    summary: "Can administer the workspace and invite additional members."
+  }
+];
 
 export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => {
   const organizationId = "org_operational_ui";

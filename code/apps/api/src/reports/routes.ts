@@ -37,6 +37,60 @@ export const buildInternalReadinessReportRoute = async (
   };
 };
 
+export const buildInternalReadinessCsvExportRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "auditor"]
+  });
+
+  return {
+    statusCode: 201,
+    body: await services.reports.buildInternalReadinessCsvExport({
+      organizationId,
+      actorUserId,
+      assessmentId: requireString(body, "assessmentId"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
+export const buildInternalReadinessEvidencePackageRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "auditor"]
+  });
+
+  return {
+    statusCode: 201,
+    body: await services.reports.buildInternalReadinessEvidencePackage({
+      organizationId,
+      actorUserId,
+      assessmentId: requireString(body, "assessmentId"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
 export const buildRomaniaNotificationDraftReportRoute = async (
   organizationId: string,
   body: Record<string, unknown>,

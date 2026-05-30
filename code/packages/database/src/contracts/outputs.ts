@@ -234,6 +234,18 @@ export interface GeneratedReportRecordContract {
   createdAt: string;
 }
 
+export interface ReportExportRecordContract {
+  id: string;
+  organizationId: string;
+  generatedReportId: string;
+  exportFormat: "json" | "pdf" | "csv" | "binary_evidence_package";
+  status: "queued" | "running" | "ready" | "failed" | "expired";
+  storageUri?: string;
+  contentHashSha256?: string;
+  createdAt: string;
+  expiresAt?: string;
+}
+
 export interface DashboardSnapshotRecordContract {
   id: string;
   organizationId: string;

@@ -73,6 +73,11 @@ describe("loadConfig", () => {
       reviewTaskOrganizationId: null
     });
     expect(config.reports.legalCaveatRequired).toBe(true);
+    expect(config.reports.evidencePackage).toEqual({
+      maxEvidenceFiles: 250,
+      maxEvidenceFileBytes: 10_485_760,
+      maxBundleBytes: 52_428_800
+    });
     expect(config.audit).toEqual({
       retention: {
         policyKey: "puresoc-audit-database-only-7y",
@@ -164,6 +169,9 @@ describe("loadConfig", () => {
         PURESOC_AUDIT_EXPORT_RETENTION_DAYS: "90",
         PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS: "14",
         PURESOC_AUDIT_EXTERNAL_CHECKPOINT_PROVIDER: "fake-local",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILES: "25",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILE_BYTES: "4096",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_BUNDLE_BYTES: "8192",
         PURESOC_JOB_QUEUE_PROVIDER: "bullmq",
         PURESOC_REDIS_URL: "redis://redis.example.test:6379/1",
         PURESOC_JOB_DEFAULT_MAX_ATTEMPTS: "5",
@@ -262,6 +270,11 @@ describe("loadConfig", () => {
     expect(config.storage.uploadScanner.mode).toBe("mock");
     expect(config.storage.uploadScanner.mockStatus).toBe("failed");
     expect(config.storage.uploadScanner.timeoutMs).toBe(2500);
+    expect(config.reports.evidencePackage).toEqual({
+      maxEvidenceFiles: 25,
+      maxEvidenceFileBytes: 4096,
+      maxBundleBytes: 8192
+    });
     expect(config.jobs).toMatchObject({
       queueProvider: "bullmq",
       redisUrl: "redis://redis.example.test:6379/1",
@@ -338,6 +351,9 @@ describe("loadConfig", () => {
         PURESOC_AUDIT_CHECKPOINT_RETENTION_DAYS: "0",
         PURESOC_AUDIT_EXPORT_RETENTION_DAYS: "-1",
         PURESOC_AUDIT_CHECKPOINT_CADENCE_DAYS: "1.5",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILES: "0",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_EVIDENCE_FILE_BYTES: "bad",
+        PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_BUNDLE_BYTES: "-1",
         PURESOC_SCHEDULER_INTERVAL_MS: "0",
         REGULATORY_SOURCE_MONITOR_TIMEOUT_MS: "0",
         REGULATORY_SOURCE_MONITOR_STALE_AFTER_DAYS: "soon"
@@ -370,6 +386,11 @@ describe("loadConfig", () => {
       checkpointRetentionDays: 2555,
       exportRetentionDays: 2555,
       checkpointCadenceDays: 30
+    });
+    expect(config.reports.evidencePackage).toEqual({
+      maxEvidenceFiles: 250,
+      maxEvidenceFileBytes: 10_485_760,
+      maxBundleBytes: 52_428_800
     });
     expect(config.compliance.sourceMonitor.requestTimeoutMs).toBe(5000);
     expect(config.compliance.sourceMonitor.staleAfterDays).toBe(90);

@@ -51,6 +51,7 @@ export {
 } from "./repositories/ro-nis2-readiness";
 export {
   PrismaIdentityOrganizationRbacRepository,
+  type OrganizationInvitationRecordContract,
   type OrganizationMembershipRecordContract,
   type OrganizationRecordContract,
   type PrismaIdentityOrganizationRbacClient,
@@ -112,6 +113,7 @@ export type {
   ProviderActionTemplateContract,
   ReadinessPlanContract,
   ReadinessPlanItemContract,
+  ReportExportRecordContract,
   RoNis2NotificationDraftContract,
   StoredAnalysisRecordContract
 } from "./contracts/outputs";

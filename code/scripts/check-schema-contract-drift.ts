@@ -151,6 +151,52 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "OrganizationInvitationRecord",
+    modelName: "OrganizationInvitation",
+    tableName: "organization_invitations",
+    modelAttributes: [
+      '@@unique([tokenHash], map: "organization_invitations_token_hash_key")',
+      '@@index([organizationId, invitedEmail, status], map: "organization_invitations_org_email_status_idx")'
+    ],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("invitedEmail", "String", "invited_email"),
+      s("invitedRoleKey", "String", "invited_role_key"),
+      s("tokenHash", "String", "token_hash"),
+      s("invitedByUserId", "String", "invited_by_user_id"),
+      f("status", "OrganizationInvitationStatus"),
+      s("expiresAt", "DateTime", "expires_at"),
+      s("acceptedByUserId", "String", "accepted_by_user_id", { isOptional: true }),
+      s("acceptedAt", "DateTime", "accepted_at", { isOptional: true }),
+      s("revokedAt", "DateTime", "revoked_at", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
+    contractName: "RoNis2OnboardingProgressRecord",
+    modelName: "RoNis2OnboardingProgress",
+    tableName: "ro_nis2_onboarding_progress",
+    modelAttributes: ['@@index([organizationId, status], map: "ro_nis2_onboarding_progress_org_status_idx")'],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      s("businessProfileId", "String", "business_profile_id", { isOptional: true }),
+      f("status", "RoNis2OnboardingStatus"),
+      s("currentStep", "String", "current_step"),
+      s("completedSteps", "String", "completed_steps", { isList: true }),
+      s("answersJson", "Json", "answers_json"),
+      s("sourceVersion", "String", "source_version"),
+      s("sourceReferencesJson", "Json", "source_references_json"),
+      s("missingRequiredFields", "String", "missing_required_fields", { isList: true }),
+      s("savedBy", "String", "saved_by", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
     contractName: "ProviderConnectionRecord",
     modelName: "ProviderConnection",
     tableName: "provider_connections",
@@ -384,6 +430,28 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("evidenceCompletenessJson", "Json", "evidence_completeness_json"),
       s("sourceReferencesJson", "Json", "source_references_json"),
       s("evaluatedAt", "DateTime", "evaluated_at")
+    ]
+  },
+  {
+    contractName: "RoNis2ClassificationRunRecord",
+    modelName: "RoNis2ClassificationRun",
+    tableName: "ro_nis2_classification_runs",
+    modelAttributes: ['@@index([organizationId, result, classifiedAt], map: "ro_nis2_classification_runs_org_result_idx")'],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      s("onboardingProgressId", "String", "onboarding_progress_id", { isOptional: true }),
+      f("result", "RoNis2ClassificationResult"),
+      s("article9Required", "Boolean", "article9_required"),
+      s("notificationRecommended", "Boolean", "notification_recommended"),
+      s("inputJson", "Json", "input_json"),
+      s("reasonsJson", "Json", "reasons_json"),
+      s("matchedRulesJson", "Json", "matched_rules_json"),
+      s("missingRequiredFields", "String", "missing_required_fields", { isList: true }),
+      s("sourceVersion", "String", "source_version"),
+      s("sourceReferencesJson", "Json", "source_references_json"),
+      s("classifiedAt", "DateTime", "classified_at")
     ]
   },
   {

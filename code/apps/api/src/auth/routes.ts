@@ -34,7 +34,22 @@ export const registerRoute = async (
     {
       email: requireString(body, "email"),
       password: requireString(body, "password"),
-      displayName: optionalString(body, "displayName")
+      displayName: optionalString(body, "displayName"),
+      deliverEmailVerificationToken: (delivery) => services.emailVerificationDelivery.deliver(delivery)
+    },
+    context
+  )
+});
+
+export const verifyEmailRoute = async (
+  body: Record<string, unknown>,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => ({
+  statusCode: 200,
+  body: await services.localAuth.verifyEmail(
+    {
+      plaintextToken: requireString(body, "token")
     },
     context
   )
