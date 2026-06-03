@@ -4,9 +4,13 @@ import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
 import {
   createOperationalConsoleRuntimeModel,
+  disconnectedMicrosoft365Surface,
   organizationInvitationRoleOptions,
   createRomaniaOnboardingRouteModel,
+  type Microsoft365HealthSurface,
+  type Microsoft365ModuleSurface,
   type OrganizationInvitationScreenModel,
+  type OperationalStatus,
   type RomaniaOnboardingRouteInput,
   type RuntimeSessionSurface,
   type WorkspaceSelectionModel
@@ -19,13 +23,31 @@ import {
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
   renderRuntimeMessageScreen,
-  renderWorkspaceSelectionScreen
+  renderWorkspaceSelectionScreen,
+  type RomaniaOnboardingScreen
 } from "./operational-console";
 
 export interface WebServerOptions {
   apiBaseUrl?: string;
   publicBaseUrl?: string;
 }
+
+const romaniaOnboardingScreenKeys = new Set<RomaniaOnboardingScreen>(["company", "industry", "technical", "outputs"]);
+
+const resolveRomaniaOnboardingScreen = (pathname: string): RomaniaOnboardingScreen | null => {
+  if (pathname === "/onboarding/romania") {
+    return "company";
+  }
+
+  const match = /^\/onboarding\/romania\/([^/]+)$/.exec(pathname);
+  const screen = match?.[1];
+  return isRomaniaOnboardingScreen(screen) ? screen : null;
+};
+
+const isRomaniaOnboardingScreen = (value: unknown): value is RomaniaOnboardingScreen =>
+  typeof value === "string" && romaniaOnboardingScreenKeys.has(value as RomaniaOnboardingScreen);
+
+const romaniaOnboardingPath = (screen: RomaniaOnboardingScreen): string => `/onboarding/romania/${screen}`;
 
 interface LatestDashboardSnapshotResponse {
   snapshot: DashboardSnapshotContract;
@@ -52,6 +74,55 @@ interface CreateOrganizationWebResponse {
     id?: string;
     name?: string;
   };
+}
+
+interface ProviderConnectionListResponse {
+  connections: Array<{
+    id: string;
+    providerKey: string;
+    displayName: string;
+    externalTenantId?: string | null;
+    externalTenantName?: string | null;
+    status: string;
+    readEnabled: boolean;
+    writeEnabled: boolean;
+    lastSuccessfulSyncAt?: string | null;
+  }>;
+}
+
+interface Microsoft365ConsentBeginWebResponse {
+  url?: string;
+  state?: string;
+}
+
+interface Microsoft365HealthWebResponse {
+  connection: {
+    id: string;
+    displayName: string;
+    externalTenantId?: string | null;
+    externalTenantName?: string | null;
+    status: string;
+    writeEnabled: boolean;
+    lastSuccessfulSyncAt?: string | null;
+  };
+  status: string;
+  permissionBundles: Array<{
+    bundleKey: string;
+    enabled: boolean;
+  }>;
+  capabilities: Array<{
+    moduleKey: string;
+    status: string;
+    statusReason?: string;
+  }>;
+  moduleStatuses: Array<{
+    moduleKey: string;
+    status: string;
+    missingPermissions?: string[];
+    missingLicenses?: string[];
+    statusReason?: string;
+    completedAt?: string;
+  }>;
 }
 
 interface RomaniaOnboardingStateResponse {
@@ -148,7 +219,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
-    if (request.method === "GET" && url.pathname === "/onboarding/romania") {
+    const romaniaOnboardingScreen = resolveRomaniaOnboardingScreen(url.pathname);
+    if (request.method === "GET" && romaniaOnboardingScreen) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
         method: "GET",
         cookie: request.headers.cookie
@@ -193,7 +265,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
             cookie: request.headers.cookie,
             locale: url.searchParams.get("locale"),
             organizationId: session.body.session.activeOrganizationId
-          })
+          }),
+          {
+            screen: romaniaOnboardingScreen
+          }
         )
       );
       return;
@@ -204,6 +279,154 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+
+    if (request.method === "POST" && url.pathname === "/providers/microsoft365/connect") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const begin = await apiJson<Microsoft365ConsentBeginWebResponse>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/provider-connections/microsoft365/consent/begin`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {
+            redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
+            requestedPermissionBundles: ["m365_read_baseline"]
+          }
+        }
+      );
+
+      if (begin.statusCode !== 201 || !begin.body.url) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Microsoft 365 Connector Not Started",
+            summary: "The Microsoft 365 connector app registration is not configured or the current user cannot manage provider connections.",
+            statusLabel: "Connector blocked",
+            statusTone: "warning",
+            actionHref: "/#microsoft365",
+            actionLabel: "Return to Microsoft 365"
+          }),
+          begin.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader("location", begin.body.url);
+      response.end();
+      return;
+    }
+
+    if (
+      (request.method === "GET" || request.method === "POST") &&
+      url.pathname === "/providers/microsoft365/callback"
+    ) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to complete Microsoft 365 tenant consent."
+          }),
+          401
+        );
+        return;
+      }
+
+      const callbackInput =
+        request.method === "GET"
+          ? Object.fromEntries(url.searchParams.entries())
+          : Object.fromEntries((await readFormBody(request)).entries());
+      const completed = await apiJson<unknown>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/provider-connections/microsoft365/consent/callback`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {
+            ...callbackInput,
+            redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin)
+          }
+        }
+      );
+
+      if (completed.statusCode !== 201) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Microsoft 365 Consent Not Completed",
+            summary: "The callback did not match the active workspace session or Microsoft did not grant admin consent.",
+            statusLabel: "Consent blocked",
+            statusTone: "warning",
+            actionHref: "/#microsoft365",
+            actionLabel: "Return to Microsoft 365"
+          }),
+          completed.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader("location", "/#microsoft365");
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/providers/microsoft365/sync") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const form = await readFormBody(request);
+      const providerConnectionId = optionalFormValue(form.get("providerConnectionId"));
+      if (!providerConnectionId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/#microsoft365");
+        response.end();
+        return;
+      }
+
+      await apiJson<unknown>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/provider-connections/${encodeURIComponent(providerConnectionId)}/microsoft365/sync`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {}
+        }
+      );
+
+      response.statusCode = 303;
+      response.setHeader("location", "/#microsoft365");
+      response.end();
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/auth/email/verify") {
       const form = await readFormBody(request);
@@ -587,7 +810,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/onboarding/romania?locale=ro-RO&message=${encodeURIComponent("Workspace created and selected.")}`
+        `/onboarding/romania/company?locale=ro-RO&message=${encodeURIComponent("Workspace created and selected.")}`
       );
       response.end();
       return;
@@ -615,7 +838,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         request
       });
       response.statusCode = 303;
-      response.setHeader("location", `/onboarding/romania?locale=ro-RO&message=${encodeURIComponent(actionResult.message)}`);
+      response.setHeader(
+        "location",
+        `${romaniaOnboardingPath(actionResult.screen ?? "outputs")}?locale=ro-RO&message=${encodeURIComponent(actionResult.message)}`
+      );
       response.end();
       return;
     }
@@ -687,7 +913,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
             summary: "This workspace does not have a dashboard snapshot yet. Open the Romania workflow, save answers, then evaluate readiness to create one.",
             statusLabel: "API connected",
             statusTone: "warning",
-            actionHref: "/onboarding/romania?locale=ro-RO",
+          actionHref: "/onboarding/romania/company?locale=ro-RO",
             actionLabel: "Open Romania workflow"
           }),
           dashboard.statusCode === 404 ? 404 : 200
@@ -701,7 +927,13 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           createOperationalConsoleRuntimeModel({
             session: session.body,
             dashboard: dashboard.body.snapshot,
-            organization: await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body)
+            organization: await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body),
+            microsoft365: await loadMicrosoft365HealthSurface({
+              apiBaseUrl,
+              cookie: request.headers.cookie,
+              organizationId: activeOrganizationId,
+              generatedAt: dashboard.body.snapshot.generatedAt
+            })
           })
         )
       );
@@ -928,6 +1160,140 @@ const resolveActiveOrganizationSurface = async (
   };
 };
 
+const loadMicrosoft365HealthSurface = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+  generatedAt: string;
+  organizationId: string;
+}): Promise<Microsoft365HealthSurface> => {
+  const connections = await apiJson<ProviderConnectionListResponse>(
+    input.apiBaseUrl,
+    `/organizations/${encodeURIComponent(input.organizationId)}/provider-connections`,
+    {
+      method: "GET",
+      cookie: input.cookie
+    }
+  );
+  if (connections.statusCode !== 200) {
+    return disconnectedMicrosoft365Surface(input.generatedAt);
+  }
+
+  const connection = connections.body.connections.find((item) => item.providerKey === "microsoft365");
+  if (!connection) {
+    return disconnectedMicrosoft365Surface(input.generatedAt);
+  }
+
+  const health = await apiJson<Microsoft365HealthWebResponse>(
+    input.apiBaseUrl,
+    `/organizations/${encodeURIComponent(input.organizationId)}/provider-connections/${encodeURIComponent(connection.id)}/health`,
+    {
+      method: "GET",
+      cookie: input.cookie
+    }
+  );
+  if (health.statusCode !== 200) {
+    return {
+      providerConnectionId: connection.id,
+      status: "attention",
+      tenantDisplayName: connection.externalTenantName ?? connection.displayName,
+      tenantId: connection.externalTenantId ?? "tenant pending",
+      lastSyncAt: connection.lastSuccessfulSyncAt ?? input.generatedAt,
+      permissionBundles: ["health route unavailable"],
+      writeEnabled: connection.writeEnabled,
+      connectorMode: "tenant_oauth_provider_connection",
+      modules: [
+        {
+          moduleKey: "provider.health",
+          label: "Provider health",
+          status: "attention",
+          coverage: "Provider connection exists, but module health was not returned by the API.",
+          sourceQuery: "provider_connection_health:error"
+        }
+      ]
+    };
+  }
+
+  return {
+    providerConnectionId: health.body.connection.id,
+    status: providerStatusToOperationalStatus(health.body.status),
+    tenantDisplayName: health.body.connection.externalTenantName ?? health.body.connection.displayName,
+    tenantId: health.body.connection.externalTenantId ?? "tenant pending",
+    lastSyncAt: health.body.connection.lastSuccessfulSyncAt ?? input.generatedAt,
+    permissionBundles:
+      health.body.permissionBundles.length > 0
+        ? health.body.permissionBundles.map((bundle) => `${bundle.bundleKey}${bundle.enabled ? "" : " missing"}`)
+        : ["permission bundles pending"],
+    writeEnabled: health.body.connection.writeEnabled,
+    connectorMode: "tenant_oauth_provider_connection",
+    modules: microsoft365ModulesForHealth(health.body)
+  };
+};
+
+const microsoft365ModulesForHealth = (health: Microsoft365HealthWebResponse): Microsoft365ModuleSurface[] => {
+  if (health.moduleStatuses.length > 0) {
+    return health.moduleStatuses.map((module) => ({
+      moduleKey: module.moduleKey,
+      label: microsoft365ModuleLabel(module.moduleKey),
+      status: providerStatusToOperationalStatus(module.status),
+      coverage: module.statusReason ?? microsoft365ModuleCoverage(module),
+      lastSyncAt: module.completedAt,
+      sourceQuery: `provider_sync_modules:${module.moduleKey},latest`
+    }));
+  }
+
+  return health.capabilities.length > 0
+    ? health.capabilities.map((capability) => ({
+        moduleKey: capability.moduleKey,
+        label: microsoft365ModuleLabel(capability.moduleKey),
+        status: providerStatusToOperationalStatus(capability.status),
+        coverage: capability.statusReason ?? "Capability recorded before the first module sync.",
+        sourceQuery: `provider_capabilities:${capability.moduleKey}`
+      }))
+    : [
+        {
+          moduleKey: "provider.connection",
+          label: "Provider connection",
+          status: providerStatusToOperationalStatus(health.status),
+          coverage: "Tenant consent is stored. Run a read-only sync to populate module health.",
+          sourceQuery: "provider_connections:microsoft365"
+        }
+      ];
+};
+
+const microsoft365ModuleCoverage = (module: Microsoft365HealthWebResponse["moduleStatuses"][number]): string => {
+  if (module.missingPermissions && module.missingPermissions.length > 0) {
+    return `Missing permissions: ${module.missingPermissions.join(", ")}`;
+  }
+  if (module.missingLicenses && module.missingLicenses.length > 0) {
+    return `Missing licenses: ${module.missingLicenses.join(", ")}`;
+  }
+  return "Latest read-only connector module status.";
+};
+
+const microsoft365ModuleLabel = (moduleKey: string): string =>
+  moduleKey
+    .split(/[-_.]/)
+    .filter(Boolean)
+    .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
+    .join(" ");
+
+const providerStatusToOperationalStatus = (status: string): OperationalStatus => {
+  if (status === "connected" || status === "succeeded") {
+    return "ready";
+  }
+  if (status === "pending" || status === "running") {
+    return "in_progress";
+  }
+  if (status === "revoked" || status === "failed" || status === "revoked_consent") {
+    return "blocked";
+  }
+  return "attention";
+};
+
+const microsoft365WebCallbackRedirectUri = (requestOrigin: string): string =>
+  process.env.PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI?.trim() ||
+  `${requestOrigin}/providers/microsoft365/callback`;
+
 const loadRomaniaOnboardingRouteModel = async (input: {
   actionMessage?: string | null;
   apiBaseUrl: string;
@@ -995,9 +1361,11 @@ const handleRomaniaWorkflowPost = async (input: {
   origin: string;
   path: string;
   request: AsyncIterable<Buffer>;
-}): Promise<{ message: string }> => {
+}): Promise<{ message: string; screen?: RomaniaOnboardingScreen }> => {
   if (input.path === "/onboarding/romania/save") {
     const form = await readFormBody(input.request);
+    const state = await loadRoState(input);
+    const existingAnswers = isRecord(state.progress?.answers) ? state.progress.answers : {};
     const saved = await apiJson<unknown>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/ro/onboarding`,
@@ -1006,11 +1374,15 @@ const handleRomaniaWorkflowPost = async (input: {
         cookie: input.cookie,
         origin: input.origin,
         body: {
-          answers: formToRomaniaAnswers(form)
+          answers: formToRomaniaAnswers(form, existingAnswers)
         }
       }
     );
-    return { message: messageForRomaniaAction(input.path, saved.statusCode) };
+    const nextScreen = form.get("nextScreen");
+    return {
+      message: messageForRomaniaAction(input.path, saved.statusCode),
+      screen: isRomaniaOnboardingScreen(nextScreen) ? nextScreen : "company"
+    };
   }
 
   if (input.path === "/onboarding/romania/classify") {
@@ -1024,7 +1396,7 @@ const handleRomaniaWorkflowPost = async (input: {
         body: {}
       }
     );
-    return { message: messageForRomaniaAction(input.path, classified.statusCode) };
+    return { message: messageForRomaniaAction(input.path, classified.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/notification-draft") {
@@ -1040,14 +1412,14 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
-    return { message: messageForRomaniaAction(input.path, draft.statusCode) };
+    return { message: messageForRomaniaAction(input.path, draft.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/evaluate") {
     const state = await loadRoState(input);
     const assessmentId = state.progress?.assessmentId;
     if (!assessmentId) {
-      return { message: "Save Romania onboarding progress before evaluating readiness." };
+      return { message: "Save Romania onboarding progress before evaluating readiness.", screen: "outputs" };
     }
     const evaluated = await apiJson<unknown>(input.apiBaseUrl, `/organizations/${encodeURIComponent(input.organizationId)}/compliance/evaluate`, {
       method: "POST",
@@ -1076,7 +1448,7 @@ const handleRomaniaWorkflowPost = async (input: {
     if (apiSucceeded(evaluated.statusCode)) {
       await createDashboardSnapshot(input, assessmentId);
     }
-    return { message: messageForRomaniaAction(input.path, evaluated.statusCode) };
+    return { message: messageForRomaniaAction(input.path, evaluated.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/evidence") {
@@ -1102,13 +1474,13 @@ const handleRomaniaWorkflowPost = async (input: {
     if (apiSucceeded(uploaded.statusCode) && state.progress?.assessmentId) {
       await createDashboardSnapshot(input, state.progress.assessmentId);
     }
-    return { message: messageForRomaniaAction(input.path, uploaded.statusCode) };
+    return { message: messageForRomaniaAction(input.path, uploaded.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/reports/internal-readiness") {
     const state = await loadRoState(input);
     if (!state.progress?.assessmentId) {
-      return { message: "Evaluate readiness before generating the internal readiness export." };
+      return { message: "Evaluate readiness before generating the internal readiness export.", screen: "outputs" };
     }
     const report = await apiJson<unknown>(
       input.apiBaseUrl,
@@ -1122,14 +1494,14 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
-    return { message: messageForRomaniaAction(input.path, report.statusCode) };
+    return { message: messageForRomaniaAction(input.path, report.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/reports/notification-draft") {
     const state = await loadRoState(input);
     const reportBody = notificationDraftReportBody(input.organizationId, state);
     if (!reportBody) {
-      return { message: "Generate a Romania notification draft before exporting it." };
+      return { message: "Generate a Romania notification draft before exporting it.", screen: "outputs" };
     }
     const report = await apiJson<unknown>(
       input.apiBaseUrl,
@@ -1141,7 +1513,7 @@ const handleRomaniaWorkflowPost = async (input: {
         body: reportBody
       }
     );
-    return { message: messageForRomaniaAction(input.path, report.statusCode) };
+    return { message: messageForRomaniaAction(input.path, report.statusCode), screen: "outputs" };
   }
 
   if (input.path === "/onboarding/romania/audit/checkpoint") {
@@ -1151,10 +1523,10 @@ const handleRomaniaWorkflowPost = async (input: {
       origin: input.origin,
       body: {}
     });
-    return { message: messageForRomaniaAction(input.path, checkpoint.statusCode) };
+    return { message: messageForRomaniaAction(input.path, checkpoint.statusCode), screen: "outputs" };
   }
 
-  return { message: "Romania readiness action is not available." };
+  return { message: "Romania readiness action is not available.", screen: "outputs" };
 };
 
 const loadRoState = async (input: {
@@ -1171,7 +1543,13 @@ const loadRoState = async (input: {
     }
   );
 
-  return state.body;
+  return state.statusCode === 200
+    ? state.body
+    : {
+        classificationRun: null,
+        latestNotificationDraft: null,
+        progress: null
+      };
 };
 
 const createDashboardSnapshot = async (
@@ -1194,82 +1572,106 @@ const createDashboardSnapshot = async (
   });
 };
 
-const formToRomaniaAnswers = (form: URLSearchParams): Record<string, unknown> => {
+const formToRomaniaAnswers = (form: URLSearchParams, existingAnswers: Record<string, unknown>): Record<string, unknown> => {
+  const answers = cloneAnswerRecord(existingAnswers);
   const employeeCount = Number(form.get("employeeCount") ?? "");
   const annualTurnoverEur = Number(form.get("annualTurnoverEur") ?? "");
   const balanceSheetTotalEur = Number(form.get("balanceSheetTotalEur") ?? "");
   const serviceCodes = form.getAll("serviceCodes").filter((value) => value.length > 0);
   const legacyServiceCode = optionalFormValue(form.get("serviceCode"));
 
-  return {
-    activity: {
-      mainNaceCode: optionalFormValue(form.get("mainNaceCode")),
-      secondaryNaceCodes: splitList(optionalFormValue(form.get("secondaryNaceCodes")))
-    },
-    address: {
-      city: optionalFormValue(form.get("city")),
-      country: optionalFormValue(form.get("country")),
-      county: optionalFormValue(form.get("county")),
-      number: optionalFormValue(form.get("number")),
-      postalCode: optionalFormValue(form.get("postalCode")),
-      street: optionalFormValue(form.get("street"))
-    },
-    article9: {
-      nationalOrRegionalCriticality: form.get("nationalOrRegionalCriticality") === "true",
-      publicSafetySecurityOrHealthImpact: optionalFormValue(form.get("publicSafetySecurityOrHealthImpact")) ?? undefined,
-      soleProviderEssentialService: form.get("soleProviderEssentialService") === "true",
-      systemicRisk: optionalFormValue(form.get("systemicRisk")) ?? undefined
-    },
-    attachedDocumentIds: splitList(optionalFormValue(form.get("attachedDocumentIds"))),
-    contact: {
-      email: optionalFormValue(form.get("email")),
-      mobilePhone: optionalFormValue(form.get("mobilePhone")),
-      phone: optionalFormValue(form.get("phone")),
-      websiteUrl: optionalFormValue(form.get("websiteUrl"))
-    },
-    cybersecurityResponsible: {
-      email: optionalFormValue(form.get("cybersecurityEmail")),
-      name: optionalFormValue(form.get("cybersecurityName")),
-      phone: optionalFormValue(form.get("cybersecurityPhone")),
-      role: optionalFormValue(form.get("cybersecurityRole"))
-    },
-    entity: {
-      cui: optionalFormValue(form.get("cui")),
-      legalName: optionalFormValue(form.get("legalName")),
-      nationalRegistrationNumber: optionalFormValue(form.get("nationalRegistrationNumber"))
-    },
-    legalRepresentative: {
-      email: optionalFormValue(form.get("legalRepresentativeEmail")),
-      name: optionalFormValue(form.get("legalRepresentativeName")),
-      phone: optionalFormValue(form.get("legalRepresentativePhone")),
-      role: optionalFormValue(form.get("legalRepresentativeRole"))
-    },
-    network: {
-      publicIpRanges: splitList(optionalFormValue(form.get("publicIpRanges"))),
-      systemsDescription: optionalFormValue(form.get("systemsDescription"))
-    },
-    permanentMonitoringContact: {
-      email: optionalFormValue(form.get("monitoringEmail")),
-      name: optionalFormValue(form.get("monitoringName")),
-      phone: optionalFormValue(form.get("monitoringPhone")),
-      role: optionalFormValue(form.get("monitoringRole"))
-    },
-    relationship: {
-      criticalEntityInRomaniaLaw294: form.get("criticalEntityInRomaniaLaw294") === "true",
-      establishedInRomania: form.get("establishedInRomania") === "true",
-      mainOfficeInRomania: form.get("mainOfficeInRomania") === "true",
-      providesServicesInAnotherEuMemberState: form.get("providesServicesInAnotherEuMemberState") === "true",
-      providesServicesInRomania: form.get("providesServicesInRomania") === "true",
-      publicAdministrationEstablishedByRomania: form.get("publicAdministrationEstablishedByRomania") === "true"
-    },
-    selectedServiceTypeCodes: serviceCodes.length > 0 ? serviceCodes : [legacyServiceCode].filter(Boolean),
-    size: {
-      annualTurnoverEur: Number.isFinite(annualTurnoverEur) && annualTurnoverEur > 0 ? annualTurnoverEur : undefined,
-      balanceSheetTotalEur: Number.isFinite(balanceSheetTotalEur) && balanceSheetTotalEur > 0 ? balanceSheetTotalEur : undefined,
-      employeeCount: Number.isFinite(employeeCount) && employeeCount > 0 ? employeeCount : undefined,
-      sizeCategory: optionalFormValue(form.get("sizeCategory"))
+  setStringIfPresent(answers, form, "mainNaceCode", "activity.mainNaceCode");
+  setListIfPresent(answers, form, "secondaryNaceCodes", "activity.secondaryNaceCodes");
+  setStringIfPresent(answers, form, "city", "address.city");
+  setStringIfPresent(answers, form, "country", "address.country");
+  setStringIfPresent(answers, form, "county", "address.county");
+  setStringIfPresent(answers, form, "number", "address.number");
+  setStringIfPresent(answers, form, "postalCode", "address.postalCode");
+  setStringIfPresent(answers, form, "street", "address.street");
+  setBooleanIfPresent(answers, form, "nationalOrRegionalCriticality", "article9.nationalOrRegionalCriticality");
+  setStringIfPresent(answers, form, "publicSafetySecurityOrHealthImpact", "article9.publicSafetySecurityOrHealthImpact");
+  setBooleanIfPresent(answers, form, "soleProviderEssentialService", "article9.soleProviderEssentialService");
+  setStringIfPresent(answers, form, "systemicRisk", "article9.systemicRisk");
+  setListIfPresent(answers, form, "attachedDocumentIds", "attachedDocumentIds");
+  setStringIfPresent(answers, form, "email", "contact.email");
+  setStringIfPresent(answers, form, "mobilePhone", "contact.mobilePhone");
+  setStringIfPresent(answers, form, "phone", "contact.phone");
+  setStringIfPresent(answers, form, "websiteUrl", "contact.websiteUrl");
+  setStringIfPresent(answers, form, "cybersecurityEmail", "cybersecurityResponsible.email");
+  setStringIfPresent(answers, form, "cybersecurityName", "cybersecurityResponsible.name");
+  setStringIfPresent(answers, form, "cybersecurityPhone", "cybersecurityResponsible.phone");
+  setStringIfPresent(answers, form, "cybersecurityRole", "cybersecurityResponsible.role");
+  setStringIfPresent(answers, form, "cui", "entity.cui");
+  setStringIfPresent(answers, form, "legalName", "entity.legalName");
+  setStringIfPresent(answers, form, "nationalRegistrationNumber", "entity.nationalRegistrationNumber");
+  setStringIfPresent(answers, form, "legalRepresentativeEmail", "legalRepresentative.email");
+  setStringIfPresent(answers, form, "legalRepresentativeName", "legalRepresentative.name");
+  setStringIfPresent(answers, form, "legalRepresentativePhone", "legalRepresentative.phone");
+  setStringIfPresent(answers, form, "legalRepresentativeRole", "legalRepresentative.role");
+  setListIfPresent(answers, form, "publicIpRanges", "network.publicIpRanges");
+  setStringIfPresent(answers, form, "systemsDescription", "network.systemsDescription");
+  setStringIfPresent(answers, form, "monitoringEmail", "permanentMonitoringContact.email");
+  setStringIfPresent(answers, form, "monitoringName", "permanentMonitoringContact.name");
+  setStringIfPresent(answers, form, "monitoringPhone", "permanentMonitoringContact.phone");
+  setStringIfPresent(answers, form, "monitoringRole", "permanentMonitoringContact.role");
+  setBooleanIfPresent(answers, form, "criticalEntityInRomaniaLaw294", "relationship.criticalEntityInRomaniaLaw294");
+  setBooleanIfPresent(answers, form, "establishedInRomania", "relationship.establishedInRomania");
+  setBooleanIfPresent(answers, form, "mainOfficeInRomania", "relationship.mainOfficeInRomania");
+  setBooleanIfPresent(answers, form, "providesServicesInAnotherEuMemberState", "relationship.providesServicesInAnotherEuMemberState");
+  setBooleanIfPresent(answers, form, "providesServicesInRomania", "relationship.providesServicesInRomania");
+  setBooleanIfPresent(answers, form, "publicAdministrationEstablishedByRomania", "relationship.publicAdministrationEstablishedByRomania");
+  if (form.has("serviceCodes") || form.has("serviceCode")) {
+    setPath(answers, "selectedServiceTypeCodes", serviceCodes.length > 0 ? serviceCodes : [legacyServiceCode].filter(Boolean));
+  }
+  if (form.has("annualTurnoverEur")) {
+    setPath(answers, "size.annualTurnoverEur", Number.isFinite(annualTurnoverEur) && annualTurnoverEur > 0 ? annualTurnoverEur : undefined);
+  }
+  if (form.has("balanceSheetTotalEur")) {
+    setPath(answers, "size.balanceSheetTotalEur", Number.isFinite(balanceSheetTotalEur) && balanceSheetTotalEur > 0 ? balanceSheetTotalEur : undefined);
+  }
+  if (form.has("employeeCount")) {
+    setPath(answers, "size.employeeCount", Number.isFinite(employeeCount) && employeeCount > 0 ? employeeCount : undefined);
+  }
+  setStringIfPresent(answers, form, "sizeCategory", "size.sizeCategory");
+
+  return answers;
+};
+
+const cloneAnswerRecord = (value: Record<string, unknown>): Record<string, unknown> =>
+  JSON.parse(JSON.stringify(value)) as Record<string, unknown>;
+
+const setStringIfPresent = (answers: Record<string, unknown>, form: URLSearchParams, field: string, path: string): void => {
+  if (form.has(field)) {
+    setPath(answers, path, optionalFormValue(form.get(field)) ?? undefined);
+  }
+};
+
+const setListIfPresent = (answers: Record<string, unknown>, form: URLSearchParams, field: string, path: string): void => {
+  if (form.has(field)) {
+    setPath(answers, path, splitList(optionalFormValue(form.get(field))));
+  }
+};
+
+const setBooleanIfPresent = (answers: Record<string, unknown>, form: URLSearchParams, field: string, path: string): void => {
+  if (form.has(field)) {
+    setPath(answers, path, form.getAll(field).includes("true"));
+  }
+};
+
+const setPath = (target: Record<string, unknown>, path: string, value: unknown): void => {
+  const parts = path.split(".");
+  let cursor: Record<string, unknown> = target;
+  for (const part of parts.slice(0, -1)) {
+    const existing = cursor[part];
+    if (!isRecord(existing)) {
+      cursor[part] = {};
     }
-  };
+    cursor = cursor[part] as Record<string, unknown>;
+  }
+  const leaf = parts.at(-1);
+  if (leaf) {
+    cursor[leaf] = value;
+  }
 };
 
 const splitList = (value: string | null): string[] =>

@@ -108,9 +108,9 @@ describe("external smoke readiness", () => {
       PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: "true",
       PURESOC_EXTERNAL_SMOKE_MICROSOFT365: "true",
       PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
-      MICROSOFT365_CLIENT_ID: "client-id",
-      MICROSOFT365_CLIENT_SECRET: "client-secret",
-      MICROSOFT365_TENANT_ID: "tenant-id"
+      PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "client-id",
+      PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "client-secret",
+      PURESOC_MICROSOFT365_SMOKE_TENANT_ID: "tenant-id"
     });
 
     const microsoft365 = report.checks.find((check) => check.id === "microsoft365_read_only_tenant");

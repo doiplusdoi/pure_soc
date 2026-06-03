@@ -68,9 +68,11 @@ describe("loadConfig", () => {
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([]);
     expect(config.connectors.microsoft365).toEqual({
       enabled: false,
+      writeScopesAllowed: false,
       clientId: "",
       clientSecret: "",
-      writeScopesAllowed: false
+      authorityHost: "https://login.microsoftonline.com",
+      redirectUri: ""
     });
     expect(config.compliance.sourceMonitor).toEqual({
       enabled: false,
@@ -164,8 +166,12 @@ describe("loadConfig", () => {
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false",
-        PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED: "true",
+        PURESOC_CONNECTOR_MICROSOFT365_ENABLED: "false",
+        PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false",
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "connector-app-id",
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "connector-app-secret",
+        PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: "https://login.microsoftonline.com",
+        PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: "https://app.example.test/providers/microsoft365/callback",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_BUCKET: "evidence-test",
@@ -264,9 +270,11 @@ describe("loadConfig", () => {
     ]);
     expect(config.connectors.microsoft365).toEqual({
       enabled: false,
-      clientId: "",
-      clientSecret: "",
-      writeScopesAllowed: true
+      writeScopesAllowed: false,
+      clientId: "connector-app-id",
+      clientSecret: "connector-app-secret",
+      authorityHost: "https://login.microsoftonline.com",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback"
     });
     expect(config.billing.provider).toBe("stripe");
     expect(config.audit).toEqual({
@@ -507,7 +515,9 @@ describe("loadConfig", () => {
       enabled: true,
       clientId: "configured-client-id",
       clientSecret: "configured-client-secret",
-      writeScopesAllowed: false
+      writeScopesAllowed: false,
+      authorityHost: "https://login.microsoftonline.com",
+      redirectUri: ""
     });
   });
 

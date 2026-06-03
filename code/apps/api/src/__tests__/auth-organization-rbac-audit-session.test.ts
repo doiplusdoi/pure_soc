@@ -1,8 +1,12 @@
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { loadConfig } from "@puresoc/config";
 import {
+  createDefaultEmailVerificationDelivery,
   createApiServices,
   InMemoryEmailVerificationDelivery,
   InMemoryOrganizationInvitationDelivery
@@ -483,6 +487,82 @@ describe("auth organization rbac audit session integration", () => {
     const serializedAudit = JSON.stringify(services.auditSink.records);
     expect(services.auditSink.findByAction("email_verified")).toHaveLength(1);
     expect(serializedAudit).not.toContain(delivery.plaintextToken);
+  });
+
+  it("can deliver verification tokens to an explicit local development file sink", async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+
+    const deliveryDirectory = mkdtempSync(join(tmpdir(), "puresoc-email-delivery-"));
+    const deliveryFile = join(deliveryDirectory, "verification.jsonl");
+    const config = loadConfig({
+      env: {
+        PURESOC_APP_ENV: "development"
+      }
+    });
+
+    try {
+      services = createApiServices({
+        config,
+        emailVerificationDelivery: createDefaultEmailVerificationDelivery(config, {
+          PURESOC_AUTH_DEV_EMAIL_DELIVERY_FILE: deliveryFile
+        }),
+        now: () => new Date("2026-04-28T12:00:00.000Z")
+      });
+      server = startApiServer(0, services);
+      const address = server.address() as AddressInfo;
+      baseUrl = `http://127.0.0.1:${address.port}`;
+
+      const registrationResponse = await postJson("/auth/register", {
+        email: "dev-file-token@example.test",
+        password,
+        displayName: "Dev File Token"
+      });
+      expect(registrationResponse.status).toBe(201);
+      const registrationText = await registrationResponse.text();
+
+      const deliveryLines = readFileSync(deliveryFile, "utf8").trim().split("\n");
+      expect(deliveryLines).toHaveLength(1);
+      const delivery = JSON.parse(deliveryLines[0] ?? "{}") as {
+        kind: string;
+        email: string;
+        plaintextToken: string;
+        expiresAt: string;
+      };
+      expect(delivery).toMatchObject({
+        kind: "email_verification",
+        email: "dev-file-token@example.test",
+        expiresAt: "2026-04-29T12:00:00.000Z"
+      });
+      expect(delivery.plaintextToken).toEqual(expect.any(String));
+      expect(registrationText).not.toContain(delivery.plaintextToken);
+
+      const verificationResponse = await postJson("/auth/email/verify", {
+        token: delivery.plaintextToken
+      });
+      expect(verificationResponse.status).toBe(200);
+
+      const serializedAudit = JSON.stringify(services.auditSink.records);
+      expect(serializedAudit).not.toContain(delivery.plaintextToken);
+    } finally {
+      rmSync(deliveryDirectory, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects local development file delivery outside development config", () => {
+    expect(() =>
+      createDefaultEmailVerificationDelivery(
+        loadConfig({
+          env: {
+            PURESOC_APP_ENV: "production"
+          }
+        }),
+        {
+          PURESOC_AUTH_DEV_EMAIL_DELIVERY_FILE: "/tmp/puresoc-email-delivery.jsonl"
+        }
+      )
+    ).toThrow(/only supported/);
   });
 
   it("sets Secure on session cookies when configured", async () => {

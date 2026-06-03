@@ -162,8 +162,8 @@ export PURESOC_EXTERNAL_SMOKE_TARGET_KIND=disposable
 export PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
 export PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true
 
-export MICROSOFT365_CLIENT_ID="<test-app-client-id>"
-export MICROSOFT365_CLIENT_SECRET="<test-app-client-secret>"
+export PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID="<test-app-client-id>"
+export PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET="<test-app-client-secret>"
 export PURESOC_MICROSOFT365_SMOKE_TENANT_ID="<test-tenant-id>"
 
 export PURESOC_PROVIDER_TOKEN_KEY_ID="m365-smoke-local"
@@ -248,8 +248,8 @@ Do not treat one successful smoke as production readiness. Before broader produc
 
 | Symptom | Likely cause | Action |
 |---|---|---|
-| `microsoft365_client_id_missing` | Client ID env missing. | Set `MICROSOFT365_CLIENT_ID`. |
-| `microsoft365_client_secret_missing` | Secret env missing. | Set `MICROSOFT365_CLIENT_SECRET` from a disposable app credential. |
+| `microsoft365_client_id_missing` | Connector app client ID env missing. | Set `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID`. |
+| `microsoft365_client_secret_missing` | Connector app secret env missing. | Set `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET` from a disposable app credential. |
 | `microsoft365_tenant_id_missing` | Tenant ID env missing. | Set `PURESOC_MICROSOFT365_SMOKE_TENANT_ID`. |
 | `readiness_status_not_ready` | Selector/readiness did not approve target. | Fix blockers before running the live command. |
 | `external_smoke_disposable_target_not_confirmed` | Missing safe target kind or confirmation. | Set safe target kind and confirmation only for approved test targets. |

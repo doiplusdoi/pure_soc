@@ -71,12 +71,17 @@ export interface Microsoft365ProviderConnectionServiceOptions {
   stateFactory?: () => string;
   tokenCipher?: Microsoft365TokenCipher;
   tokenCipherFactory?: () => Microsoft365TokenCipher;
-  clientId?: string;
-  clientSecret?: string;
+  connectorApp?: Microsoft365ConnectorAppConfig;
   createConnector?: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
   }) => CloudProviderConnector;
+}
+
+export interface Microsoft365ConnectorAppConfig {
+  clientId: string;
+  clientSecret?: string;
+  authorityHost?: string;
 }
 
 interface PendingConsentState {
@@ -110,14 +115,14 @@ export class Microsoft365ProviderConnectionService {
     this.stateFactory = options.stateFactory ?? randomUUID;
     this.tokenCipher = options.tokenCipher;
     this.tokenCipherFactory = options.tokenCipherFactory ?? defaultTokenCipher;
-    const clientId = options.clientId ?? process.env.MICROSOFT365_CLIENT_ID ?? process.env.M365_CLIENT_ID ?? "";
-    const clientSecret = options.clientSecret ?? process.env.MICROSOFT365_CLIENT_SECRET ?? process.env.M365_CLIENT_SECRET;
+    const connectorApp = options.connectorApp ?? { clientId: "" };
     this.createConnector =
       options.createConnector ??
       ((input) =>
         createMicrosoft365Connector({
-          clientId,
-          clientSecret,
+          clientId: connectorApp.clientId,
+          clientSecret: connectorApp.clientSecret,
+          authorityHost: connectorApp.authorityHost,
           credentialResolver: input.credentialResolver,
           tokenCipher: input.tokenCipher
         }));

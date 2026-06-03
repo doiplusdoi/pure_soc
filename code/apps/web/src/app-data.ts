@@ -128,12 +128,15 @@ export interface CountryPackSurface {
 }
 
 export interface Microsoft365HealthSurface {
+  providerConnectionId?: string | null;
   status: OperationalStatus;
   tenantDisplayName: string;
   tenantId: string;
   lastSyncAt: string;
   permissionBundles: string[];
   modules: Microsoft365ModuleSurface[];
+  writeEnabled: boolean;
+  connectorMode: string;
 }
 
 export interface Microsoft365ModuleSurface {
@@ -451,22 +454,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         sourceReferences: [roRegistrationSource]
       }
     },
-    microsoft365: {
-      status: "not_configured",
-      tenantDisplayName: "Microsoft 365 provider disabled",
-      tenantId: "optional connector",
-      lastSyncAt: "not configured",
-      permissionBundles: ["provider not configured"],
-      modules: [
-        {
-          moduleKey: "provider.disabled",
-          label: "Optional provider onboarding",
-          status: "not_configured",
-          coverage: "Basic Romania/local readiness does not require Microsoft 365 setup.",
-          sourceQuery: "connectors.microsoft365.enabled:false"
-        }
-      ]
-    },
+    microsoft365: disconnectedMicrosoft365Surface(generatedAt),
     gaps: [
       {
         controlId: "nis2.access-control.mfa",
@@ -548,6 +536,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
     primaryCountryCode?: string | null;
     subscriptionStatus?: string | null;
   };
+  microsoft365?: Microsoft365HealthSurface;
 }): OperationalConsoleModel => {
   const base = createOperationalConsoleDemoModel();
   const organizationId = input.session.session.activeOrganizationId ?? input.organization?.id ?? "unknown";
@@ -596,22 +585,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
         sourceReferences: [roRegistrationSource]
       }
     },
-    microsoft365: {
-      status: "not_configured",
-      tenantDisplayName: "Microsoft 365 provider disabled",
-      tenantId: "optional connector",
-      lastSyncAt: "not configured",
-      permissionBundles: ["provider not configured"],
-      modules: [
-        {
-          moduleKey: "provider.disabled",
-          label: "Optional provider onboarding",
-          status: "not_configured",
-          coverage: "Basic Romania/local readiness does not require Microsoft 365 setup.",
-          sourceQuery: "connectors.microsoft365.enabled:false"
-        }
-      ]
-    },
+    microsoft365: input.microsoft365 ?? disconnectedMicrosoft365Surface(input.dashboard.generatedAt),
     gaps: [],
     recommendations: [],
     evidence: [],
@@ -620,6 +594,26 @@ export const createOperationalConsoleRuntimeModel = (input: {
     legalCaveat: PURESOC_LEGAL_CAVEAT
   };
 };
+
+export const disconnectedMicrosoft365Surface = (generatedAt: string): Microsoft365HealthSurface => ({
+  providerConnectionId: null,
+  status: "attention",
+  tenantDisplayName: "No Microsoft 365 provider connected",
+  tenantId: "tenant OAuth not connected",
+  lastSyncAt: generatedAt,
+  permissionBundles: ["tenant OAuth consent required"],
+  writeEnabled: false,
+  connectorMode: "provider_connection_oauth",
+  modules: [
+    {
+      moduleKey: "provider.connection",
+      label: "Provider connection",
+      status: "attention",
+      coverage: "Start tenant admin consent from this workspace before Microsoft Graph reads can run.",
+      sourceQuery: "provider_connections:none"
+    }
+  ]
+});
 
 export interface RomaniaOnboardingRouteInput {
   actionMessage?: string | null;

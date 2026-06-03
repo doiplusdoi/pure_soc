@@ -350,7 +350,7 @@ a {
 
 .ps-route-hero__body {
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(16rem, 0.65fr);
+  grid-template-columns: minmax(0, 1.45fr) minmax(18rem, 0.55fr);
   gap: 1rem;
   padding: 1rem;
 }
@@ -376,6 +376,36 @@ a {
   color: var(--ps-color-muted);
 }
 
+.ps-route-hero__summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+  margin-top: 0.9rem;
+}
+
+.ps-route-hero__fact-card,
+.ps-route-hero__guardrails {
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-md);
+  background: var(--ps-color-panel-subtle);
+  padding: 0.75rem;
+}
+
+.ps-route-hero__fact-kicker {
+  display: block;
+  margin-bottom: 0.35rem;
+  color: var(--ps-color-muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.ps-route-hero__fact-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.96rem;
+  line-height: 1.25;
+}
+
 .ps-route-hero__facts {
   display: grid;
   gap: 0.5rem;
@@ -387,6 +417,60 @@ a {
   flex-wrap: wrap;
   gap: 0.5rem;
   margin-top: 0.85rem;
+}
+
+.ps-plain-list {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0.65rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ps-plain-list li {
+  border-top: 1px solid var(--ps-color-border);
+  padding-top: 0.45rem;
+}
+
+.ps-route-tabs {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.5rem;
+  border-top: 1px solid var(--ps-color-border);
+  padding: 0.85rem 1rem 1rem;
+}
+
+.ps-route-tabs__link {
+  min-height: 4.5rem;
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-md);
+  background: var(--ps-color-panel);
+  padding: 0.7rem;
+  text-decoration: none;
+}
+
+.ps-route-tabs__link span,
+.ps-route-tabs__link small {
+  display: block;
+}
+
+.ps-route-tabs__link span {
+  font-weight: 800;
+}
+
+.ps-route-tabs__link small {
+  margin-top: 0.25rem;
+  color: var(--ps-color-muted);
+}
+
+.ps-route-tabs__link[aria-current="page"] {
+  border-color: var(--ps-color-accent);
+  background: var(--ps-color-accent-soft);
+  color: var(--ps-color-accent);
+}
+
+.ps-route-tabs__link[aria-current="page"] small {
+  color: var(--ps-color-ink);
 }
 
 .ps-stepper {
@@ -786,6 +870,8 @@ a {
   }
 
   .ps-route-hero__body,
+  .ps-route-hero__summary-grid,
+  .ps-route-tabs,
   .ps-stepper,
   .ps-form-grid {
     grid-template-columns: 1fr;

@@ -31,8 +31,8 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("NIS2 Article 21");
     expect(html).toContain("Romania NIS2 registration workflow");
     expect(html).toContain("Internal readiness report");
-    expect(html).toContain("Microsoft 365 provider disabled");
-    expect(html).toContain("Basic Romania/local readiness does not require Microsoft 365 setup.");
+    expect(html).toContain("No Microsoft 365 provider connected");
+    expect(html).toContain("Start tenant admin consent from this workspace before Microsoft Graph reads can run.");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
@@ -76,6 +76,15 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('id="gaps" data-ui-section="gaps"');
     expect(html).toContain('id="evidence" data-ui-section="evidence"');
     expect(html).toContain('id="approvals" data-ui-section="approvals"');
+    expect(html).toContain('data-ui-action="connect-microsoft365-tenant"');
+    expect(html).toContain('action="/providers/microsoft365/connect"');
+    expect(html).toContain("Write actions disabled");
+    expect(html).toContain("Connector setup");
+    expect(html).toContain("Microsoft 365 connector app registration setup");
+    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID");
+    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET");
+    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
+    expect(html).toContain("tenant ID, permission bundles, and encrypted token metadata stay on ProviderConnection");
     expect(html).toContain('data-ui-action="open-romania-onboarding"');
     expect(login).toContain('<label for="email">Email</label>');
     expect(login).toContain('data-ui-smoke="login-screen"');
@@ -197,7 +206,7 @@ describe("web dashboard reports operational UI", () => {
     const romaniaHtml = renderRomaniaOnboardingRoute(createSavedRomaniaRouteModel());
 
     expect(dashboardHtml).toContain(
-      '<a class="ps-nav__link" href="/onboarding/romania?locale=ro-RO" data-ui-action="open-romania-onboarding">'
+      '<a class="ps-nav__link" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="open-romania-onboarding">'
     );
     expect(dashboardHtml).toContain('<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>');
     expect(dashboardHtml).toContain('<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>');
@@ -404,6 +413,8 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("API dashboard snapshot");
     expect(html).toContain("GET /organizations/:orgId/dashboards/snapshots/latest");
     expect(html).toContain('data-ui-action="open-workspace-selector"');
+    expect(html).toContain('data-ui-action="connect-microsoft365-tenant"');
+    expect(html).toContain('action="/providers/microsoft365/connect"');
     expect(html).toContain("stored_analysis");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
@@ -426,7 +437,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Tablou de bord");
     expect(html).toContain("Dovezi si rapoarte");
     expect(html).toContain("Coada de aprobari");
-    expect(html).toContain('href="/onboarding/romania?locale=ro-RO"');
+    expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
     expect(html).toContain(PURESOC_LEGAL_CAVEAT);
     expect(login).toContain('<html lang="ro">');
     expect(login).toContain("Autentificare");
@@ -471,44 +482,81 @@ describe("web dashboard reports operational UI", () => {
     ).toBe("https://puresoc.example.test");
   });
 
-  it("renders the Romania onboarding route from country-pack contracts with fallback and no-submission metadata", () => {
+  it("renders the Romania onboarding route as separate company, industry, technical, and output screens", () => {
     const model = createSavedRomaniaRouteModel();
-    const html = renderRomaniaOnboardingRoute(model);
+    const companyHtml = renderRomaniaOnboardingRoute(model);
+    const industryHtml = renderRomaniaOnboardingRoute(model, { screen: "industry" });
+    const technicalHtml = renderRomaniaOnboardingRoute(model, { screen: "technical" });
+    const outputsHtml = renderRomaniaOnboardingRoute(model, { screen: "outputs" });
 
-    expect(html).toContain('data-ui-smoke="romania-onboarding-route"');
-    expect(html).toContain('<html lang="ro">');
-    expect(html).toContain("@media (max-width: 980px)");
-    expect(html).toContain("@media (max-width: 640px)");
-    expect(html).toContain(":focus-visible");
-    expect(html).toContain('href="#content"');
-    expect(html).toContain('data-ui-action="skip-to-content"');
-    expect(html).toContain('id="content" tabindex="-1"');
-    expect(html).toContain("Romania NIS2 Onboarding");
-    expect(html).toContain("Guided Workflow");
-    expect(html).toContain('data-ui-action="save-romania-onboarding"');
-    expect(html).toContain('data-ui-action="run-romania-classification"');
-    expect(html).toContain('data-ui-action="generate-romania-notification-draft"');
-    expect(html).toContain('data-ui-action="evaluate-romania-readiness"');
-    expect(html).toContain('data-ui-action="upload-local-evidence"');
-    expect(html).toContain("Services by sector and subsector");
-    expect(html).toContain('data-ui-action="search-romania-services"');
-    expect(html).toContain("Cloud computing service providers");
-    expect(html).toContain("None of the services listed in OUG No. 155/2024");
-    expect(html).toContain("Romanian legal copy pending");
-    expect(html).toContain(PURESOC_LEGAL_CAVEAT);
-    expect(html).toContain("not a legal opinion");
-    expect(html).toContain("Direct DNSC submission");
-    expect(html).toContain("Not performed by PureSOC");
-    expect(html).toContain("PureSOC does not submit this draft to DNSC.");
-    expect(html).toContain('id="romania-boundaries"');
-    expect(html).toContain('id="romania-outputs"');
-    expect(html).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
-    expect(html).toContain("API-backed by saved organization data");
-    expect(html).toContain("Billing");
-    expect(html).toContain("Audit");
-    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
-    expect(html).not.toMatch(/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i);
-    expect(html).not.toContain("Submitted to DNSC true");
+    for (const html of [companyHtml, industryHtml, technicalHtml, outputsHtml]) {
+      expect(html).toContain('data-ui-smoke="romania-onboarding-route"');
+      expect(html).toContain('<html lang="ro">');
+      expect(html).toContain("@media (max-width: 980px)");
+      expect(html).toContain("@media (max-width: 640px)");
+      expect(html).toContain(":focus-visible");
+      expect(html).toContain('href="#content"');
+      expect(html).toContain('data-ui-action="skip-to-content"');
+      expect(html).toContain('id="content" tabindex="-1"');
+      expect(html).toContain("Romania NIS2 Readiness");
+      expect(html).toContain("Romania readiness workspace");
+      expect(html).toContain("What this workspace does");
+      expect(html).toContain("Required answers");
+      expect(html).toContain("DNSC filing stays outside PureSOC");
+      expect(html).toContain('data-ui-action="open-romania-company-screen"');
+      expect(html).toContain('data-ui-action="open-romania-industry-screen"');
+      expect(html).toContain('data-ui-action="open-romania-technical-screen"');
+      expect(html).toContain('data-ui-action="open-romania-outputs-screen"');
+      expect(html).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
+      expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+      expect(html).not.toMatch(/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i);
+      expect(html).not.toMatch(/missing_translation|planned full pack|classification insufficient data|caveat en/i);
+      expect(html).not.toContain("Submitted to DNSC true");
+    }
+
+    expect(companyHtml).toContain("Company And Contact");
+    expect(companyHtml).toContain("Company and contact data");
+    expect(companyHtml).toContain("Legal representative");
+    expect(companyHtml).toContain('name="nextScreen" value="industry"');
+    expect(companyHtml).toContain("Save company details");
+    expect(companyHtml).not.toContain("Services by sector and subsector");
+    expect(companyHtml).not.toContain('data-ui-action="run-romania-classification"');
+
+    expect(industryHtml).toContain("Industry And Services");
+    expect(industryHtml).toContain("Industry, services, and scope");
+    expect(industryHtml).toContain('name="nextScreen" value="technical"');
+    expect(industryHtml).toContain("Save industry selection");
+    expect(industryHtml).toContain("Services by sector and subsector");
+    expect(industryHtml).toContain('data-ui-action="search-romania-services"');
+    expect(industryHtml).toContain("Cloud computing service providers");
+    expect(industryHtml).toContain("None of the services listed in OUG No. 155/2024");
+    expect(industryHtml).not.toContain("Responsible people and monitoring");
+
+    expect(technicalHtml).toContain("Technical And Operational Info");
+    expect(technicalHtml).toContain("Technical and operational information");
+    expect(technicalHtml).toContain('name="nextScreen" value="outputs"');
+    expect(technicalHtml).toContain("Save technical info");
+    expect(technicalHtml).toContain("Responsible people and monitoring");
+    expect(technicalHtml).toContain("Network and public IP ranges");
+    expect(technicalHtml).toContain("Article 9 and documents");
+    expect(technicalHtml).not.toContain("Services by sector and subsector");
+
+    expect(outputsHtml).toContain("Outputs And Evidence");
+    expect(outputsHtml).toContain('data-ui-action="run-romania-classification"');
+    expect(outputsHtml).toContain('data-ui-action="generate-romania-notification-draft"');
+    expect(outputsHtml).toContain('data-ui-action="evaluate-romania-readiness"');
+    expect(outputsHtml).toContain('data-ui-action="upload-local-evidence"');
+    expect(outputsHtml).toContain("Romanian legal copy pending");
+    expect(outputsHtml).toContain(PURESOC_LEGAL_CAVEAT);
+    expect(outputsHtml).toContain("not a legal opinion");
+    expect(outputsHtml).toContain("Direct DNSC submission");
+    expect(outputsHtml).toContain("Not performed by PureSOC");
+    expect(outputsHtml).toContain("PureSOC does not submit this draft to DNSC.");
+    expect(outputsHtml).toContain('id="romania-boundaries"');
+    expect(outputsHtml).toContain('id="romania-outputs"');
+    expect(outputsHtml).toContain("API-backed by saved organization data");
+    expect(outputsHtml).toContain("Billing");
+    expect(outputsHtml).toContain("Audit");
   });
 
   it("renders an empty Romania workflow state without fabricated customer answers", () => {
@@ -518,8 +566,9 @@ describe("web dashboard reports operational UI", () => {
       })
     );
 
-    expect(html).toContain("empty state");
-    expect(html).toContain("No saved Romania onboarding progress exists yet for this workspace.");
+    expect(html).toContain("No saved answers yet");
+    expect(html).toContain("Start with legal identity and contact fields.");
+    expect(html).toContain("Company And Contact");
     expect(html).toContain('value=""');
     expect(html).not.toContain("Example Manufacturing SRL");
     expect(html).not.toContain("security@example.test");

@@ -2,7 +2,9 @@ export {
   createOperationalConsoleDemoModel,
   createOperationalConsoleRuntimeModel,
   createRomaniaOnboardingRouteModel,
+  disconnectedMicrosoft365Surface,
   organizationInvitationRoleOptions,
+  type Microsoft365HealthSurface,
   type OperationalConsoleModel,
   type OrganizationInvitationScreenModel,
   type RomaniaOnboardingRouteInput,
@@ -26,5 +28,6 @@ export {
   type RenderRegisterScreenOptions,
   type RenderRomaniaOnboardingRouteOptions,
   type RenderWorkspaceSelectionOptions,
+  type RomaniaOnboardingScreen,
   type RuntimeMessageScreenInput
 } from "./operational-console";

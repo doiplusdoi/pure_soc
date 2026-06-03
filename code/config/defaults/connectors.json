@@ -6,8 +6,10 @@
   "providerTokenEncryptionPreviousKeys": [],
   "microsoft365": {
     "enabled": false,
+    "writeScopesAllowed": false,
     "clientId": "",
     "clientSecret": "",
-    "writeScopesAllowed": false
+    "authorityHost": "https://login.microsoftonline.com",
+    "redirectUri": ""
   }
 }

@@ -74,6 +74,8 @@ export interface PureSocConfig {
       clientId: string;
       clientSecret: string;
       writeScopesAllowed: boolean;
+      authorityHost: string;
+      redirectUri: string;
     };
   };
   compliance: {
@@ -465,21 +467,34 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       microsoft365: {
         ...config.connectors.microsoft365,
         enabled: readBoolean(
-          env.PURESOC_MICROSOFT365_PROVIDER_ENABLED,
+          env.PURESOC_MICROSOFT365_PROVIDER_ENABLED ?? env.PURESOC_CONNECTOR_MICROSOFT365_ENABLED,
           config.connectors.microsoft365.enabled
         ),
+        writeScopesAllowed: readBoolean(
+          env.PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED ??
+            env.PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED,
+          config.connectors.microsoft365.writeScopesAllowed
+        ),
         clientId:
+          env.PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID ??
           env.MICROSOFT365_CLIENT_ID ??
           env.M365_CLIENT_ID ??
           config.connectors.microsoft365.clientId,
         clientSecret:
+          env.PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET ??
           env.MICROSOFT365_CLIENT_SECRET ??
           env.M365_CLIENT_SECRET ??
           config.connectors.microsoft365.clientSecret,
-        writeScopesAllowed: readBoolean(
-          env.PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED,
-          config.connectors.microsoft365.writeScopesAllowed
-        )
+        authorityHost:
+          env.PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST ??
+          env.MICROSOFT365_AUTHORITY_HOST ??
+          env.M365_AUTHORITY_HOST ??
+          config.connectors.microsoft365.authorityHost,
+        redirectUri:
+          env.PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI ??
+          env.MICROSOFT365_REDIRECT_URI ??
+          env.M365_REDIRECT_URI ??
+          config.connectors.microsoft365.redirectUri
       }
     },
     compliance: {

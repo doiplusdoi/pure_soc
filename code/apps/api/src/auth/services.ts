@@ -1,3 +1,6 @@
+import { appendFileSync, chmodSync, mkdirSync } from "node:fs";
+import { dirname } from "node:path";
+
 import {
   AuditCheckpointService,
   AuditWriter,
@@ -117,6 +120,31 @@ export class NoopEmailVerificationDelivery implements EmailVerificationDelivery 
   }
 }
 
+export class LocalDevFileEmailVerificationDelivery implements EmailVerificationDelivery {
+  private readonly filePath: string;
+
+  constructor(filePath: string) {
+    this.filePath = filePath;
+  }
+
+  deliver(input: { userId: string; email: string; plaintextToken: string; expiresAt: Date }): void {
+    mkdirSync(dirname(this.filePath), { recursive: true, mode: 0o700 });
+    appendFileSync(
+      this.filePath,
+      `${JSON.stringify({
+        schemaVersion: "puresoc.local_dev.email_verification_delivery.v1",
+        kind: "email_verification",
+        userId: input.userId,
+        email: input.email,
+        plaintextToken: input.plaintextToken,
+        expiresAt: input.expiresAt.toISOString()
+      })}\n`,
+      { mode: 0o600 }
+    );
+    chmodSync(this.filePath, 0o600);
+  }
+}
+
 export class NoopOrganizationInvitationDelivery implements OrganizationInvitationDelivery {
   deliver(): void {
     // Real invitation email delivery is intentionally deferred until a provider is selected.
@@ -154,6 +182,22 @@ export class InMemoryOrganizationInvitationDelivery implements OrganizationInvit
     this.deliveries.push(input);
   }
 }
+
+export const createDefaultEmailVerificationDelivery = (
+  config: PureSocConfig,
+  env: NodeJS.ProcessEnv = process.env
+): EmailVerificationDelivery => {
+  const localDeliveryFile = env.PURESOC_AUTH_DEV_EMAIL_DELIVERY_FILE?.trim();
+  if (!localDeliveryFile) {
+    return new NoopEmailVerificationDelivery();
+  }
+
+  if (config.app.env !== "development") {
+    throw new Error("PURESOC_AUTH_DEV_EMAIL_DELIVERY_FILE is only supported when PURESOC_APP_ENV=development.");
+  }
+
+  return new LocalDevFileEmailVerificationDelivery(localDeliveryFile);
+};
 
 export interface ApiServices {
   config: PureSocConfig;
@@ -205,7 +249,8 @@ export const createApiServices = (
 ): ApiServices => {
   const config = options.config ?? loadConfig();
   const billingConfig = options.billingConfig ?? config.billing;
-  const emailVerificationDelivery = options.emailVerificationDelivery ?? new NoopEmailVerificationDelivery();
+  const emailVerificationDelivery =
+    options.emailVerificationDelivery ?? createDefaultEmailVerificationDelivery(config, process.env);
   const organizationInvitationDelivery =
     options.organizationInvitationDelivery ?? new NoopOrganizationInvitationDelivery();
   const memoryRepositories = createInMemoryApiRepositorySet();
@@ -268,8 +313,11 @@ export const createApiServices = (
   const microsoft365ProviderConnections = new Microsoft365ProviderConnectionService({
     store: providerStore,
     auditWriter,
-    clientId: config.connectors.microsoft365.clientId,
-    clientSecret: config.connectors.microsoft365.clientSecret,
+    connectorApp: {
+      clientId: config.connectors.microsoft365.clientId,
+      clientSecret: config.connectors.microsoft365.clientSecret,
+      authorityHost: config.connectors.microsoft365.authorityHost
+    },
     tokenCipherFactory: () =>
       createLocalMicrosoft365TokenCipher({
         keyProvider: createMicrosoft365TokenKeyProviderFromConfig({

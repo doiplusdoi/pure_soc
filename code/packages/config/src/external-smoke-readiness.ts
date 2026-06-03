@@ -389,9 +389,27 @@ const microsoft365Check = (
   metadata?: Microsoft365ReadinessMetadata
 ): ExternalSmokeReadinessCheck => {
   const requirements = [
-    requirement("Microsoft 365 client ID", ["MICROSOFT365_CLIENT_ID", "M365_CLIENT_ID"], env, false, "configuration"),
-    requirement("Microsoft 365 client secret", ["MICROSOFT365_CLIENT_SECRET", "M365_CLIENT_SECRET"], env, true, "secret"),
-    requirement("Microsoft 365 test tenant ID", ["PURESOC_MICROSOFT365_SMOKE_TENANT_ID", "MICROSOFT365_TENANT_ID", "M365_TENANT_ID"], env, false, "configuration")
+    requirement(
+      "Microsoft 365 connector app client ID",
+      ["PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID", "MICROSOFT365_CLIENT_ID", "M365_CLIENT_ID"],
+      env,
+      false,
+      "configuration"
+    ),
+    requirement(
+      "Microsoft 365 connector app client secret",
+      ["PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET", "MICROSOFT365_CLIENT_SECRET", "M365_CLIENT_SECRET"],
+      env,
+      true,
+      "secret"
+    ),
+    requirement(
+      "Microsoft 365 disposable test tenant ID",
+      ["PURESOC_MICROSOFT365_SMOKE_TENANT_ID", "MICROSOFT365_TENANT_ID", "M365_TENANT_ID"],
+      env,
+      false,
+      "configuration"
+    )
   ];
   const configured = config.connectors.microsoft365.enabled;
   const missing = configured ? missingRequirementCodes(requirements) : [];
