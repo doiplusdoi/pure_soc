@@ -588,6 +588,21 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "BillingCustomerRecord",
+    modelName: "BillingCustomer",
+    tableName: "billing_customers",
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerKey", "BillingProviderKey", "provider_key"),
+      s("externalCustomerId", "String", "external_customer_id", { isOptional: true }),
+      s("billingEmail", "String", "billing_email", { isOptional: true }),
+      s("metadataJson", "Json", "metadata_json"),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
     contractName: "BillingSubscriptionRecord",
     modelName: "BillingSubscription",
     tableName: "billing_subscriptions",
@@ -638,6 +653,31 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "RegulatorySourceRecord",
+    modelName: "RegulatorySource",
+    tableName: "regulatory_sources",
+    fields: [
+      f("id", "String"),
+      s("frameworkKey", "String", "framework_key"),
+      f("jurisdiction", "String"),
+      s("sourceType", "RegulatorySourceType", "source_type"),
+      f("title", "String"),
+      f("url", "String", { isOptional: true }),
+      s("localFilePath", "String", "local_file_path", { isOptional: true }),
+      s("publicationDate", "DateTime", "publication_date", { isOptional: true }),
+      s("lastCheckedAt", "DateTime", "last_checked_at", { isOptional: true }),
+      s("versionLabel", "String", "version_label", { isOptional: true }),
+      s("authorityName", "String", "authority_name", { isOptional: true }),
+      s("trustLevel", "RegulatorySourceTrustLevel", "trust_level"),
+      f("status", "RegulatorySourceStatus"),
+      s("activationStatus", "RegulatorySourceStatus", "activation_status"),
+      s("activeVersionId", "String", "active_version_id", { isOptional: true }),
+      f("notes", "String", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
     contractName: "RegulatorySourceVersionRecord",
     modelName: "RegulatorySourceVersion",
     tableName: "regulatory_source_versions",
@@ -658,6 +698,21 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "RegulatorySourceMapEntryRecord",
+    modelName: "RegulatorySourceMap",
+    tableName: "regulatory_source_maps",
+    fields: [
+      f("id", "String"),
+      s("sourceId", "String", "source_id"),
+      s("sourceVersionId", "String", "source_version_id", { isOptional: true }),
+      s("targetCollection", "String", "target_collection"),
+      s("targetKey", "String", "target_key"),
+      s("sourceLocation", "String", "source_location"),
+      s("mappingJson", "Json", "mapping_json"),
+      s("createdAt", "DateTime", "created_at")
+    ]
+  },
+  {
     contractName: "RegulatoryReviewTaskRecord",
     modelName: "RegulatoryReviewTask",
     tableName: "regulatory_review_tasks",
@@ -674,6 +729,21 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("metadataJson", "Json", "metadata_json"),
       s("createdAt", "DateTime", "created_at"),
       s("resolvedAt", "DateTime", "resolved_at", { isOptional: true })
+    ]
+  },
+  {
+    contractName: "RegulatoryReviewDecisionRecord",
+    modelName: "RegulatoryReviewDecision",
+    tableName: "regulatory_review_decisions",
+    fields: [
+      f("id", "String"),
+      s("taskId", "String", "task_id"),
+      s("sourceVersionId", "String", "source_version_id", { isOptional: true }),
+      f("decision", "RegulatoryReviewDecisionType"),
+      s("decidedBy", "String", "decided_by"),
+      s("decidedAt", "DateTime", "decided_at"),
+      f("notes", "String", { isOptional: true }),
+      s("decisionJson", "Json", "decision_json")
     ]
   },
   {

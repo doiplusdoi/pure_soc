@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-05-30 after completing M89, adding served owner-managed invitation UX, and staging Prompt 89 / `docs/PLAN_M90.md` as the next recursive gap implementation runner.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-06-09 after completing M91, adding selected billing customer drift coverage, and staging Prompt 91 / `docs/PLAN_M92.md` as the next recursive gap implementation runner.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -113,6 +113,8 @@ The repository currently contains:
 - PLAN_M87 evidence-package guardrails: local internal-readiness evidence-package exports now enforce configurable maximum evidence file count, per-file bytes, and total bundle bytes; successful manifests record the active limits, and oversized packages return stable API errors without storing generated package evidence artifacts or `binary_evidence_package` export rows.
 - PLAN_M88 owner-managed organization invitations: owners/org admins with verified email can create local organization invitations with hashed tokens and no-op/in-memory delivery ports, invited users must accept with the matching verified account email, acceptance creates active memberships and role bindings, and tests prove audit/token redaction plus selected schema drift coverage without real email delivery or invite-only policy.
 - PLAN_M89 served invitation UX: `apps/web` now exposes `/invitations` and `/invitations/accept` for active-workspace owner/admin invite creation and verified invited-user acceptance by organization ID/token, links the operational console to the workflow, selects the workspace after acceptance, and keeps plaintext invitation tokens out of web responses and UI smoke artifacts without real email delivery or invite-only policy.
+- PLAN_M90 regulatory source activation drift coverage: `pnpm lint` now includes selected Prisma schema drift expectations for `RegulatorySource`, `RegulatorySourceMap`, and `RegulatoryReviewDecision`, guarding source activation status, active version references, source-map target/source fields, and review decision metadata without changing legal activation or runtime behavior.
+- PLAN_M91 billing customer drift coverage: `pnpm lint` now includes selected Prisma schema drift expectations for `BillingCustomer`, guarding organization linkage, provider key, optional external customer ID, optional billing email, metadata JSON, and timestamps without changing pricing, entitlements, live Stripe behavior, or billing runtime behavior.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, sequenced in `docs/gap-implementation-path.md`, and supplemented by `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -203,7 +205,9 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 86 / `docs/PLAN_M87.md` is completed.
 - Prompt 87 / `docs/PLAN_M88.md` is completed.
 - Prompt 88 / `docs/PLAN_M89.md` is completed.
-- Prompt 89 / `docs/PLAN_M90.md` is staged as the next recursive gap implementation runner.
+- Prompt 89 / `docs/PLAN_M90.md` is completed.
+- Prompt 90 / `docs/PLAN_M91.md` is completed.
+- Prompt 91 / `docs/PLAN_M92.md` is staged as the next recursive gap implementation runner.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -219,11 +223,11 @@ During each prompt run:
 Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
-2. Prompt 89 / `docs/PLAN_M90.md`: Recursive Gap Implementation Runner.
+2. Prompt 91 / `docs/PLAN_M92.md`: Recursive Gap Implementation Runner.
 
-M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, and M89 narrowed GAP-046 with served invitation UX. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, and M91 narrowed GAP-041 with selected billing customer drift coverage. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
-Use M90 when the goal is to continue implementing remaining gaps one by one. It should select one unblocked local slice from `docs/gap-implementation-path.md`, implement it, validate it, update gap/status docs, and create the next recursive plan stub.
+Use M92 when the goal is to continue implementing remaining gaps one by one. It should select one unblocked local slice from `docs/gap-implementation-path.md`, implement it, validate it, update gap/status docs, and create the next recursive plan stub.
 
 ## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
@@ -340,7 +344,7 @@ Final response must include:
 - Next staged prompt/PLAN file
 - Residual blockers
 
-## Active Prompt 89 / PLAN_M90: Recursive Gap Implementation Runner
+## Active Prompt 91 / PLAN_M92: Recursive Gap Implementation Runner
 
 Read the same required files listed in `docs/recursive-gap-codex-prompt.md`, then choose exactly one unblocked local slice from `docs/gap-implementation-path.md` and `docs/implementation-gaps.md`.
 
@@ -353,6 +357,38 @@ Recommended first candidates:
 - Microsoft read-only fixture expansion only after checking current official Microsoft documentation and without adding write scopes.
 
 Use the selected slice's targeted commands from `docs/recursive-gap-codex-prompt.md`, and always run `git diff --check`.
+
+## Completed Prompt 90 / PLAN_M91: Billing Customer Drift Coverage
+
+Completed on 2026-06-09.
+
+Summary:
+- Added selected Prisma schema drift expectations for `BillingCustomer`.
+- Guarded organization linkage, billing provider key, optional external customer ID, optional billing email, metadata JSON, and timestamp mappings through the lint-gated drift map.
+- Added a focused drift regression test proving billing customer persistence remains covered.
+
+Validation:
+- `npm run test -- drift` passed, 1 file / 11 tests.
+- `npm run lint` passed, with schema drift coverage at 39 models / 547 fields and Romania generated-data drift at 3 artifacts.
+- `git diff --check` passed.
+
+No Prisma schema or migration changes, live Stripe calls, webhook delivery, pricing decisions, product entitlement changes, live external calls, provider writes, DNSC submission, legal activation, or certification claims were added. GAP-041 narrowed; it remains open because drift coverage is selected rather than exhaustive.
+
+## Completed Prompt 89 / PLAN_M90: Regulatory Source Activation Drift Coverage
+
+Completed on 2026-06-09.
+
+Summary:
+- Added selected Prisma schema drift expectations for `RegulatorySource`, `RegulatorySourceMap`, and `RegulatoryReviewDecision`.
+- Guarded source activation status, active source version references, source-map target/source fields, source-map JSON payloads, and review decision metadata through the lint-gated drift map.
+- Added a focused drift regression test proving those regulatory source activation models remain covered.
+
+Validation:
+- `npm run test -- drift` passed, 1 file / 10 tests.
+- `npm run lint` passed, with schema drift coverage at 38 models / 539 fields and Romania generated-data drift at 3 artifacts.
+- `git diff --check` passed.
+
+No Prisma schema or migration changes, live external calls, public regulatory fetches, DNSC submission, provider writes, remediation execution, legal activation, certification claims, or approved Romanian legal/regulatory copy were added. GAP-041 narrowed; it remains open because drift coverage is selected rather than exhaustive.
 
 ## Completed Prompt 88 / PLAN_M89: Served Owner-Managed Invitation UX
 

@@ -51,8 +51,8 @@ model Example {
 
     expect(formatPrismaContractDriftResult(result)).toContain("Prisma schema/contract drift check passed");
     expect(result.valid).toBe(true);
-    expect(result.checkedModels).toBeGreaterThanOrEqual(35);
-    expect(result.checkedFields).toBeGreaterThan(500);
+    expect(result.checkedModels).toBeGreaterThanOrEqual(39);
+    expect(result.checkedFields).toBeGreaterThan(545);
   });
 
   it("includes selected output metadata surfaces in schema drift coverage", () => {
@@ -118,6 +118,78 @@ model Example {
           ]),
           modelName: "OrganizationInvitation",
           tableName: "organization_invitations"
+        })
+      ])
+    );
+  });
+
+  it("includes regulatory source activation persistence in schema drift coverage", () => {
+    expect(defaultPrismaDriftExpectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "frameworkKey", type: "String" }),
+            expect.objectContaining({ name: "sourceType", type: "RegulatorySourceType" }),
+            expect.objectContaining({ name: "trustLevel", type: "RegulatorySourceTrustLevel" }),
+            expect.objectContaining({ name: "activationStatus", type: "RegulatorySourceStatus" }),
+            expect.objectContaining({ name: "activeVersionId", type: "String", isOptional: true })
+          ]),
+          modelName: "RegulatorySource",
+          tableName: "regulatory_sources"
+        }),
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "sourceId", type: "String" }),
+            expect.objectContaining({ name: "sourceVersionId", type: "String", isOptional: true }),
+            expect.objectContaining({ name: "targetCollection", type: "String" }),
+            expect.objectContaining({ name: "sourceLocation", type: "String" }),
+            expect.objectContaining({ name: "mappingJson", type: "Json" })
+          ]),
+          modelName: "RegulatorySourceMap",
+          tableName: "regulatory_source_maps"
+        }),
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "taskId", type: "String" }),
+            expect.objectContaining({ name: "sourceVersionId", type: "String", isOptional: true }),
+            expect.objectContaining({ name: "decision", type: "RegulatoryReviewDecisionType" }),
+            expect.objectContaining({ name: "decidedBy", type: "String" }),
+            expect.objectContaining({ name: "decisionJson", type: "Json" })
+          ]),
+          modelName: "RegulatoryReviewDecision",
+          tableName: "regulatory_review_decisions"
+        })
+      ])
+    );
+  });
+
+  it("includes billing customer persistence in schema drift coverage", () => {
+    expect(defaultPrismaDriftExpectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          contractName: "BillingCustomerRecord",
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "id", type: "String" }),
+            expect.objectContaining({ mappedName: "organization_id", name: "organizationId", type: "String" }),
+            expect.objectContaining({ mappedName: "provider_key", name: "providerKey", type: "BillingProviderKey" }),
+            expect.objectContaining({
+              isOptional: true,
+              mappedName: "external_customer_id",
+              name: "externalCustomerId",
+              type: "String"
+            }),
+            expect.objectContaining({
+              isOptional: true,
+              mappedName: "billing_email",
+              name: "billingEmail",
+              type: "String"
+            }),
+            expect.objectContaining({ mappedName: "metadata_json", name: "metadataJson", type: "Json" }),
+            expect.objectContaining({ mappedName: "created_at", name: "createdAt", type: "DateTime" }),
+            expect.objectContaining({ mappedName: "updated_at", name: "updatedAt", type: "DateTime" })
+          ]),
+          modelName: "BillingCustomer",
+          tableName: "billing_customers"
         })
       ])
     );

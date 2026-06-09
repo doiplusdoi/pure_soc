@@ -1,8 +1,8 @@
 ---
-title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, And Package Guardrails
-date: 2026-05-30
+title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, And Billing Customer Drift Coverage
+date: 2026-06-09
 author: Codex
-scope: Repository-level current status after M89 served owner-managed invitation UX on 2026-05-30, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
+scope: Repository-level current status after M91 billing customer drift coverage on 2026-06-09, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -13,7 +13,7 @@ aligned_with:
   - docs/LEARNINGS.md
 ---
 
-# PureSOC Codex Status - 2026-05-30
+# PureSOC Codex Status - 2026-06-09
 
 ## Current Snapshot
 
@@ -49,11 +49,15 @@ M88 narrows public signup hardening without choosing a registration policy: owne
 
 M89 adds the served local invitation UX on top of that API: the operational console links to `/invitations`, owners/org admins can create invitations for the active workspace, invited users can accept by organization ID plus token through the served web runtime, successful acceptance selects the workspace for the browser session, and render/UI-smoke coverage proves the flow stays token-redacted. Real email delivery, invite-only policy, platform-admin bootstrap, and public abuse operations remain launch blockers.
 
+M90 narrows selected data-quality coverage without changing runtime behavior: `pnpm lint` now includes `RegulatorySource`, `RegulatorySourceMap`, and `RegulatoryReviewDecision` in the selected Prisma schema drift map. The drift gate covers source activation status, active version linkage, source-map target/source fields, and review decision metadata. This protects the no-auto-activation legal-review data model, but it remains selected coverage rather than exhaustive schema validation.
+
+M91 continues that selected data-quality path for billing persistence: `pnpm lint` now includes `BillingCustomer` in the selected Prisma schema drift map, guarding organization/customer/provider mapping, optional external customer ID, billing email, metadata JSON, and timestamps. This protects billing customer table shape only; it does not approve product pricing, prove live Stripe runtime, or change entitlement behavior.
+
 The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and customer-grade UX polish.
 
 ## Repo Inspection
 
-Inspected and validated on 2026-05-30:
+Inspected and validated on 2026-06-09:
 
 - Required project docs were read in order: `docs/puresoc_vision.md`, `docs/master-plan.md`, `docs/implementation-gaps.md`, `docs/codex-prompts.md`, and `docs/LEARNINGS.md`.
 - `docs/PLAN_M79.md` is completed. It hardened the Romania route into a product-safe guided workflow, added the generated service catalog selector, expanded required onboarding capture, and moved workbook/source-map provenance out of the normal customer UI.
@@ -67,22 +71,24 @@ Inspected and validated on 2026-05-30:
 - `docs/PLAN_M87.md` narrows GAP-029 with configurable local evidence-package file-count/file-size/bundle-size guardrails and stable API errors for oversized packages.
 - `docs/PLAN_M88.md` narrows GAP-046 with local owner/org-admin invitations, hashed invitation tokens, verified-email acceptance, membership/role assignment, audit coverage, and selected invitation schema drift checks.
 - `docs/PLAN_M89.md` narrows GAP-046 with served invitation creation/acceptance UX, console navigation, token-redaction copy, and focused web/UI-smoke validation.
-- `git diff --check` passed. The worktree also contains pre-existing unrelated local changes that were not reverted.
+- `docs/PLAN_M90.md` narrows GAP-041 with lint-gated selected schema drift coverage for regulatory source activation records, source maps, and review decisions.
+- `docs/PLAN_M91.md` narrows GAP-041 with lint-gated selected schema drift coverage for billing customer persistence.
+- `git diff --check` passed for the M90 changes.
 - The workspace has 371 files under `code/` according to `rg --files code`.
 - The app layout and package layout match the docs' `code/` convention.
 - `docs/implementation-gaps.md` still shows the major launch/runtime gaps open; M79 narrowed GAP-031 and GAP-042 but did not add legal activation, DNSC submission, provider writes, or live external proof.
 
-The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation:
+The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation:
 
 ```txt
 npm run lint
-passed, schema drift check covered 35 models / 505 fields
+passed, schema drift check covered 39 models / 547 fields
 
 npm run drift:regulatory
 passed
 
 npm run test -- drift
-passed, 1 file / 9 tests
+passed, 1 file / 11 tests
 
 npm run test -- ro regulatory-import web notification dashboards reports
 passed, 32 files / 144 tests
@@ -139,7 +145,7 @@ Vitest selections that bind ephemeral local API servers were run outside the san
 | Monorepo and service catalog | Strong local baseline | `code/` contains app services, packages, config defaults, Dockerfiles, Compose service catalog, scripts, and regulatory data. |
 | Runtime stack | Lightweight and documented | Current API/web runtime is custom `node:http`, not NestJS/Next.js. ADR-017 records this deviation. |
 | Auth, sessions, orgs, RBAC | Strong contract/runtime baseline | Local auth, session, organization creation/selection, RBAC, local email-verification completion route/UI, owner-managed invitation API plus served invitation UX, OIDC callback contracts, and Prisma adapters exist. Real email delivery/enforcement, invite policy, platform-admin operations, and live OIDC provider smoke remain open. |
-| Regulatory model | Strong data/guardrail baseline | EU member states, NIS2 seed data, country-pack model, source maps, review tasks, and no-auto-activation guardrails exist. |
+| Regulatory model | Strong data/guardrail baseline | EU member states, NIS2 seed data, country-pack model, source maps, review tasks, and no-auto-activation guardrails exist. Selected drift coverage now guards source records, source maps, and review decisions. |
 | Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, runtime catalog model, classification, onboarding schema, complete imported notification draft mapping, saved progress, and product-safe local workflow exist. Legal activation/copy approval remain open. |
 | Microsoft 365 | Read-only contract/fixture baseline | Permission bundles and read modules are modeled. No approved disposable tenant/live Graph smoke has run. Write executor remains disabled. |
 | Compliance engine | Strong internal-readiness baseline | Article 21 catalog, gaps, recommendations, readiness plan, checklist and dashboard/report integration exist. Score calibration still needs product/legal approval. |
@@ -175,7 +181,7 @@ Runtime/production proof gates:
 
 ## Recommended Next Step
 
-M89 is complete. The next high-leverage motion is still a product/operator decision rather than another workbook-debug UI pass:
+M91 is complete. The next high-leverage motion is still a product/operator decision rather than another workbook-debug UI pass:
 
 ```txt
 Choose either Romanian legal/product activation work or exactly one approved disposable external proof target.
@@ -183,7 +189,7 @@ Choose either Romanian legal/product activation work or exactly one approved dis
 
 `docs/PLAN_M80.md` records that decision-gated handoff. Until a reviewer or disposable/test target is explicitly selected, keep GAP-006, GAP-042, and GAP-044 open and avoid adding DNSC submission, certification claims, provider writes, public regulatory fetches, or live external calls.
 
-For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For recursive one-slice-at-a-time implementation, use `docs/recursive-gap-codex-prompt.md` with the staged `docs/PLAN_M90.md` runner.
+For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For recursive one-slice-at-a-time implementation, use `docs/recursive-gap-codex-prompt.md` with the staged `docs/PLAN_M92.md` runner.
 
 For Microsoft 365 real-life tenant testing, use `docs/real-tenant-testing.md`, prepare local environment values from `docs/microsoft365-read-only-smoke.env.example`, and record each run with `docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, friendly/internal pilot second, customer pilot only with written authorization, and production customer testing only after earlier evidence exists. The current runner remains read-only and selector-gated.
 
@@ -315,7 +321,7 @@ Provider write/remediation automation should remain post-V1 unless the product e
 | GAP-030 Live provider write execution | Defer for V1. Keep Microsoft 365 write executors disabled. |
 | GAP-039 WORM/external audit signing | Do not claim WORM or notarization until implemented and operated. Database hash chain is useful but not immutable storage. |
 | GAP-031 Full frontend runtime | The current served UI is good for local proof. A customer-grade Next.js/React or deliberately chosen alternative shell remains future product work. |
-| GAP-041 Drift coverage | M71 lint-gates the Romania import report; stop expanding drift coverage unless it protects a customer-facing or production adapter path. |
+| GAP-041 Drift coverage | M91 lint-gates billing customer persistence shape after M90 regulatory source activation/source-map/review-decision coverage. Keep future expansion selected and tied to a customer-facing or production adapter path. |
 
 ## Remediation Plan
 
