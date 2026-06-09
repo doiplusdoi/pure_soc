@@ -1459,7 +1459,10 @@ const renderMicrosoft365Section = (model: OperationalConsoleModel): string =>
   renderSection({
     id: "microsoft365",
     title: "Microsoft 365 Connection Health",
-    eyebrow: renderStatusPill({ label: model.microsoft365.status, tone: toneForStatus(model.microsoft365.status) }),
+    eyebrow: renderStatusPill({
+      label: model.microsoft365.status.replaceAll("_", " "),
+      tone: toneForStatus(model.microsoft365.status)
+    }),
     body: [
       '<div class="ps-grid">',
       '<article class="ps-panel">',

@@ -43,17 +43,34 @@ const runStartupConfigSmoke = (): {
   checks: string[];
   blockerCodes: Record<string, string[]>;
 } => {
-  const unsafeDefaultConfig = loadConfig({
+  const disabledDefaultConfig = loadConfig({
     env: {
       PURESOC_APP_ENV: "production",
       PURESOC_AUTH_COOKIE_SECURE: "true",
-      PURESOC_UPLOAD_SCANNER_MODE: "mock"
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_UPLOAD_SCANNER_MODE: "mock",
+      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false"
     }
   });
-  const unsafeDefaultIssues = collectStartupConfigIssues(unsafeDefaultConfig).map((issue) => issue.code);
+  const disabledDefaultIssues = collectStartupConfigIssues(disabledDefaultConfig).map((issue) => issue.code);
   assert(
-    unsafeDefaultIssues.includes("provider_token_key_required"),
-    "Production startup did not reject the local-dev provider-token active key."
+    !disabledDefaultIssues.some((code) => code.startsWith("provider_token_")),
+    "Production startup with Microsoft 365 disabled should not require provider-token custody."
+  );
+
+  const enabledMissingKeyConfig = loadConfig({
+    env: {
+      PURESOC_APP_ENV: "production",
+      PURESOC_AUTH_COOKIE_SECURE: "true",
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_UPLOAD_SCANNER_MODE: "mock",
+      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true"
+    }
+  });
+  const enabledMissingKeyIssues = collectStartupConfigIssues(enabledMissingKeyConfig).map((issue) => issue.code);
+  assert(
+    enabledMissingKeyIssues.includes("provider_token_key_required"),
+    "Production startup with Microsoft 365 enabled did not reject missing provider-token active key."
   );
 
   const unsafePreviousConfig = loadConfig({
@@ -150,7 +167,8 @@ const runStartupConfigSmoke = (): {
 
   return {
     checks: [
-      "production-default-active-key-rejection",
+      "production-disabled-default-provider-token-bypass",
+      "production-enabled-missing-active-key-rejection",
       "production-default-previous-key-rejection",
       "production-fake-provider-rejection",
       "unsupported-provider-rejection",
@@ -160,7 +178,8 @@ const runStartupConfigSmoke = (): {
       "previous-key-reuses-active-rejection"
     ],
     blockerCodes: {
-      productionDefaultActiveKey: unsafeDefaultIssues,
+      productionDisabledDefault: disabledDefaultIssues,
+      productionEnabledMissingActiveKey: enabledMissingKeyIssues,
       productionDefaultPreviousKey: unsafePreviousIssues,
       productionFakeProvider: fakeProviderIssues,
       unsupportedProvider: unsupportedProviderIssues,

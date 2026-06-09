@@ -99,7 +99,7 @@ const OPERATIONAL_CONSOLE_ANCHORS = [
     href: "#microsoft365",
     sectionSelector: "#microsoft365",
     hash: "#microsoft365",
-    expectedText: ["Microsoft 365 Connection Health", "Microsoft module health"]
+    expectedText: ["Microsoft 365 Connection Health", "Microsoft module health", "provider disabled"]
   },
   {
     id: "gaps",
@@ -562,7 +562,7 @@ async function runBrowserSmoke() {
         width: 1440,
         height: 900,
         anchorActivation: operationalConsoleAnchorById("microsoft365"),
-        expectedText: ["Microsoft 365 Connection Health", "Microsoft module health"],
+        expectedText: ["Microsoft 365 Connection Health", "Microsoft module health", "provider disabled"],
         expectOperationalConsole: true
       })
     );

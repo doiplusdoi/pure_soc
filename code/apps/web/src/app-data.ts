@@ -26,7 +26,13 @@ import {
   type SourceReference
 } from "@puresoc/shared";
 
-export type OperationalStatus = "ready" | "in_progress" | "attention" | "blocked" | "review_required";
+export type OperationalStatus =
+  | "ready"
+  | "in_progress"
+  | "attention"
+  | "blocked"
+  | "review_required"
+  | "not_configured";
 
 export interface OperationalConsoleModel {
   organization: {
@@ -446,34 +452,18 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
       }
     },
     microsoft365: {
-      status: "attention",
-      tenantDisplayName: "Example Manufacturing SRL",
-      tenantId: "00000000-0000-4000-8000-000000000365",
-      lastSyncAt: generatedAt,
-      permissionBundles: ["m365_read_baseline", "m365_security_read"],
+      status: "not_configured",
+      tenantDisplayName: "Microsoft 365 provider disabled",
+      tenantId: "optional connector",
+      lastSyncAt: "not configured",
+      permissionBundles: ["provider not configured"],
       modules: [
         {
-          moduleKey: "entra.users",
-          label: "Entra users and roles",
-          status: "ready",
-          coverage: "154 users, 8 privileged roles",
-          lastSyncAt: generatedAt,
-          sourceQuery: "provider_sync_modules:entra.users,last_successful"
-        },
-        {
-          moduleKey: "secure-score",
-          label: "Microsoft Secure Score",
-          status: "ready",
-          coverage: "Score and control profile captured",
-          lastSyncAt: generatedAt,
-          sourceQuery: "provider_normalized_resources:secure_score,current"
-        },
-        {
-          moduleKey: "defender-xdr",
-          label: "Defender XDR incidents",
-          status: "attention",
-          coverage: "License or permission not confirmed",
-          sourceQuery: "provider_sync_modules:defender_xdr,status"
+          moduleKey: "provider.disabled",
+          label: "Optional provider onboarding",
+          status: "not_configured",
+          coverage: "Basic Romania/local readiness does not require Microsoft 365 setup.",
+          sourceQuery: "connectors.microsoft365.enabled:false"
         }
       ]
     },
@@ -607,18 +597,18 @@ export const createOperationalConsoleRuntimeModel = (input: {
       }
     },
     microsoft365: {
-      status: "attention",
-      tenantDisplayName: "No Microsoft 365 provider connected",
-      tenantId: "local-only",
-      lastSyncAt: input.dashboard.generatedAt,
-      permissionBundles: ["read-only connector not configured"],
+      status: "not_configured",
+      tenantDisplayName: "Microsoft 365 provider disabled",
+      tenantId: "optional connector",
+      lastSyncAt: "not configured",
+      permissionBundles: ["provider not configured"],
       modules: [
         {
-          moduleKey: "provider.local",
-          label: "Provider telemetry",
-          status: "attention",
-          coverage: "No real provider connection is attached to this local product path.",
-          sourceQuery: "provider_connections:none"
+          moduleKey: "provider.disabled",
+          label: "Optional provider onboarding",
+          status: "not_configured",
+          coverage: "Basic Romania/local readiness does not require Microsoft 365 setup.",
+          sourceQuery: "connectors.microsoft365.enabled:false"
         }
       ]
     },

@@ -21,6 +21,19 @@ const requireString = (body: Record<string, unknown>, key: string): string => {
 const optionalStringArray = (value: unknown): string[] | undefined =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : undefined;
 
+const disabledMicrosoft365ProviderResult = (): JsonResult => ({
+  statusCode: 404,
+  body: {
+    error: {
+      code: "provider_disabled",
+      message: "Microsoft 365 provider onboarding is disabled for this deployment."
+    }
+  }
+});
+
+const microsoft365ProviderIsDisabled = (services: ApiServices): boolean =>
+  !services.config.connectors.microsoft365.enabled;
+
 export const beginMicrosoft365ConsentRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
@@ -28,6 +41,10 @@ export const beginMicrosoft365ConsentRoute = async (
   context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
+  if (microsoft365ProviderIsDisabled(services)) {
+    return disabledMicrosoft365ProviderResult();
+  }
+
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
     repository: services.rbacRepository,
@@ -56,6 +73,10 @@ export const completeMicrosoft365ConsentRoute = async (
   context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
+  if (microsoft365ProviderIsDisabled(services)) {
+    return disabledMicrosoft365ProviderResult();
+  }
+
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
     repository: services.rbacRepository,
@@ -88,6 +109,10 @@ export const runMicrosoft365SyncRoute = async (
   context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
+  if (microsoft365ProviderIsDisabled(services)) {
+    return disabledMicrosoft365ProviderResult();
+  }
+
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
     repository: services.rbacRepository,
@@ -116,6 +141,10 @@ export const getMicrosoft365ConnectionHealthRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
 ): Promise<JsonResult> => {
+  if (microsoft365ProviderIsDisabled(services)) {
+    return disabledMicrosoft365ProviderResult();
+  }
+
   const actorUserId = await readSessionUserId(cookieHeader, services);
   await requireOrganizationRole({
     repository: services.rbacRepository,

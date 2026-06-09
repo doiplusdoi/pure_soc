@@ -61,7 +61,7 @@ Memory mode mirrors Prisma mode's per-context repository shape. API services exp
 
 `PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, OIDC transient authorization state, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary.
 
-Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and the default provider-token encryption key.
+Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and missing/non-production provider-token custody when Microsoft 365 provider onboarding is enabled.
 
 ## Audit Hash-Chain Persistence
 
@@ -191,7 +191,7 @@ PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true
 
 Development keeps the historical optional-missing-header behavior unless configured otherwise, while still rejecting untrusted Origin/Referer values when present. A double-submit CSRF-token contract remains deferred until a served browser runtime can carry token issuance and header submission end to end.
 
-Provider-token encryption supports a small custody-provider shape for Microsoft 365 credentials. The default remains the local environment key ring:
+Provider-token encryption supports a small custody-provider shape for Microsoft 365 credentials. It is not required for the minimal local/Romania path while `PURESOC_MICROSOFT365_PROVIDER_ENABLED=false`. When Microsoft 365 provider onboarding is enabled, the implemented provider remains the local environment key ring:
 
 ```sh
 PURESOC_PROVIDER_TOKEN_KEY_PROVIDER=local-env-key-ring
@@ -365,6 +365,7 @@ PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
 PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
 PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
 PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true
+PURESOC_MICROSOFT365_PROVIDER_ENABLED=true
 MICROSOFT365_CLIENT_ID=...
 MICROSOFT365_CLIENT_SECRET=...
 MICROSOFT365_TENANT_ID=...

@@ -1,11 +1,13 @@
 {
   "readOnlyByDefault": true,
   "providerTokenKeyProvider": "local-env-key-ring",
-  "providerTokenEncryptionKeyId": "local-dev",
-  "providerTokenEncryptionKey": "local-dev-provider-token-key-change-me",
+  "providerTokenEncryptionKeyId": "",
+  "providerTokenEncryptionKey": "",
   "providerTokenEncryptionPreviousKeys": [],
   "microsoft365": {
-    "enabled": true,
+    "enabled": false,
+    "clientId": "",
+    "clientSecret": "",
     "writeScopesAllowed": false
   }
 }

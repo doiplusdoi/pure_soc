@@ -393,16 +393,19 @@ const microsoft365Check = (
     requirement("Microsoft 365 client secret", ["MICROSOFT365_CLIENT_SECRET", "M365_CLIENT_SECRET"], env, true, "secret"),
     requirement("Microsoft 365 test tenant ID", ["PURESOC_MICROSOFT365_SMOKE_TENANT_ID", "MICROSOFT365_TENANT_ID", "M365_TENANT_ID"], env, false, "configuration")
   ];
-  const missing = missingRequirementCodes(requirements);
-  const unsafe = [
-    ...globalUnsafe,
-    ...(config.connectors.readOnlyByDefault ? [] : ["connector_read_only_default_disabled"]),
-    ...(config.connectors.microsoft365.writeScopesAllowed ? ["microsoft365_write_scopes_allowed"] : []),
-    ...(config.jobs.connectorRunner.allowProviderWrites ? ["provider_write_jobs_enabled"] : [])
-  ];
+  const configured = config.connectors.microsoft365.enabled;
+  const missing = configured ? missingRequirementCodes(requirements) : [];
+  const unsafe = configured
+    ? [
+        ...globalUnsafe,
+        ...(config.connectors.readOnlyByDefault ? [] : ["connector_read_only_default_disabled"]),
+        ...(config.connectors.microsoft365.writeScopesAllowed ? ["microsoft365_write_scopes_allowed"] : []),
+        ...(config.jobs.connectorRunner.allowProviderWrites ? ["provider_write_jobs_enabled"] : [])
+      ]
+    : [];
   const optInEnv = "PURESOC_EXTERNAL_SMOKE_MICROSOFT365";
   const status = statusFor({
-    configured: config.connectors.microsoft365.enabled,
+    configured,
     missing,
     unsafe,
     optInEnv,
@@ -455,6 +458,13 @@ const providerTokenCustodyCheck = (
     requirement("Provider-token previous keys", ["PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS"], env, true, "secret")
   ];
   const targetKind = normalizeProviderTokenCustodyTargetKind(env.PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND);
+  const providerTokenEnvironmentConfigured =
+    requirements.some((entry) => entry.configured) ||
+    targetKind !== "unknown" ||
+    readBoolean(env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED) ||
+    readBoolean(env.PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED) ||
+    readBoolean(env.PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED);
+  const configured = config.connectors.microsoft365.enabled || providerTokenEnvironmentConfigured;
   const previousKeyCount = config.connectors.providerTokenEncryptionPreviousKeys.length;
   const previousKeyConfirmations = [
     {
@@ -492,7 +502,9 @@ const providerTokenCustodyCheck = (
       : [])
   ];
   const status: ExternalSmokeReadinessStatus =
-    unsafe.length > 0
+    !configured
+      ? "not_configured"
+      : unsafe.length > 0
       ? "unsafe_production_target"
       : missing.length > 0
         ? "blocked_missing_secret"
@@ -543,6 +555,7 @@ const providerTokenCustodyCheck = (
         : "Reports provider-token custody blockers and deferred live-custody requirements without exposing key material.",
     metadata: {
       targetKind,
+      microsoft365ProviderEnabled: config.connectors.microsoft365.enabled,
       providerKind: config.connectors.providerTokenKeyProvider,
       activeKeyIdConfigured: nonEmpty(config.connectors.providerTokenEncryptionKeyId),
       previousKeyCount,

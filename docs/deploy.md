@@ -1,6 +1,6 @@
 # PureSOC Deployment Guide
 
-Status: deployment guide for the current repository state as of 2026-05-04.
+Status: deployment guide for the current repository state as of 2026-06-09.
 Scope: local development, in-a-box deployments, and SaaS-like deployment preparation.
 
 PureSOC is Docker-first, TypeScript-first, provider-neutral, and Romania-first for V1. The current runtime is intentionally lighter than the original target stack: `apps/api` and `apps/web` use `node:http`, jobs use the local `@puresoc/jobs` adapter, and the browser smoke path uses deterministic HTTP snapshots plus host Firefox WebDriver BiDi when available. Do not describe the current implementation as NestJS, Next.js, BullMQ-package, or Playwright-backed unless those migrations are actually implemented.
@@ -16,6 +16,33 @@ PureSOC must not be deployed or marketed as legal certification. Reports and wor
 | SaaS/staging/production | Hosted multi-tenant service | Managed PostgreSQL, Redis, object storage, TLS ingress, secrets manager or equivalent, scanner, backups, monitoring, and approved external-service smokes |
 
 Provider writes and remediation execution remain disabled. Microsoft 365 is read-only until a separate approval-gated write path exists with audit logging, preflight, snapshots, verification, and evidence.
+
+## Minimal Installer Secret Surface
+
+The first-run environment is intentionally small. `code/.env.example` keeps Microsoft 365, social login, Stripe, and S3 disabled, so another infrastructure installer does not need to ask for their client secrets or access keys during the Romania/local readiness bootstrap.
+
+For a minimal local or in-a-box path, start with:
+
+```sh
+PURESOC_PERSISTENCE_MODE=memory
+PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
+PURESOC_BILLING_PROVIDER=none
+PURESOC_OBJECT_STORAGE_PROVIDER=memory
+PURESOC_JOB_QUEUE_PROVIDER=memory
+PURESOC_API_RATE_LIMIT_STORE_PROVIDER=memory
+```
+
+For durable Prisma mode, the only required first-boot secret-like value is the PostgreSQL `DATABASE_URL`. Add optional secrets only when enabling the matching feature:
+
+| Feature | Enable when needed | Secrets introduced |
+|---|---|---|
+| Microsoft 365 managed provider | `PURESOC_MICROSOFT365_PROVIDER_ENABLED=true` | `MICROSOFT365_CLIENT_SECRET`, `PURESOC_PROVIDER_TOKEN_KEY` |
+| Microsoft/Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
+| Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
+| S3/MinIO object storage | `PURESOC_OBJECT_STORAGE_PROVIDER=s3` | object-storage access key and secret key |
+| Redis-backed jobs/rate limits | `PURESOC_JOB_QUEUE_PROVIDER=bullmq` or `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` | Redis URL if the Redis service requires credentials |
+
+This smaller installer surface is not a claim that production operations are solved. Durable evidence storage, upload scanning, backups, monitoring, and external proof smokes still need operator-owned configuration before launch.
 
 ## Service Topology
 
@@ -58,7 +85,7 @@ cd code
 cp .env.example .env
 ```
 
-Never use the checked-in development secrets from `.env.example` in production or customer deployments.
+The template omits optional integration secrets by default. Do not add Microsoft, social-login, Stripe, S3, or Redis credentials unless that feature is intentionally enabled.
 
 3. Choose persistence:
 
@@ -71,7 +98,6 @@ Memory mode is only for deterministic local/test runs.
 ```sh
 PURESOC_PERSISTENCE_MODE=prisma
 DATABASE_URL=postgresql://...
-PURESOC_DATABASE_URL=postgresql://...
 ```
 
 Prisma mode is required for durable in-a-box, staging, and production installs.
@@ -141,6 +167,15 @@ PURESOC_WEB_PUBLIC_BASE_URL=https://app.example.com
 PURESOC_API_TRUSTED_ORIGINS=https://app.example.com,https://api.example.com
 ```
 
+If the deployment is Romania/local readiness only, keep optional integrations disabled:
+
+```sh
+PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
+PURESOC_BILLING_PROVIDER=none
+```
+
+With those integrations disabled and no social-login provider enabled, production startup does not require provider-token, OIDC, Stripe, or S3 secrets. Enabling those features re-enables their fail-fast startup checks.
+
 If a reverse proxy supplies forwarded client IPs, trust them only from explicit proxy IPs:
 
 ```sh
@@ -183,7 +218,6 @@ Variables:
 
 ```sh
 DATABASE_URL=postgresql://...
-PURESOC_DATABASE_URL=postgresql://...
 ```
 
 Operator responsibilities:
@@ -196,7 +230,7 @@ Operator responsibilities:
 
 ### Redis
 
-Required for durable job queues and recommended for shared API rate limiting.
+Required only when durable job queues or shared API rate limiting are enabled. The minimal installer keeps jobs and rate limits process-local.
 
 Variables:
 
@@ -218,6 +252,8 @@ Operator responsibilities:
 Evidence binaries, generated reports, provider snapshots, exports, and source snapshots should live in object storage while metadata lives in PostgreSQL.
 
 Local Compose provides MinIO. SaaS/in-a-box deployments can use MinIO or an S3-compatible service.
+
+The minimal installer leaves `PURESOC_OBJECT_STORAGE_PROVIDER=memory`, which is suitable only for local/test bootstrap and the current local Romania workflow. Set `s3` before relying on durable evidence binaries.
 
 Variables:
 
@@ -290,6 +326,14 @@ Do not use `sk_live_*` keys until product, finance, support, tax, refund, and op
 
 Microsoft 365 is a managed provider connection, not a sign-in identity. Keep it separate from Microsoft Entra social login.
 
+The minimal installer keeps this disabled:
+
+```sh
+PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
+```
+
+Only enable it when a read-only Microsoft tenant proof or customer onboarding is in scope:
+
 External setup needed:
 
 - disposable/test Microsoft Entra tenant for smoke;
@@ -303,6 +347,7 @@ External setup needed:
 Environment:
 
 ```sh
+PURESOC_MICROSOFT365_PROVIDER_ENABLED=true
 MICROSOFT365_CLIENT_ID=...
 MICROSOFT365_CLIENT_SECRET=...
 MICROSOFT365_TENANT_ID=...
@@ -340,12 +385,14 @@ Shared requirements:
 - callback/redirect URI for the deployed API;
 - client ID and secret;
 - issuer/JWKS/profile endpoints as needed by the provider;
-- strong `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY`;
+- strong `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` when any social-login provider is enabled in production Prisma mode;
 - account-linking policy that does not trust email alone.
 
 Variables:
 
 ```sh
+PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY=replace-with-strong-secret
+
 PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true
 PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID=...
 PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET=...
@@ -372,6 +419,8 @@ PURESOC_EXTERNAL_SMOKE_OIDC_PROVIDER=github pnpm oidc:smoke:callback
 Do not print OAuth codes, access tokens, ID tokens, refresh tokens, PKCE verifiers, session cookies, provider secrets, or full user emails.
 
 ### Provider Token Custody
+
+Provider-token custody protects stored Microsoft 365 provider credentials. It is not required for the minimal local/Romania installer while `PURESOC_MICROSOFT365_PROVIDER_ENABLED=false`.
 
 The implemented real custody provider is currently `local-env-key-ring`.
 
@@ -450,10 +499,10 @@ Do not run live external smokes against production, staging, customer, or long-l
 - TLS and secure cookies are enabled.
 - Origin/Referer protection is strict in production.
 - Trusted proxy IPs are explicit if forwarded headers are trusted.
-- Object storage and scanner are configured for evidence uploads.
-- Provider token key material is non-default and injected through a deployment secret channel.
+- Object storage and scanner are configured before relying on durable production evidence uploads.
+- Provider token key material is non-default and injected through a deployment secret channel when Microsoft 365 provider onboarding is enabled.
 - Billing is either explicitly `none` for local/in-a-box or Stripe is configured with approved test/production mappings.
-- Microsoft 365 provider onboarding requests read-only permissions only.
+- Microsoft 365 provider onboarding is either disabled or requests read-only permissions only.
 - No provider write execution is enabled.
 - Reports retain the PureSOC legal caveat.
 - Romania legal logic remains review-required unless GAP-006/GAP-042 approvals are complete.

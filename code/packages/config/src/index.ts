@@ -71,6 +71,8 @@ export interface PureSocConfig {
     providerTokenEncryptionPreviousKeys: ProviderTokenEncryptionKeyConfig[];
     microsoft365: {
       enabled: boolean;
+      clientId: string;
+      clientSecret: string;
       writeScopesAllowed: boolean;
     };
   };
@@ -442,6 +444,10 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     },
     connectors: {
       ...config.connectors,
+      readOnlyByDefault: readBoolean(
+        env.PURESOC_CONNECTORS_READ_ONLY_BY_DEFAULT,
+        config.connectors.readOnlyByDefault
+      ),
       providerTokenKeyProvider:
         env.PURESOC_PROVIDER_TOKEN_KEY_PROVIDER ??
         config.connectors.providerTokenKeyProvider,
@@ -455,7 +461,26 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       providerTokenEncryptionPreviousKeys: readProviderTokenPreviousKeys(
         env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS,
         config.connectors.providerTokenEncryptionPreviousKeys
-      )
+      ),
+      microsoft365: {
+        ...config.connectors.microsoft365,
+        enabled: readBoolean(
+          env.PURESOC_MICROSOFT365_PROVIDER_ENABLED,
+          config.connectors.microsoft365.enabled
+        ),
+        clientId:
+          env.MICROSOFT365_CLIENT_ID ??
+          env.M365_CLIENT_ID ??
+          config.connectors.microsoft365.clientId,
+        clientSecret:
+          env.MICROSOFT365_CLIENT_SECRET ??
+          env.M365_CLIENT_SECRET ??
+          config.connectors.microsoft365.clientSecret,
+        writeScopesAllowed: readBoolean(
+          env.PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED,
+          config.connectors.microsoft365.writeScopesAllowed
+        )
+      }
     },
     compliance: {
       ...config.compliance,
@@ -663,6 +688,17 @@ export const collectStartupConfigIssues = (
 ): StartupConfigValidationIssue[] => {
   const issues: StartupConfigValidationIssue[] = [];
   const isProduction = config.app.env === "production";
+  const providerTokenConfigExplicitlyConfigured =
+    config.connectors.providerTokenKeyProvider !== localProviderTokenKeyProvider ||
+    nonEmpty(config.connectors.providerTokenEncryptionKeyId) ||
+    nonEmpty(config.connectors.providerTokenEncryptionKey) ||
+    config.connectors.providerTokenEncryptionPreviousKeys.length > 0;
+  const providerTokenCustodyRequired =
+    config.connectors.microsoft365.enabled || providerTokenConfigExplicitlyConfigured;
+  const oidcTransientStateRequired =
+    isProduction &&
+    config.app.persistenceMode === "prisma" &&
+    Object.values(config.auth.socialLogin.providers).some((provider) => provider.enabled);
 
   if (isProduction && !config.auth.sessionCookieSecure) {
     issues.push({
@@ -791,7 +827,27 @@ export const collectStartupConfigIssues = (
     });
   }
 
+  if (isProduction && config.connectors.microsoft365.enabled) {
+    if (!nonEmpty(config.connectors.microsoft365.clientId)) {
+      issues.push({
+        code: "microsoft365_client_id_required",
+        path: "connectors.microsoft365.clientId",
+        message: "Production startup with Microsoft 365 provider enabled requires MICROSOFT365_CLIENT_ID."
+      });
+    }
+
+    if (!nonEmpty(config.connectors.microsoft365.clientSecret)) {
+      issues.push({
+        code: "microsoft365_client_secret_required",
+        path: "connectors.microsoft365.clientSecret",
+        message:
+          "Production startup with Microsoft 365 provider enabled requires MICROSOFT365_CLIENT_SECRET for consent token exchange."
+      });
+    }
+  }
+
   if (
+    providerTokenCustodyRequired &&
     config.connectors.providerTokenKeyProvider !== localProviderTokenKeyProvider &&
     config.connectors.providerTokenKeyProvider !== fakeProviderTokenKeyProvider
   ) {
@@ -803,7 +859,11 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (isProduction && config.connectors.providerTokenKeyProvider === fakeProviderTokenKeyProvider) {
+  if (
+    providerTokenCustodyRequired &&
+    isProduction &&
+    config.connectors.providerTokenKeyProvider === fakeProviderTokenKeyProvider
+  ) {
     issues.push({
       code: "provider_token_fake_key_provider_not_production",
       path: "connectors.providerTokenKeyProvider",
@@ -811,7 +871,7 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (!nonEmpty(config.connectors.providerTokenEncryptionKeyId)) {
+  if (providerTokenCustodyRequired && !nonEmpty(config.connectors.providerTokenEncryptionKeyId)) {
     issues.push({
       code: "provider_token_key_id_required",
       path: "connectors.providerTokenEncryptionKeyId",
@@ -823,85 +883,88 @@ export const collectStartupConfigIssues = (
     config.connectors.providerTokenEncryptionKeyId,
     ...config.connectors.providerTokenEncryptionPreviousKeys.map((key) => key.id)
   ];
-  const duplicateProviderTokenKeyId = providerTokenKeyIds.find(
-    (keyId, index) => nonEmpty(keyId) && providerTokenKeyIds.indexOf(keyId) !== index
-  );
-  if (duplicateProviderTokenKeyId) {
-    issues.push({
-      code: "provider_token_key_id_duplicate",
-      path: "connectors.providerTokenEncryptionPreviousKeys",
-      message: `Provider token encryption key ID must be unique: ${duplicateProviderTokenKeyId}.`
-    });
-  }
+  if (providerTokenCustodyRequired) {
+    const duplicateProviderTokenKeyId = providerTokenKeyIds.find(
+      (keyId, index) => nonEmpty(keyId) && providerTokenKeyIds.indexOf(keyId) !== index
+    );
+    if (duplicateProviderTokenKeyId) {
+      issues.push({
+        code: "provider_token_key_id_duplicate",
+        path: "connectors.providerTokenEncryptionPreviousKeys",
+        message: `Provider token encryption key ID must be unique: ${duplicateProviderTokenKeyId}.`
+      });
+    }
 
-  const invalidPreviousKey = config.connectors.providerTokenEncryptionPreviousKeys.find(
-    (key) => !nonEmpty(key.id) || !nonEmpty(key.key)
-  );
-  if (invalidPreviousKey) {
-    issues.push({
-      code: "provider_token_previous_key_invalid",
-      path: "connectors.providerTokenEncryptionPreviousKeys",
-      message: "Previous provider token keys must use id=key pairs."
-    });
-  }
+    const invalidPreviousKey = config.connectors.providerTokenEncryptionPreviousKeys.find(
+      (key) => !nonEmpty(key.id) || !nonEmpty(key.key)
+    );
+    if (invalidPreviousKey) {
+      issues.push({
+        code: "provider_token_previous_key_invalid",
+        path: "connectors.providerTokenEncryptionPreviousKeys",
+        message: "Previous provider token keys must use id=key pairs."
+      });
+    }
 
-  const duplicatePreviousKeyValue = config.connectors.providerTokenEncryptionPreviousKeys.find(
-    (key, index, keys) => nonEmpty(key.key) && keys.findIndex((entry) => entry.key === key.key) !== index
-  );
-  if (duplicatePreviousKeyValue) {
-    issues.push({
-      code: "provider_token_previous_key_duplicate",
-      path: "connectors.providerTokenEncryptionPreviousKeys",
-      message: "Previous provider token keys must not reuse the same key material."
-    });
+    const duplicatePreviousKeyValue = config.connectors.providerTokenEncryptionPreviousKeys.find(
+      (key, index, keys) => nonEmpty(key.key) && keys.findIndex((entry) => entry.key === key.key) !== index
+    );
+    if (duplicatePreviousKeyValue) {
+      issues.push({
+        code: "provider_token_previous_key_duplicate",
+        path: "connectors.providerTokenEncryptionPreviousKeys",
+        message: "Previous provider token keys must not reuse the same key material."
+      });
+    }
+
+    if (
+      nonEmpty(config.connectors.providerTokenEncryptionKey) &&
+      config.connectors.providerTokenEncryptionPreviousKeys.some(
+        (key) => key.key === config.connectors.providerTokenEncryptionKey
+      )
+    ) {
+      issues.push({
+        code: "provider_token_previous_key_reuses_active",
+        path: "connectors.providerTokenEncryptionPreviousKeys",
+        message: "Previous provider token keys must not reuse the active key material."
+      });
+    }
+
+    if (
+      isProduction &&
+      (!nonEmpty(config.connectors.providerTokenEncryptionKey) ||
+        config.connectors.providerTokenEncryptionKey === localDevProviderTokenKey)
+    ) {
+      issues.push({
+        code: "provider_token_key_required",
+        path: "connectors.providerTokenEncryptionKey",
+        message:
+          "Production startup with Microsoft 365 provider enabled requires a non-default PURESOC_PROVIDER_TOKEN_KEY."
+      });
+    }
+
+    if (
+      isProduction &&
+      config.connectors.providerTokenEncryptionPreviousKeys.some((key) => key.key === localDevProviderTokenKey)
+    ) {
+      issues.push({
+        code: "provider_token_previous_key_default",
+        path: "connectors.providerTokenEncryptionPreviousKeys",
+        message: "Production startup cannot include the local-dev provider token key in previous keys."
+      });
+    }
   }
 
   if (
-    nonEmpty(config.connectors.providerTokenEncryptionKey) &&
-    config.connectors.providerTokenEncryptionPreviousKeys.some(
-      (key) => key.key === config.connectors.providerTokenEncryptionKey
-    )
-  ) {
-    issues.push({
-      code: "provider_token_previous_key_reuses_active",
-      path: "connectors.providerTokenEncryptionPreviousKeys",
-      message: "Previous provider token keys must not reuse the active key material."
-    });
-  }
-
-  if (
-    isProduction &&
-    (!nonEmpty(config.connectors.providerTokenEncryptionKey) ||
-      config.connectors.providerTokenEncryptionKey === localDevProviderTokenKey)
-  ) {
-    issues.push({
-      code: "provider_token_key_required",
-      path: "connectors.providerTokenEncryptionKey",
-      message: "Production startup requires a non-default PURESOC_PROVIDER_TOKEN_KEY."
-    });
-  }
-
-  if (
-    isProduction &&
-    config.connectors.providerTokenEncryptionPreviousKeys.some((key) => key.key === localDevProviderTokenKey)
-  ) {
-    issues.push({
-      code: "provider_token_previous_key_default",
-      path: "connectors.providerTokenEncryptionPreviousKeys",
-      message: "Production startup cannot include the local-dev provider token key in previous keys."
-    });
-  }
-
-  if (
-    isProduction &&
-    config.app.persistenceMode === "prisma" &&
+    oidcTransientStateRequired &&
     (!nonEmpty(config.auth.socialLogin.transientStateEncryptionKey) ||
       config.auth.socialLogin.transientStateEncryptionKey === localDevOidcTransientStateKey)
   ) {
     issues.push({
       code: "oidc_transient_state_key_required",
       path: "auth.socialLogin.transientStateEncryptionKey",
-      message: "Production Prisma-mode OIDC callbacks require PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY."
+      message:
+        "Production Prisma-mode OIDC/social login requires PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY when a provider is enabled."
     });
   }
 

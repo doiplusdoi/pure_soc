@@ -70,6 +70,9 @@ export interface Microsoft365ProviderConnectionServiceOptions {
   now?: () => Date;
   stateFactory?: () => string;
   tokenCipher?: Microsoft365TokenCipher;
+  tokenCipherFactory?: () => Microsoft365TokenCipher;
+  clientId?: string;
+  clientSecret?: string;
   createConnector?: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
@@ -92,7 +95,8 @@ export class Microsoft365ProviderConnectionService {
   private readonly auditWriter: LocalAuthAuditWriter;
   private readonly now: () => Date;
   private readonly stateFactory: () => string;
-  private readonly tokenCipher: Microsoft365TokenCipher;
+  private readonly tokenCipherFactory: () => Microsoft365TokenCipher;
+  private tokenCipher?: Microsoft365TokenCipher;
   private readonly createConnector: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
@@ -104,13 +108,16 @@ export class Microsoft365ProviderConnectionService {
     this.auditWriter = options.auditWriter;
     this.now = options.now ?? (() => new Date());
     this.stateFactory = options.stateFactory ?? randomUUID;
-    this.tokenCipher = options.tokenCipher ?? defaultTokenCipher();
+    this.tokenCipher = options.tokenCipher;
+    this.tokenCipherFactory = options.tokenCipherFactory ?? defaultTokenCipher;
+    const clientId = options.clientId ?? process.env.MICROSOFT365_CLIENT_ID ?? process.env.M365_CLIENT_ID ?? "";
+    const clientSecret = options.clientSecret ?? process.env.MICROSOFT365_CLIENT_SECRET ?? process.env.M365_CLIENT_SECRET;
     this.createConnector =
       options.createConnector ??
       ((input) =>
         createMicrosoft365Connector({
-          clientId: process.env.MICROSOFT365_CLIENT_ID ?? process.env.M365_CLIENT_ID ?? "",
-          clientSecret: process.env.MICROSOFT365_CLIENT_SECRET ?? process.env.M365_CLIENT_SECRET,
+          clientId,
+          clientSecret,
           credentialResolver: input.credentialResolver,
           tokenCipher: input.tokenCipher
         }));
@@ -336,8 +343,13 @@ export class Microsoft365ProviderConnectionService {
   private microsoftConnector(): CloudProviderConnector {
     return this.createConnector({
       credentialResolver: this.resolveCredential,
-      tokenCipher: this.tokenCipher
+      tokenCipher: this.getTokenCipher()
     });
+  }
+
+  private getTokenCipher(): Microsoft365TokenCipher {
+    this.tokenCipher ??= this.tokenCipherFactory();
+    return this.tokenCipher;
   }
 
   private readonly resolveCredential: Microsoft365CredentialResolver = async (input) => {
@@ -347,7 +359,7 @@ export class Microsoft365ProviderConnectionService {
       throw new AuthError("invalid_request", "Microsoft 365 credential is not available for this connection.", 400);
     }
 
-    return this.tokenCipher.decrypt<Microsoft365StoredCredential>(credential.encryptedPayload);
+    return this.getTokenCipher().decrypt<Microsoft365StoredCredential>(credential.encryptedPayload);
   };
 
   private consumePendingState(input: Microsoft365ConsentCallbackInput): PendingConsentState {

@@ -268,17 +268,20 @@ export const createApiServices = (
   const microsoft365ProviderConnections = new Microsoft365ProviderConnectionService({
     store: providerStore,
     auditWriter,
-    tokenCipher: createLocalMicrosoft365TokenCipher({
-      keyProvider: createMicrosoft365TokenKeyProviderFromConfig({
-        providerKind: config.connectors.providerTokenKeyProvider,
-        activeKeyId: config.connectors.providerTokenEncryptionKeyId,
-        activeKeyMaterial: config.connectors.providerTokenEncryptionKey,
-        previousKeys: config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
-          keyId: key.id,
-          masterKey: key.key
-        }))
-      })
-    }),
+    clientId: config.connectors.microsoft365.clientId,
+    clientSecret: config.connectors.microsoft365.clientSecret,
+    tokenCipherFactory: () =>
+      createLocalMicrosoft365TokenCipher({
+        keyProvider: createMicrosoft365TokenKeyProviderFromConfig({
+          providerKind: config.connectors.providerTokenKeyProvider,
+          activeKeyId: config.connectors.providerTokenEncryptionKeyId,
+          activeKeyMaterial: config.connectors.providerTokenEncryptionKey,
+          previousKeys: config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
+            keyId: key.id,
+            masterKey: key.key
+          }))
+        })
+      }),
     now: options.now
   });
   const compliance = new ComplianceEvaluationService({

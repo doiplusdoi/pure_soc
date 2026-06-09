@@ -31,6 +31,8 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("NIS2 Article 21");
     expect(html).toContain("Romania NIS2 registration workflow");
     expect(html).toContain("Internal readiness report");
+    expect(html).toContain("Microsoft 365 provider disabled");
+    expect(html).toContain("Basic Romania/local readiness does not require Microsoft 365 setup.");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 

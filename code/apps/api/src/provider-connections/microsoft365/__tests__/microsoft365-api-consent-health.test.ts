@@ -1,6 +1,8 @@
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
 import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
+import { loadConfig } from "@puresoc/config";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
@@ -9,6 +11,8 @@ import {
   type Microsoft365StoredCredential
 } from "@puresoc/provider-microsoft365";
 import type { MicrosoftGraphHttpClient } from "@puresoc/provider-microsoft365";
+import { createApiServices } from "../../../auth/services";
+import { startApiServer } from "../../../server";
 import { Microsoft365ProviderConnectionService } from "../service";
 
 const fixedNow = () => new Date("2026-04-28T10:00:00.000Z");
@@ -56,6 +60,49 @@ const graphHttpClient: MicrosoftGraphHttpClient = async (request) => {
 };
 
 describe("microsoft365 API consent and health service", () => {
+  it("hard-gates Microsoft 365 API routes when the provider is disabled", async () => {
+    const services = createApiServices({
+      config: loadConfig({
+        env: {
+          PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false"
+        }
+      })
+    });
+    const server = startApiServer(0, services);
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const requests = [
+        fetch(`${baseUrl}/organizations/org_disabled/provider-connections/microsoft365/consent/begin`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({})
+        }),
+        fetch(`${baseUrl}/organizations/org_disabled/provider-connections/microsoft365/consent/callback`),
+        fetch(`${baseUrl}/organizations/org_disabled/provider-connections/connection_disabled/microsoft365/sync`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({})
+        }),
+        fetch(`${baseUrl}/organizations/org_disabled/provider-connections/connection_disabled/health`)
+      ];
+
+      for (const response of await Promise.all(requests)) {
+        const body = (await response.json()) as { error?: { code?: string; message?: string } };
+        expect(response.status).toBe(404);
+        expect(body.error).toMatchObject({
+          code: "provider_disabled",
+          message: "Microsoft 365 provider onboarding is disabled for this deployment."
+        });
+      }
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("validates callback state, stores encrypted permission bundles, and reports health", async () => {
     const store = new InMemoryProviderResourceStore({ now: fixedNow });
     const auditSink = new InMemoryAuditSink();

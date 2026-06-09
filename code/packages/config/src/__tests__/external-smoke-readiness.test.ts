@@ -86,8 +86,9 @@ describe("external smoke readiness", () => {
       storagePointersReturned: false
     });
     expect(report.checks.find((check) => check.id === "microsoft365_read_only_tenant")?.status).toBe(
-      "blocked_missing_secret"
+      "not_configured"
     );
+    expect(report.checks.find((check) => check.id === "microsoft365_read_only_tenant")?.blockers).toEqual([]);
     expect(report.checks.find((check) => check.id === "stripe_test_mode_billing")?.status).toBe(
       "blocked_missing_secret"
     );
@@ -106,6 +107,7 @@ describe("external smoke readiness", () => {
       PURESOC_EXTERNAL_SMOKE_TARGET_KIND: "disposable",
       PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: "true",
       PURESOC_EXTERNAL_SMOKE_MICROSOFT365: "true",
+      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
       MICROSOFT365_CLIENT_ID: "client-id",
       MICROSOFT365_CLIENT_SECRET: "client-secret",
       MICROSOFT365_TENANT_ID: "tenant-id"
@@ -148,6 +150,25 @@ describe("external smoke readiness", () => {
     });
     expect(JSON.stringify(report)).not.toContain("current-key-material-do-not-print");
     expect(JSON.stringify(report)).not.toContain("previous-key-material-do-not-print");
+  });
+
+  it("treats Microsoft and provider-token custody as not configured for the minimal installer", () => {
+    const report = buildReport({
+      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false"
+    });
+
+    const microsoft365 = report.checks.find((check) => check.id === "microsoft365_read_only_tenant");
+    const custody = report.checks.find((check) => check.id === "provider_token_custody_deployment");
+
+    expect(microsoft365?.status).toBe("not_configured");
+    expect(microsoft365?.blockers).toEqual([]);
+    expect(custody?.status).toBe("not_configured");
+    expect(custody?.blockers).toEqual([]);
+    expect(custody?.metadata).toMatchObject({
+      microsoft365ProviderEnabled: false,
+      activeKeyMaterialReturned: false,
+      previousKeyMaterialReturned: false
+    });
   });
 
   it("blocks SaaS provider-token custody until live external custody is implemented", () => {
