@@ -2,8 +2,6 @@ name: puresoc-webservices
 
 services:
   puresoc-web:
-    image: puresoc-web:local
-    pull_policy: never
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-web:latest
   puresoc-api:
-    image: puresoc-api:local
-    pull_policy: never
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-api:latest

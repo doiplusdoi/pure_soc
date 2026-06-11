@@ -1,5 +1,63 @@
 name: puresoc
 
+x-puresoc-default-environment: &puresoc-default-environment
+  PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
+  PURESOC_PERSISTENCE_MODE: ${PURESOC_PERSISTENCE_MODE:-memory}
+  PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:-http://localhost:3000}
+  PURESOC_API_BASE_URL: ${PURESOC_API_BASE_URL:-http://localhost:3001}
+  PURESOC_WEB_PUBLIC_BASE_URL: ${PURESOC_WEB_PUBLIC_BASE_URL:-http://localhost:3000}
+  PURESOC_WEB_API_BASE_URL: ${PURESOC_WEB_API_BASE_URL:-http://localhost:3001}
+  PURESOC_API_TRUSTED_ORIGINS: ${PURESOC_API_TRUSTED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+  PURESOC_API_ORIGIN_PROTECTION_ENABLED: ${PURESOC_API_ORIGIN_PROTECTION_ENABLED:-true}
+  PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: ${PURESOC_API_REQUIRE_ORIGIN_OR_REFERER:-false}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://puresoc:puresoc@puresoc-postgres:5432/puresoc}
+  PURESOC_AUTH_LOCAL_ENABLED: ${PURESOC_AUTH_LOCAL_ENABLED:-true}
+  PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
+  PURESOC_AUTH_BROKER_ENABLED: ${PURESOC_AUTH_BROKER_ENABLED:-false}
+  PURESOC_AUTH_COOKIE_SECURE: ${PURESOC_AUTH_COOKIE_SECURE:-false}
+  PURESOC_MICROSOFT365_PROVIDER_ENABLED: ${PURESOC_MICROSOFT365_PROVIDER_ENABLED:-false}
+  PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES: ${PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES:-false}
+  PURESOC_BILLING_PROVIDER: ${PURESOC_BILLING_PROVIDER:-none}
+  PURESOC_OBJECT_STORAGE_PROVIDER: ${PURESOC_OBJECT_STORAGE_PROVIDER:-memory}
+  PURESOC_UPLOAD_SCANNER_MODE: ${PURESOC_UPLOAD_SCANNER_MODE:-noop}
+  REGULATORY_SOURCE_MONITOR_ENABLED: ${REGULATORY_SOURCE_MONITOR_ENABLED:-false}
+  PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE: ${PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE:-true}
+  PURESOC_JOB_QUEUE_PROVIDER: ${PURESOC_JOB_QUEUE_PROVIDER:-memory}
+  PURESOC_API_RATE_LIMIT_STORE_PROVIDER: ${PURESOC_API_RATE_LIMIT_STORE_PROVIDER:-memory}
+  PURESOC_EXTERNAL_SMOKE_MODE: ${PURESOC_EXTERNAL_SMOKE_MODE:-dry_run}
+  PURESOC_EXTERNAL_SMOKE_TARGET_KIND: ${PURESOC_EXTERNAL_SMOKE_TARGET_KIND:-}
+  PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: ${PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE:-false}
+  PURESOC_EXTERNAL_SMOKE_MICROSOFT365: ${PURESOC_EXTERNAL_SMOKE_MICROSOFT365:-false}
+  PURESOC_EXTERNAL_SMOKE_STRIPE: ${PURESOC_EXTERNAL_SMOKE_STRIPE:-false}
+  PURESOC_EXTERNAL_SMOKE_OIDC_MICROSOFT_ENTRA: ${PURESOC_EXTERNAL_SMOKE_OIDC_MICROSOFT_ENTRA:-false}
+  PURESOC_EXTERNAL_SMOKE_OIDC_GOOGLE: ${PURESOC_EXTERNAL_SMOKE_OIDC_GOOGLE:-false}
+  PURESOC_EXTERNAL_SMOKE_OIDC_GITHUB: ${PURESOC_EXTERNAL_SMOKE_OIDC_GITHUB:-false}
+  PURESOC_EXTERNAL_SMOKE_STORAGE: ${PURESOC_EXTERNAL_SMOKE_STORAGE:-false}
+  PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS: ${PURESOC_EXTERNAL_SMOKE_EVIDENCE_REPORTS:-false}
+  PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT: ${PURESOC_EXTERNAL_SMOKE_AUTH_DEPLOYMENT:-false}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID:-}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET:-}
+  PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: ${PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST:-https://login.microsoftonline.com}
+  PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: ${PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI:-}
+  PURESOC_MICROSOFT365_SMOKE_TENANT_ID: ${PURESOC_MICROSOFT365_SMOKE_TENANT_ID:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: ${PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED:-false}
+  PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI: ${PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI:-http://localhost:3001/auth/oidc/microsoft_entra/callback}
+  PURESOC_AUTH_GOOGLE_ENABLED: ${PURESOC_AUTH_GOOGLE_ENABLED:-false}
+  PURESOC_AUTH_GOOGLE_CLIENT_ID: ${PURESOC_AUTH_GOOGLE_CLIENT_ID:-}
+  PURESOC_AUTH_GOOGLE_CLIENT_SECRET: ${PURESOC_AUTH_GOOGLE_CLIENT_SECRET:-}
+  PURESOC_AUTH_GOOGLE_REDIRECT_URI: ${PURESOC_AUTH_GOOGLE_REDIRECT_URI:-http://localhost:3001/auth/oidc/google/callback}
+  PURESOC_AUTH_GITHUB_ENABLED: ${PURESOC_AUTH_GITHUB_ENABLED:-false}
+  PURESOC_AUTH_GITHUB_CLIENT_ID: ${PURESOC_AUTH_GITHUB_CLIENT_ID:-}
+  PURESOC_AUTH_GITHUB_CLIENT_SECRET: ${PURESOC_AUTH_GITHUB_CLIENT_SECRET:-}
+  PURESOC_AUTH_GITHUB_REDIRECT_URI: ${PURESOC_AUTH_GITHUB_REDIRECT_URI:-http://localhost:3001/auth/oidc/github/callback}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_ID_BASE: ${STRIPE_PRICE_ID_BASE:-}
+  STRIPE_PRICE_ID_PRO: ${STRIPE_PRICE_ID_PRO:-}
+  STRIPE_PRICE_ID_MSP: ${STRIPE_PRICE_ID_MSP:-}
+
 services:
   puresoc-postgres:
     image: postgres:16-alpine
@@ -40,11 +98,9 @@ services:
       - puresoc-object-storage-data:/data
 
   puresoc-web:
-    image: puresoc-web:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-web:latest
     environment:
+      <<: *puresoc-default-environment
       PORT: "3000"
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
     ports:
@@ -54,11 +110,9 @@ services:
         condition: service_started
 
   puresoc-api:
-    image: puresoc-api:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-api:latest
     environment:
+      <<: *puresoc-default-environment
       PORT: "3001"
     ports:
       - "3001:3001"
@@ -71,10 +125,9 @@ services:
         condition: service_started
 
   puresoc-worker:
-    image: puresoc-worker:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-worker:latest
+    environment:
+      <<: *puresoc-default-environment
     depends_on:
       puresoc-api:
         condition: service_started
@@ -82,10 +135,9 @@ services:
         condition: service_healthy
 
   puresoc-scheduler:
-    image: puresoc-scheduler:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-scheduler:latest
+    environment:
+      <<: *puresoc-default-environment
     depends_on:
       puresoc-api:
         condition: service_started
@@ -93,10 +145,9 @@ services:
         condition: service_healthy
 
   puresoc-connector-runner:
-    image: puresoc-connector-runner:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-connector-runner:latest
+    environment:
+      <<: *puresoc-default-environment
     depends_on:
       puresoc-api:
         condition: service_started
@@ -104,19 +155,16 @@ services:
         condition: service_healthy
 
   puresoc-regulatory-importer:
-    image: puresoc-regulatory-importer:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest
+    environment:
+      <<: *puresoc-default-environment
     profiles:
       - regulatory
 
   puresoc-report-renderer:
-    image: puresoc-report-renderer:local
-    pull_policy: never
-    env_file:
-      - ../../.env.example
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-report-renderer:latest
     environment:
+      <<: *puresoc-default-environment
       PORT: "3002"
     ports:
       - "3002:3002"

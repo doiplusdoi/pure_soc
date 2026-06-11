@@ -2,5 +2,4 @@ name: puresoc-connectors
 
 services:
   puresoc-connector-runner:
-    image: puresoc-connector-runner:local
-    pull_policy: never
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-connector-runner:latest

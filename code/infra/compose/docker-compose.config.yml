@@ -2,5 +2,4 @@ name: puresoc-config
 
 services:
   puresoc-regulatory-importer:
-    image: puresoc-regulatory-importer:local
-    pull_policy: never
+    image: ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest

@@ -46,7 +46,23 @@ This smaller installer surface is not a claim that production operations are sol
 
 ## Service Topology
 
-The main service catalog is `code/infra/compose/docker-compose.yml`. It is runtime-only and uses local image tags without `build:` entries, so ordinary Compose starts do not invoke Docker Buildx/Bake. Local image build metadata lives in the opt-in `code/infra/compose/docker-compose.build.yml` override.
+The main service catalog is `code/infra/compose/docker-compose.yml`. It is runtime-only and uses public GHCR image references without `build:` entries, so ordinary Compose starts do not invoke Docker Buildx/Bake and deployment platforms can create services from the single Compose file.
+
+Non-secret runtime defaults are embedded in the Compose file through `x-puresoc-default-environment` with `${VAR:-default}` interpolation. When using Docker Compose directly, `code/.env` or shell variables override those defaults; when using a deployment app, configure the same variables through that platform's environment/secret settings.
+
+Application image defaults:
+
+```txt
+ghcr.io/doiplusdoi/pure_soc/puresoc-web:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-api:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-worker:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-scheduler:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-connector-runner:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest
+ghcr.io/doiplusdoi/pure_soc/puresoc-report-renderer:latest
+```
+
+Those images must be published and public before a Compose-reading deployment app can start the product. For production, prefer immutable release tags or digests over `latest` once the image publishing pipeline exists. Local image build metadata remains in the opt-in `code/infra/compose/docker-compose.build.yml` override.
 
 | Service | Purpose | Notes |
 |---|---|---|
@@ -118,7 +134,13 @@ pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
 The current Compose catalog does not include a dedicated migrator container, so migration execution is operator/pipeline owned.
 
-5. Build local application images when the deployment pipeline has not already produced them:
+5. Pull application images when the registry publishing pipeline has already produced them:
+
+```sh
+docker compose -f infra/compose/docker-compose.yml pull
+```
+
+For local development only, build application images from the repository when the registry images are not available:
 
 ```sh
 COMPOSE_BAKE=false docker compose \
@@ -498,6 +520,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 - `pnpm test` passes.
 - `pnpm test:e2e -- --grep "@ui-smoke"` passes.
 - `docker compose -f infra/compose/docker-compose.yml config` passes.
+- The public registry images referenced by Compose exist and are readable by the deployment platform.
 - Prisma migrations have been applied to the target database.
 - `GET /health` passes for API and web.
 - TLS and secure cookies are enabled.
