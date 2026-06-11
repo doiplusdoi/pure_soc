@@ -93,6 +93,8 @@ export type RomaniaOnboardingScreen =
   | "connector"
   | "gaps";
 
+type RomaniaDataEntryScreen = Exclude<RomaniaOnboardingScreen, "outputs" | "connector" | "gaps">;
+
 export interface RenderRomaniaOnboardingRouteOptions {
   includeDocumentShell?: boolean;
   screen?: RomaniaOnboardingScreen;
@@ -173,6 +175,20 @@ const romaniaOnboardingScreens: readonly RomaniaOnboardingScreenDefinition[] = [
     summary: "Gap list and exports"
   }
 ];
+
+const romaniaDataEntryScreenOrder: readonly RomaniaDataEntryScreen[] = [
+  "company",
+  "address",
+  "legal",
+  "size",
+  "services",
+  "contacts",
+  "systems",
+  "article9"
+];
+
+const isRomaniaDataEntryScreen = (screen: RomaniaOnboardingScreen): screen is RomaniaDataEntryScreen =>
+  romaniaDataEntryScreenOrder.includes(screen as RomaniaDataEntryScreen);
 
 const wizardQuestionLimit = 5;
 
@@ -503,6 +519,7 @@ export const renderRomaniaOnboardingRoute = (
   options: RenderRomaniaOnboardingRouteOptions = {}
 ): string => {
   const activeScreen = options.screen ?? "company";
+  const activeDataEntryScreen = isRomaniaDataEntryScreen(activeScreen) ? activeScreen : "company";
   const requiredFieldCount = model.steps.reduce((total, step) => total + step.requiredFieldPaths.length, 0);
   const completedRequiredFieldCount = requiredFieldCount - model.progress.missingRequiredFields.length;
   const requiredFieldCoverage =
@@ -510,14 +527,14 @@ export const renderRomaniaOnboardingRoute = (
   const labelFallbackCount = model.notificationDraft.fields.filter((field) => field.labelFallbackUsed).length;
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
-    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
+    '<main class="ps-content ps-content--wizard" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
     renderRomaniaRouteHero({
       completedRequiredFieldCount,
       labelFallbackCount,
       model,
       requiredFieldCount,
       requiredFieldCoverage,
-      screen: activeScreen
+      screen: activeDataEntryScreen
     }),
     renderRomaniaScreenSection(model, activeScreen, labelFallbackCount),
     '<p><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
@@ -553,7 +570,7 @@ interface RomaniaRouteHeroInput {
   model: RomaniaOnboardingRouteModel;
   requiredFieldCount: number;
   requiredFieldCoverage: number;
-  screen: RomaniaOnboardingScreen;
+  screen: RomaniaDataEntryScreen;
 }
 
 const renderRomaniaRouteHero = ({
@@ -580,29 +597,33 @@ const renderRomaniaRouteHero = ({
   return [
     '<section class="ps-route-hero" id="romania-onboarding" data-ui-section="romania-onboarding" aria-labelledby="romania-route-title">',
     '<div class="ps-route-hero__body">',
-    '<div>',
+    '<div class="ps-route-hero__intro">',
     '<p class="ps-route-hero__eyebrow">Customer onboarding workspace</p>',
     '<h1 class="ps-route-hero__title" id="romania-route-title">NIS2 Readiness Wizard</h1>',
     '<p class="ps-route-hero__lede">Complete business data in short screens, run the Romania NIS2 readiness checks, connect Microsoft 365 when the local assessment is ready, and export the resulting gap list.</p>',
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
-    '<div class="ps-route-hero__summary-grid" aria-label="Romania readiness summary">',
-    `<article class="ps-route-hero__fact-card"><span class="ps-route-hero__fact-kicker">Progress</span>${renderMeter({
+    '<p class="ps-route-hero__boundary-note">DNSC filing stays outside PureSOC. Outputs remain internal readiness support.</p>',
+    "</div>",
+    '<div class="ps-route-hero__status-strip" aria-label="Romania readiness summary">',
+    `<div class="ps-route-hero__status-item ps-route-hero__status-item--meter">${renderMeter({
       label: "Required answers",
       value: requiredFieldCoverage,
       source: "saved Romania answers"
-    })}<p class="ps-muted">${escapeHtml(savedFieldsLabel)}.</p></article>`,
-    `<article class="ps-route-hero__fact-card"><span class="ps-route-hero__fact-kicker">Next action</span><h2 class="ps-route-hero__fact-title">${escapeHtml(
+    })}<span class="ps-route-hero__status-note">${escapeHtml(savedFieldsLabel)}.</span></div>`,
+    `<div class="ps-route-hero__status-item"><span class="ps-route-hero__status-label">Next action</span><strong class="ps-route-hero__status-title">${escapeHtml(
       nextAction.label
-    )}</h2><p class="ps-muted">${escapeHtml(nextAction.summary)}</p></article>`,
-    `<article class="ps-route-hero__fact-card"><span class="ps-route-hero__fact-kicker">Output</span><h2 class="ps-route-hero__fact-title">${escapeHtml(
+    )}</strong><span class="ps-route-hero__status-note">${escapeHtml(nextAction.summary)}</span></div>`,
+    `<div class="ps-route-hero__status-item"><span class="ps-route-hero__status-label">Output</span><strong class="ps-route-hero__status-title">${escapeHtml(
       classificationLabel
-    )}</h2><p class="ps-muted">PureSOC creates draft readiness materials for review only.</p></article>`,
+    )}</strong><span class="ps-route-hero__status-note">Draft readiness materials for review only.</span></div>`,
     "</div>",
     '<div class="ps-route-hero__actions">',
     `<a class="ps-command ps-command--primary" href="${escapeHtml(activeRomaniaScreenHref(screen))}#romania-workflow" data-ui-action="focus-romania-guided-workflow">Continue workflow</a>`,
     '<a class="ps-command" href="/onboarding/romania/gaps?locale=ro-RO#romania-gap-list" data-ui-action="open-romania-gap-list">Open gap list</a>',
     "</div>",
     "</div>",
+    '<details class="ps-route-details">',
+    '<summary>Workspace details</summary>',
     '<div class="ps-route-hero__facts">',
     '<article class="ps-route-hero__guardrails" aria-labelledby="romania-guardrails-title">',
     '<h2 class="ps-panel__title" id="romania-guardrails-title">What this workspace does</h2>',
@@ -619,7 +640,7 @@ const renderRomaniaRouteHero = ({
     "</ul>",
     "</article>",
     "</div>",
-    "</div>",
+    "</details>",
     renderRomaniaGuidedStepper(model, labelFallbackCount),
     renderRomaniaScreenNav(screen),
     "</section>"
@@ -634,9 +655,11 @@ const renderRomaniaScreenNav = (screen: RomaniaOnboardingScreen): string =>
     '<nav class="ps-route-tabs" aria-label="NIS2 wizard screens">',
     ...romaniaOnboardingScreens.map(
       (item) =>
-        `<a class="ps-route-tabs__link" href="${escapeHtml(item.href)}"${item.key === screen ? ' aria-current="page"' : ""} data-ui-action="open-romania-${escapeHtml(
+        `<a class="ps-route-tabs__link" href="${escapeHtml(item.href)}" aria-label="${escapeHtml(`${item.label}: ${item.summary}`)}"${
+          item.key === screen ? ' aria-current="page"' : ""
+        } data-ui-action="open-romania-${escapeHtml(
           item.key
-        )}-screen"><span>${escapeHtml(item.label)}</span><small>${escapeHtml(item.summary)}</small></a>`
+        )}-screen"><span>${escapeHtml(item.label)}</span></a>`
     ),
     "</nav>"
   ].join("");
@@ -678,7 +701,7 @@ const renderRomaniaScreenSection = (
   }
 
   const screenLabels: Record<
-    Exclude<RomaniaOnboardingScreen, "outputs" | "connector" | "gaps">,
+    RomaniaDataEntryScreen,
     { title: string; status: string }
   > = {
     company: {
@@ -715,12 +738,13 @@ const renderRomaniaScreenSection = (
     }
   };
 
-  return renderSection({
-    id: "romania-workflow",
-    title: screenLabels[screen].title,
-    eyebrow: renderStatusPill({ label: screenLabels[screen].status, tone: "accent" }),
-    body: renderRomaniaWorkflowForms(model, screen)
-  });
+  return [
+    `<section class="ps-section ps-section--workflow-stage" id="romania-workflow" data-ui-section="romania-workflow" aria-label="${escapeHtml(
+      screenLabels[screen].title
+    )}">`,
+    `<div class="ps-section__body"><div class="ps-workflow-stage">${renderRomaniaWorkflowForms(model, screen)}</div></div>`,
+    "</section>"
+  ].join("");
 };
 
 const renderRomaniaOutputsSection = (model: RomaniaOnboardingRouteModel, labelFallbackCount: number): string =>
@@ -882,16 +906,10 @@ interface RomaniaNextAction {
 
 const renderRomaniaWorkflowForms = (
   model: RomaniaOnboardingRouteModel,
-  screen: Exclude<RomaniaOnboardingScreen, "outputs" | "connector" | "gaps">
+  screen: RomaniaDataEntryScreen
 ): string => {
-  const nextAction = resolveRomaniaNextAction(model);
-
   return [
-    '<div class="ps-next-action">',
-    `<div><h3>${escapeHtml(nextAction.label)}</h3><p>${escapeHtml(nextAction.summary)}</p></div>`,
-    renderStatusPill({ label: "guided step", tone: nextAction.tone }),
-    "</div>",
-    '<p class="ps-help">This screen is capped at five customer questions. Empty fields remain explicit gaps; PureSOC does not fabricate answers.</p>',
+    '<p class="ps-help ps-workflow-help">Five customer questions or fewer. Empty fields remain explicit gaps.</p>',
     screen === "company" ? renderRomaniaCompanyForm(model) : "",
     screen === "address" ? renderRomaniaAddressForm(model) : "",
     screen === "legal" ? renderRomaniaLegalRepresentativeForm(model) : "",
@@ -903,20 +921,28 @@ const renderRomaniaWorkflowForms = (
   ].join("");
 };
 
+const formatRomaniaDataEntryScreenStatus = (screen: RomaniaDataEntryScreen): string => {
+  const index = romaniaDataEntryScreenOrder.indexOf(screen);
+  return `${index + 1} of ${romaniaDataEntryScreenOrder.length}`;
+};
+
 const renderRomaniaSaveForm = (input: {
   body: string;
   model: RomaniaOnboardingRouteModel;
   nextScreen: RomaniaOnboardingScreen;
-  screen: RomaniaOnboardingScreen;
+  screen: RomaniaDataEntryScreen;
   submitLabel: string;
   summary: string;
   title: string;
 }): string =>
   [
-    '<article class="ps-panel ps-panel--wide ps-stack-top">',
+    '<article class="ps-panel ps-workflow-form-card">',
     '<div class="ps-section__header ps-section__header--flat">',
     `<div><h3 class="ps-panel__title">${escapeHtml(input.title)}</h3><p class="ps-muted">${escapeHtml(input.summary)}</p></div>`,
-    renderStatusPill({ label: input.model.hasSavedProgress ? "updates saved data" : "creates local progress", tone: input.model.hasSavedProgress ? "success" : "warning" }),
+    `<div class="ps-chip-row ps-chip-row--compact">${renderStatusPill({ label: formatRomaniaDataEntryScreenStatus(input.screen), tone: "accent" })}${renderStatusPill({
+      label: input.model.hasSavedProgress ? "updates saved data" : "creates local progress",
+      tone: input.model.hasSavedProgress ? "success" : "warning"
+    })}</div>`,
     "</div>",
     '<form class="ps-form ps-form--wide" action="/onboarding/romania/save" method="post" data-ui-action="save-romania-onboarding">',
     `<input type="hidden" name="screen" value="${escapeHtml(input.screen)}">`,
@@ -944,7 +970,7 @@ const renderRomaniaCompanyForm = (model: RomaniaOnboardingRouteModel): string =>
     screen: "company",
     submitLabel: "Save company",
     summary: "Capture the legal entity identity before the NIS2 scope questions.",
-    title: "Company identity",
+    title: "Company Identity",
     body: [
     '<fieldset class="ps-fieldset">',
     '<legend class="ps-fieldset__legend">Business data</legend>',
@@ -1645,7 +1671,7 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
   const items = [
     { label: copy.dashboard, href: "#dashboard", action: "open-dashboard-anchor" },
     { label: "Onboarding", href: "#onboarding", action: "open-onboarding-anchor" },
-    { label: "NIS2 wizard", href: "/onboarding/romania/company?locale=ro-RO", action: "open-romania-onboarding" },
+    { label: "Romania onboarding", href: "/onboarding/romania/company?locale=ro-RO", action: "open-romania-onboarding" },
     { label: "Microsoft 365", href: "#microsoft365", action: "open-microsoft365-anchor" },
     { label: "Gaps", href: "#gaps", action: "open-gaps-anchor" },
     { label: copy.evidenceReports, href: "#evidence", action: "open-evidence-reports-anchor" },

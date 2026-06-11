@@ -631,7 +631,7 @@ export const disconnectedMicrosoft365Surface = (generatedAt: string): Microsoft3
       label: "Provider connection",
       status: "attention",
       coverage: "Start tenant admin consent from this workspace before Microsoft Graph reads can run.",
-      sourceQuery: "provider_connections:none"
+      sourceQuery: "provider disabled"
     }
   ]
 });

@@ -518,8 +518,12 @@ describe("web dashboard reports operational UI", () => {
       expect(html).toContain('href="#content"');
       expect(html).toContain('data-ui-action="skip-to-content"');
       expect(html).toContain('id="content" tabindex="-1"');
+      expect(html).toContain('class="ps-content ps-content--wizard"');
       expect(html).toContain("NIS2 Readiness Wizard");
       expect(html).toContain("Customer onboarding workspace");
+      expect(html).toContain("Workspace details");
+      expect(html).toContain("ps-route-hero__status-strip");
+      expect(html).not.toContain('class="ps-route-hero__summary-grid"');
       expect(html).toContain("What this workspace does");
       expect(html).toContain("Required answers");
       expect(html).toContain("Every wizard screen asks 5 or fewer customer questions.");
@@ -545,10 +549,12 @@ describe("web dashboard reports operational UI", () => {
     for (const html of [companyHtml, addressHtml, legalHtml, sizeHtml, servicesHtml, contactsHtml, systemsHtml, article9Html]) {
       const questions = html.match(/data-wizard-question=/g) ?? [];
       expect(questions.length).toBeLessThanOrEqual(5);
+      expect(html).toContain("ps-section--workflow-stage");
+      expect(html).toContain("ps-workflow-stage");
+      expect(html).toContain("ps-workflow-form-card");
     }
 
     expect(companyHtml).toContain("Company Identity");
-    expect(companyHtml).toContain("Company identity");
     expect(companyHtml).toContain('name="nextScreen" value="address"');
     expect(companyHtml).toContain("Save company");
     expect(companyHtml).not.toContain("Services by sector and subsector");
