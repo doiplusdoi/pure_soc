@@ -492,16 +492,16 @@ Owner: Codex/Product/DevOps
 Target phase: Phase K auth/product hardening
 Status: Open; created 2026-05-29 by public-deploy UI preparation after syncing served web signup/workspace flows with API organization ownership semantics; narrowed 2026-05-30 by PLAN_M83 for local email-verification API/web completion and token-redaction tests without real email delivery, enforcement policy, invite-only signup, or launch-ready public registration; narrowed 2026-05-30 by PLAN_M88 for local owner/org-admin invitation creation and verified-email acceptance with hashed tokens, memory/Prisma persistence, audit coverage, and schema drift coverage without real email delivery, invite-only policy, platform-admin operations, or broad public abuse controls; narrowed 2026-05-30 by PLAN_M89 for served local invitation creation/acceptance UX and console navigation without real email delivery, invite-only policy, platform-admin operations, or broad public abuse controls; narrowed 2026-06-11 by PLAN_M92 for signup/workspace continuity into the customer NIS2 wizard without real email delivery, invite-only policy, platform-admin operations, or broad public abuse controls; updated 2026-06-11 for temporary non-production email-verification suspension with production startup still requiring verification.
 
-### GAP-047: Public Registry Image Publishing Not Proven
+### GAP-047: Compose Build Deployment Support Not Proven
 
 Severity: High
 Area: Deployment/images
-Current state: The default Compose catalog now references public GHCR application images under `ghcr.io/doiplusdoi/pure_soc/*:latest` and no longer uses local-only `puresoc-*:local` tags or `pull_policy: never`. The repository still contains local Dockerfiles and a local build override, but no checked-in CI/release job has been verified to build, tag, publish, and smoke-test those GHCR images.
-Impact: Compose-reading deployment apps can now resolve public image names from a single Compose file, but deployment will still fail with a registry pull error until the images are published and publicly readable. Using `latest` also leaves production deployments vulnerable to tag drift until immutable release tags or digests are adopted.
-Next action: Add or run a release pipeline that builds every PureSOC app image, publishes the expected GHCR tags, verifies public pull access, runs `docker compose -f infra/compose/docker-compose.yml pull`, and then performs a deployed health smoke. Move production Compose references to immutable release tags or digests after the first published release.
+Current state: The default Compose catalog includes `build:` entries for every PureSOC application service and tags local build outputs as `puresoc-*:local`. Application Dockerfiles use public `node:22-alpine` base images; Postgres, Redis, and MinIO remain public runtime images. No prepublished PureSOC registry images are required by the default catalog.
+Impact: Compose-reading deployment apps can build PureSOC directly from the repository, avoiding manual image publishing. Deployment will still fail if the platform ignores Compose `build:`, lacks access to the repository build context, or cannot pull public base images during build.
+Next action: Run the target deployment app against the build-enabled Compose file, confirm that it executes every application build, pulls public base images, starts the built services, and reaches API/web health checks. If the platform cannot build from Compose, choose between adding an automated registry publishing pipeline or changing deployment tooling.
 Owner: DevOps/Codex
 Target phase: Phase K deployment hardening
-Status: Open; created 2026-06-12 after moving the default Compose catalog to public registry image references for single-file Compose deployment without proving GHCR publication.
+Status: Open; created 2026-06-12 after moving the default Compose catalog to public registry image references for single-file Compose deployment; redirected 2026-06-12 to build-in-Compose deployment without prepublished PureSOC images.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

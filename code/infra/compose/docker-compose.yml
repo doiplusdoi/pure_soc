@@ -98,7 +98,10 @@ services:
       - puresoc-object-storage-data:/data
 
   puresoc-web:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-web:latest
+    image: puresoc-web:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
     environment:
       <<: *puresoc-default-environment
       PORT: "3000"
@@ -110,7 +113,10 @@ services:
         condition: service_started
 
   puresoc-api:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-api:latest
+    image: puresoc-api:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     environment:
       <<: *puresoc-default-environment
       PORT: "3001"
@@ -125,7 +131,10 @@ services:
         condition: service_started
 
   puresoc-worker:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-worker:latest
+    image: puresoc-worker:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -135,7 +144,10 @@ services:
         condition: service_healthy
 
   puresoc-scheduler:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-scheduler:latest
+    image: puresoc-scheduler:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scheduler
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -145,7 +157,10 @@ services:
         condition: service_healthy
 
   puresoc-connector-runner:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-connector-runner:latest
+    image: puresoc-connector-runner:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.connector-runner
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -155,14 +170,20 @@ services:
         condition: service_healthy
 
   puresoc-regulatory-importer:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest
+    image: puresoc-regulatory-importer:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.regulatory-importer
     environment:
       <<: *puresoc-default-environment
     profiles:
       - regulatory
 
   puresoc-report-renderer:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-report-renderer:latest
+    image: puresoc-report-renderer:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.report-renderer
     environment:
       <<: *puresoc-default-environment
       PORT: "3002"

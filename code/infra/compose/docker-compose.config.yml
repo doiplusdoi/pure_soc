@@ -2,4 +2,7 @@ name: puresoc-config
 
 services:
   puresoc-regulatory-importer:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest
+    image: puresoc-regulatory-importer:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.regulatory-importer

@@ -46,23 +46,23 @@ This smaller installer surface is not a claim that production operations are sol
 
 ## Service Topology
 
-The main service catalog is `code/infra/compose/docker-compose.yml`. It is runtime-only and uses public GHCR image references without `build:` entries, so ordinary Compose starts do not invoke Docker Buildx/Bake and deployment platforms can create services from the single Compose file.
+The main service catalog is `code/infra/compose/docker-compose.yml`. It includes application `build:` entries, so Compose builds PureSOC service images from the checked-out repository using public base images from the Dockerfiles instead of requiring prepublished PureSOC images.
 
 Non-secret runtime defaults are embedded in the Compose file through `x-puresoc-default-environment` with `${VAR:-default}` interpolation. When using Docker Compose directly, `code/.env` or shell variables override those defaults; when using a deployment app, configure the same variables through that platform's environment/secret settings.
 
-Application image defaults:
+Application build output tags:
 
 ```txt
-ghcr.io/doiplusdoi/pure_soc/puresoc-web:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-api:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-worker:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-scheduler:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-connector-runner:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-regulatory-importer:latest
-ghcr.io/doiplusdoi/pure_soc/puresoc-report-renderer:latest
+puresoc-web:local
+puresoc-api:local
+puresoc-worker:local
+puresoc-scheduler:local
+puresoc-connector-runner:local
+puresoc-regulatory-importer:local
+puresoc-report-renderer:local
 ```
 
-Those images must be published and public before a Compose-reading deployment app can start the product. For production, prefer immutable release tags or digests over `latest` once the image publishing pipeline exists. Local image build metadata remains in the opt-in `code/infra/compose/docker-compose.build.yml` override.
+Those tags are local build outputs, not public registry images. The Dockerfiles currently use public `node:22-alpine` base images; the data services use public Postgres, Redis, and MinIO images directly. A Compose-reading deployment app must support `build:` and must have access to the repository build context plus the public base-image registry.
 
 | Service | Purpose | Notes |
 |---|---|---|
@@ -134,25 +134,18 @@ pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
 
 The current Compose catalog does not include a dedicated migrator container, so migration execution is operator/pipeline owned.
 
-5. Pull application images when the registry publishing pipeline has already produced them:
-
-```sh
-docker compose -f infra/compose/docker-compose.yml pull
-```
-
-For local development only, build application images from the repository when the registry images are not available:
+5. Build application images from the repository:
 
 ```sh
 COMPOSE_BAKE=false docker compose \
   -f infra/compose/docker-compose.yml \
-  -f infra/compose/docker-compose.build.yml \
   build
 ```
 
-6. Start the Compose catalog without a build step:
+6. Start the Compose catalog and rebuild application images when needed:
 
 ```sh
-docker compose -f infra/compose/docker-compose.yml up -d
+docker compose -f infra/compose/docker-compose.yml up --build -d
 ```
 
 7. Verify health:
@@ -520,7 +513,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 - `pnpm test` passes.
 - `pnpm test:e2e -- --grep "@ui-smoke"` passes.
 - `docker compose -f infra/compose/docker-compose.yml config` passes.
-- The public registry images referenced by Compose exist and are readable by the deployment platform.
+- The deployment platform supports Compose `build:` entries and can pull public base images.
 - Prisma migrations have been applied to the target database.
 - `GET /health` passes for API and web.
 - TLS and secure cookies are enabled.

@@ -7,7 +7,7 @@ Keep entries short, specific, and actionable.
 
 - The repository uses the shared AI project template layout: root files are for discovery and durable docs, while application code lives under `code/`.
 - PureSOC path references in implementation prompts are app-relative unless they explicitly start with `docs/` or another root-level path. For example, `apps/api` means `code/apps/api`.
-- The default Compose catalog is now registry-deploy oriented: PureSOC app services reference `ghcr.io/doiplusdoi/pure_soc/*:latest` images and must not depend on local-only `puresoc-*:local` tags or `pull_policy: never`.
+- The default Compose catalog is build oriented: PureSOC app services include `build:` entries and tag local outputs as `puresoc-*:local`; deployment apps must support Compose builds rather than relying on prepublished PureSOC registry images.
 - The compliance engine must remain provider-neutral. Microsoft 365 details belong under `code/packages/providers/microsoft365`.
 - EU NIS2 baseline logic and Romania country-pack logic must stay separate. Romania-specific code belongs under `code/packages/compliance/nis2/country-packs/ro`.
 - Regulatory workbook/source mappings are application data under `code/data/regulatory`; do not hardcode workbook-derived rules in UI code.

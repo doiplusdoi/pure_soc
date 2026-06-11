@@ -2,6 +2,12 @@ name: puresoc-jobs
 
 services:
   puresoc-worker:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-worker:latest
+    image: puresoc-worker:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
   puresoc-scheduler:
-    image: ghcr.io/doiplusdoi/pure_soc/puresoc-scheduler:latest
+    image: puresoc-scheduler:local
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scheduler
