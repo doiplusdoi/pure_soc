@@ -612,9 +612,9 @@ async function runBrowserSmoke() {
         width: 1440,
         height: 900,
         expectedText: [
-          "Romania NIS2 Readiness",
-          "Company And Contact",
-          "Save company details",
+          "NIS2 Readiness Wizard",
+          "Company Identity",
+          "Save company",
           "DNSC filing stays outside PureSOC"
         ],
         expectRomaniaRoute: true,
@@ -631,8 +631,8 @@ async function runBrowserSmoke() {
         width: 390,
         height: 844,
         expectedText: [
-          "Romania NIS2 Readiness",
-          "Outputs And Evidence",
+          "NIS2 Readiness Wizard",
+          "Readiness Outputs",
           "Direct DNSC submission",
           "not submitted",
           "Review Boundaries"
@@ -2241,16 +2241,18 @@ async function readBrowserLayout(browser, context) {
         certificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(bodyText),
         romania: {
           guidedProductWorkflowVisible:
-            bodyText.includes("Company And Contact") ||
-            bodyText.includes("Industry And Services") ||
-            bodyText.includes("Technical And Operational Info") ||
-            bodyText.includes("Outputs And Evidence"),
+            bodyText.includes("Company Identity") ||
+            bodyText.includes("Services And Jurisdiction") ||
+            bodyText.includes("Systems And Monitoring") ||
+            bodyText.includes("Readiness Outputs") ||
+            bodyText.includes("Microsoft 365 Tenant Connector") ||
+            bodyText.includes("Gap List And Exports"),
           companyScreenVisible:
-            bodyText.includes("Company And Contact") && bodyText.includes("Save company details"),
+            bodyText.includes("Company Identity") && bodyText.includes("Save company"),
           industryScreenVisible:
-            bodyText.includes("Industry And Services") && bodyText.includes("Services by sector and subsector"),
+            bodyText.includes("Services And Jurisdiction") && bodyText.includes("Services by sector and subsector"),
           outputsScreenVisible:
-            bodyText.includes("Outputs And Evidence") && bodyText.includes("PureSOC does not submit this draft to DNSC."),
+            bodyText.includes("Readiness Outputs") && bodyText.includes("PureSOC does not submit this draft to DNSC."),
           serviceCatalogVisible:
             bodyText.includes("Cloud computing service providers") &&
             bodyText.includes("None of the services listed in OUG No. 155/2024"),
@@ -2695,7 +2697,7 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
         search: location.search,
         hash: location.hash,
         routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
-        hasCompanyScreen: text.includes("Company And Contact") && text.includes("Save company details"),
+        hasCompanyScreen: text.includes("Company Identity") && text.includes("Save company"),
         hasDnsBoundary: text.includes("DNSC filing stays outside PureSOC"),
         hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
         hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
@@ -2720,7 +2722,7 @@ async function assertBrowserRouteKeyboardNavigation(browser, context, webBaseUrl
   assertBrowserLayout("keyboard_romania_route", romaniaLayout, {
     width: 1024,
     height: 760,
-    expectedText: ["Romania NIS2 Readiness", "Company And Contact", "Save company details"],
+    expectedText: ["NIS2 Readiness Wizard", "Company Identity", "Save company"],
     expectRomaniaRoute: true,
     expectedRomania: {
       companyScreenVisible: true
@@ -2856,7 +2858,7 @@ async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl)
         search: location.search,
         hash: location.hash,
         routeMarker: Boolean(document.querySelector('[data-ui-smoke="romania-onboarding-route"]')),
-        hasCompanyScreen: text.includes("Company And Contact") && text.includes("Save company details"),
+        hasCompanyScreen: text.includes("Company Identity") && text.includes("Save company"),
         hasDnsBoundary: text.includes("DNSC filing stays outside PureSOC"),
         hasCertificationClaim: /certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text),
         hasDirectDnscSubmitCommand: /submit\\s+(to\\s+)?dnsc/i.test(text)
@@ -2881,7 +2883,7 @@ async function assertBrowserRoutePointerNavigation(browser, context, webBaseUrl)
   assertBrowserLayout("pointer_romania_route", romaniaLayout, {
     width: 1024,
     height: 760,
-    expectedText: ["Romania NIS2 Readiness", "Company And Contact", "Save company details"],
+    expectedText: ["NIS2 Readiness Wizard", "Company Identity", "Save company"],
     expectRomaniaRoute: true,
     expectedRomania: {
       companyScreenVisible: true
@@ -3522,9 +3524,9 @@ function assertRomaniaOnboardingRoute(html) {
   record("romania_route_html_is_nonblank", html.length > 14_000, String(html.length));
   record("romania_route_marker_present", html.includes('data-ui-smoke="romania-onboarding-route"'));
   record("romania_route_declares_ro_locale", html.includes('<html lang="ro">'));
-  record("romania_route_guided_product_workflow_visible", text.includes("Company And Contact") && text.includes("Save company details"));
-  record("romania_route_screen_tabs_visible", text.includes("Industry") && text.includes("Technical") && text.includes("Outputs"));
-  record("romania_route_company_fields_visible", text.includes("Legal representative") && text.includes("Security contact email"));
+  record("romania_route_guided_product_workflow_visible", text.includes("Company Identity") && text.includes("Save company"));
+  record("romania_route_screen_tabs_visible", text.includes("Services") && text.includes("Connector") && text.includes("Gaps"));
+  record("romania_route_company_fields_visible", text.includes("Legal name") && text.includes("Organization email"));
   record("romania_route_submission_boundary_visible", text.includes("DNSC filing stays outside PureSOC"));
   record(
     "romania_route_customer_ui_hides_workbook_debug_terms",

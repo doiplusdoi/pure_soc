@@ -28,6 +28,11 @@ describe("auth organization rbac audit session integration", () => {
     emailDelivery = new InMemoryEmailVerificationDelivery();
     invitationDelivery = new InMemoryOrganizationInvitationDelivery();
     services = createApiServices({
+      config: loadConfig({
+        env: {
+          PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+        }
+      }),
       emailVerificationDelivery: emailDelivery,
       organizationInvitationDelivery: invitationDelivery,
       now: () => new Date("2026-04-28T12:00:00.000Z")
@@ -489,6 +494,53 @@ describe("auth organization rbac audit session integration", () => {
     expect(serializedAudit).not.toContain(delivery.plaintextToken);
   });
 
+  it("can suspend local account email verification outside production", async () => {
+    await new Promise<void>((resolve, reject) => {
+      server.close((error) => (error ? reject(error) : resolve()));
+    });
+    emailDelivery = new InMemoryEmailVerificationDelivery();
+    services = createApiServices({
+      config: loadConfig({
+        env: {
+          PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+        }
+      }),
+      emailVerificationDelivery: emailDelivery,
+      organizationInvitationDelivery: invitationDelivery,
+      now: () => new Date("2026-04-28T12:00:00.000Z")
+    });
+    server = startApiServer(0, services);
+    const address = server.address() as AddressInfo;
+    baseUrl = `http://127.0.0.1:${address.port}`;
+
+    const registrationResponse = await postJson("/auth/register", {
+      email: "suspended-verification@example.test",
+      password,
+      displayName: "Suspended Verification"
+    });
+    expect(registrationResponse.status).toBe(201);
+    const registrationBody = await readJson<{
+      emailVerificationRequired: boolean;
+      user: { emailVerifiedAt: string | null };
+    }>(registrationResponse);
+    expect(registrationBody.emailVerificationRequired).toBe(false);
+    expect(registrationBody.user.emailVerifiedAt).toBe("2026-04-28T12:00:00.000Z");
+    expect(emailDelivery.deliveries).toHaveLength(0);
+
+    const loginResponse = await postJson("/auth/login", {
+      email: "suspended-verification@example.test",
+      password
+    });
+    expect(loginResponse.status).toBe(200);
+    const loginBody = await readJson<{ user: { emailVerifiedAt: string | null } }>(loginResponse);
+    expect(loginBody.user.emailVerifiedAt).toBe("2026-04-28T12:00:00.000Z");
+
+    const serializedAudit = JSON.stringify(services.auditSink.records);
+    expect(serializedAudit).toContain('"emailVerificationRequired":false');
+    expect(serializedAudit).not.toContain("plaintextToken");
+    expect(serializedAudit).not.toContain("verificationToken");
+  });
+
   it("can deliver verification tokens to an explicit local development file sink", async () => {
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
@@ -498,7 +550,8 @@ describe("auth organization rbac audit session integration", () => {
     const deliveryFile = join(deliveryDirectory, "verification.jsonl");
     const config = loadConfig({
       env: {
-        PURESOC_APP_ENV: "development"
+        PURESOC_APP_ENV: "development",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
       }
     });
 

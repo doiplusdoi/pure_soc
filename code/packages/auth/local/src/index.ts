@@ -283,6 +283,7 @@ export interface LocalAuthServiceOptions {
   passwordHasher?: PasswordHasher;
   passwordPolicy?: PasswordPolicy;
   rateLimiter?: FailedLoginRateLimiter;
+  requireEmailVerification?: boolean;
   now?: () => Date;
   sessionTtlMs?: number;
   emailVerificationTtlMs?: number;
@@ -310,6 +311,7 @@ export class LocalAuthService {
   private readonly passwordHasher: PasswordHasher;
   private readonly passwordPolicy: PasswordPolicy;
   private readonly rateLimiter: FailedLoginRateLimiter;
+  private readonly requireEmailVerification: boolean;
   private readonly now: () => Date;
   private readonly sessionTtlMs: number;
   private readonly emailVerificationTtlMs: number;
@@ -329,6 +331,7 @@ export class LocalAuthService {
         windowMs: 60_000,
         now: options.now
       });
+    this.requireEmailVerification = options.requireEmailVerification ?? true;
     this.now = options.now ?? (() => new Date());
     this.sessionTtlMs = options.sessionTtlMs ?? 1000 * 60 * 60 * 12;
     this.emailVerificationTtlMs = options.emailVerificationTtlMs ?? 1000 * 60 * 60 * 24;
@@ -349,6 +352,7 @@ export class LocalAuthService {
     const now = this.now();
     const userId = randomUUID();
     const passwordHash = await this.passwordHasher.hashPassword(input.password);
+    const emailVerifiedAt = this.requireEmailVerification ? null : now;
     const verificationToken = createExpiringSecretToken({
       now,
       ttlMs: this.emailVerificationTtlMs
@@ -359,7 +363,7 @@ export class LocalAuthService {
         id: userId,
         email,
         displayName: input.displayName ?? null,
-        emailVerifiedAt: null,
+        emailVerifiedAt,
         disabledAt: null,
         createdAt: now,
         updatedAt: now
@@ -381,7 +385,7 @@ export class LocalAuthService {
         passwordHash,
         passwordHashAlgorithm,
         passwordUpdatedAt: now,
-        emailVerifiedAt: null,
+        emailVerifiedAt,
         failedLoginCount: 0,
         lockedUntil: null,
         createdAt: now,
@@ -393,17 +397,19 @@ export class LocalAuthService {
         email,
         tokenHash: verificationToken.tokenHash,
         expiresAt: verificationToken.expiresAt,
-        usedAt: null,
+        usedAt: this.requireEmailVerification ? null : now,
         createdAt: verificationToken.createdAt
       }
     });
 
-    input.deliverEmailVerificationToken?.({
-      userId,
-      email,
-      plaintextToken: verificationToken.plaintextToken,
-      expiresAt: verificationToken.expiresAt
-    });
+    if (this.requireEmailVerification) {
+      input.deliverEmailVerificationToken?.({
+        userId,
+        email,
+        plaintextToken: verificationToken.plaintextToken,
+        expiresAt: verificationToken.expiresAt
+      });
+    }
 
     await this.auditWriter.write({
       actorUserId: user.id,
@@ -415,13 +421,14 @@ export class LocalAuthService {
       userAgent: context.userAgent ?? null,
       afterJson: {
         email,
+        emailVerificationRequired: this.requireEmailVerification,
         providerKey: localAuthProviderKey
       }
     });
 
     return {
       user: publicUserView(user),
-      emailVerificationRequired: true
+      emailVerificationRequired: this.requireEmailVerification
     };
   }
 

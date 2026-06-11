@@ -216,11 +216,32 @@ export interface RomaniaOnboardingRouteModel {
   progress: RoNis2OnboardingProgress;
   progressRecordId?: string;
   requestedLocale?: string;
+  readinessGaps: readonly RomaniaReadinessGapSurface[];
   resolvedLocale: PureSocLocale;
   serviceCatalogGroups: readonly RoNis2ServiceCatalogGroup[];
   sourceMapLinks: readonly RoNis2SourceMapLink[];
   steps: readonly RoNis2OnboardingStepSchema[];
   unsupportedSignals: readonly RomaniaOnboardingUnsupportedSignal[];
+  microsoft365: Microsoft365HealthSurface;
+  wizardCompletion: Record<string, RomaniaWizardScreenCompletion>;
+}
+
+export interface RomaniaWizardScreenCompletion {
+  answeredQuestions: number;
+  complete: boolean;
+  missingLabels: string[];
+  totalQuestions: number;
+}
+
+export interface RomaniaReadinessGapSurface {
+  actionHref: string;
+  actionKey: string;
+  actionLabel: string;
+  id: string;
+  severity: ActionableSeverity;
+  source: "evidence" | "microsoft365" | "onboarding" | "outputs";
+  summary: string;
+  title: string;
 }
 
 const euArticle21: ReportSourceReference = {
@@ -418,10 +439,10 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
     dashboard,
     onboarding: {
       eu: {
-        title: "EU baseline onboarding",
+        title: "Business profile",
         status: "in_progress",
         completeness: 84,
-        summary: "Business profile, services, NACE codes, and cross-border scope are mostly complete.",
+        summary: "Company details, legal profile, NACE activity, services, and cross-border scope are mostly complete.",
         sourceReferences: [euArticle21]
       },
       countryPacks: [
@@ -447,10 +468,10 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         }
       ],
       romania: {
-        title: "Romania notification draft",
+        title: "NIS2 readiness wizard",
         status: "review_required",
         completeness: 68,
-        summary: "Draft fields are traceable to the reviewed Romania country-pack data and remain internal readiness output.",
+        summary: "Short-page onboarding feeds local classification, internal readiness outputs, connector handoff, and gap exports.",
         sourceReferences: [roRegistrationSource]
       }
     },
@@ -578,10 +599,10 @@ export const createOperationalConsoleRuntimeModel = (input: {
         }
       ],
       romania: {
-        title: "Romania readiness workflow",
+        title: "NIS2 readiness wizard",
         status: "in_progress",
         completeness: input.dashboard.readinessScores.countryPackCompleteness,
-        summary: "Open the Romania workflow to save answers, classify, create drafts, attach evidence, and generate exports.",
+        summary: "Open the wizard to complete business data, classify, create drafts, connect Microsoft 365, review gaps, and generate exports.",
         sourceReferences: [roRegistrationSource]
       }
     },
@@ -642,6 +663,7 @@ export interface RomaniaOnboardingRouteInput {
     payload?: unknown;
   } | null;
   locale?: string | null;
+  microsoft365?: Microsoft365HealthSurface | null;
   progress?: {
     answers: Record<string, unknown>;
     assessmentId?: string;
@@ -704,6 +726,39 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
     locale: requestedLocale,
     status: "draft"
   });
+  const microsoft365 = input.microsoft365 ?? disconnectedMicrosoft365Surface(input.dashboard?.generatedAt ?? romaniaRouteGeneratedAt);
+  const dataEntryCompletion = buildRomaniaWizardDataCompletion(answers);
+  const outputComplete = Boolean(input.classificationRun && input.latestNotificationDraft?.id && input.progress?.assessmentId);
+  const connectorComplete = Boolean(microsoft365.providerConnectionId);
+  const readinessGaps = buildRomaniaReadinessGaps({
+    assessmentId: input.progress?.assessmentId,
+    classificationPersisted: Boolean(input.classificationRun),
+    dataEntryCompletion,
+    evidenceCount: input.evidenceArtifacts?.length ?? 0,
+    latestNotificationDraftId: input.latestNotificationDraft?.id,
+    microsoft365
+  });
+  const wizardCompletion: Record<string, RomaniaWizardScreenCompletion> = {
+    ...dataEntryCompletion,
+    outputs: {
+      answeredQuestions: 0,
+      complete: outputComplete,
+      missingLabels: outputComplete ? [] : ["classification, draft, and readiness evaluation"],
+      totalQuestions: 0
+    },
+    connector: {
+      answeredQuestions: 0,
+      complete: connectorComplete,
+      missingLabels: connectorComplete ? [] : ["Microsoft 365 tenant OAuth"],
+      totalQuestions: 0
+    },
+    gaps: {
+      answeredQuestions: 0,
+      complete: readinessGaps.length === 0,
+      missingLabels: readinessGaps.map((gap) => gap.title),
+      totalQuestions: 0
+    }
+  };
 
   return {
     actionMessage: input.actionMessage ?? undefined,
@@ -738,6 +793,7 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
     progress,
     progressRecordId: input.progress?.id,
     requestedLocale: resolvedLocale.requestedLocale,
+    readinessGaps,
     resolvedLocale: resolvedLocale.locale,
     serviceCatalogGroups: roNis2ServiceCatalogGroups,
     sourceMapLinks: dedupeSourceMapLinks([...progress.sourceMapLinks, ...classification.sourceMapLinks, ...notificationDraft.sourceMapLinks]),
@@ -770,9 +826,229 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
           : "No saved Romania onboarding progress exists yet for this workspace.",
         tone: "info"
       }
-    ]
+    ],
+    microsoft365,
+    wizardCompletion
   };
 };
+
+interface RomaniaWizardQuestionDefinition {
+  label: string;
+  path: string;
+  required: boolean;
+}
+
+const romaniaWizardQuestionDefinitions: Record<string, readonly RomaniaWizardQuestionDefinition[]> = {
+  company: [
+    { label: "Legal name", path: "entity.legalName", required: true },
+    { label: "CUI", path: "entity.cui", required: true },
+    { label: "National registration number", path: "entity.nationalRegistrationNumber", required: true },
+    { label: "Website URL", path: "contact.websiteUrl", required: false },
+    { label: "Organization email", path: "contact.email", required: true }
+  ],
+  address: [
+    { label: "Country", path: "address.country", required: true },
+    { label: "County", path: "address.county", required: true },
+    { label: "City", path: "address.city", required: true },
+    { label: "Street", path: "address.street", required: true },
+    { label: "Postal code", path: "address.postalCode", required: false }
+  ],
+  legal: [
+    { label: "Legal representative", path: "legalRepresentative.name", required: true },
+    { label: "Legal representative role", path: "legalRepresentative.role", required: true },
+    { label: "Legal representative email", path: "legalRepresentative.email", required: true },
+    { label: "Legal representative phone", path: "legalRepresentative.phone", required: true }
+  ],
+  size: [
+    { label: "Main NACE code", path: "activity.mainNaceCode", required: true },
+    { label: "Employee count", path: "size.employeeCount", required: false },
+    { label: "Annual turnover", path: "size.annualTurnoverEur", required: false },
+    { label: "Balance sheet total", path: "size.balanceSheetTotalEur", required: false },
+    { label: "Size category", path: "size.sizeCategory", required: false }
+  ],
+  services: [
+    { label: "Services by sector and subsector", path: "selectedServiceTypeCodes", required: true },
+    { label: "Established in Romania", path: "relationship.establishedInRomania", required: false },
+    { label: "Main office in Romania", path: "relationship.mainOfficeInRomania", required: false },
+    { label: "Provides services in Romania", path: "relationship.providesServicesInRomania", required: false },
+    { label: "Provides services in another EU member state", path: "relationship.providesServicesInAnotherEuMemberState", required: false }
+  ],
+  contacts: [
+    { label: "Cybersecurity responsible person", path: "cybersecurityResponsible.name", required: true },
+    { label: "Cybersecurity role", path: "cybersecurityResponsible.role", required: true },
+    { label: "Cybersecurity email", path: "cybersecurityResponsible.email", required: true },
+    { label: "Cybersecurity phone", path: "cybersecurityResponsible.phone", required: true },
+    { label: "Organization telephone", path: "contact.phone", required: false }
+  ],
+  systems: [
+    { label: "Monitoring contact", path: "permanentMonitoringContact.name", required: true },
+    { label: "Monitoring email", path: "permanentMonitoringContact.email", required: true },
+    { label: "Monitoring phone", path: "permanentMonitoringContact.phone", required: true },
+    { label: "Public IP ranges", path: "network.publicIpRanges", required: false },
+    { label: "Network and information systems", path: "network.systemsDescription", required: true }
+  ],
+  article9: [
+    {
+      label: "Public administration entity established by Romania",
+      path: "relationship.publicAdministrationEstablishedByRomania",
+      required: false
+    },
+    { label: "Sole provider of an essential supporting service", path: "article9.soleProviderEssentialService", required: false },
+    { label: "Public safety/security/health impact", path: "article9.publicSafetySecurityOrHealthImpact", required: false },
+    { label: "Systemic or cross-border risk", path: "article9.systemicRisk", required: false },
+    { label: "Critical at national or regional level", path: "article9.nationalOrRegionalCriticality", required: false }
+  ]
+};
+
+const buildRomaniaWizardDataCompletion = (
+  answers: RoNis2OnboardingAnswers
+): Record<string, RomaniaWizardScreenCompletion> =>
+  Object.fromEntries(
+    Object.entries(romaniaWizardQuestionDefinitions).map(([screen, questions]) => {
+      const answeredQuestions = questions.filter((question) => hasAnswerAtPath(answers, question.path)).length;
+      const missingLabels = questions
+        .filter((question) => question.required && !hasAnswerAtPath(answers, question.path))
+        .map((question) => question.label);
+
+      return [
+        screen,
+        {
+          answeredQuestions,
+          complete: missingLabels.length === 0,
+          missingLabels,
+          totalQuestions: questions.length
+        }
+      ];
+    })
+  );
+
+const buildRomaniaReadinessGaps = (input: {
+  assessmentId?: string;
+  classificationPersisted: boolean;
+  dataEntryCompletion: Record<string, RomaniaWizardScreenCompletion>;
+  evidenceCount: number;
+  latestNotificationDraftId?: string;
+  microsoft365: Microsoft365HealthSurface;
+}): RomaniaReadinessGapSurface[] => {
+  const gaps: RomaniaReadinessGapSurface[] = [];
+
+  for (const [screen, completion] of Object.entries(input.dataEntryCompletion)) {
+    if (!completion.complete) {
+      gaps.push({
+        actionHref: `/onboarding/romania/${screen}?locale=ro-RO`,
+        actionKey: `open-${screen}-wizard-gap`,
+        actionLabel: "Complete screen",
+        id: `onboarding_${screen}`,
+        severity: "medium",
+        source: "onboarding",
+        summary: `Missing: ${completion.missingLabels.join(", ")}.`,
+        title: `${formatWizardScreenLabel(screen)} data incomplete`
+      });
+    }
+  }
+
+  if (!input.classificationPersisted) {
+    gaps.push({
+      actionHref: "/onboarding/romania/outputs?locale=ro-RO",
+      actionKey: "open-classification-gap",
+      actionLabel: "Run output",
+      id: "outputs_classification_missing",
+      severity: "high",
+      source: "outputs",
+      summary: "Run the preliminary Romania classification from saved answers.",
+      title: "Classification has not been generated"
+    });
+  }
+
+  if (!input.latestNotificationDraftId) {
+    gaps.push({
+      actionHref: "/onboarding/romania/outputs?locale=ro-RO",
+      actionKey: "open-draft-gap",
+      actionLabel: "Generate draft",
+      id: "outputs_notification_draft_missing",
+      severity: "medium",
+      source: "outputs",
+      summary: "Generate the internal Romania notification draft for reviewer export.",
+      title: "Notification draft is missing"
+    });
+  }
+
+  if (!input.assessmentId) {
+    gaps.push({
+      actionHref: "/onboarding/romania/outputs?locale=ro-RO",
+      actionKey: "open-evaluation-gap",
+      actionLabel: "Evaluate readiness",
+      id: "outputs_assessment_missing",
+      severity: "high",
+      source: "outputs",
+      summary: "Evaluate internal readiness so gaps, recommendations, reports, and dashboard snapshots have stored inputs.",
+      title: "Internal readiness evaluation is missing"
+    });
+  }
+
+  if (input.evidenceCount === 0) {
+    gaps.push({
+      actionHref: "/onboarding/romania/outputs?locale=ro-RO",
+      actionKey: "open-evidence-gap",
+      actionLabel: "Attach evidence",
+      id: "evidence_missing",
+      severity: "medium",
+      source: "evidence",
+      summary: "Attach at least one local artifact or note before sharing the internal readiness package.",
+      title: "Evidence trail is empty"
+    });
+  }
+
+  if (!input.microsoft365.providerConnectionId) {
+    gaps.push({
+      actionHref: "/onboarding/romania/connector?locale=ro-RO",
+      actionKey: "open-microsoft365-connector-gap",
+      actionLabel: "Connect tenant",
+      id: "microsoft365_connection_missing",
+      severity: "high",
+      source: "microsoft365",
+      summary: "Connect the customer Microsoft 365 tenant with read-only admin consent to enrich the gap list.",
+      title: "Microsoft 365 tenant is not connected"
+    });
+  } else {
+    for (const module of input.microsoft365.modules.filter((module) => !["ready", "in_progress"].includes(module.status))) {
+      gaps.push({
+        actionHref: "/onboarding/romania/connector?locale=ro-RO",
+        actionKey: `open-microsoft365-${module.moduleKey.replace(/[^a-zA-Z0-9_-]/g, "-")}-gap`,
+        actionLabel: "Review module",
+        id: `microsoft365_${module.moduleKey}`,
+        severity: module.status === "blocked" ? "high" : "medium",
+        source: "microsoft365",
+        summary: module.coverage,
+        title: `${module.label} is ${module.status.replaceAll("_", " ")}`
+      });
+    }
+  }
+
+  return gaps;
+};
+
+const hasAnswerAtPath = (answers: RoNis2OnboardingAnswers, path: string): boolean => {
+  const value = path.split(".").reduce<unknown>((current, part) => {
+    if (current && typeof current === "object" && part in current) {
+      return (current as Record<string, unknown>)[part];
+    }
+
+    return undefined;
+  }, answers);
+
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+
+  return value !== undefined && value !== null && value !== "";
+};
+
+const formatWizardScreenLabel = (screen: string): string =>
+  screen
+    .split(/[-_]/)
+    .map((part) => `${part.slice(0, 1).toUpperCase()}${part.slice(1)}`)
+    .join(" ");
 
 const createMfaActionRun = (organizationId: string, now: string, sourceReferences: SourceReference[]): ActionRun => ({
   id: "action_mfa_admin_policy",

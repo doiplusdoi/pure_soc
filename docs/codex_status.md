@@ -1,8 +1,8 @@
 ---
-title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, And Billing Customer Drift Coverage
-date: 2026-06-09
+title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, Billing Customer Drift Coverage, And Customer Onboarding Wizard UX
+date: 2026-06-11
 author: Codex
-scope: Repository-level current status after M91 billing customer drift coverage on 2026-06-09, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
+scope: Repository-level current status after M92 customer onboarding wizard UX on 2026-06-11, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -13,7 +13,7 @@ aligned_with:
   - docs/LEARNINGS.md
 ---
 
-# PureSOC Codex Status - 2026-06-09
+# PureSOC Codex Status - 2026-06-11
 
 ## Current Snapshot
 
@@ -24,11 +24,13 @@ The repository has moved well beyond scaffolding: the `code/` monorepo contains 
 The current executable product path is still the local/in-a-box Romania readiness workflow:
 
 - local registration/login and organization/workspace selection,
-- organization-scoped saved Romania onboarding answers,
+- organization-scoped saved Romania onboarding answers through a short-page NIS2 wizard,
 - generated-catalog Romania service selection with internal source provenance,
 - source-linked notification-draft generation covering the imported registration mapping,
 - Article 21 internal readiness evaluation,
 - local evidence/report/dashboard/audit surfaces,
+- Microsoft 365 tenant connector handoff using existing provider-connection/module health state,
+- derived local gap list and JSON/CSV/evidence-package export controls,
 - billing-provider-none state,
 - customer-facing UI that hides workbook/source-map/cell/range/debug internals,
 - explicit no-DNSC-submission, no-certification, and no-provider-write posture.
@@ -53,11 +55,13 @@ M90 narrows selected data-quality coverage without changing runtime behavior: `p
 
 M91 continues that selected data-quality path for billing persistence: `pnpm lint` now includes `BillingCustomer` in the selected Prisma schema drift map, guarding organization/customer/provider mapping, optional external customer ID, billing email, metadata JSON, and timestamps. This protects billing customer table shape only; it does not approve product pricing, prove live Stripe runtime, or change entitlement behavior.
 
-The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and customer-grade UX polish.
+M92 reshapes the served Romania route into a customer NIS2 readiness wizard: new workspaces continue into company/legal data capture, data-entry pages are capped at five questions, readiness output actions now include JSON/CSV/evidence-package exports, the Microsoft 365 screen hands off to existing tenant OAuth/connect/sync controls, and the gap screen derives local gaps from onboarding, output/evidence, and Microsoft module state. This is local UX/product-flow hardening only; it does not run live Microsoft Graph, add provider writes, approve Romanian legal copy, or claim certification.
+
+The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and full customer-grade frontend hardening beyond the lightweight served UI.
 
 ## Repo Inspection
 
-Inspected and validated on 2026-06-09:
+Inspected and validated on 2026-06-11:
 
 - Required project docs were read in order: `docs/puresoc_vision.md`, `docs/master-plan.md`, `docs/implementation-gaps.md`, `docs/codex-prompts.md`, and `docs/LEARNINGS.md`.
 - `docs/PLAN_M79.md` is completed. It hardened the Romania route into a product-safe guided workflow, added the generated service catalog selector, expanded required onboarding capture, and moved workbook/source-map provenance out of the normal customer UI.
@@ -73,12 +77,14 @@ Inspected and validated on 2026-06-09:
 - `docs/PLAN_M89.md` narrows GAP-046 with served invitation creation/acceptance UX, console navigation, token-redaction copy, and focused web/UI-smoke validation.
 - `docs/PLAN_M90.md` narrows GAP-041 with lint-gated selected schema drift coverage for regulatory source activation records, source maps, and review decisions.
 - `docs/PLAN_M91.md` narrows GAP-041 with lint-gated selected schema drift coverage for billing customer persistence.
-- `git diff --check` passed for the M90 changes.
+- `docs/PLAN_M92.md` narrows GAP-031 and GAP-046 with the short-page customer NIS2 wizard, Microsoft tenant connector handoff, derived gap list, and export controls.
+- `docs/PLAN_M93.md` is staged as the next recursive gap implementation runner.
+- `git diff --check` passed for the M92 changes.
 - The workspace has 371 files under `code/` according to `rg --files code`.
 - The app layout and package layout match the docs' `code/` convention.
 - `docs/implementation-gaps.md` still shows the major launch/runtime gaps open; M79 narrowed GAP-031 and GAP-042 but did not add legal activation, DNSC submission, provider writes, or live external proof.
 
-The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation:
+The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation; M92 added focused web render, Romania workflow, UI smoke, lint, Compose config, and diff validation:
 
 ```txt
 npm run lint
@@ -91,7 +97,10 @@ npm run test -- drift
 passed, 1 file / 11 tests
 
 npm run test -- ro regulatory-import web notification dashboards reports
-passed, 32 files / 144 tests
+passed, 32 files / 153 tests
+
+npm run test -- apps/web/src/__tests__/web-dashboard-reports-ui.test.ts
+passed, 1 file / 17 tests
 
 npm run test:e2e -- --grep @ui-smoke
 passed
@@ -146,14 +155,14 @@ Vitest selections that bind ephemeral local API servers were run outside the san
 | Runtime stack | Lightweight and documented | Current API/web runtime is custom `node:http`, not NestJS/Next.js. ADR-017 records this deviation. |
 | Auth, sessions, orgs, RBAC | Strong contract/runtime baseline | Local auth, session, organization creation/selection, RBAC, local email-verification completion route/UI, owner-managed invitation API plus served invitation UX, OIDC callback contracts, and Prisma adapters exist. Real email delivery/enforcement, invite policy, platform-admin operations, and live OIDC provider smoke remain open. |
 | Regulatory model | Strong data/guardrail baseline | EU member states, NIS2 seed data, country-pack model, source maps, review tasks, and no-auto-activation guardrails exist. Selected drift coverage now guards source records, source maps, and review decisions. |
-| Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, runtime catalog model, classification, onboarding schema, complete imported notification draft mapping, saved progress, and product-safe local workflow exist. Legal activation/copy approval remain open. |
+| Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, runtime catalog model, classification, onboarding schema, complete imported notification draft mapping, saved progress, and product-safe short-page wizard workflow exist. Legal activation/copy approval remain open. |
 | Microsoft 365 | Read-only contract/fixture baseline | Permission bundles and read modules are modeled. No approved disposable tenant/live Graph smoke has run. Write executor remains disabled. |
 | Compliance engine | Strong internal-readiness baseline | Article 21 catalog, gaps, recommendations, readiness plan, checklist and dashboard/report integration exist. Score calibration still needs product/legal approval. |
 | Evidence/reports/dashboard | Good local JSON/CSV/package baseline | Local authenticated evidence, JSON report metadata, stable internal-readiness CSV export, persisted JSON/CSV report-export metadata rows, deterministic local binary evidence-package tar bundles, and configurable package size/file-count guardrails exist. Browser-grade PDF, streaming large-package support, and live storage/scanner smoke remain open. |
 | Billing | Contract-complete, product-incomplete | Stripe adapter/webhook/entitlements exist. Pricing, plan packaging, and real test-mode smoke remain product/operator work. |
 | Audit | Tamper-evident database baseline | Hash chain/checkpoint/export metadata exists. WORM storage, external signing, and legal-grade retention are deferred. |
 | Jobs/queues | Local/disposable baseline | Job runtime and Redis adapter exist. Production multi-container queue orchestration remains open. |
-| Frontend | Useful local served console | Register/login/workspaces/dashboard/Romania route, generated service selector, customer-safe source-hiding assertions, and UI/browser smoke coverage exist. Customer-grade framework work and cross-browser parity remain open. |
+| Frontend | Useful local served console | Register/login/workspaces/dashboard/Romania NIS2 wizard, generated service selector, Microsoft connector handoff, derived gap/export controls, customer-safe source-hiding assertions, and UI/browser smoke coverage exist. Customer-grade framework work and cross-browser parity remain open. |
 
 ## Highest-Priority Open Gaps
 
@@ -164,7 +173,7 @@ Launch/product gates:
 - `GAP-021`: readiness score weights, stale-evidence policy, accepted-risk credit, and customer-facing copy need product/legal approval.
 - `GAP-042`: Romanian legal caveat and regulatory notification copy remain English/source-mapped fallback until approved.
 - `GAP-044`: no approved live/disposable external smoke target has been selected or run.
-- `GAP-046`: self-service signup now has local email-verification completion, API-level owner-managed invitations, and served invitation creation/acceptance UX, but real delivery, open-vs-invite-only policy, platform-admin operations, and abuse controls remain open.
+- `GAP-046`: self-service signup now has local email-verification completion, API-level owner-managed invitations, served invitation creation/acceptance UX, and signup/workspace continuation into the NIS2 wizard, but real delivery, open-vs-invite-only policy, platform-admin operations, and abuse controls remain open.
 
 Runtime/production proof gates:
 
@@ -181,7 +190,7 @@ Runtime/production proof gates:
 
 ## Recommended Next Step
 
-M91 is complete. The next high-leverage motion is still a product/operator decision rather than another workbook-debug UI pass:
+M92 is complete. The next high-leverage motion is still a product/operator decision rather than another local UI reshaping pass:
 
 ```txt
 Choose either Romanian legal/product activation work or exactly one approved disposable external proof target.
@@ -189,7 +198,7 @@ Choose either Romanian legal/product activation work or exactly one approved dis
 
 `docs/PLAN_M80.md` records that decision-gated handoff. Until a reviewer or disposable/test target is explicitly selected, keep GAP-006, GAP-042, and GAP-044 open and avoid adding DNSC submission, certification claims, provider writes, public regulatory fetches, or live external calls.
 
-For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For recursive one-slice-at-a-time implementation, use `docs/recursive-gap-codex-prompt.md` with the staged `docs/PLAN_M92.md` runner.
+For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For recursive one-slice-at-a-time implementation, use `docs/recursive-gap-codex-prompt.md` with the staged `docs/PLAN_M93.md` runner.
 
 For Microsoft 365 real-life tenant testing, use `docs/real-tenant-testing.md`, prepare local environment values from `docs/microsoft365-read-only-smoke.env.example`, and record each run with `docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, friendly/internal pilot second, customer pilot only with written authorization, and production customer testing only after earlier evidence exists. The current runner remains read-only and selector-gated.
 

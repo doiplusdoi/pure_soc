@@ -36,6 +36,7 @@ export interface PureSocConfig {
   };
   auth: {
     localEnabled: boolean;
+    requireEmailVerification: boolean;
     authBrokerEnabled: boolean;
     sessionCookieSecure: boolean;
     providers: string[];
@@ -424,6 +425,10 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     auth: {
       ...config.auth,
       localEnabled: readBoolean(env.PURESOC_AUTH_LOCAL_ENABLED, config.auth.localEnabled),
+      requireEmailVerification: readBoolean(
+        env.PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION ?? env.AUTH_LOCAL_REQUIRE_EMAIL_VERIFICATION,
+        config.auth.requireEmailVerification ?? true
+      ),
       authBrokerEnabled: readBoolean(env.PURESOC_AUTH_BROKER_ENABLED, config.auth.authBrokerEnabled),
       sessionCookieSecure: readBoolean(
         env.PURESOC_AUTH_COOKIE_SECURE ?? env.AUTH_COOKIE_SECURE,
@@ -720,6 +725,14 @@ export const collectStartupConfigIssues = (
       code: "production_secure_cookie_required",
       path: "auth.sessionCookieSecure",
       message: "Production startup requires PURESOC_AUTH_COOKIE_SECURE=true."
+    });
+  }
+
+  if (isProduction && config.auth.localEnabled && !config.auth.requireEmailVerification) {
+    issues.push({
+      code: "production_email_verification_required",
+      path: "auth.requireEmailVerification",
+      message: "Production startup requires PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION=true for local accounts."
     });
   }
 

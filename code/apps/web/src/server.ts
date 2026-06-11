@@ -32,7 +32,19 @@ export interface WebServerOptions {
   publicBaseUrl?: string;
 }
 
-const romaniaOnboardingScreenKeys = new Set<RomaniaOnboardingScreen>(["company", "industry", "technical", "outputs"]);
+const romaniaOnboardingScreenKeys = new Set<RomaniaOnboardingScreen>([
+  "company",
+  "address",
+  "legal",
+  "size",
+  "services",
+  "contacts",
+  "systems",
+  "article9",
+  "outputs",
+  "connector",
+  "gaps"
+]);
 
 const resolveRomaniaOnboardingScreen = (pathname: string): RomaniaOnboardingScreen | null => {
   if (pathname === "/onboarding/romania") {
@@ -498,7 +510,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     if (request.method === "POST" && url.pathname === "/auth/register") {
       const form = await readFormBody(request);
-      const registration = await apiJson<unknown>(apiBaseUrl, "/auth/register", {
+      const registration = await apiJson<{ emailVerificationRequired?: boolean }>(apiBaseUrl, "/auth/register", {
         method: "POST",
         origin: requestOrigin,
         body: {
@@ -541,7 +553,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response.setHeader("set-cookie", login.setCookie);
       }
       response.statusCode = 303;
-      response.setHeader("location", "/verify-email");
+      response.setHeader(
+        "location",
+        registration.body.emailVerificationRequired === true ? "/verify-email" : "/workspaces"
+      );
       response.end();
       return;
     }
@@ -810,7 +825,9 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/onboarding/romania/company?locale=ro-RO&message=${encodeURIComponent("Workspace created and selected.")}`
+        `/onboarding/romania/company?locale=ro-RO&message=${encodeURIComponent(
+          "Workspace created and selected. Complete the short NIS2 wizard screens next."
+        )}`
       );
       response.end();
       return;
@@ -1339,6 +1356,12 @@ const loadRomaniaOnboardingRouteModel = async (input: {
       }
     )
   ]);
+  const microsoft365 = await loadMicrosoft365HealthSurface({
+    apiBaseUrl: input.apiBaseUrl,
+    cookie: input.cookie,
+    generatedAt: dashboard.statusCode === 200 ? dashboard.body.snapshot.generatedAt : "2026-05-03T09:00:00.000Z",
+    organizationId: input.organizationId
+  });
 
   return createRomaniaOnboardingRouteModel({
     actionMessage: input.actionMessage,
@@ -1350,6 +1373,7 @@ const loadRomaniaOnboardingRouteModel = async (input: {
     evidenceArtifacts: evidence.statusCode === 200 ? evidence.body.artifacts : [],
     latestNotificationDraft: state.statusCode === 200 ? state.body.latestNotificationDraft : null,
     locale: input.locale,
+    microsoft365,
     progress: state.statusCode === 200 ? state.body.progress : null
   });
 };
@@ -1495,6 +1519,46 @@ const handleRomaniaWorkflowPost = async (input: {
       }
     );
     return { message: messageForRomaniaAction(input.path, report.statusCode), screen: "outputs" };
+  }
+
+  if (input.path === "/onboarding/romania/reports/internal-readiness-csv") {
+    const state = await loadRoState(input);
+    if (!state.progress?.assessmentId) {
+      return { message: "Evaluate readiness before generating the internal readiness CSV export.", screen: "gaps" };
+    }
+    const report = await apiJson<unknown>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(input.organizationId)}/reports/internal-readiness/csv`,
+      {
+        method: "POST",
+        cookie: input.cookie,
+        origin: input.origin,
+        body: {
+          assessmentId: state.progress.assessmentId
+        }
+      }
+    );
+    return { message: messageForRomaniaAction(input.path, report.statusCode), screen: "gaps" };
+  }
+
+  if (input.path === "/onboarding/romania/reports/evidence-package") {
+    const state = await loadRoState(input);
+    if (!state.progress?.assessmentId) {
+      return { message: "Evaluate readiness before generating the evidence package.", screen: "gaps" };
+    }
+    const report = await apiJson<unknown>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(input.organizationId)}/reports/internal-readiness/evidence-package`,
+      {
+        method: "POST",
+        cookie: input.cookie,
+        origin: input.origin,
+        body: {
+          assessmentId: state.progress.assessmentId
+        }
+      }
+    );
+    return { message: messageForRomaniaAction(input.path, report.statusCode), screen: "gaps" };
   }
 
   if (input.path === "/onboarding/romania/reports/notification-draft") {
@@ -1721,6 +1785,8 @@ const messageForRomaniaAction = (path: string, statusCode = 200): string => {
       "/onboarding/romania/evaluate": "Internal readiness evaluation could not be generated.",
       "/onboarding/romania/evidence": "Local evidence could not be attached.",
       "/onboarding/romania/reports/internal-readiness": "Internal readiness export could not be generated.",
+      "/onboarding/romania/reports/internal-readiness-csv": "Internal readiness CSV export could not be generated.",
+      "/onboarding/romania/reports/evidence-package": "Evidence package export could not be generated.",
       "/onboarding/romania/reports/notification-draft": "Notification draft export could not be generated.",
       "/onboarding/romania/audit/checkpoint": "Audit checkpoint metadata could not be recorded."
     };
@@ -1735,6 +1801,8 @@ const messageForRomaniaAction = (path: string, statusCode = 200): string => {
     "/onboarding/romania/evaluate": "Internal readiness evaluation and dashboard snapshot generated.",
     "/onboarding/romania/evidence": "Local evidence attached to the workspace.",
     "/onboarding/romania/reports/internal-readiness": "Internal readiness JSON export generated.",
+    "/onboarding/romania/reports/internal-readiness-csv": "Internal readiness CSV export generated.",
+    "/onboarding/romania/reports/evidence-package": "Internal readiness evidence package generated.",
     "/onboarding/romania/reports/notification-draft": "Romania notification draft JSON export generated.",
     "/onboarding/romania/audit/checkpoint": "Audit checkpoint metadata recorded without WORM or external notarization claims."
   };

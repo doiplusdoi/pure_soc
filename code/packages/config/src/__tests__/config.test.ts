@@ -57,6 +57,7 @@ describe("loadConfig", () => {
       }
     });
     expect(config.auth.localEnabled).toBe(true);
+    expect(config.auth.requireEmailVerification).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(false);
     expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
       "local-dev-oidc-transient-state-key-change-me"
@@ -159,6 +160,7 @@ describe("loadConfig", () => {
         PURESOC_API_RATE_LIMIT_AUTH_WINDOW_MS: "15000",
         PURESOC_API_RATE_LIMIT_TENANT_READ_MAX_REQUESTS: "99",
         PURESOC_AUTH_LOCAL_ENABLED: "false",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "test-oidc-transient-state-key-with-enough-entropy",
         PURESOC_CONNECTORS_READ_ONLY_BY_DEFAULT: "false",
@@ -250,6 +252,7 @@ describe("loadConfig", () => {
     });
     expect(config.api.rateLimits.routeFamilies.tenant_read?.maxRequests).toBe(99);
     expect(config.auth.localEnabled).toBe(false);
+    expect(config.auth.requireEmailVerification).toBe(true);
     expect(config.auth.sessionCookieSecure).toBe(true);
     expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
       "test-oidc-transient-state-key-with-enough-entropy"
@@ -454,6 +457,7 @@ describe("loadConfig", () => {
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
         "production_secure_cookie_required",
+        "production_email_verification_required",
         "production_origin_protection_required",
         "production_origin_or_referer_required",
         "oidc_transient_state_key_required",
@@ -477,6 +481,7 @@ describe("loadConfig", () => {
         PURESOC_APP_ENV: "production",
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false",
         PURESOC_BILLING_PROVIDER: "none",
@@ -527,6 +532,7 @@ describe("loadConfig", () => {
         PURESOC_APP_ENV: "production",
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_BILLING_PROVIDER: "none",
         PURESOC_OBJECT_STORAGE_PROVIDER: "memory",
@@ -695,6 +701,7 @@ describe("loadConfig", () => {
       env: {
         PURESOC_APP_ENV: "production",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_UPLOAD_SCANNER_MODE: "mock",
         PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: "fake-secret-manager-test",
         PURESOC_PROVIDER_TOKEN_KEY_ID: "fake-current",
@@ -712,6 +719,7 @@ describe("loadConfig", () => {
         PURESOC_APP_ENV: "production",
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
+        PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
         MICROSOFT365_CLIENT_ID: "m365-client-id",

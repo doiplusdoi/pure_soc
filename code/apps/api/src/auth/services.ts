@@ -286,6 +286,7 @@ export const createApiServices = (
     auditWriter,
     passwordHasher: new Argon2idPasswordHasher(),
     rateLimiter,
+    requireEmailVerification: config.auth.requireEmailVerification,
     now: options.now
   });
   const oidcAuth = new OidcSocialLoginService({
