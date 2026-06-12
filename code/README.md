@@ -55,11 +55,13 @@ pnpm prisma:smoke:postgres
 
 ## Runtime Modes
 
-`PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs.
+`PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs. The Compose catalog and `.env.example` default to `PURESOC_PERSISTENCE_MODE=prisma` so browser-created users, workspaces, provider connections, and readiness records survive container restarts and rebuilds.
 
 Memory mode mirrors Prisma mode's per-context repository shape. API services expose separate in-memory adapters under `services.memoryRepositories` for identity/session/organization/RBAC, evidence metadata/access logs, and billing records/events/entitlements. The old shared `services.repository` test harness has been removed so changes in one bounded context do not implicitly own another.
 
 `PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, OIDC transient authorization state, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary.
+
+The Compose `puresoc-migrator` service runs `pnpm prisma:migrate:deploy` before the API starts. It applies checked-in migrations idempotently and does not reset the database or remove the named `puresoc-postgres-data` volume.
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and missing/non-production provider-token custody when Microsoft 365 provider onboarding is enabled.
 
@@ -94,9 +96,13 @@ Implemented web paths:
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
 - `GET /workspaces`: lists the authenticated user's active organization memberships from API `/organizations` and renders a visible workspace selector.
-- `POST /organizations`: creates a local organization through API `/organizations`, grants the creator the organization-scoped `owner` role, selects that organization as the active API session workspace, redirects to the Romania workflow, and does not seed provider or customer data.
+- `POST /organizations`: creates a local organization through API `/organizations`, grants the creator the organization-scoped `owner` role, selects that organization as the active API session workspace, redirects to the Microsoft 365 connector workspace page, and does not seed provider or customer data.
 - `POST /workspaces/select`: forwards the selected organization to API `/auth/session/active-organization`; the API only accepts active memberships for the current user.
 - `GET /`: resolves the API session and active organization, renders the workspace selector when no organization is active, and otherwise renders the operational console from `GET /organizations/:orgId/dashboards/snapshots/latest`.
+- `GET /providers/microsoft365`: requires an API session plus an active organization, then renders a standalone tenant connector page from organization-scoped provider-connection health. Romania onboarding answers and dashboard snapshots are not required to start Microsoft tenant consent.
+- `POST /providers/microsoft365/connect`: starts Microsoft Entra admin consent for the active organization, requesting the V1 read-only baseline, security, and Intune bundles through the PureSOC platform connector app. Customer tenants do not create their own Azure app registration.
+- `GET|POST /providers/microsoft365/callback`: completes tenant admin consent, stores the tenant-owned `ProviderConnection`, encrypted credential metadata, permission bundles, and module status, then returns to the standalone connector page.
+- `POST /providers/microsoft365/sync`: requests a read-only Microsoft 365 sync for the stored provider connection. Write/remediation actions remain disabled.
 - `GET /onboarding/romania`: requires an API session plus an active organization, reads saved organization-scoped Romania onboarding/classification/draft/dashboard/evidence/billing/audit/Microsoft 365 connector state from API routes, and renders a short-page NIS2 readiness wizard from generated Romania country-pack data and stored customer-entered data. Workbook/source-map provenance remains internal and is not shown in the normal customer workflow.
 - `GET /onboarding/romania/{company,address,legal,size,services,contacts,systems,article9,outputs,connector,gaps}`: renders the same wizard as logical customer steps. Data-entry screens are capped at five questions, then hand off to readiness outputs, read-only Microsoft tenant connection status, and a local gap/export list.
 - `POST /onboarding/romania/save`: saves partial Romania onboarding answers to the active organization.
@@ -107,7 +113,7 @@ Implemented web paths:
 - `POST /onboarding/romania/reports/internal-readiness`, `POST /onboarding/romania/reports/internal-readiness-csv`, `POST /onboarding/romania/reports/evidence-package`, and `POST /onboarding/romania/reports/notification-draft`: generate local JSON, CSV, binary evidence-package, and notification-draft exports through authenticated report APIs.
 - `POST /onboarding/romania/audit/checkpoint`: records local audit checkpoint metadata when the checkpoint cadence allows it.
 
-The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification. The service selector is a searchable grouped control backed by the generated Romania service catalog, including the none-of-services option, while storing selected service codes internally. The connector step shows tenant-owned Microsoft 365 connection and module health from existing provider-connection state; it does not call Microsoft Graph during rendering.
+The Romania route is an internal readiness workflow only: it prepares no DNSC submission, makes no live external calls, renders no mock Microsoft/provider posture as customer state, and does not claim legal certification. The service selector is a searchable grouped control backed by the generated Romania service catalog, including the none-of-services option, while storing selected service codes internally. The connector step shows tenant-owned Microsoft 365 connection and module health from existing provider-connection state; it does not call Microsoft Graph during rendering and is not a prerequisite for the standalone Microsoft connector page.
 
 Self-service signup is currently open in the local auth surface. A newly registered user is signed in, then creating a workspace makes that user the owner of that organization. Email verification delivery/enforcement, invite-only signup policy, owner-managed invitations, and platform-admin operations remain release-hardening work before broad public SaaS use.
 
@@ -481,7 +487,7 @@ M41 adds an explicit audit export handoff contract to exported segments and chec
 
 The current application does not write audit exports to object storage, WORM storage, timestamping services, signing services, KMS/HSMs, or external notarization providers. Handoff metadata always reports `storagePointerReturnedToClient=false`, `publicUrlReturnedToClient=false`, `wormStorage=false`, `externalNotarization=false`, and `legalCertification=false` unless a future implementation genuinely changes those guarantees and tests it. If an external checkpoint provider fails, the failure metadata is intentionally generic and secret-free; provider error strings are not returned to browser clients.
 
-Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops.
+Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops. The Compose migrator reuses the API image to run `pnpm prisma:migrate:deploy` before API startup.
 
 ## API Middleware
 

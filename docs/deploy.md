@@ -11,7 +11,7 @@ PureSOC must not be deployed or marketed as legal certification. Reports and wor
 
 | Profile | Purpose | Default posture |
 |---|---|---|
-| Local development | Fast contract work and UI smoke validation | `PURESOC_PERSISTENCE_MODE=memory`, `PURESOC_BILLING_PROVIDER=none`, no live external calls |
+| Local development | Fast contract work and UI smoke validation | Tests and smoke harnesses set `PURESOC_PERSISTENCE_MODE=memory`; Compose first-run uses durable Prisma/Postgres by default |
 | In-a-box | Customer-controlled install with local services | `PURESOC_PERSISTENCE_MODE=prisma`, local or managed PostgreSQL/Redis/object storage, local auth, external integrations only when explicitly configured |
 | SaaS/staging/production | Hosted multi-tenant service | Managed PostgreSQL, Redis, object storage, TLS ingress, secrets manager or equivalent, scanner, backups, monitoring, and approved external-service smokes |
 
@@ -24,7 +24,7 @@ The first-run environment is intentionally small. `code/.env.example` keeps Micr
 For a minimal local or in-a-box path, start with:
 
 ```sh
-PURESOC_PERSISTENCE_MODE=memory
+PURESOC_PERSISTENCE_MODE=prisma
 PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
 PURESOC_BILLING_PROVIDER=none
 PURESOC_OBJECT_STORAGE_PROVIDER=memory
@@ -36,7 +36,7 @@ For durable Prisma mode, the only required first-boot secret-like value is the P
 
 | Feature | Enable when needed | Secrets introduced |
 |---|---|---|
-| Microsoft 365 managed provider | `PURESOC_MICROSOFT365_PROVIDER_ENABLED=true` | `MICROSOFT365_CLIENT_SECRET`, `PURESOC_PROVIDER_TOKEN_KEY` |
+| Microsoft 365 managed provider | `PURESOC_MICROSOFT365_PROVIDER_ENABLED=true` | PureSOC platform app client secret, `PURESOC_PROVIDER_TOKEN_KEY` |
 | Microsoft/Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
 | Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | S3/MinIO object storage | `PURESOC_OBJECT_STORAGE_PROVIDER=s3` | object-storage access key and secret key |
@@ -68,6 +68,7 @@ Those tags are local build outputs, not public registry images. The Dockerfiles 
 |---|---|---|
 | `puresoc-web` | Served web UI | Current `node:http` renderer, port `3000` |
 | `puresoc-api` | API, auth, orgs, compliance, billing, evidence, provider routes | Current `node:http` API, port `3001` |
+| `puresoc-migrator` | One-shot Prisma migration deployment | Runs checked-in migrations with `prisma migrate deploy`; does not reset data |
 | `puresoc-worker` | Async job runtime | Uses configured job queue provider |
 | `puresoc-scheduler` | Periodic scheduled jobs | Regulatory source monitor is disabled by default |
 | `puresoc-connector-runner` | Provider sync jobs | Read-only; `PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=true` is rejected |
@@ -105,15 +106,17 @@ The template omits optional integration secrets by default. Do not add Microsoft
 
 3. Choose persistence:
 
-```sh
-PURESOC_PERSISTENCE_MODE=memory
-```
-
-Memory mode is only for deterministic local/test runs.
+The Compose and `.env.example` defaults are durable Prisma/Postgres:
 
 ```sh
 PURESOC_PERSISTENCE_MODE=prisma
 DATABASE_URL=postgresql://...
+```
+
+Memory mode is only for deterministic local/test runs and must be selected explicitly:
+
+```sh
+PURESOC_PERSISTENCE_MODE=memory
 ```
 
 Prisma mode is required for durable in-a-box, staging, and production installs.
@@ -132,20 +135,24 @@ For a real deployment pipeline, apply checked-in migrations after backup and bef
 pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
 ```
 
-The current Compose catalog does not include a dedicated migrator container, so migration execution is operator/pipeline owned.
+The Compose catalog includes `puresoc-migrator`, which runs this deploy command before `puresoc-api` starts. Pipelines can still run the same command explicitly after backup and before rolling app services.
 
 5. Build application images from the repository:
 
 ```sh
 COMPOSE_BAKE=false docker compose \
   -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.build.yml \
   build
 ```
 
 6. Start the Compose catalog and rebuild application images when needed:
 
 ```sh
-docker compose -f infra/compose/docker-compose.yml up --build -d
+docker compose \
+  -f infra/compose/docker-compose.yml \
+  -f infra/compose/docker-compose.build.yml \
+  up --build -d
 ```
 
 7. Verify health:
@@ -532,7 +539,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 
 These are known limitations, not deployment steps to paper over:
 
-- no dedicated migrator container in the current Compose catalog;
+- no automated backup/restore service or restore drill in the current Compose catalog;
 - no approved live Stripe smoke yet;
 - no approved live Microsoft 365 tenant smoke yet;
 - no approved live OIDC provider callback smoke yet;

@@ -2,7 +2,7 @@ name: puresoc
 
 x-puresoc-default-environment: &puresoc-default-environment
   PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
-  PURESOC_PERSISTENCE_MODE: ${PURESOC_PERSISTENCE_MODE:-memory}
+  PURESOC_PERSISTENCE_MODE: ${PURESOC_PERSISTENCE_MODE:-prisma}
   PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:-http://localhost:3000}
   PURESOC_API_BASE_URL: ${PURESOC_API_BASE_URL:-http://localhost:3001}
   PURESOC_WEB_PUBLIC_BASE_URL: ${PURESOC_WEB_PUBLIC_BASE_URL:-http://localhost:3000}
@@ -97,11 +97,18 @@ services:
     volumes:
       - puresoc-object-storage-data:/data
 
+  puresoc-migrator:
+    image: puresoc-migrator:local
+    command: ["pnpm", "prisma:migrate:deploy"]
+    environment:
+      <<: *puresoc-default-environment
+    depends_on:
+      puresoc-postgres:
+        condition: service_healthy
+    restart: "no"
+
   puresoc-web:
     image: puresoc-web:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.web
     environment:
       <<: *puresoc-default-environment
       PORT: "3000"
@@ -114,17 +121,14 @@ services:
 
   puresoc-api:
     image: puresoc-api:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.api
     environment:
       <<: *puresoc-default-environment
       PORT: "3001"
     ports:
       - "3001:3001"
     depends_on:
-      puresoc-postgres:
-        condition: service_healthy
+      puresoc-migrator:
+        condition: service_completed_successfully
       puresoc-redis:
         condition: service_healthy
       puresoc-object-storage:
@@ -132,9 +136,6 @@ services:
 
   puresoc-worker:
     image: puresoc-worker:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.worker
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -145,9 +146,6 @@ services:
 
   puresoc-scheduler:
     image: puresoc-scheduler:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.scheduler
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -158,9 +156,6 @@ services:
 
   puresoc-connector-runner:
     image: puresoc-connector-runner:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.connector-runner
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -171,9 +166,6 @@ services:
 
   puresoc-regulatory-importer:
     image: puresoc-regulatory-importer:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.regulatory-importer
     environment:
       <<: *puresoc-default-environment
     profiles:
@@ -181,9 +173,6 @@ services:
 
   puresoc-report-renderer:
     image: puresoc-report-renderer:local
-    build:
-      context: ../..
-      dockerfile: infra/docker/Dockerfile.report-renderer
     environment:
       <<: *puresoc-default-environment
       PORT: "3002"

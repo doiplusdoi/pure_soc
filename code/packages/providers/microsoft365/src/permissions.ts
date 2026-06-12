@@ -198,7 +198,7 @@ export const assertMicrosoft365ReadOnlyBundles = (bundleKeys: readonly string[])
 export const normalizeMicrosoft365RequestedBundles = (
   requestedPermissionBundles: readonly string[] | undefined
 ): Microsoft365ReadPermissionBundleKey[] => {
-  const requested = requestedPermissionBundles?.length ? requestedPermissionBundles : ["m365_read_baseline"];
+  const requested = requestedPermissionBundles?.length ? requestedPermissionBundles : [...microsoft365ReadPermissionBundles];
   assertMicrosoft365ReadOnlyBundles(requested);
 
   const bundleKeys = new Set<Microsoft365ReadPermissionBundleKey>();

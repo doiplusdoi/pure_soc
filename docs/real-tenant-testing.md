@@ -13,6 +13,7 @@ The current product posture is:
 - no direct DNSC or authority submission;
 - no legal certification claim;
 - no production/customer tenant until disposable and friendly-pilot evidence exists.
+- customer tenants connect through the PureSOC platform Microsoft Entra app and tenant admin consent; they must not create their own Azure app registrations for the product GUI flow.
 
 ## Tenant Ladder
 
@@ -56,9 +57,11 @@ https://graph.microsoft.com/v1.0
 
 Sovereign-cloud tenant testing is not ready yet because endpoint selection remains deferred.
 
-## Microsoft App Registration
+## Microsoft App Registration And Consent
 
-Create a dedicated app registration for live-smoke testing. Do not reuse a future production app registration for disposable smoke.
+For the product GUI connector, PureSOC owns one configured multitenant Microsoft Entra app registration per deployment/environment. Customer tenants use Microsoft admin consent to approve that PureSOC platform app; they do not create customer-owned Azure app registrations.
+
+Create a dedicated app registration for live-smoke testing only. Do not reuse a future production app registration for disposable smoke.
 
 Recommended names:
 
@@ -68,7 +71,7 @@ PureSOC friendly pilot read-only
 PureSOC production read-only
 ```
 
-For one disposable tenant, a single-tenant app is acceptable. For testing customer admin-consent flow across multiple tenants, use a multi-tenant app registration in the PureSOC-controlled home tenant and have each test tenant admin grant consent.
+For one disposable tenant, a single-tenant app is acceptable for the smoke CLI. For testing the customer admin-consent product flow across multiple tenants, use a multi-tenant app registration in the PureSOC-controlled home tenant and have each test tenant admin grant consent from the PureSOC workspace connector page.
 
 Record these values securely:
 
@@ -101,9 +104,9 @@ m365_remediation_write
 m365_defender_write
 ```
 
-In Microsoft Entra, configure these as Microsoft Graph application permissions, then grant tenant-wide admin consent.
+In Microsoft Entra, configure these as Microsoft Graph application permissions on the PureSOC connector app, then grant tenant-wide admin consent.
 
-For application permissions, use admin consent with `scope=https://graph.microsoft.com/.default`. Use a tenant ID in the admin-consent URL instead of `common`.
+For application permissions, use Microsoft identity platform v2 admin consent with `scope=https://graph.microsoft.com/.default`. Use `organizations` before the tenant is known, or a tenant ID when the tenant is known; do not use `common`.
 
 ## Tenant Data Matrix
 

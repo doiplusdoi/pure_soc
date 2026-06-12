@@ -9,6 +9,11 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.api
 
+  puresoc-migrator:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
+
   puresoc-worker:
     build:
       context: ../..

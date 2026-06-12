@@ -70,6 +70,17 @@ export interface RuntimeMessageScreenInput {
   title: string;
 }
 
+export interface Microsoft365ConnectorPageModel {
+  actionMessage?: string | null;
+  activeOrganizationName?: string | null;
+  microsoft365: Microsoft365HealthSurface;
+}
+
+export interface RenderMicrosoft365ConnectorPageOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
+}
+
 export interface RenderWorkspaceSelectionOptions {
   includeDocumentShell?: boolean;
   locale?: string | null;
@@ -402,6 +413,107 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     ].join("");
   };
 
+export const renderMicrosoft365ConnectorPage = (
+  model: Microsoft365ConnectorPageModel,
+  options: RenderMicrosoft365ConnectorPageOptions = {}
+): string => {
+  const locale = resolvePureSocLocale(options.locale).locale;
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="microsoft365-connector-page">',
+    '<section class="ps-section" aria-labelledby="microsoft365-connector-title">',
+    '<div class="ps-section__header">',
+    `<div><h1 class="ps-section__title" id="microsoft365-connector-title">Microsoft 365 Tenant Connector</h1><p class="ps-muted">${escapeHtml(
+      model.activeOrganizationName
+        ? `${model.activeOrganizationName} can connect a tenant with Microsoft Entra admin consent.`
+        : "Connect a tenant with Microsoft Entra admin consent from the active workspace."
+    )}</p></div>`,
+    renderStatusPill({
+      label: model.microsoft365.status.replaceAll("_", " "),
+      tone: toneForStatus(model.microsoft365.status)
+    }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-next-action">',
+    `<div><h2 class="ps-panel__title">${escapeHtml(
+      model.microsoft365.providerConnectionId ? "Refresh read-only Graph modules" : "Start global admin approval"
+    )}</h2><p>${escapeHtml(
+      model.microsoft365.providerConnectionId
+        ? "Use the stored tenant grant to refresh read-only Microsoft 365 module status."
+        : "A Microsoft global admin approves the PureSOC platform app for this tenant. No customer-created Azure app registration is required."
+    )}</p></div>`,
+    renderStatusPill({ label: "read-only tenant OAuth", tone: "accent" }),
+    "</div>",
+    '<div class="ps-grid ps-stack-top">',
+    '<article class="ps-panel">',
+    '<h2 class="ps-panel__title">Tenant connection</h2>',
+    `<p>${escapeHtml(model.microsoft365.tenantDisplayName)}</p>`,
+    `<p class="ps-muted">${escapeHtml(model.microsoft365.tenantId)}</p>`,
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: model.microsoft365.status.replaceAll("_", " "), tone: toneForStatus(model.microsoft365.status) }),
+    renderStatusPill({ label: model.microsoft365.writeEnabled ? "write enabled" : "write disabled", tone: model.microsoft365.writeEnabled ? "warning" : "neutral" }),
+    renderSourceChip({ label: "Connector", detail: model.microsoft365.connectorMode }),
+    renderSourceChip({ label: "Last sync", detail: model.microsoft365.lastSyncAt }),
+    "</div>",
+    renderMicrosoft365Actions(model.microsoft365),
+    "</article>",
+    '<article class="ps-panel">',
+    '<h2 class="ps-panel__title">Consent scope</h2>',
+    '<p class="ps-muted">The connect action requests the V1 read-only baseline, security, and Intune bundles. Write and remediation scopes remain disabled.</p>',
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: "m365_read_baseline", tone: "info" }),
+    renderStatusPill({ label: "m365_security_read", tone: "info" }),
+    renderStatusPill({ label: "m365_intune_read", tone: "info" }),
+    renderStatusPill({ label: "no write scopes", tone: "success" }),
+    "</div>",
+    "</article>",
+    "</div>",
+    renderMicrosoft365ConnectorSetup(),
+    renderDataTable<Microsoft365ModuleSurface>(
+      "Read-only module status",
+      [
+        {
+          header: "Module",
+          render: (module) => escapeHtml(module.label)
+        },
+        {
+          header: "Status",
+          render: (module) => renderStatusPill({ label: module.status.replaceAll("_", " "), tone: toneForStatus(module.status) })
+        },
+        {
+          header: "Coverage",
+          render: (module) => escapeHtml(module.coverage)
+        }
+      ],
+      model.microsoft365.modules
+    ),
+    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a> <a class="ps-command" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="open-romania-onboarding">Open Romania wizard</a></p>',
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Microsoft 365 connector | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
 export const renderOrganizationInvitationsScreen = (
   model: OrganizationInvitationScreenModel,
   options: RenderOrganizationInvitationsOptions = {}
@@ -600,7 +712,7 @@ const renderRomaniaRouteHero = ({
     '<div class="ps-route-hero__intro">',
     '<p class="ps-route-hero__eyebrow">Customer onboarding workspace</p>',
     '<h1 class="ps-route-hero__title" id="romania-route-title">NIS2 Readiness Wizard</h1>',
-    '<p class="ps-route-hero__lede">Complete business data in short screens, run the Romania NIS2 readiness checks, connect Microsoft 365 when the local assessment is ready, and export the resulting gap list.</p>',
+    '<p class="ps-route-hero__lede">Complete business data in short screens, run the Romania NIS2 readiness checks, connect Microsoft 365 from the workspace connector when ready, and export the resulting gap list.</p>',
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
     '<p class="ps-route-hero__boundary-note">DNSC filing stays outside PureSOC. Outputs remain internal readiness support.</p>',
     "</div>",
@@ -876,7 +988,7 @@ const resolveRomaniaGuidedSteps = (
     {
       complete: connectorComplete,
       label: "Microsoft connector",
-      summary: connectorComplete ? "Tenant OAuth connection is present." : "Connect Microsoft 365 after local onboarding data is ready."
+      summary: connectorComplete ? "Tenant OAuth connection is present." : "Connect Microsoft 365 from the workspace connector. Romania onboarding is not required."
     },
     {
       complete: evidenceComplete,
@@ -1297,7 +1409,7 @@ const renderRomaniaConnectorWorkflow = (microsoft365: Microsoft365HealthSurface)
     `<div><h3>${escapeHtml(microsoft365.providerConnectionId ? "Run read-only tenant sync" : "Connect the Microsoft tenant")}</h3><p>${escapeHtml(
       microsoft365.providerConnectionId
         ? "Use the stored tenant connection to refresh read-only Entra, M365, Intune, and Defender module status when the connector is configured."
-        : "After the onboarding answers are saved, an owner or organization admin can start Microsoft Entra tenant admin consent."
+        : "An owner or organization admin can start Microsoft Entra tenant admin consent from this workspace. Romania onboarding is not required."
     )}</p></div>`,
     renderStatusPill({ label: "tenant OAuth", tone: "accent" }),
     "</div>",
@@ -2042,34 +2154,29 @@ interface Microsoft365ConnectorSetupRow {
 
 const microsoft365ConnectorSetupRows: readonly Microsoft365ConnectorSetupRow[] = [
   {
-    item: "Entra app registration",
-    value: "Multitenant Microsoft Entra app for the PureSOC connector",
-    detail: "The app registration belongs to the PureSOC deployment, not to a customer workspace."
+    item: "PureSOC platform app",
+    value: "Multitenant connector application",
+    detail: "The PureSOC deployment owns the Microsoft Entra app registration; customer tenants do not create one."
   },
   {
-    item: "Application client ID",
-    value: "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
-    detail: "Use the Application (client) ID from the app registration overview."
+    item: "Global admin approval",
+    value: "Microsoft admin consent",
+    detail: "A tenant global admin signs in and approves the requested Microsoft Graph application permissions."
   },
   {
-    item: "Client credential",
-    value: "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
-    detail: "Store only an app client secret or equivalent credential; never store a tenant admin password."
+    item: "Read-only bundles",
+    value: "Baseline, security, Intune",
+    detail: "The first connection asks for V1 read-only bundles only; remediation write bundles are disabled."
   },
   {
-    item: "Redirect URI",
-    value: "PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI",
-    detail: "Register the exact web callback URI, normally /providers/microsoft365/callback on the public web origin."
+    item: "Token storage",
+    value: "Encrypted ProviderConnection credential",
+    detail: "PureSOC stores tenant ID, consent metadata, permission bundles, and encrypted token metadata per workspace."
   },
   {
-    item: "Authority host",
-    value: "PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST",
-    detail: "Default is https://login.microsoftonline.com unless a reviewed cloud environment requires a different host."
-  },
-  {
-    item: "Workspace tenant consent",
-    value: "Connect Microsoft 365",
-    detail: "Each organization grants tenant consent from the GUI; tenant ID, permission bundles, and encrypted token metadata stay on ProviderConnection."
+    item: "Graph reads",
+    value: "Module-level health",
+    detail: "Missing permissions, licenses, or unsupported endpoints become module status rather than a full connector failure."
   }
 ];
 
@@ -2077,23 +2184,23 @@ const renderMicrosoft365ConnectorSetup = (): string =>
   [
     '<div class="ps-stack-top">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h3 class="ps-panel__title">Connector setup</h3><p class="ps-muted">Configure the connector app once, then connect each customer tenant through OAuth admin consent.</p></div>',
+    '<div><h3 class="ps-panel__title">Consent model</h3><p class="ps-muted">Connect each customer tenant through Microsoft OAuth admin consent without creating customer-owned Azure app registrations.</p></div>',
     '<div class="ps-chip-row">',
-    renderStatusPill({ label: "platform app registration", tone: "info" }),
+    renderStatusPill({ label: "platform app", tone: "info" }),
     renderStatusPill({ label: "tenant OAuth per workspace", tone: "accent" }),
     renderStatusPill({ label: "read-only first", tone: "success" }),
     "</div>",
     "</div>",
     renderDataTable<Microsoft365ConnectorSetupRow>(
-      "Microsoft 365 connector app registration setup",
+      "Microsoft 365 admin consent model",
       [
         {
           header: "Item",
           render: (row) => escapeHtml(row.item)
         },
         {
-          header: "Configured as",
-          render: (row) => `<code>${escapeHtml(row.value)}</code>`
+          header: "Model",
+          render: (row) => escapeHtml(row.value)
         },
         {
           header: "Operational note",
@@ -2102,7 +2209,7 @@ const renderMicrosoft365ConnectorSetup = (): string =>
       ],
       microsoft365ConnectorSetupRows
     ),
-    '<p class="ps-help">Admin consent redirects use the registered client ID and redirect URI. Background Graph reads use the tenant grant with the client credentials flow and Microsoft Graph /.default scope.</p>',
+    '<p class="ps-help">Admin consent redirects use Microsoft identity platform v2 with Microsoft Graph /.default application permissions. Background Graph reads use the tenant grant with the client credentials flow.</p>',
     "</div>"
   ].join("");
 

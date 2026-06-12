@@ -9,6 +9,7 @@ import {
   createRomaniaOnboardingRouteModel,
   renderEmailVerificationScreen,
   renderLoginScreen,
+  renderMicrosoft365ConnectorPage,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
   renderRegisterScreen,
@@ -32,7 +33,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Romania NIS2 registration workflow");
     expect(html).toContain("Internal readiness report");
     expect(html).toContain("No Microsoft 365 provider connected");
-    expect(html).toContain("Start tenant admin consent from this workspace before Microsoft Graph reads can run.");
+    expect(html).toContain("Start Microsoft Entra admin consent from the workspace connector before Microsoft Graph reads can run.");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
@@ -79,12 +80,13 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('data-ui-action="connect-microsoft365-tenant"');
     expect(html).toContain('action="/providers/microsoft365/connect"');
     expect(html).toContain("Write actions disabled");
-    expect(html).toContain("Connector setup");
-    expect(html).toContain("Microsoft 365 connector app registration setup");
-    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID");
-    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET");
-    expect(html).toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
-    expect(html).toContain("tenant ID, permission bundles, and encrypted token metadata stay on ProviderConnection");
+    expect(html).toContain("Consent model");
+    expect(html).toContain("Microsoft 365 admin consent model");
+    expect(html).toContain("customer tenants do not create one");
+    expect(html).toContain("tenant ID, consent metadata, permission bundles, and encrypted token metadata per workspace");
+    expect(html).not.toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID");
+    expect(html).not.toContain("PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET");
+    expect(html).not.toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
     expect(html).toContain('data-ui-action="open-romania-onboarding"');
     expect(login).toContain('<label for="email">Email</label>');
     expect(login).toContain('data-ui-smoke="login-screen"');
@@ -215,6 +217,26 @@ describe("web dashboard reports operational UI", () => {
     expect(dashboardHtml).not.toContain('onclick="');
     expect(romaniaHtml).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(romaniaHtml).not.toContain('onclick="');
+  });
+
+  it("renders Microsoft 365 tenant connector as a standalone workspace page", () => {
+    const html = renderMicrosoft365ConnectorPage({
+      activeOrganizationName: "Contoso Workspace",
+      actionMessage: "Workspace selected.",
+      microsoft365: createOperationalConsoleDemoModel().microsoft365
+    });
+
+    expect(html).toContain('data-ui-smoke="microsoft365-connector-page"');
+    expect(html).toContain("Microsoft 365 Tenant Connector");
+    expect(html).toContain("Start global admin approval");
+    expect(html).toContain("No customer-created Azure app registration is required.");
+    expect(html).toContain("m365_read_baseline");
+    expect(html).toContain("m365_security_read");
+    expect(html).toContain("m365_intune_read");
+    expect(html).toContain("no write scopes");
+    expect(html).toContain('action="/providers/microsoft365/connect"');
+    expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
+    expect(html).not.toMatch(/PURESOC_CONNECTOR_MICROSOFT365_CLIENT_(ID|SECRET)|migrate reset|db push --force-reset/i);
   });
 
   it("renders a visible API-backed organization selection workspace selector without exposing session secrets", () => {

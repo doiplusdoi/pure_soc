@@ -15,6 +15,7 @@ export {
 export {
   renderEmailVerificationScreen,
   renderLoginScreen,
+  renderMicrosoft365ConnectorPage,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
   renderRegisterScreen,
@@ -23,11 +24,13 @@ export {
   renderWorkspaceSelectionScreen,
   type RenderEmailVerificationScreenOptions,
   type RenderLoginScreenOptions,
+  type RenderMicrosoft365ConnectorPageOptions,
   type RenderOrganizationInvitationsOptions,
   type RenderOperationalConsoleOptions,
   type RenderRegisterScreenOptions,
   type RenderRomaniaOnboardingRouteOptions,
   type RenderWorkspaceSelectionOptions,
   type RomaniaOnboardingScreen,
-  type RuntimeMessageScreenInput
+  type RuntimeMessageScreenInput,
+  type Microsoft365ConnectorPageModel
 } from "./operational-console";

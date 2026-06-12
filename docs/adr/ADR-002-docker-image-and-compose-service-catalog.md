@@ -12,8 +12,8 @@ PureSOC must run as Docker-first software for SaaS-like deployments and customer
 Keep the Docker and Compose catalog under `code/infra/`.
 
 - `code/infra/docker` owns Dockerfiles for application service roles.
-- `code/infra/compose/docker-compose.yml` is the shared service catalog and includes application `build:` entries that map services to their Dockerfiles.
-- `code/infra/compose/docker-compose.build.yml` is retained as a compatibility override for workflows that still compose build metadata separately, but the main service catalog is build-capable on its own.
+- `code/infra/compose/docker-compose.yml` is the shared runtime service catalog and stays image-only for deployable catalogs.
+- `code/infra/compose/docker-compose.build.yml` is the local build override that maps application services to their Dockerfiles.
 - Split Compose files group service roles by data, storage, web/API, jobs, connectors, reports, and config/import tasks.
 - Required service roles are `puresoc-web`, `puresoc-api`, `puresoc-worker`, `puresoc-scheduler`, `puresoc-connector-runner`, `puresoc-regulatory-importer`, `puresoc-report-renderer`, `puresoc-postgres`, `puresoc-redis`, and `puresoc-object-storage`.
 - Optional local support services can include an auth broker, mailer, upload scanner, and mock provider services.
@@ -23,7 +23,7 @@ Compose is an application image and dependency manifest. Dev/staging/prod host h
 ## Consequences
 
 - Every runtime component gets a clear image boundary and can be validated with `docker compose -f infra/compose/docker-compose.yml config` from `code/`.
-- Default Compose starts can build PureSOC application images from public base images and local source code without requiring prepublished PureSOC registry images.
-- Deployments that consume only one Compose file must support Compose `build:` entries and provide the repository build context to the builder.
+- Default runtime Compose starts consume named PureSOC application images without requiring repository build context in the runtime catalog.
+- Local and in-a-box workflows that build from source include `docker-compose.build.yml` when running `docker compose build` or `up --build`.
 - The service catalog stays useful for local and in-a-box installs without overclaiming production operations.
 - Future service additions must include Dockerfile ownership, default config, health behavior, and Compose wiring.

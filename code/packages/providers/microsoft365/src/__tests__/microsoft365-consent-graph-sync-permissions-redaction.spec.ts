@@ -362,8 +362,9 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     });
     const url = new URL(redirect.url);
 
-    expect(url.pathname).toBe("/common/adminconsent");
+    expect(url.pathname).toBe("/organizations/v2.0/adminconsent");
     expect(url.searchParams.get("client_id")).toBe("client-id");
+    expect(url.searchParams.get("scope")).toBe("https://graph.microsoft.com/.default");
     expect(url.searchParams.get("state")).toBe("state_123");
     expect(url.searchParams.get("redirect_uri")).toBe("https://app.example.test/m365/callback");
     await expect(

@@ -630,7 +630,7 @@ export const disconnectedMicrosoft365Surface = (generatedAt: string): Microsoft3
       moduleKey: "provider.connection",
       label: "Provider connection",
       status: "attention",
-      coverage: "Start tenant admin consent from this workspace before Microsoft Graph reads can run.",
+      coverage: "Start Microsoft Entra admin consent from the workspace connector before Microsoft Graph reads can run.",
       sourceQuery: "provider disabled"
     }
   ]
@@ -1001,7 +1001,7 @@ const buildRomaniaReadinessGaps = (input: {
 
   if (!input.microsoft365.providerConnectionId) {
     gaps.push({
-      actionHref: "/onboarding/romania/connector?locale=ro-RO",
+      actionHref: "/providers/microsoft365",
       actionKey: "open-microsoft365-connector-gap",
       actionLabel: "Connect tenant",
       id: "microsoft365_connection_missing",
@@ -1013,7 +1013,7 @@ const buildRomaniaReadinessGaps = (input: {
   } else {
     for (const module of input.microsoft365.modules.filter((module) => !["ready", "in_progress"].includes(module.status))) {
       gaps.push({
-        actionHref: "/onboarding/romania/connector?locale=ro-RO",
+        actionHref: "/providers/microsoft365",
         actionKey: `open-microsoft365-${module.moduleKey.replace(/[^a-zA-Z0-9_-]/g, "-")}-gap`,
         actionLabel: "Review module",
         id: `microsoft365_${module.moduleKey}`,

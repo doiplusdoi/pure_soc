@@ -174,6 +174,8 @@ export interface CreateMicrosoft365ConnectorOptions {
 }
 
 const defaultAuthorityHost = "https://login.microsoftonline.com";
+const defaultAdminConsentTenant = "organizations";
+const graphDefaultScope = "https://graph.microsoft.com/.default";
 
 export const createFetchMicrosoft365TokenClient = (): Microsoft365TokenClient => async (input) => {
   const body = new URLSearchParams({
@@ -240,8 +242,9 @@ export const createMicrosoft365Connector = (
       }
 
       const requestedBundles = normalizeMicrosoft365RequestedBundles(input.requestedPermissionBundles);
-      const url = new URL(`${authorityHost}/common/adminconsent`);
+      const url = new URL(`${authorityHost}/${defaultAdminConsentTenant}/v2.0/adminconsent`);
       url.searchParams.set("client_id", options.clientId);
+      url.searchParams.set("scope", graphDefaultScope);
       url.searchParams.set("state", input.state);
       url.searchParams.set("redirect_uri", input.redirectUri);
 

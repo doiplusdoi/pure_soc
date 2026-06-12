@@ -17,6 +17,7 @@ import {
 } from "./app-data";
 import {
   renderLoginScreen,
+  renderMicrosoft365ConnectorPage,
   renderEmailVerificationScreen,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
@@ -60,6 +61,7 @@ const isRomaniaOnboardingScreen = (value: unknown): value is RomaniaOnboardingSc
   typeof value === "string" && romaniaOnboardingScreenKeys.has(value as RomaniaOnboardingScreen);
 
 const romaniaOnboardingPath = (screen: RomaniaOnboardingScreen): string => `/onboarding/romania/${screen}`;
+const microsoft365ReadOnlyConnectionBundles = ["m365_read_baseline", "m365_security_read", "m365_intune_read"] as const;
 
 interface LatestDashboardSnapshotResponse {
   snapshot: DashboardSnapshotContract;
@@ -286,6 +288,59 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/providers/microsoft365") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      if (session.statusCode !== 200) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to connect Microsoft 365."
+          })
+        );
+        return;
+      }
+      if (!session.body.session.activeOrganizationId) {
+        const selection = await loadWorkspaceSelectionModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          session: session.body
+        });
+        sendHtml(
+          response,
+          selection
+            ? renderWorkspaceSelectionScreen(selection)
+            : renderRuntimeMessageScreen({
+                title: "Select A Workspace",
+                summary: "Microsoft 365 tenant consent is stored on an organization-owned workspace.",
+                statusLabel: "Session active",
+                statusTone: "warning",
+                actionHref: "/workspaces",
+                actionLabel: "Choose workspace"
+              })
+        );
+        return;
+      }
+
+      const organization = await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body);
+      sendHtml(
+        response,
+        renderMicrosoft365ConnectorPage({
+          actionMessage: url.searchParams.get("message"),
+          activeOrganizationName: organization.name,
+          microsoft365: await loadMicrosoft365HealthSurface({
+            apiBaseUrl,
+            cookie: request.headers.cookie,
+            generatedAt: new Date().toISOString(),
+            organizationId: session.body.session.activeOrganizationId
+          })
+        })
+      );
+      return;
+    }
+
     const requestOrigin =
       options.publicBaseUrl ??
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
@@ -314,7 +369,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           origin: requestOrigin,
           body: {
             redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
-            requestedPermissionBundles: ["m365_read_baseline"]
+            requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
           }
         }
       );
@@ -324,11 +379,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           response,
           renderRuntimeMessageScreen({
             title: "Microsoft 365 Connector Not Started",
-            summary: "The Microsoft 365 connector app registration is not configured or the current user cannot manage provider connections.",
+            summary: "The PureSOC Microsoft 365 connector is not enabled for this deployment or the current user cannot manage provider connections.",
             statusLabel: "Connector blocked",
             statusTone: "warning",
-            actionHref: "/#microsoft365",
-            actionLabel: "Return to Microsoft 365"
+            actionHref: "/providers/microsoft365",
+            actionLabel: "Return to connector"
           }),
           begin.statusCode
         );
@@ -387,8 +442,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
             summary: "The callback did not match the active workspace session or Microsoft did not grant admin consent.",
             statusLabel: "Consent blocked",
             statusTone: "warning",
-            actionHref: "/#microsoft365",
-            actionLabel: "Return to Microsoft 365"
+            actionHref: "/providers/microsoft365",
+            actionLabel: "Return to connector"
           }),
           completed.statusCode
         );
@@ -396,7 +451,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       }
 
       response.statusCode = 303;
-      response.setHeader("location", "/#microsoft365");
+      response.setHeader(
+        "location",
+        `/providers/microsoft365?message=${encodeURIComponent("Microsoft 365 tenant consent completed. Read-only tenant profile sync started.")}`
+      );
       response.end();
       return;
     }
@@ -418,7 +476,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const providerConnectionId = optionalFormValue(form.get("providerConnectionId"));
       if (!providerConnectionId) {
         response.statusCode = 303;
-        response.setHeader("location", "/#microsoft365");
+        response.setHeader("location", "/providers/microsoft365");
         response.end();
         return;
       }
@@ -435,7 +493,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       );
 
       response.statusCode = 303;
-      response.setHeader("location", "/#microsoft365");
+      response.setHeader(
+        "location",
+        `/providers/microsoft365?message=${encodeURIComponent("Microsoft 365 read-only sync requested.")}`
+      );
       response.end();
       return;
     }
@@ -825,8 +886,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/onboarding/romania/company?locale=ro-RO&message=${encodeURIComponent(
-          "Workspace created and selected. Complete the short NIS2 wizard screens next."
+        `/providers/microsoft365?message=${encodeURIComponent(
+          "Workspace created and selected. You can connect Microsoft 365 now or open the Romania wizard when ready."
         )}`
       );
       response.end();
@@ -927,11 +988,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           response,
           renderRuntimeMessageScreen({
             title: "Dashboard Snapshot Required",
-            summary: "This workspace does not have a dashboard snapshot yet. Open the Romania workflow, save answers, then evaluate readiness to create one.",
+            summary: "This workspace does not have a dashboard snapshot yet. You can connect Microsoft 365 now, or open the Romania workflow and evaluate readiness to create one.",
             statusLabel: "API connected",
             statusTone: "warning",
-          actionHref: "/onboarding/romania/company?locale=ro-RO",
-            actionLabel: "Open Romania workflow"
+            actionHref: "/providers/microsoft365",
+            actionLabel: "Open Microsoft connector"
           }),
           dashboard.statusCode === 404 ? 404 : 200
         );

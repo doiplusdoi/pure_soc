@@ -1,6 +1,6 @@
 # Microsoft 365 Permission Bundles
 
-Validated on 2026-04-30 against current Microsoft Learn references.
+Validated on 2026-04-30 against Microsoft Learn references. Admin-consent endpoint shape was rechecked against Microsoft Learn on 2026-06-12.
 
 ## Read-Only V1 Bundles
 
@@ -35,7 +35,8 @@ Write bundles stay separate and are not requested during first onboarding:
 
 ## Implementation Notes
 
-- The onboarding flow uses Microsoft Entra admin consent at `/adminconsent`, then app-only client credentials with `https://graph.microsoft.com/.default`.
+- The workspace connector flow uses Microsoft Entra admin consent at `/organizations/v2.0/adminconsent` with `scope=https://graph.microsoft.com/.default`, then app-only client credentials with the tenant grant.
+- When a caller does not supply a narrower bundle list, PureSOC requests the full V1 read-only set: `m365_read_baseline`, `m365_security_read`, and `m365_intune_read`. Write bundles remain rejected during first connection.
 - Granted app permissions are read from the token roles in the mocked/test path and persisted as permission bundle data.
 - Provider credentials are stored encrypted; OAuth codes, access tokens, refresh tokens, client secrets, tenant secrets, and authorization headers must not be logged or returned by API responses.
 - Graph pagination follows `@odata.nextLink`; retry handling honors throttled responses through module retry telemetry.
