@@ -3,5 +3,13 @@ name: puresoc-webservices
 services:
   puresoc-web:
     image: puresoc-web:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
   puresoc-api:
     image: puresoc-api:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api

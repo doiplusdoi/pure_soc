@@ -496,12 +496,12 @@ Status: Open; created 2026-05-29 by public-deploy UI preparation after syncing s
 
 Severity: High
 Area: Deployment/images
-Current state: The default Compose catalog includes `build:` entries for every PureSOC application service and tags local build outputs as `puresoc-*:local`. Application Dockerfiles use public `node:22-alpine` base images; Postgres, Redis, and MinIO remain public runtime images. No prepublished PureSOC registry images are required by the default catalog.
+Current state: The default Compose catalog and split app-role catalogs include `build:` entries plus `pull_policy: build` for every PureSOC application service and tag local build outputs as `puresoc-*:local`. Application Dockerfiles use public `node:22-alpine` base images; Postgres, Redis, and MinIO remain public runtime images. No prepublished PureSOC registry images are required by the default catalog.
 Impact: Compose-reading deployment apps can build PureSOC directly from the repository, avoiding manual image publishing. Deployment will still fail if the platform ignores Compose `build:`, lacks access to the repository build context, or cannot pull public base images during build.
 Next action: Run the target deployment app against the build-enabled Compose file, confirm that it executes every application build, pulls public base images, starts the built services, and reaches API/web health checks. If the platform cannot build from Compose, choose between adding an automated registry publishing pipeline or changing deployment tooling.
 Owner: DevOps/Codex
 Target phase: Phase K deployment hardening
-Status: Open; created 2026-06-12 after moving the default Compose catalog to public registry image references for single-file Compose deployment; redirected 2026-06-12 to build-in-Compose deployment without prepublished PureSOC images.
+Status: Open; created 2026-06-12 after moving the default Compose catalog to public registry image references for single-file Compose deployment; redirected 2026-06-12 to build-in-Compose deployment without prepublished PureSOC images; updated 2026-06-12 after a single-file deploy attempted to pull `puresoc-*:local`, restoring build entries and `pull_policy: build` to deployable Compose catalogs and the Docker runtime-shape test.
 
 ### GAP-023: Compliance Evaluator Can Hide Legal-Review Warnings Or Pass Without Signal
 

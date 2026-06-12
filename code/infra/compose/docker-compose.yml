@@ -99,6 +99,10 @@ services:
 
   puresoc-migrator:
     image: puresoc-migrator:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     command: ["pnpm", "prisma:migrate:deploy"]
     environment:
       <<: *puresoc-default-environment
@@ -109,6 +113,10 @@ services:
 
   puresoc-web:
     image: puresoc-web:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.web
     environment:
       <<: *puresoc-default-environment
       PORT: "3000"
@@ -121,6 +129,10 @@ services:
 
   puresoc-api:
     image: puresoc-api:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.api
     environment:
       <<: *puresoc-default-environment
       PORT: "3001"
@@ -136,6 +148,10 @@ services:
 
   puresoc-worker:
     image: puresoc-worker:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.worker
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -146,6 +162,10 @@ services:
 
   puresoc-scheduler:
     image: puresoc-scheduler:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.scheduler
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -156,6 +176,10 @@ services:
 
   puresoc-connector-runner:
     image: puresoc-connector-runner:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.connector-runner
     environment:
       <<: *puresoc-default-environment
     depends_on:
@@ -166,6 +190,10 @@ services:
 
   puresoc-regulatory-importer:
     image: puresoc-regulatory-importer:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.regulatory-importer
     environment:
       <<: *puresoc-default-environment
     profiles:
@@ -173,6 +201,10 @@ services:
 
   puresoc-report-renderer:
     image: puresoc-report-renderer:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.report-renderer
     environment:
       <<: *puresoc-default-environment
       PORT: "3002"

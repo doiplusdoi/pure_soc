@@ -13,13 +13,24 @@ const dockerfiles = [
   ["Dockerfile.report-renderer", "start:report-renderer"]
 ] as const;
 
-const runtimeComposeFiles = [
-  "docker-compose.yml",
-  "docker-compose.webservices.yml",
-  "docker-compose.jobs.yml",
-  "docker-compose.connectors.yml",
-  "docker-compose.reports.yml",
-  "docker-compose.config.yml"
+const deployableComposeBuildExpectations = [
+  [
+    "docker-compose.yml",
+    [
+      "Dockerfile.web",
+      "Dockerfile.api",
+      "Dockerfile.worker",
+      "Dockerfile.scheduler",
+      "Dockerfile.connector-runner",
+      "Dockerfile.regulatory-importer",
+      "Dockerfile.report-renderer"
+    ]
+  ],
+  ["docker-compose.webservices.yml", ["Dockerfile.web", "Dockerfile.api"]],
+  ["docker-compose.jobs.yml", ["Dockerfile.worker", "Dockerfile.scheduler"]],
+  ["docker-compose.connectors.yml", ["Dockerfile.connector-runner"]],
+  ["docker-compose.reports.yml", ["Dockerfile.report-renderer"]],
+  ["docker-compose.config.yml", ["Dockerfile.regulatory-importer"]]
 ] as const;
 
 describe("Docker runtime command shape", () => {
@@ -41,11 +52,16 @@ describe("Docker runtime command shape", () => {
     }
   });
 
-  it("keeps runtime compose catalogs image-only", () => {
-    for (const composeFile of runtimeComposeFiles) {
+  it("keeps deployable compose catalogs source-buildable", () => {
+    for (const [composeFile, expectedDockerfiles] of deployableComposeBuildExpectations) {
       const compose = readWorkspaceFile("infra/compose", composeFile);
 
-      expect(compose, composeFile).not.toContain("build:");
+      expect(compose, composeFile).toContain("build:");
+      expect(compose, composeFile).toContain("pull_policy: build");
+      expect(compose, composeFile).toContain("context: ../..");
+      for (const dockerfile of expectedDockerfiles) {
+        expect(compose, composeFile).toContain(`dockerfile: infra/docker/${dockerfile}`);
+      }
     }
   });
 
@@ -54,7 +70,7 @@ describe("Docker runtime command shape", () => {
     const buildCompose = readWorkspaceFile("infra/compose", "docker-compose.build.yml");
 
     for (const [dockerfile] of dockerfiles) {
-      expect(compose).not.toContain(`dockerfile: infra/docker/${dockerfile}`);
+      expect(compose).toContain(`dockerfile: infra/docker/${dockerfile}`);
       expect(buildCompose).toContain(`dockerfile: infra/docker/${dockerfile}`);
     }
   });

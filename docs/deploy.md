@@ -1,6 +1,6 @@
 # PureSOC Deployment Guide
 
-Status: deployment guide for the current repository state as of 2026-06-09.
+Status: deployment guide for the current repository state as of 2026-06-12.
 Scope: local development, in-a-box deployments, and SaaS-like deployment preparation.
 
 PureSOC is Docker-first, TypeScript-first, provider-neutral, and Romania-first for V1. The current runtime is intentionally lighter than the original target stack: `apps/api` and `apps/web` use `node:http`, jobs use the local `@puresoc/jobs` adapter, and the browser smoke path uses deterministic HTTP snapshots plus host Firefox WebDriver BiDi when available. Do not describe the current implementation as NestJS, Next.js, BullMQ-package, or Playwright-backed unless those migrations are actually implemented.
@@ -46,7 +46,7 @@ This smaller installer surface is not a claim that production operations are sol
 
 ## Service Topology
 
-The main service catalog is `code/infra/compose/docker-compose.yml`. It includes application `build:` entries, so Compose builds PureSOC service images from the checked-out repository using public base images from the Dockerfiles instead of requiring prepublished PureSOC images.
+The main service catalog is `code/infra/compose/docker-compose.yml`. It includes application `build:` entries and `pull_policy: build` for PureSOC application services, so Compose builds service images from the checked-out repository using public base images from the Dockerfiles instead of pulling prepublished PureSOC images. `code/infra/compose/docker-compose.build.yml` is kept only as a compatibility override for older local scripts; single-file deployments should not need it.
 
 Non-secret runtime defaults are embedded in the Compose file through `x-puresoc-default-environment` with `${VAR:-default}` interpolation. When using Docker Compose directly, `code/.env` or shell variables override those defaults; when using a deployment app, configure the same variables through that platform's environment/secret settings.
 
@@ -62,7 +62,7 @@ puresoc-regulatory-importer:local
 puresoc-report-renderer:local
 ```
 
-Those tags are local build outputs, not public registry images. The Dockerfiles currently use public `node:22-alpine` base images; the data services use public Postgres, Redis, and MinIO images directly. A Compose-reading deployment app must support `build:` and must have access to the repository build context plus the public base-image registry.
+Those tags are local build outputs, not public registry images. The Dockerfiles currently use public `node:22-alpine` base images; the data services use public Postgres, Redis, and MinIO images directly. A Compose-reading deployment app must support `build:` and `pull_policy: build`, and must have access to the repository build context plus the public base-image registry.
 
 | Service | Purpose | Notes |
 |---|---|---|
@@ -142,7 +142,6 @@ The Compose catalog includes `puresoc-migrator`, which runs this deploy command 
 ```sh
 COMPOSE_BAKE=false docker compose \
   -f infra/compose/docker-compose.yml \
-  -f infra/compose/docker-compose.build.yml \
   build
 ```
 
@@ -151,7 +150,6 @@ COMPOSE_BAKE=false docker compose \
 ```sh
 docker compose \
   -f infra/compose/docker-compose.yml \
-  -f infra/compose/docker-compose.build.yml \
   up --build -d
 ```
 
@@ -520,7 +518,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 - `pnpm test` passes.
 - `pnpm test:e2e -- --grep "@ui-smoke"` passes.
 - `docker compose -f infra/compose/docker-compose.yml config` passes.
-- The deployment platform supports Compose `build:` entries and can pull public base images.
+- The deployment platform supports Compose `build:` and `pull_policy: build`, has the repository build context, and can pull public base images. If it tries to pull `puresoc-*:local`, it is not using the build-capable catalog correctly.
 - Prisma migrations have been applied to the target database.
 - `GET /health` passes for API and web.
 - TLS and secure cookies are enabled.

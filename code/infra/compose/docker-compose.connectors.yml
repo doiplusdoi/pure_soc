@@ -3,3 +3,7 @@ name: puresoc-connectors
 services:
   puresoc-connector-runner:
     image: puresoc-connector-runner:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.connector-runner
