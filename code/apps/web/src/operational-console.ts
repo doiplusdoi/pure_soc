@@ -8,6 +8,7 @@ import {
   type PureSocLocale
 } from "@puresoc/shared";
 import {
+  clampPercent,
   escapeHtml,
   renderCommandButton,
   renderDataTable,
@@ -418,45 +419,58 @@ export const renderMicrosoft365ConnectorPage = (
   options: RenderMicrosoft365ConnectorPageOptions = {}
 ): string => {
   const locale = resolvePureSocLocale(options.locale).locale;
+  const connectionLabel = model.microsoft365.providerConnectionId
+    ? "Refresh read-only Graph modules"
+    : "Start global admin approval";
+  const connectionSummary = model.microsoft365.providerConnectionId
+    ? "Use the stored tenant grant to refresh read-only Microsoft 365 module status."
+    : "A Microsoft global admin approves the PureSOC platform app for this tenant. No customer-created Azure app registration is required.";
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
-    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="microsoft365-connector-page">',
-    '<section class="ps-section" aria-labelledby="microsoft365-connector-title">',
-    '<div class="ps-section__header">',
-    `<div><h1 class="ps-section__title" id="microsoft365-connector-title">Microsoft 365 Tenant Connector</h1><p class="ps-muted">${escapeHtml(
+    '<main class="ps-content ps-content--connector" id="content" tabindex="-1" data-ui-smoke="microsoft365-connector-page">',
+    '<section class="ps-connector-shell" aria-labelledby="microsoft365-connector-title">',
+    '<aside class="ps-connector-roadmap" aria-label="Roadmap to readiness">',
+    '<div class="ps-connector-roadmap__brand"><span class="ps-brand__mark" aria-hidden="true">PS</span><div><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Compliance Engine</span></div></div>',
+    '<p class="ps-route-hero__eyebrow">The roadmap to readiness</p>',
+    '<ol class="ps-connector-roadmap__list">',
+    '<li class="ps-connector-step ps-connector-step--complete"><span class="ps-connector-step__dot">1</span><div><strong>Welcome</strong><span>Account created successfully.</span></div></li>',
+    '<li class="ps-connector-step ps-connector-step--active"><span class="ps-connector-step__dot">2</span><div><strong>Connect Data</strong><span>Integrate your core systems.</span></div></li>',
+    '<li class="ps-connector-step"><span class="ps-connector-step__dot">3</span><div><strong>Scope Business</strong><span>Define NIS2 boundaries.</span></div></li>',
+    '<li class="ps-connector-step"><span class="ps-connector-step__dot">4</span><div><strong>Generate Baseline</strong><span>Initial readiness report.</span></div></li>',
+    "</ol>",
+    "</aside>",
+    '<div class="ps-connector-main">',
+    '<span class="ps-connector-icon" aria-hidden="true">M365</span>',
+    `<h1 id="microsoft365-connector-title">Strengthen your compliance posture with Microsoft 365.</h1>`,
+    `<p>${escapeHtml(
       model.activeOrganizationName
-        ? `${model.activeOrganizationName} can connect a tenant with Microsoft Entra admin consent.`
-        : "Connect a tenant with Microsoft Entra admin consent from the active workspace."
-    )}</p></div>`,
-    renderStatusPill({
-      label: model.microsoft365.status.replaceAll("_", " "),
-      tone: toneForStatus(model.microsoft365.status)
-    }),
-    "</div>",
-    '<div class="ps-section__body">',
+        ? `${model.activeOrganizationName} can connect existing security data to identify gaps and collect evidence. PureSOC only reads the configurations required for NIS2.`
+        : "Connect existing security data to identify gaps and collect evidence. PureSOC only reads the configurations required for NIS2."
+    )}</p>`,
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
-    '<div class="ps-next-action">',
-    `<div><h2 class="ps-panel__title">${escapeHtml(
-      model.microsoft365.providerConnectionId ? "Refresh read-only Graph modules" : "Start global admin approval"
-    )}</h2><p>${escapeHtml(
-      model.microsoft365.providerConnectionId
-        ? "Use the stored tenant grant to refresh read-only Microsoft 365 module status."
-        : "A Microsoft global admin approves the PureSOC platform app for this tenant. No customer-created Azure app registration is required."
-    )}</p></div>`,
-    renderStatusPill({ label: "read-only tenant OAuth", tone: "accent" }),
+    '<article class="ps-connector-card" aria-labelledby="connector-card-title">',
+    '<span class="ps-connector-card__logo" aria-hidden="true">365</span>',
+    '<div>',
+    '<h2 class="ps-panel__title" id="connector-card-title">Microsoft 365 Security Center</h2>',
+    `<p>${escapeHtml(connectionSummary)}</p>`,
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: "Read-only Access", tone: "info" }),
+    renderStatusPill({ label: "Encrypted credentials", tone: "neutral" }),
+    renderStatusPill({ label: model.microsoft365.status.replaceAll("_", " "), tone: toneForStatus(model.microsoft365.status) }),
+    renderStatusPill({ label: model.microsoft365.writeEnabled ? "write enabled" : "write disabled", tone: model.microsoft365.writeEnabled ? "warning" : "neutral" }),
     "</div>",
-    '<div class="ps-grid ps-stack-top">',
+    "</div>",
+    renderMicrosoft365Actions(model.microsoft365),
+    "</article>",
+    '<div class="ps-grid">',
     '<article class="ps-panel">',
-    '<h2 class="ps-panel__title">Tenant connection</h2>',
+    `<h2 class="ps-panel__title">Microsoft 365 Tenant Connector</h2><p class="ps-muted">${escapeHtml(connectionLabel)}</p>`,
     `<p>${escapeHtml(model.microsoft365.tenantDisplayName)}</p>`,
     `<p class="ps-muted">${escapeHtml(model.microsoft365.tenantId)}</p>`,
     '<div class="ps-chip-row">',
-    renderStatusPill({ label: model.microsoft365.status.replaceAll("_", " "), tone: toneForStatus(model.microsoft365.status) }),
-    renderStatusPill({ label: model.microsoft365.writeEnabled ? "write enabled" : "write disabled", tone: model.microsoft365.writeEnabled ? "warning" : "neutral" }),
     renderSourceChip({ label: "Connector", detail: model.microsoft365.connectorMode }),
     renderSourceChip({ label: "Last sync", detail: model.microsoft365.lastSyncAt }),
     "</div>",
-    renderMicrosoft365Actions(model.microsoft365),
     "</article>",
     '<article class="ps-panel">',
     '<h2 class="ps-panel__title">Consent scope</h2>',
@@ -488,6 +502,7 @@ export const renderMicrosoft365ConnectorPage = (
       ],
       model.microsoft365.modules
     ),
+    '<div class="ps-connector-neutrality"><p><strong>Provider Neutrality:</strong> Future connectors can follow the same provider-neutral contract without changing the compliance engine.</p></div>',
     '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a> <a class="ps-command" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="open-romania-onboarding">Open Romania wizard</a></p>',
     "</div>",
     "</section>",
@@ -1021,6 +1036,7 @@ const renderRomaniaWorkflowForms = (
   screen: RomaniaDataEntryScreen
 ): string => {
   return [
+    '<div class="ps-workflow-main">',
     '<p class="ps-help ps-workflow-help">Five customer questions or fewer. Empty fields remain explicit gaps.</p>',
     screen === "company" ? renderRomaniaCompanyForm(model) : "",
     screen === "address" ? renderRomaniaAddressForm(model) : "",
@@ -1029,7 +1045,94 @@ const renderRomaniaWorkflowForms = (
     screen === "services" ? renderRomaniaServicesForm(model) : "",
     screen === "contacts" ? renderRomaniaContactsForm(model) : "",
     screen === "systems" ? renderRomaniaSystemsForm(model) : "",
-    screen === "article9" ? renderRomaniaArticle9Form(model) : ""
+    screen === "article9" ? renderRomaniaArticle9Form(model) : "",
+    "</div>",
+    renderRomaniaContextPanel(model, screen)
+  ].join("");
+};
+
+const renderRomaniaContextPanel = (model: RomaniaOnboardingRouteModel, screen: RomaniaDataEntryScreen): string => {
+  const screenContext: Record<RomaniaDataEntryScreen, { facts: Array<readonly [string, string]>; lead: string; title: string }> = {
+    company: {
+      title: "Identity traceability",
+      lead: "PureSOC uses this identity data to keep readiness outputs tied to the correct legal entity.",
+      facts: [
+        ["Required", "Legal name, CUI, registration number, and organization email support local draft metadata."],
+        ["Review state", "Outputs remain internal readiness support until the country-pack review process is complete."]
+      ]
+    },
+    address: {
+      title: "Registered office context",
+      lead: "Address details help distinguish Romanian establishment, local contactability, and jurisdictional context.",
+      facts: [
+        ["Country pack", `${model.countryPack.countryName} remains the selected country workflow.`],
+        ["Evidence", "Keep official registration evidence in the vault before sharing a report."]
+      ]
+    },
+    legal: {
+      title: "Accountability record",
+      lead: "Representative details make draft outputs reviewable by business and legal owners.",
+      facts: [
+        ["Audit trail", "Changes to saved answers are stored through the authenticated workspace workflow."],
+        ["Boundary", "PureSOC does not submit national filings from this screen."]
+      ]
+    },
+    size: {
+      title: "Scale and economic impact",
+      lead: "Size fields support scoping, but sector and service context can still affect the preliminary result.",
+      facts: [
+        ["Essential threshold signal", "Large-entity indicators are treated as review inputs, not legal certification."],
+        ["Important threshold signal", "Medium-entity indicators are combined with service and Article 9 context."]
+      ]
+    },
+    services: {
+      title: "Operational context",
+      lead: "Services link business activity to the generated Romania service catalog and EU NIS2 categories.",
+      facts: [
+        ["Service catalog", `${model.serviceCatalogGroups.reduce((total, group) => total + group.options.length, 0)} service options are available.`],
+        ["Provider neutrality", "Cloud-provider posture remains separate from regulatory scoping answers."]
+      ]
+    },
+    contacts: {
+      title: "Security responsibility",
+      lead: "Named contacts make recurring tasks, evidence requests, and incident workflow handoffs actionable.",
+      facts: [
+        ["Minimum data", "Cybersecurity name, role, email, and phone are required for the local readiness package."],
+        ["Privacy", "Do not paste passwords, tokens, or provider secrets into contact fields."]
+      ]
+    },
+    systems: {
+      title: "Monitoring and systems",
+      lead: "System context helps explain which network and information systems support the selected service.",
+      facts: [
+        ["Evidence", `${model.evidence.count} evidence artifact${model.evidence.count === 1 ? "" : "s"} currently attached.`],
+        ["Connector", "Microsoft 365 posture is connected from the tenant connector, not from free-text system fields."]
+      ]
+    },
+    article9: {
+      title: "Criticality context",
+      lead: "Article 9 answers capture operational impact signals that may change how the local result is reviewed.",
+      facts: [
+        ["No overclaim", "The result is a preliminary internal readiness classification."],
+        ["Next output", "Save this screen before generating classification, draft, and assessment outputs."]
+      ]
+    }
+  };
+  const context = screenContext[screen];
+
+  return [
+    '<aside class="ps-context-panel" aria-label="Romania workflow context">',
+    `<div class="ps-context-panel__header"><h3 class="ps-panel__title">${escapeHtml(context.title)}</h3><p class="ps-muted">${escapeHtml(
+      context.lead
+    )}</p></div>`,
+    '<div class="ps-context-panel__body">',
+    ...context.facts.map(
+      ([title, detail]) =>
+        `<div class="ps-context-fact"><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`
+    ),
+    '<p class="ps-muted"><em>DNSC filing stays outside PureSOC. Outputs remain internal readiness support.</em></p>',
+    "</div>",
+    "</aside>"
   ].join("");
 };
 
@@ -1781,27 +1884,39 @@ const resolveOperationalConsoleCopy = (locale?: string | null): OperationalConso
 
 const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleCopy): string => {
   const items = [
-    { label: copy.dashboard, href: "#dashboard", action: "open-dashboard-anchor" },
-    { label: "Onboarding", href: "#onboarding", action: "open-onboarding-anchor" },
-    { label: "Romania onboarding", href: "/onboarding/romania/company?locale=ro-RO", action: "open-romania-onboarding" },
-    { label: "Microsoft 365", href: "#microsoft365", action: "open-microsoft365-anchor" },
-    { label: "Gaps", href: "#gaps", action: "open-gaps-anchor" },
-    { label: copy.evidenceReports, href: "#evidence", action: "open-evidence-reports-anchor" },
-    { label: copy.approvalQueue, href: "#approvals", action: "open-approval-queue-anchor" }
+    { icon: "[]", label: copy.dashboard, href: "#dashboard", action: "open-dashboard-anchor" },
+    { icon: "/\\", label: "Scoping & Governance", href: "#onboarding", action: "open-onboarding-anchor" },
+    { icon: "RO", label: "Romania onboarding", href: "/onboarding/romania/company?locale=ro-RO", action: "open-romania-onboarding" },
+    { icon: "M3", label: "Microsoft 365", href: "#microsoft365", action: "open-microsoft365-anchor" },
+    { icon: "!!", label: "Control Framework", href: "#gaps", action: "open-gaps-anchor" },
+    { icon: "EV", label: "Evidence Vault", href: "#evidence", action: "open-evidence-reports-anchor" },
+    { icon: "AP", label: copy.approvalQueue, href: "#approvals", action: "open-approval-queue-anchor" }
   ] as const;
 
   return [
     '<aside class="ps-sidebar" aria-label="Primary navigation">',
     '<div class="ps-brand">',
-    `<div><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">${escapeHtml(model.organization.primaryCountryCode)} workspace</span></div>`,
-    renderStatusPill({ label: copy.internalReadiness, tone: "accent" }),
+    '<span class="ps-brand__mark" aria-hidden="true">PS</span>',
+    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Compliance</span><br><span class="ps-brand__meta">${escapeHtml(
+      model.organization.primaryCountryCode
+    )} workspace</span></div>`,
     "</div>",
     '<nav class="ps-nav">',
     ...items.map(
       (item, index) =>
-        `<a class="ps-nav__link" href="${item.href}"${index === 0 ? ' aria-current="page"' : ""} data-ui-action="${item.action}"><span>${escapeHtml(item.label)}</span><span aria-hidden="true">&rsaquo;</span></a>`
+        `<a class="ps-nav__link" href="${item.href}"${index === 0 ? ' aria-current="page"' : ""} data-ui-action="${item.action}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
+          item.icon
+        )}</span><span>${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
     ),
     "</nav>",
+    '<div class="ps-sidebar__footer">',
+    '<a class="ps-command ps-command--primary" href="#evidence" data-ui-action="open-evidence-reports-anchor">Generate Report</a>',
+    renderStatusPill({ label: copy.internalReadiness, tone: "accent" }),
+    renderStatusPill({ label: `Plan: ${model.organization.subscriptionStatus}`, tone: "info" }),
+    '<form class="ps-inline-form" action="/auth/logout" method="post" data-ui-action="sign-out">',
+    renderCommandButton({ label: "Sign out", ariaLabel: "Sign out of PureSOC", tone: "secondary", type: "submit" }),
+    "</form>",
+    "</div>",
     "</aside>"
   ].join("");
 };
@@ -1809,16 +1924,17 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
 const renderTopbar = (model: OperationalConsoleModel): string =>
   [
     '<header class="ps-topbar">',
-    `<div><p class="ps-topbar__title">${escapeHtml(model.organization.name)}</p><span class="ps-muted">${escapeHtml(model.user.displayName)} | ${escapeHtml(model.user.role)}</span></div>`,
+    '<div>',
+    '<nav class="ps-topbar__tabs" aria-label="Console views">',
+    '<a class="ps-topbar__tab" href="#dashboard" aria-current="page" data-ui-action="open-dashboard-anchor">Compliance Summary</a>',
+    '<a class="ps-topbar__tab" href="#evidence" data-ui-action="open-evidence-reports-anchor">Audit Trail</a>',
+    "</nav>",
+    "</div>",
     '<div class="ps-topbar__actions">',
+    '<label class="ps-topbar__search"><span aria-hidden="true">Search</span><input type="search" placeholder="Search evidence..." aria-label="Search evidence and controls"></label>',
+    renderStatusPill({ label: `Readiness: ${model.dashboard.readinessScores.overallInternalReadiness}%`, tone: "success" }),
     '<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>',
     '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
-    '<form class="ps-inline-form" action="/auth/logout" method="post" data-ui-action="sign-out">',
-    renderCommandButton({ label: "Sign out", ariaLabel: "Sign out of PureSOC", tone: "secondary", type: "submit" }),
-    "</form>",
-    renderStatusPill({ label: `Plan: ${model.organization.subscriptionStatus}`, tone: "info" }),
-    model.runtimeSource ? renderSourceChip(model.runtimeSource) : "",
-    renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
     "</div>",
     "</header>"
   ].join("");
@@ -1952,20 +2068,93 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     ["Overall internal readiness", scores.overallInternalReadiness]
   ] as const;
 
-  return renderSection({
-    id: "dashboard",
-    title: copy.dashboard,
-    eyebrow: renderSourceChip({ label: copy.storedAggregate, detail: model.dashboard.snapshotType }),
-    body: [
-      renderDashboardNextAction(model),
-      '<div class="ps-score-grid">',
-      ...scoreMeters.map(([label, value]) => `<div class="ps-panel">${renderMeter({ label, value, source: "dashboard_snapshots" })}</div>`),
-      "</div>",
-      '<div class="ps-grid ps-stack-top">',
-      ...model.dashboard.widgets.map(renderDashboardWidget),
-      "</div>"
-    ].join("")
-  });
+  return [
+    '<section class="ps-section ps-section--dashboard" id="dashboard" data-ui-section="dashboard" aria-labelledby="dashboard-title">',
+    '<div class="ps-section__body">',
+    '<div class="ps-page-hero">',
+    `<div><h1 class="ps-section__title" id="dashboard-title">Readiness Overview</h1><p>Executive summary of NIS2 compliance posture for ${escapeHtml(
+      model.organization.name
+    )}.</p></div>`,
+    '<div class="ps-command-row">',
+    renderSourceChip({ label: copy.storedAggregate, detail: model.dashboard.snapshotType }),
+    renderSourceChip({ label: "Session", detail: `${model.user.displayName} | ${model.user.role}` }),
+    model.runtimeSource ? renderSourceChip(model.runtimeSource) : "",
+    renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
+    '<a class="ps-command ps-command--primary" href="#approvals" data-ui-action="open-approval-queue-anchor">View Remediation Workflows</a>',
+    "</div>",
+    "</div>",
+    renderDashboardNextAction(model),
+    '<div class="ps-dashboard-grid ps-stack-top">',
+    '<article class="ps-panel ps-readiness-ring-card" aria-labelledby="readiness-score-title">',
+    '<h2 class="ps-panel__title" id="readiness-score-title">Overall Readiness Score</h2>',
+    renderReadinessRing({
+      caption: copy.internalReadiness,
+      label: "Overall readiness score",
+      value: scores.overallInternalReadiness
+    }),
+    '<div class="ps-readiness-ring-card__footer"><span>Target: 100% by Q4</span><strong>+4% this month</strong></div>',
+    "</article>",
+    '<article class="ps-panel" aria-labelledby="critical-gaps-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="critical-gaps-title">Critical Gaps</h2><p class="ps-muted">Highest-priority readiness work from current gap records.</p></div>',
+    '<a class="ps-command" href="#gaps" data-ui-action="open-gaps-anchor">View All Gaps</a>',
+    "</div>",
+    '<div class="ps-critical-list">',
+    ...model.gaps.slice(0, 3).map(renderCriticalGapCard),
+    "</div>",
+    "</article>",
+    "</div>",
+    '<div class="ps-dashboard-secondary-grid ps-stack-top">',
+    '<article class="ps-panel" aria-labelledby="obligation-roadmap-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="obligation-roadmap-title">Obligation Roadmap</h2><p class="ps-muted">Planned actions generated from recommendations and country-pack state.</p></div>',
+    renderStatusPill({ label: "readiness plan", tone: "accent" }),
+    "</div>",
+    '<div class="ps-roadmap-grid">',
+    renderRoadmapCard({
+      due: "Due in 14 days",
+      title: model.gaps[0]?.title ?? "Review critical evidence gaps",
+      status: "Urgent",
+      tone: "urgent"
+    }),
+    renderRoadmapCard({
+      due: "Due in 45 days",
+      title: model.recommendations[0]?.title ?? "Run annual risk assessment",
+      status: "In progress",
+      tone: "active"
+    }),
+    renderRoadmapCard({
+      due: "Due in 90 days",
+      title: model.recommendations[1]?.title ?? "Tabletop exercise",
+      status: "Planned",
+      tone: "planned"
+    }),
+    "</div>",
+    "</article>",
+    '<article class="ps-panel ps-evidence-health" aria-labelledby="evidence-health-title">',
+    '<h2 class="ps-panel__title" id="evidence-health-title">Evidence Health</h2>',
+    `<p class="ps-evidence-health__value">${escapeHtml(scores.evidenceCompleteness)}%</p>`,
+    '<p class="ps-muted">Evidence completeness from stored analysis records</p>',
+    '<div class="ps-evidence-bars ps-stack-top">',
+    `<div class="ps-evidence-bar"><span class="ps-evidence-bar__label"><span>Microsoft 365 Connector</span><span>${escapeHtml(
+      scores.technicalPosture
+    )}%</span></span>${renderMeter({ label: "Microsoft 365 Connector", value: scores.technicalPosture, source: "provider module health" })}</div>`,
+    `<div class="ps-evidence-bar"><span class="ps-evidence-bar__label"><span>Evidence Vault</span><span>${escapeHtml(
+      scores.evidenceCompleteness
+    )}%</span></span>${renderMeter({ label: "Evidence Vault", value: scores.evidenceCompleteness, source: "evidence_artifacts" })}</div>`,
+    "</div>",
+    renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
+    "</article>",
+    "</div>",
+    '<div class="ps-score-grid ps-stack-top" aria-label="Readiness score breakdown">',
+    ...scoreMeters.map(([label, value]) => `<div class="ps-panel">${renderMeter({ label, value, source: "dashboard_snapshots" })}</div>`),
+    "</div>",
+    '<div class="ps-grid ps-stack-top">',
+    ...model.dashboard.widgets.map(renderDashboardWidget),
+    "</div>",
+    "</div>",
+    "</section>"
+  ].join("");
 };
 
 const renderDashboardNextAction = (model: OperationalConsoleModel): string => {
@@ -1986,6 +2175,56 @@ const renderDashboardNextAction = (model: OperationalConsoleModel): string => {
     "</div>"
   ].join("");
 };
+
+const renderReadinessRing = ({ caption, label, value }: { caption: string; label: string; value: number }): string => {
+  const percent = clampPercent(value);
+
+  return [
+    `<div class="ps-readiness-ring" role="meter" aria-label="${escapeHtml(label)}" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${percent}" style="--ps-ring-value: ${percent};">`,
+    '<div class="ps-readiness-ring__label">',
+    `<span class="ps-readiness-ring__value">${percent}%</span>`,
+    `<span class="ps-readiness-ring__caption">${escapeHtml(caption)}</span>`,
+    "</div>",
+    "</div>"
+  ].join("");
+};
+
+const renderCriticalGapCard = (gap: GapSurface): string => {
+  const toneClass = gap.severity === "high" || gap.severity === "critical" ? "ps-critical-gap--high" : "ps-critical-gap--medium";
+
+  return [
+    `<article class="ps-critical-gap ${toneClass}">`,
+    '<span class="ps-critical-gap__dot" aria-hidden="true"></span>',
+    `<div><h3 class="ps-panel__title">${escapeHtml(gap.title)}</h3><p>${escapeHtml(gap.summary)}</p><div class="ps-chip-row ps-stack-top">${renderStatusPill({
+      label: gap.controlId,
+      tone: "neutral"
+    })}${renderStatusPill({ label: gap.severity, tone: toneForSeverity(gap.severity) })}</div></div>`,
+    `<a class="ps-command" href="#gaps" data-ui-action="open-gaps-anchor">${gap.severity === "high" ? "Remediate" : "Review"}</a>`,
+    "</article>"
+  ].join("");
+};
+
+const renderRoadmapCard = ({
+  due,
+  status,
+  title,
+  tone
+}: {
+  due: string;
+  status: string;
+  title: string;
+  tone: "active" | "planned" | "urgent";
+}): string =>
+  [
+    `<article class="ps-roadmap-card ps-roadmap-card--${tone}">`,
+    `<span class="ps-source-detail">${escapeHtml(due)}</span>`,
+    `<strong>${escapeHtml(title)}</strong>`,
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: status, tone: tone === "urgent" ? "danger" : tone === "planned" ? "success" : "info" }),
+    '<span aria-hidden="true">-&gt;</span>',
+    "</div>",
+    "</article>"
+  ].join("");
 
 const renderDashboardWidget = (widget: DashboardWidgetContract): string =>
   [
@@ -2067,8 +2306,13 @@ const renderMicrosoft365Section = (model: OperationalConsoleModel): string =>
       '<h3 class="ps-panel__title">Tenant</h3>',
       `<p>${escapeHtml(model.microsoft365.tenantDisplayName)}</p>`,
       `<p class="ps-muted">${escapeHtml(model.microsoft365.tenantId)}</p>`,
+      '<div class="ps-chip-row">',
+      model.microsoft365.providerConnectionId
+        ? renderStatusPill({ label: "provider connected", tone: "success" })
+        : renderStatusPill({ label: "provider disabled", tone: "warning" }),
       renderSourceChip({ label: "Last sync", detail: model.microsoft365.lastSyncAt }),
       renderSourceChip({ label: "Connector", detail: model.microsoft365.connectorMode }),
+      "</div>",
       "</article>",
       '<article class="ps-panel">',
       '<h3 class="ps-panel__title">Permission bundles</h3>',

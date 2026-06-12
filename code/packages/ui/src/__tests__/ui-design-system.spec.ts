@@ -11,14 +11,17 @@ import {
 } from "../index";
 
 describe("ui design system primitives", () => {
-  it("documents the restrained product UI direction with OKLCH tokens", () => {
+  it("documents the institutional product UI direction with proposal tokens", () => {
     const css = renderPureSocDesignSystemCss();
 
     expect(pureSocDesignSystemDecision.register).toBe("product");
     expect(pureSocDesignSystemDecision.primarySurface).toBe("operational_console");
-    expect(pureSocDesignSystemDecision.colorStrategy).toBe("restrained");
-    expect(css).toContain("oklch(");
-    expect(css).not.toContain("#fff");
+    expect(pureSocDesignSystemDecision.colorStrategy).toBe("institutional_minimalism");
+    expect(css).toContain("#003d9b");
+    expect(css).toContain("#c3c6d6");
+    expect(css).toContain("#ffffff");
+    expect(css).toContain("ps-readiness-ring");
+    expect(css).toContain("ps-context-panel");
     expect(css).not.toContain("#000");
     expect(css).not.toContain("background-clip: text");
     expect(css).not.toContain("letter-spacing: -");
