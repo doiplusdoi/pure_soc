@@ -68,7 +68,6 @@ describe("loadConfig", () => {
     expect(config.connectors.providerTokenEncryptionKey).toBe("");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([]);
     expect(config.connectors.microsoft365).toEqual({
-      enabled: false,
       writeScopesAllowed: false,
       clientId: "",
       clientSecret: "",
@@ -168,7 +167,6 @@ describe("loadConfig", () => {
         PURESOC_PROVIDER_TOKEN_KEY_ID: "current-test",
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
-        PURESOC_CONNECTOR_MICROSOFT365_ENABLED: "false",
         PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false",
         PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "connector-app-id",
         PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "connector-app-secret",
@@ -272,7 +270,6 @@ describe("loadConfig", () => {
       }
     ]);
     expect(config.connectors.microsoft365).toEqual({
-      enabled: false,
       writeScopesAllowed: false,
       clientId: "connector-app-id",
       clientSecret: "connector-app-secret",
@@ -444,7 +441,7 @@ describe("loadConfig", () => {
         PURESOC_API_ORIGIN_PROTECTION_ENABLED: "false",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "false",
         PURESOC_AUTH_GOOGLE_ENABLED: "true",
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "m365-client-id",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_ENDPOINT: "",
@@ -461,7 +458,6 @@ describe("loadConfig", () => {
         "production_origin_protection_required",
         "production_origin_or_referer_required",
         "oidc_transient_state_key_required",
-        "microsoft365_client_id_required",
         "microsoft365_client_secret_required",
         "provider_token_key_id_required",
         "provider_token_key_required",
@@ -483,7 +479,6 @@ describe("loadConfig", () => {
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false",
         PURESOC_BILLING_PROVIDER: "none",
         PURESOC_OBJECT_STORAGE_PROVIDER: "memory",
         PURESOC_UPLOAD_SCANNER_MODE: "mock"
@@ -492,10 +487,11 @@ describe("loadConfig", () => {
 
     const issueCodes = collectStartupConfigIssues(config).map((issue) => issue.code);
 
-    expect(config.connectors.microsoft365.enabled).toBe(false);
     expect(issueCodes).not.toEqual(
       expect.arrayContaining([
         "provider_token_key_required",
+        "microsoft365_client_id_required",
+        "microsoft365_client_secret_required",
         "oidc_transient_state_key_required",
         "stripe_secret_key_required",
         "stripe_webhook_secret_required",
@@ -507,17 +503,15 @@ describe("loadConfig", () => {
     expect(validateConfigForStartup(config)).toBe(config);
   });
 
-  it("preserves explicit Microsoft 365 provider enablement", () => {
+  it("preserves Microsoft 365 connector app credential aliases", () => {
     const config = loadConfig({
       env: {
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
         MICROSOFT365_CLIENT_ID: "configured-client-id",
         MICROSOFT365_CLIENT_SECRET: "configured-client-secret"
       }
     });
 
     expect(config.connectors.microsoft365).toEqual({
-      enabled: true,
       clientId: "configured-client-id",
       clientSecret: "configured-client-secret",
       writeScopesAllowed: false,
@@ -526,7 +520,7 @@ describe("loadConfig", () => {
     });
   });
 
-  it("rejects production Microsoft 365 enablement without client and provider-token secrets", () => {
+  it("rejects incomplete production Microsoft 365 connector credentials without provider-token custody", () => {
     const config = loadConfig({
       env: {
         PURESOC_APP_ENV: "production",
@@ -537,13 +531,12 @@ describe("loadConfig", () => {
         PURESOC_BILLING_PROVIDER: "none",
         PURESOC_OBJECT_STORAGE_PROVIDER: "memory",
         PURESOC_UPLOAD_SCANNER_MODE: "mock",
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true"
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "m365-client-id"
       }
     });
 
     expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
       expect.arrayContaining([
-        "microsoft365_client_id_required",
         "microsoft365_client_secret_required",
         "provider_token_key_id_required",
         "provider_token_key_required"
@@ -721,7 +714,6 @@ describe("loadConfig", () => {
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
-        PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
         MICROSOFT365_CLIENT_ID: "m365-client-id",
         MICROSOFT365_CLIENT_SECRET: "m365-client-secret",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "prod-oidc-transient-state-key-with-sufficient-entropy",

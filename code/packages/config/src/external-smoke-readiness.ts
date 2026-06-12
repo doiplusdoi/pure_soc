@@ -411,16 +411,14 @@ const microsoft365Check = (
       "configuration"
     )
   ];
-  const configured = config.connectors.microsoft365.enabled;
-  const missing = configured ? missingRequirementCodes(requirements) : [];
-  const unsafe = configured
-    ? [
-        ...globalUnsafe,
-        ...(config.connectors.readOnlyByDefault ? [] : ["connector_read_only_default_disabled"]),
-        ...(config.connectors.microsoft365.writeScopesAllowed ? ["microsoft365_write_scopes_allowed"] : []),
-        ...(config.jobs.connectorRunner.allowProviderWrites ? ["provider_write_jobs_enabled"] : [])
-      ]
-    : [];
+  const configured = true;
+  const missing = missingRequirementCodes(requirements);
+  const unsafe = [
+    ...globalUnsafe,
+    ...(config.connectors.readOnlyByDefault ? [] : ["connector_read_only_default_disabled"]),
+    ...(config.connectors.microsoft365.writeScopesAllowed ? ["microsoft365_write_scopes_allowed"] : []),
+    ...(config.jobs.connectorRunner.allowProviderWrites ? ["provider_write_jobs_enabled"] : [])
+  ];
   const optInEnv = "PURESOC_EXTERNAL_SMOKE_MICROSOFT365";
   const status = statusFor({
     configured,
@@ -447,7 +445,7 @@ const microsoft365Check = (
         : "Reports Microsoft 365 read-only tenant-smoke prerequisites without calling Microsoft Graph.",
     metadata: {
       providerKey: "microsoft365",
-      connectorEnabled: config.connectors.microsoft365.enabled,
+      connectorAvailable: true,
       readOnlyByDefault: config.connectors.readOnlyByDefault,
       writeScopesAllowed: config.connectors.microsoft365.writeScopesAllowed,
       defaultSmokeMode: "metadata_only_no_graph_calls",
@@ -482,7 +480,7 @@ const providerTokenCustodyCheck = (
     readBoolean(env.PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED) ||
     readBoolean(env.PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED) ||
     readBoolean(env.PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED);
-  const configured = config.connectors.microsoft365.enabled || providerTokenEnvironmentConfigured;
+  const configured = providerTokenEnvironmentConfigured;
   const previousKeyCount = config.connectors.providerTokenEncryptionPreviousKeys.length;
   const previousKeyConfirmations = [
     {
@@ -573,7 +571,7 @@ const providerTokenCustodyCheck = (
         : "Reports provider-token custody blockers and deferred live-custody requirements without exposing key material.",
     metadata: {
       targetKind,
-      microsoft365ProviderEnabled: config.connectors.microsoft365.enabled,
+      microsoft365ConnectorAvailable: true,
       providerKind: config.connectors.providerTokenKeyProvider,
       activeKeyIdConfigured: nonEmpty(config.connectors.providerTokenEncryptionKeyId),
       previousKeyCount,

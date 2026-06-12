@@ -43,34 +43,36 @@ const runStartupConfigSmoke = (): {
   checks: string[];
   blockerCodes: Record<string, string[]>;
 } => {
-  const disabledDefaultConfig = loadConfig({
+  const blankMicrosoftConnectorConfig = loadConfig({
     env: {
       PURESOC_APP_ENV: "production",
       PURESOC_AUTH_COOKIE_SECURE: "true",
       PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
-      PURESOC_UPLOAD_SCANNER_MODE: "mock",
-      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false"
+      PURESOC_UPLOAD_SCANNER_MODE: "mock"
     }
   });
-  const disabledDefaultIssues = collectStartupConfigIssues(disabledDefaultConfig).map((issue) => issue.code);
+  const blankMicrosoftConnectorIssues = collectStartupConfigIssues(blankMicrosoftConnectorConfig).map((issue) => issue.code);
   assert(
-    !disabledDefaultIssues.some((code) => code.startsWith("provider_token_")),
-    "Production startup with Microsoft 365 disabled should not require provider-token custody."
+    !blankMicrosoftConnectorIssues.some((code) => code.startsWith("provider_token_")),
+    "Production startup with blank Microsoft 365 connector credentials should not require provider-token custody."
   );
 
-  const enabledMissingKeyConfig = loadConfig({
+  const configuredMicrosoftMissingKeyConfig = loadConfig({
     env: {
       PURESOC_APP_ENV: "production",
       PURESOC_AUTH_COOKIE_SECURE: "true",
       PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
       PURESOC_UPLOAD_SCANNER_MODE: "mock",
-      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true"
+      PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "m365-client-id",
+      PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "m365-client-secret"
     }
   });
-  const enabledMissingKeyIssues = collectStartupConfigIssues(enabledMissingKeyConfig).map((issue) => issue.code);
+  const configuredMicrosoftMissingKeyIssues = collectStartupConfigIssues(configuredMicrosoftMissingKeyConfig).map(
+    (issue) => issue.code
+  );
   assert(
-    enabledMissingKeyIssues.includes("provider_token_key_required"),
-    "Production startup with Microsoft 365 enabled did not reject missing provider-token active key."
+    configuredMicrosoftMissingKeyIssues.includes("provider_token_key_required"),
+    "Production startup with Microsoft 365 connector credentials did not reject missing provider-token active key."
   );
 
   const unsafePreviousConfig = loadConfig({
@@ -118,7 +120,7 @@ const runStartupConfigSmoke = (): {
 
   const missingKeyIdConfig = loadConfig({
     env: {
-      PURESOC_PROVIDER_TOKEN_KEY_ID: ""
+      PURESOC_PROVIDER_TOKEN_KEY: "configured-provider-token-key-without-id"
     }
   });
   const missingKeyIdIssues = collectStartupConfigIssues(missingKeyIdConfig).map((issue) => issue.code);
@@ -167,8 +169,8 @@ const runStartupConfigSmoke = (): {
 
   return {
     checks: [
-      "production-disabled-default-provider-token-bypass",
-      "production-enabled-missing-active-key-rejection",
+      "production-blank-microsoft-connector-provider-token-bypass",
+      "production-configured-microsoft-missing-active-key-rejection",
       "production-default-previous-key-rejection",
       "production-fake-provider-rejection",
       "unsupported-provider-rejection",
@@ -178,8 +180,8 @@ const runStartupConfigSmoke = (): {
       "previous-key-reuses-active-rejection"
     ],
     blockerCodes: {
-      productionDisabledDefault: disabledDefaultIssues,
-      productionEnabledMissingActiveKey: enabledMissingKeyIssues,
+      productionBlankMicrosoftConnector: blankMicrosoftConnectorIssues,
+      productionConfiguredMicrosoftMissingActiveKey: configuredMicrosoftMissingKeyIssues,
       productionDefaultPreviousKey: unsafePreviousIssues,
       productionFakeProvider: fakeProviderIssues,
       unsupportedProvider: unsupportedProviderIssues,

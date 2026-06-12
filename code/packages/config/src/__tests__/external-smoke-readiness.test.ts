@@ -85,10 +85,14 @@ describe("external smoke readiness", () => {
       secretValuesReturned: false,
       storagePointersReturned: false
     });
-    expect(report.checks.find((check) => check.id === "microsoft365_read_only_tenant")?.status).toBe(
-      "not_configured"
+    const microsoft365 = report.checks.find((check) => check.id === "microsoft365_read_only_tenant");
+    expect(microsoft365?.status).toBe("blocked_missing_secret");
+    expect(microsoft365?.blockers).toEqual(
+      expect.arrayContaining([
+        "missing_required_environment:PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID|MICROSOFT365_CLIENT_ID|M365_CLIENT_ID",
+        "missing_required_environment:PURESOC_MICROSOFT365_SMOKE_TENANT_ID|MICROSOFT365_TENANT_ID|M365_TENANT_ID"
+      ])
     );
-    expect(report.checks.find((check) => check.id === "microsoft365_read_only_tenant")?.blockers).toEqual([]);
     expect(report.checks.find((check) => check.id === "stripe_test_mode_billing")?.status).toBe(
       "blocked_missing_secret"
     );
@@ -107,7 +111,6 @@ describe("external smoke readiness", () => {
       PURESOC_EXTERNAL_SMOKE_TARGET_KIND: "disposable",
       PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE: "true",
       PURESOC_EXTERNAL_SMOKE_MICROSOFT365: "true",
-      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "true",
       PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "client-id",
       PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "client-secret",
       PURESOC_MICROSOFT365_SMOKE_TENANT_ID: "tenant-id"
@@ -152,20 +155,20 @@ describe("external smoke readiness", () => {
     expect(JSON.stringify(report)).not.toContain("previous-key-material-do-not-print");
   });
 
-  it("treats Microsoft and provider-token custody as not configured for the minimal installer", () => {
-    const report = buildReport({
-      PURESOC_MICROSOFT365_PROVIDER_ENABLED: "false"
-    });
+  it("keeps provider-token custody not configured while Microsoft smoke reports missing prerequisites", () => {
+    const report = buildReport();
 
     const microsoft365 = report.checks.find((check) => check.id === "microsoft365_read_only_tenant");
     const custody = report.checks.find((check) => check.id === "provider_token_custody_deployment");
 
-    expect(microsoft365?.status).toBe("not_configured");
-    expect(microsoft365?.blockers).toEqual([]);
+    expect(microsoft365?.status).toBe("blocked_missing_secret");
+    expect(microsoft365?.metadata).toMatchObject({
+      connectorAvailable: true
+    });
     expect(custody?.status).toBe("not_configured");
     expect(custody?.blockers).toEqual([]);
     expect(custody?.metadata).toMatchObject({
-      microsoft365ProviderEnabled: false,
+      microsoft365ConnectorAvailable: true,
       activeKeyMaterialReturned: false,
       previousKeyMaterialReturned: false
     });

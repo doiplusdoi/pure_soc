@@ -71,7 +71,6 @@ export interface PureSocConfig {
     providerTokenEncryptionKey: string;
     providerTokenEncryptionPreviousKeys: ProviderTokenEncryptionKeyConfig[];
     microsoft365: {
-      enabled: boolean;
       clientId: string;
       clientSecret: string;
       writeScopesAllowed: boolean;
@@ -471,10 +470,6 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       ),
       microsoft365: {
         ...config.connectors.microsoft365,
-        enabled: readBoolean(
-          env.PURESOC_MICROSOFT365_PROVIDER_ENABLED ?? env.PURESOC_CONNECTOR_MICROSOFT365_ENABLED,
-          config.connectors.microsoft365.enabled
-        ),
         writeScopesAllowed: readBoolean(
           env.PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED ??
             env.PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED,
@@ -713,8 +708,10 @@ export const collectStartupConfigIssues = (
     nonEmpty(config.connectors.providerTokenEncryptionKeyId) ||
     nonEmpty(config.connectors.providerTokenEncryptionKey) ||
     config.connectors.providerTokenEncryptionPreviousKeys.length > 0;
+  const microsoft365ConnectorCredentialConfigured =
+    nonEmpty(config.connectors.microsoft365.clientId) || nonEmpty(config.connectors.microsoft365.clientSecret);
   const providerTokenCustodyRequired =
-    config.connectors.microsoft365.enabled || providerTokenConfigExplicitlyConfigured;
+    providerTokenConfigExplicitlyConfigured || (isProduction && microsoft365ConnectorCredentialConfigured);
   const oidcTransientStateRequired =
     isProduction &&
     config.app.persistenceMode === "prisma" &&
@@ -855,12 +852,12 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (isProduction && config.connectors.microsoft365.enabled) {
+  if (isProduction && microsoft365ConnectorCredentialConfigured) {
     if (!nonEmpty(config.connectors.microsoft365.clientId)) {
       issues.push({
         code: "microsoft365_client_id_required",
         path: "connectors.microsoft365.clientId",
-        message: "Production startup with Microsoft 365 provider enabled requires MICROSOFT365_CLIENT_ID."
+        message: "Production startup with Microsoft 365 connector credentials configured requires MICROSOFT365_CLIENT_ID."
       });
     }
 
@@ -869,7 +866,7 @@ export const collectStartupConfigIssues = (
         code: "microsoft365_client_secret_required",
         path: "connectors.microsoft365.clientSecret",
         message:
-          "Production startup with Microsoft 365 provider enabled requires MICROSOFT365_CLIENT_SECRET for consent token exchange."
+          "Production startup with Microsoft 365 connector credentials configured requires MICROSOFT365_CLIENT_SECRET for consent token exchange."
       });
     }
   }

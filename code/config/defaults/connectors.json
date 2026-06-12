@@ -5,7 +5,6 @@
   "providerTokenEncryptionKey": "",
   "providerTokenEncryptionPreviousKeys": [],
   "microsoft365": {
-    "enabled": false,
     "writeScopesAllowed": false,
     "clientId": "",
     "clientSecret": "",

@@ -19,13 +19,12 @@ Provider writes and remediation execution remain disabled. Microsoft 365 is read
 
 ## Minimal Installer Secret Surface
 
-The first-run environment is intentionally small. `code/.env.example` keeps Microsoft 365, social login, Stripe, and S3 disabled, so another infrastructure installer does not need to ask for their client secrets or access keys during the Romania/local readiness bootstrap.
+The first-run environment is intentionally small. `code/.env.example` leaves Microsoft 365 app credentials, social login, Stripe, and S3 unset, so another infrastructure installer does not need to ask for their client secrets or access keys during the Romania/local readiness bootstrap.
 
 For a minimal local or in-a-box path, start with:
 
 ```sh
 PURESOC_PERSISTENCE_MODE=prisma
-PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
 PURESOC_BILLING_PROVIDER=none
 PURESOC_OBJECT_STORAGE_PROVIDER=memory
 PURESOC_JOB_QUEUE_PROVIDER=memory
@@ -36,7 +35,7 @@ For durable Prisma mode, the only required first-boot secret-like value is the P
 
 | Feature | Enable when needed | Secrets introduced |
 |---|---|---|
-| Microsoft 365 managed provider | `PURESOC_MICROSOFT365_PROVIDER_ENABLED=true` | PureSOC platform app client secret, `PURESOC_PROVIDER_TOKEN_KEY` |
+| Microsoft 365 managed provider | configure `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID` and client secret | PureSOC platform app client secret, `PURESOC_PROVIDER_TOKEN_KEY` |
 | Microsoft/Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
 | Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | S3/MinIO object storage | `PURESOC_OBJECT_STORAGE_PROVIDER=s3` | object-storage access key and secret key |
@@ -188,14 +187,13 @@ PURESOC_WEB_PUBLIC_BASE_URL=https://app.example.com
 PURESOC_API_TRUSTED_ORIGINS=https://app.example.com,https://api.example.com
 ```
 
-If the deployment is Romania/local readiness only, keep optional integrations disabled:
+If the deployment is Romania/local readiness only, leave optional integration credentials unset:
 
 ```sh
-PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
 PURESOC_BILLING_PROVIDER=none
 ```
 
-With those integrations disabled and no social-login provider enabled, production startup does not require provider-token, OIDC, Stripe, or S3 secrets. Enabling those features re-enables their fail-fast startup checks.
+With those integration credentials unset and no social-login provider enabled, production startup does not require provider-token, OIDC, Stripe, or S3 secrets. Configuring those features re-enables their fail-fast startup checks.
 
 If a reverse proxy supplies forwarded client IPs, trust them only from explicit proxy IPs:
 
@@ -347,13 +345,7 @@ Do not use `sk_live_*` keys until product, finance, support, tax, refund, and op
 
 Microsoft 365 is a managed provider connection, not a sign-in identity. Keep it separate from Microsoft Entra social login.
 
-The minimal installer keeps this disabled:
-
-```sh
-PURESOC_MICROSOFT365_PROVIDER_ENABLED=false
-```
-
-Only enable it when a read-only Microsoft tenant proof or customer onboarding is in scope:
+The Microsoft 365 connector routes are available by default. Configure the app credentials only when a read-only Microsoft tenant proof or customer onboarding is in scope:
 
 External setup needed:
 
@@ -369,7 +361,6 @@ External setup needed:
 Environment:
 
 ```sh
-PURESOC_MICROSOFT365_PROVIDER_ENABLED=true
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=...
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=...
 PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST=https://login.microsoftonline.com
@@ -444,7 +435,7 @@ Do not print OAuth codes, access tokens, ID tokens, refresh tokens, PKCE verifie
 
 ### Provider Token Custody
 
-Provider-token custody protects stored Microsoft 365 provider credentials. It is not required for the minimal local/Romania installer while `PURESOC_MICROSOFT365_PROVIDER_ENABLED=false`.
+Provider-token custody protects stored Microsoft 365 provider credentials. It is not required for the minimal local/Romania installer while Microsoft 365 connector credentials are unset.
 
 The implemented real custody provider is currently `local-env-key-ring`.
 
@@ -525,9 +516,9 @@ Do not run live external smokes against production, staging, customer, or long-l
 - Origin/Referer protection is strict in production.
 - Trusted proxy IPs are explicit if forwarded headers are trusted.
 - Object storage and scanner are configured before relying on durable production evidence uploads.
-- Provider token key material is non-default and injected through a deployment secret channel when Microsoft 365 provider onboarding is enabled.
+- Provider token key material is non-default and injected through a deployment secret channel when Microsoft 365 connector credentials are configured.
 - Billing is either explicitly `none` for local/in-a-box or Stripe is configured with approved test/production mappings.
-- Microsoft 365 provider onboarding is either disabled or requests read-only permissions only.
+- Microsoft 365 provider onboarding requests read-only permissions only.
 - No provider write execution is enabled.
 - Reports retain the PureSOC legal caveat.
 - Romania legal logic remains review-required unless GAP-006/GAP-042 approvals are complete.

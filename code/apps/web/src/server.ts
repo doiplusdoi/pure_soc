@@ -107,6 +107,10 @@ interface ProviderConnectionListResponse {
 interface Microsoft365ConsentBeginWebResponse {
   url?: string;
   state?: string;
+  error?: {
+    code?: string;
+    message?: string;
+  };
 }
 
 interface Microsoft365HealthWebResponse {
@@ -375,12 +379,16 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       );
 
       if (begin.statusCode !== 201 || !begin.body.url) {
+        const errorCode = begin.body.error?.code;
+        const errorMessage = begin.body.error?.message;
         sendHtml(
           response,
           renderRuntimeMessageScreen({
             title: "Microsoft 365 Connector Not Started",
-            summary: "The PureSOC Microsoft 365 connector is not enabled for this deployment or the current user cannot manage provider connections.",
-            statusLabel: "Connector blocked",
+            summary:
+              errorMessage ??
+              "The PureSOC Microsoft 365 connector could not start because the current user cannot manage provider connections or the connector app configuration is incomplete.",
+            statusLabel: errorCode ?? "Connector blocked",
             statusTone: "warning",
             actionHref: "/providers/microsoft365",
             actionLabel: "Return to connector"

@@ -200,7 +200,7 @@ PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true
 
 Development keeps the historical optional-missing-header behavior unless configured otherwise, while still rejecting untrusted Origin/Referer values when present. A double-submit CSRF-token contract remains deferred until a served browser runtime can carry token issuance and header submission end to end.
 
-Provider-token encryption supports a small custody-provider shape for Microsoft 365 credentials. It is not required for the minimal local/Romania path while `PURESOC_MICROSOFT365_PROVIDER_ENABLED=false`. When Microsoft 365 provider onboarding is enabled, the implemented provider remains the local environment key ring:
+Provider-token encryption supports a small custody-provider shape for Microsoft 365 credentials. It is not required until Microsoft 365 connector credentials are configured or provider-token custody settings are explicitly supplied. The implemented provider remains the local environment key ring:
 
 ```sh
 PURESOC_PROVIDER_TOKEN_KEY_PROVIDER=local-env-key-ring
@@ -374,7 +374,6 @@ PURESOC_EXTERNAL_SMOKE_MODE=live_candidate
 PURESOC_EXTERNAL_SMOKE_TARGET_KIND=local|development|test|ci|disposable
 PURESOC_EXTERNAL_SMOKE_CONFIRM_DISPOSABLE=true
 PURESOC_EXTERNAL_SMOKE_MICROSOFT365=true
-PURESOC_MICROSOFT365_PROVIDER_ENABLED=true
 MICROSOFT365_CLIENT_ID=...
 MICROSOFT365_CLIENT_SECRET=...
 MICROSOFT365_TENANT_ID=...

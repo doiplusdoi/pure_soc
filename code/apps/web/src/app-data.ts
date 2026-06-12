@@ -631,7 +631,7 @@ export const disconnectedMicrosoft365Surface = (generatedAt: string): Microsoft3
       label: "Provider connection",
       status: "attention",
       coverage: "Start Microsoft Entra admin consent from the workspace connector before Microsoft Graph reads can run.",
-      sourceQuery: "provider disabled"
+      sourceQuery: "provider not connected"
     }
   ]
 });
