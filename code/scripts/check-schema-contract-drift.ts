@@ -841,6 +841,7 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("sourceReferencesJson", "Json", "source_references_json"),
       s("reportDataJson", "Json", "report_data_json"),
       s("evidenceArtifactId", "String", "evidence_artifact_id", { isOptional: true }),
+      s("contentHashSha256", "String", "content_hash_sha256", { isOptional: true }),
       s("createdBy", "String", "created_by", { isOptional: true }),
       s("createdAt", "DateTime", "created_at")
     ]

@@ -9,6 +9,8 @@ import {
 } from "@puresoc/shared";
 
 export type ReportType =
+  | "gap_report"
+  | "executive_summary"
   | "internal_readiness"
   | "country_classification"
   | "romania_notification_draft"

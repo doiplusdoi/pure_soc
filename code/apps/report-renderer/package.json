@@ -8,6 +8,7 @@
   },
   "dependencies": {
     "@puresoc/reports": "workspace:*",
-    "@puresoc/shared": "workspace:*"
+    "@puresoc/shared": "workspace:*",
+    "playwright": "1.56.1"
   }
 }

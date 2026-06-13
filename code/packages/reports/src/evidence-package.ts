@@ -23,7 +23,9 @@ export const DEFAULT_INTERNAL_READINESS_EVIDENCE_PACKAGE_LIMITS: EvidencePackage
 export type ReportExportErrorCode =
   | "evidence_package_too_many_evidence_files"
   | "evidence_package_evidence_file_too_large"
-  | "evidence_package_bundle_too_large";
+  | "evidence_package_bundle_too_large"
+  | "pdf_renderer_not_configured"
+  | "report_renderer_unavailable";
 
 export class ReportExportError extends Error {
   readonly code: ReportExportErrorCode;

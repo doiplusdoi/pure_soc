@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-06-11 after completing M92, adding the customer onboarding wizard UX slice, and staging Prompt 92 / `docs/PLAN_M93.md` as the next recursive gap implementation runner.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-06-14 after completing M93, adding the PDF report generation slice, and staging Prompt 93 / `docs/PLAN_M94.md` as the next product milestone runner.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -116,6 +116,7 @@ The repository currently contains:
 - PLAN_M90 regulatory source activation drift coverage: `pnpm lint` now includes selected Prisma schema drift expectations for `RegulatorySource`, `RegulatorySourceMap`, and `RegulatoryReviewDecision`, guarding source activation status, active version references, source-map target/source fields, and review decision metadata without changing legal activation or runtime behavior.
 - PLAN_M91 billing customer drift coverage: `pnpm lint` now includes selected Prisma schema drift expectations for `BillingCustomer`, guarding organization linkage, provider key, optional external customer ID, optional billing email, metadata JSON, and timestamps without changing pricing, entitlements, live Stripe behavior, or billing runtime behavior.
 - PLAN_M92 customer onboarding wizard UX: `apps/web` now routes signup/workspace continuation into a short-page Romania NIS2 readiness wizard, keeps data-entry screens capped at five questions, adds Microsoft 365 tenant connector handoff, derives a local gap list from onboarding/output/evidence/connector state, and exposes JSON/CSV/evidence-package export controls without live external calls or provider writes.
+- PLAN_M93 PDF report generation: `apps/report-renderer` now has a Playwright-backed HTML-to-PDF route, `@puresoc/reports` has PDF HTML templates for executive summary, gap report, Romania notification draft, and evidence-package index, the API exposes authenticated gap-report and Romania notification-draft PDF download routes, generated PDFs are stored as evidence with `GeneratedReport` and `report_exports` content hashes, direct PDF downloads are audited through `EvidenceAccessLog`, and the renderer Compose service is internal-only.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, sequenced in `docs/gap-implementation-path.md`, and supplemented by `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -209,7 +210,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 89 / `docs/PLAN_M90.md` is completed.
 - Prompt 90 / `docs/PLAN_M91.md` is completed.
 - Prompt 91 / `docs/PLAN_M92.md` is completed.
-- Prompt 92 / `docs/PLAN_M93.md` is staged as the next recursive gap implementation runner.
+- Prompt 92 / `docs/PLAN_M93.md` is completed.
+- Prompt 93 / `docs/PLAN_M94.md` is staged as the next product milestone runner.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -225,11 +227,11 @@ During each prompt run:
 Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
-2. Prompt 92 / `docs/PLAN_M93.md`: Recursive Gap Implementation Runner.
+2. Prompt 93 / `docs/PLAN_M94.md`: Product Milestone 2 - Notification And Alert System.
 
-M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, and M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, and M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
-Use M93 when the goal is to continue implementing remaining gaps one by one. It should select one unblocked local slice from `docs/gap-implementation-path.md`, implement it, validate it, update gap/status docs, and create the next recursive plan stub.
+Use M94 when continuing the user-directed product milestone sequence. It should implement Milestone 2 notifications and alerts, validate with local tests, update docs, and stage the next milestone plan.
 
 ## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
@@ -346,19 +348,56 @@ Final response must include:
 - Next staged prompt/PLAN file
 - Residual blockers
 
-## Active Prompt 92 / PLAN_M93: Recursive Gap Implementation Runner
+## Active Prompt 93 / PLAN_M94: Product Milestone 2 - Notification And Alert System
 
-Read the same required files listed in `docs/recursive-gap-codex-prompt.md`, then choose exactly one unblocked local slice from `docs/gap-implementation-path.md` and `docs/implementation-gaps.md`.
+Read:
 
-Recommended first candidates:
+- `docs/puresoc_vision.md`
+- `docs/master-plan.md`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/LEARNINGS.md`
+- `docs/PLAN_M94.md`
 
-- Public signup/auth hardening that does not require choosing open versus invite-only registration, real email delivery, or enforcing a launch policy.
-- Frontend workflow polish that preserves the current UI and browser smoke artifacts.
-- Additional selected drift coverage only for newly customer-facing or production-backed surfaces.
-- Evidence/report/export improvements using local or fake adapters only.
-- Microsoft read-only fixture expansion only after checking current official Microsoft documentation and without adding write scopes.
+Implement Milestone 2 from the user-provided PureSOC product prompt only:
 
-Use the selected slice's targeted commands from `docs/recursive-gap-codex-prompt.md`, and always run `git diff --check`.
+- Add org-scoped notification channel and notification log persistence.
+- Implement a non-throwing notification service that logs every send attempt.
+- Add critical-gap, Microsoft drift, incident-deadline, evidence-expiry, checklist-overdue, and remediation-verified triggers.
+- Add the 30-minute scheduler path for upcoming incident and evidence expiry notifications.
+- Add authenticated API endpoints for channel management, test sends, and logs.
+- Add the Settings -> Notifications UI panel using existing UI patterns.
+
+Negative constraints:
+
+- Do not implement Milestones 3-9 in this slice.
+- Do not send provider writes or remediation actions.
+- Do not expose channel destinations across organizations.
+- Do not claim live SMTP/Slack/Teams delivery unless approved disposable/test credentials are configured and validated.
+
+Use the validation plan from `docs/PLAN_M94.md`, and always run `git diff --check`.
+
+## Completed Prompt 92 / PLAN_M93: PDF Report Generation
+
+Completed on 2026-06-14.
+
+Summary:
+- Replaced the report-renderer PDF placeholder with a Playwright-backed HTML-to-PDF path and an internal-only Compose service.
+- Added PDF HTML templates for executive summary, gap report, Romania notification draft, and evidence-package index report shapes.
+- Added authenticated PDF download routes for gap reports and stored Romania notification drafts.
+- Stored generated PDFs as generated-report evidence, recorded `GeneratedReport.contentHashSha256`, persisted PDF `report_exports` rows, and returned PDFs through the audited evidence download path.
+- Added focused renderer and API integration tests covering legal caveats, PDF headers, auth/RBAC boundaries, generated-report hashes, report-export rows, and `EvidenceAccessLog` entries.
+
+Validation:
+- `npm run prisma:generate` passed.
+- `npm run test -- report-renderer` passed, 1 file / 2 tests.
+- `npm run test -- apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts` passed outside the sandbox after the local HTTP listener path previously hit `listen EPERM`, 1 file / 7 tests.
+- `npm run test -- reports evidence dashboards` passed outside the sandbox after the local HTTP listener path previously hit `listen EPERM`, 9 files / 50 tests.
+- `npm run lint` passed.
+- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `npx prisma migrate dev --schema packages/database/prisma/schema.prisma --name generated_report_content_hash` was blocked because `DATABASE_URL` was not set; the Compose-equivalent localhost retry was blocked because no local PostgreSQL server was listening at `localhost:5432`.
+
+No live MinIO/S3, scanner, Microsoft Graph, Stripe, OIDC provider, public regulatory, DNSC submission, provider write, legal activation, approved Romanian regulatory copy, or certification path was added. GAP-029 narrowed; deployed/live storage-scanner-renderer smoke, bucket permissions, production-size/streaming exports, and broader browser PDF fidelity proof remain open.
 
 ## Completed Prompt 91 / PLAN_M92: Customer Onboarding Wizard UX Slice
 

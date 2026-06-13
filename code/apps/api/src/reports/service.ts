@@ -3,6 +3,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { AuditWriter } from "@puresoc/audit";
 import type { OutputRecordRepository } from "@puresoc/database";
 import {
+  buildPdfReportHtml,
   buildInternalReadinessEvidencePackageExport,
   buildInternalReadinessCsvExport,
   buildInternalReadinessReport,
@@ -24,7 +25,7 @@ import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-reco
 
 export type ReportRepository = Pick<
   OutputRecordRepository,
-  "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
+  "findLatestStoredAnalysis" | "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
 >;
 
 export interface ReportApiServiceOptions {
@@ -32,6 +33,7 @@ export interface ReportApiServiceOptions {
   evidence?: EvidenceApiService;
   auditWriter?: AuditWriter;
   renderer?: ReportRendererClient;
+  pdfRenderer?: ReportPdfRendererClient;
   storeGeneratedReportsAsEvidence?: boolean;
   evidencePackageLimits?: EvidencePackageLimitConfig;
   now?: () => Date;
@@ -41,6 +43,14 @@ export interface ReportRendererClient {
   render(input: {
     format: "json" | "pdf";
     reportData: Record<string, unknown>;
+    renderedAt?: string;
+  }): Promise<RenderedReportArtifact> | RenderedReportArtifact;
+}
+
+export interface ReportPdfRendererClient {
+  renderPdf(input: {
+    html: string;
+    filename: string;
     renderedAt?: string;
   }): Promise<RenderedReportArtifact> | RenderedReportArtifact;
 }
@@ -59,6 +69,7 @@ export class ReportApiService {
   private readonly evidence?: EvidenceApiService;
   private readonly auditWriter?: AuditWriter;
   private readonly renderer: ReportRendererClient;
+  private readonly pdfRenderer?: ReportPdfRendererClient;
   private readonly storeGeneratedReportsAsEvidence: boolean;
   private readonly evidencePackageLimits?: EvidencePackageLimitConfig;
   private readonly now: () => Date;
@@ -82,6 +93,7 @@ export class ReportApiService {
           };
         }
       } satisfies ReportRendererClient);
+    this.pdfRenderer = options.pdfRenderer;
     this.storeGeneratedReportsAsEvidence = options.storeGeneratedReportsAsEvidence ?? false;
     this.evidencePackageLimits = options.evidencePackageLimits;
     this.now = options.now ?? (() => new Date());
@@ -311,10 +323,107 @@ export class ReportApiService {
     };
   }
 
+  async buildGapReportPdf(input: {
+    organizationId: string;
+    assessmentId?: string;
+    actorUserId: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    pdf: {
+      filename: string;
+      mimeType: string;
+      contentHashSha256: string;
+      body: Uint8Array;
+    };
+    pdfArtifactId?: string;
+  }> {
+    const analysis = input.assessmentId
+      ? await this.requireStoredAnalysis(input.organizationId, input.assessmentId)
+      : await this.requireLatestStoredAnalysis(input.organizationId);
+    const reportData = buildInternalReadinessReport({
+      organizationId: input.organizationId,
+      assessmentId: analysis.assessmentId,
+      jurisdiction: analysis.jurisdiction,
+      generatedAt: this.now().toISOString(),
+      catalogVersion: analysis.catalogVersion,
+      analysisRecordedAt: analysis.recordedAt,
+      controlResults: analysis.results,
+      gaps: analysis.gaps,
+      recommendations: analysis.recommendations,
+      readinessPlan: analysis.readinessPlan,
+      evidence: analysis.evidenceArtifacts
+    });
+
+    return this.persistPdfReport({
+      organizationId: input.organizationId,
+      assessmentId: analysis.assessmentId,
+      reportType: "gap_report",
+      jurisdiction: analysis.jurisdiction,
+      reportData,
+      template: "gap_report",
+      filename: `puresoc-gap-report-${analysis.assessmentId}.pdf`,
+      title: "NIS2 Gap Report",
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+  }
+
+  async buildRomaniaNotificationDraftPdf(input: {
+    organizationId: string;
+    actorUserId: string;
+    draft: StoredRomaniaNotificationDraftInput;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    pdf: {
+      filename: string;
+      mimeType: string;
+      contentHashSha256: string;
+      body: Uint8Array;
+    };
+    pdfArtifactId?: string;
+  }> {
+    if (input.draft.organizationId !== input.organizationId) {
+      throw new Error("Romania notification draft input contains records from another organization.");
+    }
+
+    const reportData = buildRomaniaNotificationDraftExport({
+      ...input.draft,
+      generatedAt: input.draft.generatedAt ?? this.now().toISOString()
+    });
+
+    return this.persistPdfReport({
+      organizationId: input.organizationId,
+      assessmentId: input.draft.assessmentId,
+      reportType: "romania_notification_draft",
+      jurisdiction: "RO",
+      reportData,
+      template: "romania_notification_draft",
+      filename: `puresoc-romania-notification-draft-${input.draft.notificationDraftId ?? "latest"}.pdf`,
+      title: "Romanian NIS2 Notification Draft",
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+  }
+
   private async requireStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord> {
     const analysis = await this.repository.findStoredAnalysis(organizationId, assessmentId);
     if (!analysis) {
       throw new Error("Stored analysis record was not found for this organization and assessment.");
+    }
+
+    return analysis;
+  }
+
+  private async requireLatestStoredAnalysis(organizationId: string): Promise<StoredAnalysisRecord> {
+    const analysis = await this.repository.findLatestStoredAnalysis(organizationId);
+    if (!analysis) {
+      throw new Error("Stored analysis record was not found for this organization.");
     }
 
     return analysis;
@@ -352,6 +461,7 @@ export class ReportApiService {
       sourceReferences: input.reportData.sourceReferences.map((reference) => reference.sourceRecordId),
       reportData: input.reportData,
       evidenceArtifactId,
+      contentHashSha256: rendered.contentHashSha256,
       createdBy: input.createdBy,
       createdAt: this.now().toISOString()
     });
@@ -384,6 +494,143 @@ export class ReportApiService {
     return report;
   }
 
+  private async persistPdfReport(input: {
+    organizationId: string;
+    assessmentId?: string;
+    reportType: string;
+    jurisdiction?: string;
+    reportData: InternalReadinessReport | RomaniaNotificationDraftExport;
+    template: "gap_report" | "romania_notification_draft";
+    filename: string;
+    title: string;
+    createdBy: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    pdf: {
+      filename: string;
+      mimeType: string;
+      contentHashSha256: string;
+      body: Uint8Array;
+    };
+    pdfArtifactId?: string;
+  }> {
+    if (!this.pdfRenderer) {
+      throw new ReportExportError("pdf_renderer_not_configured", "PDF renderer is not configured.", 503);
+    }
+
+    const reportId = randomUUID();
+    const html = buildPdfReportHtml({
+      template: input.template,
+      reportData: input.reportData,
+      title: input.title
+    });
+    const rendered = await this.pdfRenderer.renderPdf({
+      html,
+      filename: input.filename,
+      renderedAt: input.reportData.generatedAt
+    });
+    const pdfArtifactId = await this.storeReportEvidence({
+      reportId,
+      rendered,
+      ...input
+    });
+    const report = await this.repository.saveGeneratedReport({
+      id: reportId,
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: input.reportType,
+      jurisdiction: input.jurisdiction,
+      status: "ready",
+      legalCaveat: input.reportData.legalCaveat,
+      sourceReferences: input.reportData.sourceReferences.map((reference) => reference.sourceRecordId),
+      reportData: input.reportData,
+      evidenceArtifactId: pdfArtifactId,
+      contentHashSha256: rendered.contentHashSha256,
+      createdBy: input.createdBy,
+      createdAt: this.now().toISOString()
+    });
+    await this.repository.saveReportExport({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      generatedReportId: report.id,
+      exportFormat: "pdf",
+      status: "ready",
+      contentHashSha256: rendered.contentHashSha256,
+      createdAt: this.now().toISOString()
+    });
+
+    await this.auditWriter?.write({
+      actorUserId: input.createdBy,
+      organizationId: input.organizationId,
+      targetType: "generated_report",
+      targetId: report.id,
+      action: "report_generated",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        reportType: input.reportType,
+        jurisdiction: input.jurisdiction,
+        sourceReferenceCount: report.sourceReferences.length,
+        evidenceArtifactId: pdfArtifactId,
+        format: "pdf",
+        contentHashSha256: rendered.contentHashSha256
+      }
+    });
+
+    const downloaded = await this.downloadStoredPdfForResponse({
+      organizationId: input.organizationId,
+      actorUserId: input.createdBy,
+      pdfArtifactId,
+      rendered,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    return {
+      report,
+      pdf: {
+        filename: input.filename,
+        mimeType: downloaded.mimeType,
+        contentHashSha256: downloaded.contentHashSha256,
+        body: downloaded.body
+      },
+      pdfArtifactId
+    };
+  }
+
+  private async downloadStoredPdfForResponse(input: {
+    organizationId: string;
+    actorUserId: string;
+    pdfArtifactId?: string;
+    rendered: RenderedReportArtifact;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<Pick<RenderedReportArtifact, "body" | "mimeType" | "contentHashSha256">> {
+    if (!this.evidence || !input.pdfArtifactId) {
+      return {
+        body: input.rendered.body,
+        mimeType: input.rendered.mimeType,
+        contentHashSha256: input.rendered.contentHashSha256
+      };
+    }
+
+    const download = await this.evidence.download({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      evidenceArtifactId: input.pdfArtifactId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    return {
+      body: download.body,
+      mimeType: download.mimeType,
+      contentHashSha256: download.contentHashSha256
+    };
+  }
+
   private async storeReportEvidence(input: {
     reportId: string;
     organizationId: string;
@@ -404,7 +651,7 @@ export class ReportApiService {
     const upload = await this.evidence.upload({
       organizationId: input.organizationId,
       actorUserId: input.createdBy,
-      title: `${input.reportType} ${input.reportId} JSON export`,
+      title: `${input.reportType} ${input.reportId} ${input.rendered.format.toUpperCase()} export`,
       content: Buffer.from(input.rendered.body).toString("base64"),
       contentEncoding: "base64",
       mimeType: input.rendered.mimeType,
@@ -417,7 +664,7 @@ export class ReportApiService {
         {
           targetType: "report",
           targetId: input.reportId,
-          relation: "generated_report_export"
+          relation: input.rendered.format === "json" ? "generated_report_export" : "generated_report_pdf_export"
         },
         ...sourceReferences.slice(1).map((sourceRecordId) => ({
           targetType: "regulatory_source" as const,

@@ -21,6 +21,7 @@ x-puresoc-default-environment: &puresoc-default-environment
   PURESOC_UPLOAD_SCANNER_MODE: ${PURESOC_UPLOAD_SCANNER_MODE:-noop}
   REGULATORY_SOURCE_MONITOR_ENABLED: ${REGULATORY_SOURCE_MONITOR_ENABLED:-false}
   PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE: ${PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE:-true}
+  PURESOC_REPORT_RENDERER: ${PURESOC_REPORT_RENDERER:-http://puresoc-report-renderer:3002}
   PURESOC_JOB_QUEUE_PROVIDER: ${PURESOC_JOB_QUEUE_PROVIDER:-memory}
   PURESOC_API_RATE_LIMIT_STORE_PROVIDER: ${PURESOC_API_RATE_LIMIT_STORE_PROVIDER:-memory}
   PURESOC_EXTERNAL_SMOKE_MODE: ${PURESOC_EXTERNAL_SMOKE_MODE:-dry_run}
@@ -217,8 +218,8 @@ services:
     environment:
       <<: *puresoc-default-environment
       PORT: "3002"
-    ports:
-      - "3002:3002"
+    expose:
+      - "3002"
 
 volumes:
   puresoc-postgres-data:

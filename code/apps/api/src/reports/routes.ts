@@ -1,7 +1,8 @@
 import { AuthError } from "@puresoc/auth-core";
+import type { NotificationDraftPayloadEnvelopeContract } from "@puresoc/database";
 import type { StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
 import type { ApiServices } from "../auth/services";
-import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
+import { parseCookies, sessionCookieName, type BinaryResult, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
@@ -118,6 +119,93 @@ export const buildRomaniaNotificationDraftReportRoute = async (
   };
 };
 
+export const downloadGapReportPdfRoute = async (
+  organizationId: string,
+  searchParams: URLSearchParams,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<BinaryResult | JsonResult> => {
+  const format = searchParams.get("format") ?? "json";
+  if (format !== "pdf") {
+    throw new AuthError("invalid_request", "Only format=pdf is supported on this download route.", 400);
+  }
+
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
+  });
+
+  const result = await services.reports.buildGapReportPdf({
+    organizationId,
+    actorUserId,
+    assessmentId: searchParams.get("assessmentId") ?? undefined,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
+  return toPdfResult(result.pdf);
+};
+
+export const downloadRomaniaNotificationDraftPdfRoute = async (
+  organizationId: string,
+  searchParams: URLSearchParams,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<BinaryResult | JsonResult> => {
+  const format = searchParams.get("format") ?? "json";
+  if (format !== "pdf") {
+    throw new AuthError("invalid_request", "Only format=pdf is supported on this download route.", 400);
+  }
+
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
+  });
+
+  const notificationDraftId = searchParams.get("notificationDraftId");
+  const notificationDraft = notificationDraftId
+    ? await services.notificationDrafts.getNotificationDraft({
+        organizationId,
+        notificationDraftId
+      })
+    : {
+        notificationDraft:
+          (
+            await services.notificationDrafts.listNotificationDrafts({
+              organizationId,
+              jurisdiction: "RO"
+            })
+          )[0] ?? null
+      };
+
+  if (!notificationDraft.notificationDraft) {
+    throw new AuthError("invalid_request", "Romania notification draft was not found for this organization.", 404);
+  }
+
+  const result = await services.reports.buildRomaniaNotificationDraftPdf({
+    organizationId,
+    actorUserId,
+    draft: toStoredRomaniaDraftInput(notificationDraft.notificationDraft.payload, {
+      organizationId,
+      assessmentId: notificationDraft.notificationDraft.assessmentId,
+      notificationDraftId: notificationDraft.notificationDraft.id,
+      status: notificationDraft.notificationDraft.status
+    }),
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
+  return toPdfResult(result.pdf);
+};
+
 const requireString = (body: Record<string, unknown>, field: string): string => {
   const value = body[field];
   if (typeof value !== "string" || value.length === 0) {
@@ -157,3 +245,49 @@ const parseRomaniaDraft = (
     locale: typeof body.locale === "string" ? body.locale : undefined
   };
 };
+
+const toStoredRomaniaDraftInput = (
+  payload: NotificationDraftPayloadEnvelopeContract,
+  metadata: {
+    organizationId: string;
+    assessmentId?: string;
+    notificationDraftId: string;
+    status: StoredRomaniaNotificationDraftInput["status"];
+  }
+): StoredRomaniaNotificationDraftInput => ({
+  organizationId: metadata.organizationId,
+  assessmentId: metadata.assessmentId,
+  status: metadata.status,
+  payload: payload.payload,
+  sourceMappedFields: payload.sourceMappedFields.map((field) => {
+    const record = field as Record<string, unknown>;
+    return {
+      fieldKey: typeof record.fieldKey === "string" ? record.fieldKey : "unknown_field",
+      value: record.value,
+      sourceReferences: Array.isArray(record.sourceReferences)
+        ? (record.sourceReferences as StoredRomaniaNotificationDraftInput["sourceMappedFields"][number]["sourceReferences"])
+        : []
+    };
+  }),
+  sourceReferences: payload.sourceReferences as StoredRomaniaNotificationDraftInput["sourceReferences"],
+  notificationDraftId: metadata.notificationDraftId,
+  locale: payload.locale
+});
+
+const toPdfResult = (pdf: {
+  filename: string;
+  mimeType: string;
+  contentHashSha256: string;
+  body: Uint8Array;
+}): BinaryResult => ({
+  kind: "binary",
+  statusCode: 200,
+  body: pdf.body,
+  headers: {
+    "content-type": pdf.mimeType,
+    "content-disposition": `attachment; filename="${sanitizeFilename(pdf.filename)}"`,
+    "x-puresoc-content-sha256": pdf.contentHashSha256
+  }
+});
+
+const sanitizeFilename = (filename: string): string => filename.replaceAll(/[/\\?%*:|"<>]/g, "-");

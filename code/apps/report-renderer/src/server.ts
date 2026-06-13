@@ -1,6 +1,6 @@
 import { createServer } from "node:http";
 
-import { renderReport, type ReportRendererInput } from "./index";
+import { closeReportRendererBrowser, renderHtmlPdf, renderReport, type ReportRendererInput } from "./index";
 
 const port = Number(process.env.PORT ?? 3002);
 const maxBodyBytes = 1_048_576;
@@ -27,11 +27,16 @@ const server = createServer(async (request, response) => {
 
   try {
     const body = await readJsonBody(request);
-    const rendered = renderReport(parseRenderInput(body));
+    const rendered = isHtmlPdfRenderInput(body)
+      ? await renderHtmlPdf(parseHtmlPdfRenderInput(body))
+      : renderReport(parseRenderInput(body));
 
     response.setHeader("content-type", rendered.mimeType);
     response.setHeader("x-puresoc-renderer", rendered.renderer);
     response.setHeader("x-puresoc-content-sha256", rendered.contentHashSha256);
+    if (rendered.format === "pdf" && isHtmlPdfRenderInput(body)) {
+      response.setHeader("content-disposition", `attachment; filename="${sanitizeFilename(body.filename)}"`);
+    }
     response.end(Buffer.from(rendered.body));
   } catch (error) {
     response.statusCode = 400;
@@ -55,7 +60,8 @@ server.listen(port, () => {
 });
 
 const shutdown = () => {
-  server.close(() => {
+  server.close(async () => {
+    await closeReportRendererBrowser();
     process.exit(0);
   });
 };
@@ -99,4 +105,39 @@ const parseRenderInput = (value: unknown): ReportRendererInput => {
     reportData: record.reportData as Record<string, unknown>,
     renderedAt: typeof record.renderedAt === "string" ? record.renderedAt : undefined
   };
+};
+
+const isHtmlPdfRenderInput = (value: unknown): value is { html: string; filename: string; renderedAt?: string } =>
+  Boolean(
+    value &&
+      typeof value === "object" &&
+      !Array.isArray(value) &&
+      typeof (value as Record<string, unknown>).html === "string" &&
+      typeof (value as Record<string, unknown>).filename === "string"
+  );
+
+const parseHtmlPdfRenderInput = (value: unknown): { html: string; filename: string; renderedAt?: string } => {
+  if (!isHtmlPdfRenderInput(value)) {
+    throw new Error("render request must include html and filename strings");
+  }
+
+  if (value.html.length === 0) {
+    throw new Error("html must not be empty");
+  }
+
+  return {
+    html: value.html,
+    filename: sanitizeFilename(value.filename),
+    renderedAt: typeof value.renderedAt === "string" ? value.renderedAt : undefined
+  };
+};
+
+const sanitizeFilename = (filename: string): string => {
+  const normalized = filename
+    .trim()
+    .replaceAll(/[/\\?%*:|"<>]/g, "-")
+    .replaceAll(/\s+/g, "-")
+    .slice(0, 160);
+
+  return normalized.length > 0 && normalized.toLowerCase().endsWith(".pdf") ? normalized : "puresoc-report.pdf";
 };

@@ -1525,6 +1525,7 @@ model GeneratedReport {
   sourceReferencesJson Json               @default("[]") @map("source_references_json")
   reportDataJson    Json                  @map("report_data_json")
   evidenceArtifactId String?              @map("evidence_artifact_id") @db.Uuid
+  contentHashSha256 String?               @map("content_hash_sha256")
   createdBy         String?               @map("created_by") @db.Uuid
   createdAt         DateTime              @default(now()) @map("created_at")
 

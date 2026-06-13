@@ -74,6 +74,8 @@ import { ActionApiService } from "../actions/service";
 import { EvidenceApiService } from "../evidence/service";
 import { DashboardApiService } from "../dashboards/service";
 import { ReportApiService } from "../reports/service";
+import type { ReportPdfRendererClient } from "../reports/service";
+import { createHttpReportPdfRendererClient } from "../reports/renderer-client";
 import type { EvidencePackageLimitConfig } from "@puresoc/reports";
 import { BillingApiService } from "../billing/service";
 import { createInMemoryApiRepositorySet, type InMemoryApiRepositorySet } from "./memory-repository";
@@ -244,6 +246,7 @@ export const createApiServices = (
     emailVerificationDelivery?: EmailVerificationDelivery;
     organizationInvitationDelivery?: OrganizationInvitationDelivery;
     evidencePackageLimits?: EvidencePackageLimitConfig;
+    reportPdfRenderer?: ReportPdfRendererClient;
     prismaClient?: PureSocPrismaClient;
     oidcTokenClient?: OidcTokenClient;
     oidcTokenVerifier?: OidcTokenVerifier;
@@ -364,6 +367,7 @@ export const createApiServices = (
     repository: runtimeRepositories.outputRepository,
     evidence,
     auditWriter,
+    pdfRenderer: options.reportPdfRenderer ?? createHttpReportPdfRendererClient(config.reports.renderer),
     storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
     evidencePackageLimits: options.evidencePackageLimits ?? config.reports.evidencePackage,
     now: options.now

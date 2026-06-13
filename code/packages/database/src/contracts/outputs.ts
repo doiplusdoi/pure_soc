@@ -230,6 +230,7 @@ export interface GeneratedReportRecordContract {
   sourceReferences: string[];
   reportData: GeneratedReportDataContract;
   evidenceArtifactId?: string;
+  contentHashSha256?: string;
   createdBy?: string;
   createdAt: string;
 }

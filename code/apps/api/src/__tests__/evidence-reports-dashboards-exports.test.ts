@@ -1,8 +1,11 @@
+import { createHash, randomUUID } from "node:crypto";
 import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
+import { defaultRoleDefinitions } from "@puresoc/auth-core";
+import { LEGAL_CAVEAT_MESSAGE_KEY, PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import { createApiServices } from "../auth/services";
+import type { ReportPdfRendererClient } from "../reports/service";
 import { startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
@@ -13,10 +16,33 @@ describe("api evidence reports dashboards exports", () => {
   let server: ReturnType<typeof startApiServer>;
   let baseUrl: string;
   let services: ReturnType<typeof createApiServices>;
+  let renderedPdfRequests: Array<{ html: string; filename: string }> = [];
 
   beforeEach(() => {
+    renderedPdfRequests = [];
+    const reportPdfRenderer: ReportPdfRendererClient = {
+      renderPdf(input) {
+        renderedPdfRequests.push({
+          html: input.html,
+          filename: input.filename
+        });
+        const body = Buffer.from(
+          `%PDF-1.4\n% PureSOC test PDF\n${input.filename}\n${input.html.includes(PURESOC_LEGAL_CAVEAT)}\n%%EOF\n`,
+          "utf8"
+        );
+        return {
+          format: "pdf",
+          mimeType: "application/pdf",
+          body,
+          contentHashSha256: createHash("sha256").update(body).digest("hex"),
+          renderer: "puresoc-report-renderer-test",
+          renderedAt: input.renderedAt ?? "2026-04-30T10:00:00.000Z"
+        };
+      }
+    };
     services = createApiServices({
-      now: () => new Date("2026-04-30T10:00:00.000Z")
+      now: () => new Date("2026-04-30T10:00:00.000Z"),
+      reportPdfRenderer
     });
     server = startApiServer(0, services);
     const address = server.address() as AddressInfo;
@@ -70,6 +96,32 @@ describe("api evidence reports dashboards exports", () => {
     );
     expect(response.status).toBe(201);
     return readJson<{ organization: { id: string } }>(response);
+  };
+
+  const addMemberWithRole = async (input: { organizationId: string; userId: string; roleKey: "security_operator" }) => {
+    const now = new Date("2026-04-30T10:00:00.000Z");
+    await services.identityRepository.addOrganizationMember({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      userId: input.userId,
+      status: "active",
+      createdAt: now,
+      updatedAt: now
+    });
+    const roleDefinition = defaultRoleDefinitions.find((role) => role.key === input.roleKey);
+    if (!roleDefinition) {
+      throw new Error(`Missing role definition: ${input.roleKey}`);
+    }
+    const role = await services.identityRepository.ensureRole(roleDefinition);
+    await services.identityRepository.bindRole({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      userId: input.userId,
+      roleId: role.id,
+      roleKey: input.roleKey,
+      scopeJson: {},
+      createdAt: now
+    });
   };
 
   it("authorizes evidence upload/download, audits access, and rejects cross-organization output access", async () => {
@@ -308,6 +360,177 @@ describe("api evidence reports dashboards exports", () => {
     expect(
       services.memoryRepositories.evidenceRepository.artifacts.get(body.report.evidenceArtifactId ?? "")?.sourceType
     ).toBe("generated_report");
+  });
+
+  it("downloads gap reports as PDFs through the renderer and records the generated-report PDF hash", async () => {
+    const owner = await registerAndLogin("phase-i-pdf-owner@example.test");
+    const wrongRole = await registerAndLogin("phase-i-pdf-operator@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    await addMemberWithRole({
+      organizationId: organization.id,
+      userId: wrongRole.registerBody.user.id,
+      roleKey: "security_operator"
+    });
+
+    const unauthenticated = await fetch(
+      `${baseUrl}/organizations/${organization.id}/compliance/reports/gap-report?format=pdf`
+    );
+    expect(unauthenticated.status).toBe(401);
+
+    const evaluationResponse = await postJson(
+      `/organizations/${organization.id}/compliance/evaluate`,
+      {
+        assessmentId: "assessment_pdf_i",
+        jurisdiction: "EU",
+        countryPack: {
+          countryCode: "RO",
+          completeness: "planned_full_pack"
+        }
+      },
+      owner.cookie
+    );
+    expect(evaluationResponse.status).toBe(200);
+
+    const forbidden = await fetch(
+      `${baseUrl}/organizations/${organization.id}/compliance/reports/gap-report?format=pdf`,
+      {
+        headers: {
+          cookie: wrongRole.cookie
+        }
+      }
+    );
+    expect(forbidden.status).toBe(403);
+
+    const response = await fetch(
+      `${baseUrl}/organizations/${organization.id}/compliance/reports/gap-report?format=pdf`,
+      {
+        headers: {
+          cookie: owner.cookie
+        }
+      }
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    expect(response.headers.get("content-disposition")).toContain("puresoc-gap-report-assessment_pdf_i.pdf");
+    expect(response.headers.get("x-puresoc-content-sha256")).toMatch(/^[0-9a-f]{64}$/);
+    const pdfBytes = Buffer.from(await response.arrayBuffer());
+    expect(pdfBytes.toString("utf8")).toContain("%PDF-1.4");
+    expect(renderedPdfRequests).toHaveLength(1);
+    expect(renderedPdfRequests[0]?.html).toContain('<meta name="puresoc-legal-caveat"');
+    expect(renderedPdfRequests[0]?.html).toContain("NIS2 Gap Report");
+    expect(renderedPdfRequests[0]?.html).toContain("Control list");
+    expect(renderedPdfRequests[0]?.html).toContain(PURESOC_LEGAL_CAVEAT);
+
+    const reportGenerated = services.auditSink.findByAction("report_generated").find((entry) => {
+      const afterJson = entry.afterJson as { reportType?: string } | undefined;
+      return afterJson?.reportType === "gap_report";
+    });
+    expect(reportGenerated).toBeDefined();
+    const report = await services.outputRepository.findGeneratedReport(
+      organization.id,
+      reportGenerated?.targetId ?? ""
+    );
+    expect(report).toMatchObject({
+      reportType: "gap_report",
+      contentHashSha256: response.headers.get("x-puresoc-content-sha256"),
+      evidenceArtifactId: expect.any(String)
+    });
+    await expect(services.outputRepository.listReportExportsForReport(organization.id, report?.id ?? "")).resolves.toEqual([
+      expect.objectContaining({
+        exportFormat: "pdf",
+        contentHashSha256: response.headers.get("x-puresoc-content-sha256")
+      })
+    ]);
+    expect(
+      services.memoryRepositories.evidenceRepository.artifacts.get(report?.evidenceArtifactId ?? "")?.mimeType
+    ).toBe("application/pdf");
+    expect(services.memoryRepositories.evidenceRepository.accessLogs).toEqual([
+      expect.objectContaining({
+        evidenceArtifactId: report?.evidenceArtifactId,
+        actorUserId: owner.registerBody.user.id,
+        action: "download"
+      })
+    ]);
+    expect(services.auditSink.findByAction("evidence_downloaded")).toEqual([
+      expect.objectContaining({
+        targetId: report?.evidenceArtifactId,
+        targetType: "evidence_artifact"
+      })
+    ]);
+  });
+
+  it("downloads stored Romania notification drafts as PDFs", async () => {
+    const owner = await registerAndLogin("phase-i-ro-pdf-owner@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+
+    const createDraftResponse = await postJson(
+      `/organizations/${organization.id}/compliance/nis2/notification-drafts`,
+      {
+        assessmentId: "assessment_ro_pdf_i",
+        status: "ready_for_review",
+        payload: {
+          frameworkKey: "nis2",
+          jurisdiction: "RO",
+          legalCaveat: PURESOC_LEGAL_CAVEAT,
+          legalCaveatFallbackUsed: false,
+          legalCaveatLocale: "en",
+          legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
+          locale: "en",
+          notificationType: "country_registration",
+          payload: {
+            entityName: "Example SRL"
+          },
+          payloadSchemaKey: "ro.nis2.registration_notification.v1",
+          payloadSchemaVersion: "1.0.0",
+          sourceMappedFields: [
+            {
+              fieldKey: "entityName",
+              sourceMapId: "ro-nis2-notification_draft_mapping-entityName",
+              label: {
+                locale: "en",
+                messageKey: "ro.nis2.notification.entity_name",
+                text: "Entity name"
+              },
+              value: "Example SRL",
+              sourceReferences: [
+                {
+                  sourceRecordId: "ro-workbook-notification-form",
+                  jurisdiction: "RO",
+                  sourceLocation: "Notification form!B4"
+                }
+              ]
+            }
+          ],
+          sourceReferences: [
+            {
+              sourceRecordId: "ro-workbook-notification-form",
+              jurisdiction: "RO",
+              sourceLocation: "Notification form!B4"
+            }
+          ]
+        }
+      },
+      owner.cookie
+    );
+    expect(createDraftResponse.status).toBe(201);
+    const createDraftBody = await readJson<{ notificationDraft: { id: string } }>(createDraftResponse);
+
+    const response = await fetch(
+      `${baseUrl}/organizations/${organization.id}/onboarding/romania/reports/notification-draft?format=pdf&notificationDraftId=${createDraftBody.notificationDraft.id}`,
+      {
+        headers: {
+          cookie: owner.cookie
+        }
+      }
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/pdf");
+    const pdfText = Buffer.from(await response.arrayBuffer()).toString("utf8");
+    expect(pdfText).toContain("%PDF-1.4");
+    expect(renderedPdfRequests.at(-1)?.html).toContain("Romanian NIS2 Notification Draft");
+    expect(renderedPdfRequests.at(-1)?.html).toContain("Example SRL");
+    expect(renderedPdfRequests.at(-1)?.html).toContain(PURESOC_LEGAL_CAVEAT);
   });
 
   it("exports stable internal readiness CSV tables as generated-report evidence", async () => {

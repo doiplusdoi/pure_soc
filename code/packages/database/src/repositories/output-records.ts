@@ -10,6 +10,7 @@ import type {
 type DelegateArgs = Record<string, unknown>;
 
 interface SnapshotDelegate<TRow> {
+  findFirst(args: DelegateArgs): Promise<TRow | null>;
   findUnique(args: DelegateArgs): Promise<TRow | null>;
   upsert(args: DelegateArgs): Promise<TRow>;
 }
@@ -30,9 +31,16 @@ type StoredAnalysisSnapshotRow = {
 
 type GeneratedReportRow = Omit<
   GeneratedReportRecordContract,
-  "assessmentId" | "createdAt" | "createdBy" | "evidenceArtifactId" | "reportData" | "sourceReferences"
+  | "assessmentId"
+  | "contentHashSha256"
+  | "createdAt"
+  | "createdBy"
+  | "evidenceArtifactId"
+  | "reportData"
+  | "sourceReferences"
 > & {
   assessmentId?: string | null;
+  contentHashSha256?: string | null;
   createdAt: Date | string;
   createdBy?: string | null;
   evidenceArtifactId?: string | null;
@@ -66,6 +74,7 @@ export interface OutputRecordRepository {
     assessmentId?: string
   ): Promise<DashboardSnapshotRecordContract | null>;
   findReportExport(organizationId: string, exportId: string): Promise<ReportExportRecordContract | null>;
+  findLatestStoredAnalysis(organizationId: string): Promise<StoredAnalysisRecordContract | null>;
   findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null>;
   listReportExportsForReport(
     organizationId: string,
@@ -100,6 +109,15 @@ export class InMemoryOutputRecordRepository implements OutputRecordRepository {
 
   async findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null> {
     const record = this.storedAnalyses.get(storedAnalysisKey(organizationId, assessmentId));
+    return record ? clone(record) : null;
+  }
+
+  async findLatestStoredAnalysis(organizationId: string): Promise<StoredAnalysisRecordContract | null> {
+    const record =
+      [...this.storedAnalyses.values()]
+        .filter((analysis) => analysis.organizationId === organizationId)
+        .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0] ?? null;
+
     return record ? clone(record) : null;
   }
 
@@ -205,6 +223,19 @@ export class PrismaOutputRecordRepository implements OutputRecordRepository {
           organizationId,
           assessmentId
         }
+      }
+    });
+
+    return row ? fromStoredAnalysisSnapshotRow(row) : null;
+  }
+
+  async findLatestStoredAnalysis(organizationId: string): Promise<StoredAnalysisRecordContract | null> {
+    const row = await this.client.complianceResultSnapshot.findFirst({
+      where: {
+        organizationId
+      },
+      orderBy: {
+        recordedAt: "desc"
       }
     });
 
@@ -334,6 +365,7 @@ const toGeneratedReportData = (record: GeneratedReportRecordContract): Record<st
     sourceReferencesJson: record.sourceReferences,
     reportDataJson: toJson(record.reportData),
     evidenceArtifactId: uuidOrNull(record.evidenceArtifactId),
+    contentHashSha256: record.contentHashSha256,
     createdBy: uuidOrNull(record.createdBy),
     createdAt: toDateTime(record.createdAt)
   });
@@ -393,6 +425,7 @@ const fromGeneratedReportRow = (row: GeneratedReportRow): GeneratedReportRecordC
     sourceReferences: stringArray(row.sourceReferencesJson),
     reportData: row.reportDataJson,
     evidenceArtifactId: row.evidenceArtifactId ?? undefined,
+    contentHashSha256: row.contentHashSha256 ?? undefined,
     createdBy: row.createdBy ?? undefined,
     createdAt: toIso(row.createdAt)
   }) as GeneratedReportRecordContract;

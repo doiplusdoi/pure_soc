@@ -184,6 +184,7 @@ const generatedReportFixture = (): GeneratedReportRecordContract => {
     sourceReferences: ["nis2-directive"],
     reportData,
     evidenceArtifactId: EVIDENCE_ID,
+    contentHashSha256: "f".repeat(64),
     createdBy: ACTOR_ID,
     createdAt: RECORDED_AT
   };
@@ -244,13 +245,16 @@ class FakeDelegate {
   }
 
   async findFirst(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
+    orderBy?: { createdAt?: "asc" | "desc"; recordedAt?: "asc" | "desc" };
     where: Record<string, unknown>;
   }): Promise<Record<string, unknown> | null> {
     this.lastFindFirstWhere = input.where;
     const rows = this.rows.filter((row) => matchesWhere(row, input.where));
     if (input.orderBy?.createdAt === "desc") {
       rows.sort((left, right) => toDate(right.createdAt).getTime() - toDate(left.createdAt).getTime());
+    }
+    if (input.orderBy?.recordedAt === "desc") {
+      rows.sort((left, right) => toDate(right.recordedAt).getTime() - toDate(left.recordedAt).getTime());
     }
 
     return rows[0] ?? null;

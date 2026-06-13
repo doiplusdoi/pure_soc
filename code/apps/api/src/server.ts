@@ -25,7 +25,7 @@ import {
   saveOrganizationRoNis2OnboardingRoute
 } from "./compliance/nis2/ro";
 import { createApiServices, type ApiServices } from "./auth/services";
-import { parseJsonBody, parseRawBody, sendJson, toJsonResultError, type JsonResult } from "./http";
+import { parseJsonBody, parseRawBody, sendApiResult, sendJson, toJsonResultError, type ApiResult } from "./http";
 import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
 import {
   acceptOrganizationInvitationRoute,
@@ -63,7 +63,9 @@ import {
   buildInternalReadinessCsvExportRoute,
   buildInternalReadinessEvidencePackageRoute,
   buildInternalReadinessReportRoute,
-  buildRomaniaNotificationDraftReportRoute
+  buildRomaniaNotificationDraftReportRoute,
+  downloadGapReportPdfRoute,
+  downloadRomaniaNotificationDraftPdfRoute
 } from "./reports/routes";
 import { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute } from "./dashboards/routes";
 import {
@@ -107,7 +109,7 @@ interface ApiRouteEntry {
   pattern: RegExp;
   routeFamily: ApiRouteFamily;
   rawBody?: boolean;
-  handler: (input: ApiRouteDispatchInput) => Promise<JsonResult>;
+  handler: (input: ApiRouteDispatchInput) => Promise<ApiResult>;
 }
 
 const route = (
@@ -197,6 +199,10 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     buildInternalReadinessEvidencePackageRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/, "compliance", ({ params, body, request, context, services }) =>
     buildRomaniaNotificationDraftReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/compliance\/reports\/gap-report$/, "compliance", ({ params, url, request, context, services }) =>
+    downloadGapReportPdfRoute(params[0] ?? "", url.searchParams, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/onboarding\/romania\/reports\/notification-draft$/, "compliance", ({ params, url, request, context, services }) =>
+    downloadRomaniaNotificationDraftPdfRoute(params[0] ?? "", url.searchParams, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/dashboards\/snapshots$/, "compliance", ({ params, body, request, services }) =>
     createDashboardSnapshotRoute(params[0] ?? "", body, request.headers.cookie, services)),
   route("GET", /^\/organizations\/([^/]+)\/dashboards\/snapshots\/latest$/, "compliance", ({ params, url, request, services }) =>
@@ -252,7 +258,7 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     listOrganizationMembersRoute(params[0] ?? "", request.headers.cookie, services))
 ];
 
-function handleActionRunOperationRoute(input: ApiRouteDispatchInput): Promise<JsonResult> {
+function handleActionRunOperationRoute(input: ApiRouteDispatchInput): Promise<ApiResult> {
   const organizationId = input.params[0] ?? "";
   const actionRunId = input.params[1] ?? "";
   const action = input.params[2];
@@ -333,7 +339,7 @@ function handleActionRunOperationRoute(input: ApiRouteDispatchInput): Promise<Js
   return closeActionRunRoute(organizationId, actionRunId, input.request.headers.cookie, input.context, input.services);
 }
 
-function handleRegulatoryReviewTaskActionRoute(input: ApiRouteDispatchInput): Promise<JsonResult> {
+function handleRegulatoryReviewTaskActionRoute(input: ApiRouteDispatchInput): Promise<ApiResult> {
   const organizationId = input.params[0] ?? "";
   const taskId = input.params[1] ?? "";
   const action = input.params[2];
@@ -424,7 +430,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         const rawBody = await parseRawBody(request, {
           maxBytes: requestLimits.stripeWebhookRawBodyMaxBytes
         });
-        sendJson(
+        sendApiResult(
           response,
           await routeMatch.route.handler({
             request,
@@ -447,7 +453,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
           : {};
 
       if (routeMatch) {
-        sendJson(
+        sendApiResult(
           response,
           await routeMatch.route.handler({
             request,

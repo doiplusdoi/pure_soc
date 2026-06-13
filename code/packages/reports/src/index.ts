@@ -44,3 +44,9 @@ export {
   type EvidencePackageLimitConfig,
   type ReportExportErrorCode
 } from "./evidence-package";
+export {
+  buildPdfReportHtml,
+  type BuildPdfReportHtmlInput,
+  type PdfReportTemplate,
+  type PdfReportTemplateData
+} from "./html-templates";

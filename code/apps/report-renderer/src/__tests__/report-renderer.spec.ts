@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
+import { buildPdfReportHtml } from "@puresoc/reports";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
-import { renderReport } from "../index";
+import { createFooterTemplate, extractLegalCaveat, renderReport } from "../index";
 
 describe("report renderer", () => {
   it("renders deterministic JSON and stable placeholder PDF artifacts from stored report data", () => {
@@ -35,5 +36,70 @@ describe("report renderer", () => {
     expect(Buffer.from(pdf.body).toString("utf8")).toContain("%PDF-1.4");
     expect(Buffer.from(pdf.body).toString("utf8")).toContain("puresoc.report_renderer.pdf_placeholder.v1");
     expect(pdf.contentHashSha256).toMatch(/^[a-f0-9]{64}$/);
+  });
+
+  it("builds HTML templates with legal caveat metadata for Playwright PDF footers", () => {
+    const html = buildPdfReportHtml({
+      template: "gap_report",
+      title: "Gap Report",
+      reportData: {
+        schemaVersion: "puresoc.report.internal_readiness.v1",
+        reportType: "internal_readiness",
+        organizationId: "org_renderer",
+        assessmentId: "assessment_renderer",
+        jurisdiction: "EU",
+        generatedAt: "2026-04-30T10:00:00.000Z",
+        legalCaveat: PURESOC_LEGAL_CAVEAT,
+        legalCaveatFallbackUsed: false,
+        legalCaveatLocale: "en",
+        legalCaveatMessageKey: "puresoc.legal_caveat.internal_readiness.v1",
+        legalCaveatReviewStatus: "source_approved",
+        locale: "en",
+        sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", jurisdiction: "EU", article: "21" }],
+        controlResults: [
+          {
+            controlId: "nis2.iam.mfa",
+            controlCode: "NIS2-EU-MFA",
+            jurisdiction: "EU",
+            status: "failing",
+            confidence: "high",
+            summary: "Admin MFA is incomplete.",
+            evidenceArtifactIds: [],
+            providerSignalIds: [],
+            evidenceCompleteness: {
+              required: 1,
+              present: 0,
+              missing: 1,
+              ratio: 0
+            },
+            sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", jurisdiction: "EU", article: "21" }]
+          }
+        ],
+        gaps: [
+          {
+            controlId: "nis2.iam.mfa",
+            controlCode: "NIS2-EU-MFA",
+            jurisdiction: "EU",
+            severity: "critical",
+            summary: "Admin MFA is incomplete.",
+            missingEvidence: ["MFA coverage report"],
+            recommendedActions: ["Review administrator MFA coverage"],
+            sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", jurisdiction: "EU", article: "21" }]
+          }
+        ],
+        recommendations: [],
+        evidence: [],
+        provenance: {
+          source: "stored_analysis"
+        }
+      }
+    });
+
+    expect(html).toContain('<meta name="puresoc-legal-caveat"');
+    expect(html).toContain("Control list");
+    expect(html).toContain("NIS2-EU-MFA");
+    expect(extractLegalCaveat(html)).toBe(PURESOC_LEGAL_CAVEAT);
+    expect(createFooterTemplate(extractLegalCaveat(html))).toContain("pageNumber");
+    expect(createFooterTemplate(extractLegalCaveat(html))).toContain("not a legal opinion");
   });
 });

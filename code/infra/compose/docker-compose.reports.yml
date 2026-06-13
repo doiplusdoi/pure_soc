@@ -7,3 +7,7 @@ services:
     build:
       context: ../..
       dockerfile: infra/docker/Dockerfile.report-renderer
+    environment:
+      PORT: "3002"
+    expose:
+      - "3002"

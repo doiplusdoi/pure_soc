@@ -1,8 +1,8 @@
 ---
-title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, Billing Customer Drift Coverage, And Customer Onboarding Wizard UX
-date: 2026-06-11
+title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, Billing Customer Drift Coverage, Customer Onboarding Wizard UX, And PDF Report Generation
+date: 2026-06-14
 author: Codex
-scope: Repository-level current status after M92 customer onboarding wizard UX on 2026-06-11, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
+scope: Repository-level current status after M93 PDF report generation on 2026-06-14, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -13,7 +13,7 @@ aligned_with:
   - docs/LEARNINGS.md
 ---
 
-# PureSOC Codex Status - 2026-06-11
+# PureSOC Codex Status - 2026-06-14
 
 ## Current Snapshot
 
@@ -57,6 +57,8 @@ M91 continues that selected data-quality path for billing persistence: `pnpm lin
 
 M92 reshapes the served Romania route into a customer NIS2 readiness wizard: new workspaces continue into company/legal data capture, data-entry pages are capped at five questions, readiness output actions now include JSON/CSV/evidence-package exports, the Microsoft 365 screen hands off to existing tenant OAuth/connect/sync controls, and the gap screen derives local gaps from onboarding, output/evidence, and Microsoft module state. This is local UX/product-flow hardening only; it does not run live Microsoft Graph, add provider writes, approve Romanian legal copy, or claim certification.
 
+M93 implements the first user-requested product milestone for PDF report generation: the report-renderer now has a Playwright-backed HTML-to-PDF path, gap report and Romania notification draft PDF download routes call the renderer, report templates cover executive summary, gap report, Romania notification draft, and evidence-package index shapes, generated PDFs are stored as evidence, `GeneratedReport` and `report_exports` rows record content hashes, and direct PDF downloads are audited through `EvidenceAccessLog`. The renderer is wired as an internal-only Compose service. This is local/API and container-shape proof; live disposable storage/scanner/deployed-renderer smoke and full containerized browser fidelity proof remain under GAP-029.
+
 The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and full customer-grade frontend hardening beyond the lightweight served UI.
 
 ## Repo Inspection
@@ -78,13 +80,14 @@ Inspected and validated on 2026-06-11:
 - `docs/PLAN_M90.md` narrows GAP-041 with lint-gated selected schema drift coverage for regulatory source activation records, source maps, and review decisions.
 - `docs/PLAN_M91.md` narrows GAP-041 with lint-gated selected schema drift coverage for billing customer persistence.
 - `docs/PLAN_M92.md` narrows GAP-031 and GAP-046 with the short-page customer NIS2 wizard, Microsoft tenant connector handoff, derived gap list, and export controls.
-- `docs/PLAN_M93.md` is staged as the next recursive gap implementation runner.
+- `docs/PLAN_M93.md` narrows GAP-029 with Playwright-backed local PDF rendering, PDF report routes, generated-report/report-export hash metadata, audited evidence-backed PDF downloads, and internal-only renderer Compose wiring.
+- `docs/PLAN_M94.md` is staged for Product Milestone 2, notification and alert delivery.
 - `git diff --check` passed for the M92 changes.
 - The workspace has 371 files under `code/` according to `rg --files code`.
 - The app layout and package layout match the docs' `code/` convention.
 - `docs/implementation-gaps.md` still shows the major launch/runtime gaps open; M79 narrowed GAP-031 and GAP-042 but did not add legal activation, DNSC submission, provider writes, or live external proof.
 
-The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation; M92 added focused web render, Romania workflow, UI smoke, lint, Compose config, and diff validation:
+The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation; M92 added focused web render, Romania workflow, UI smoke, lint, Compose config, and diff validation; M93 added focused report-renderer, evidence/report API, lint, Compose config, and migration-attempt validation:
 
 ```txt
 npm run lint
@@ -143,6 +146,24 @@ passed outside the sandbox, 17 files / 85 tests
 
 npm run test:e2e -- --grep @ui-smoke
 passed outside the sandbox and wrote served UI snapshots/artifact index
+
+npm run prisma:generate
+passed for M93
+
+npm run test -- report-renderer
+passed for M93, 1 file / 2 tests
+
+npm run test -- apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts
+passed outside the sandbox for M93, 1 file / 7 tests
+
+npm run test -- reports evidence dashboards
+passed outside the sandbox for M93, 9 files / 50 tests
+
+docker compose -f infra/compose/docker-compose.yml config
+passed for M93
+
+npx prisma migrate dev --schema packages/database/prisma/schema.prisma --name generated_report_content_hash
+blocked for M93 because no `DATABASE_URL` was set, and the Compose-equivalent localhost retry was blocked because no local PostgreSQL server was listening at `localhost:5432`
 ```
 
 Vitest selections that bind ephemeral local API servers were run outside the sandbox after sandboxed execution hit `listen EPERM`.
@@ -158,7 +179,7 @@ Vitest selections that bind ephemeral local API servers were run outside the san
 | Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, runtime catalog model, classification, onboarding schema, complete imported notification draft mapping, saved progress, and product-safe short-page wizard workflow exist. Legal activation/copy approval remain open. |
 | Microsoft 365 | Read-only contract/fixture baseline | Permission bundles and read modules are modeled. No approved disposable tenant/live Graph smoke has run. Write executor remains disabled. |
 | Compliance engine | Strong internal-readiness baseline | Article 21 catalog, gaps, recommendations, readiness plan, checklist and dashboard/report integration exist. Score calibration still needs product/legal approval. |
-| Evidence/reports/dashboard | Good local JSON/CSV/package baseline | Local authenticated evidence, JSON report metadata, stable internal-readiness CSV export, persisted JSON/CSV report-export metadata rows, deterministic local binary evidence-package tar bundles, and configurable package size/file-count guardrails exist. Browser-grade PDF, streaming large-package support, and live storage/scanner smoke remain open. |
+| Evidence/reports/dashboard | Strong local JSON/CSV/PDF/package baseline | Local authenticated evidence, JSON report metadata, stable internal-readiness CSV export, persisted JSON/CSV/PDF report-export metadata rows, deterministic local binary evidence-package tar bundles, audited evidence-backed PDF downloads, Playwright-backed internal renderer code, and configurable package size/file-count guardrails exist. Live disposable storage/scanner/deployed-renderer smoke, host/container browser fidelity proof, and streaming large-package support remain open. |
 | Billing | Contract-complete, product-incomplete | Stripe adapter/webhook/entitlements exist. Pricing, plan packaging, and real test-mode smoke remain product/operator work. |
 | Audit | Tamper-evident database baseline | Hash chain/checkpoint/export metadata exists. WORM storage, external signing, and legal-grade retention are deferred. |
 | Jobs/queues | Local/disposable baseline | Job runtime and Redis adapter exist. Production multi-container queue orchestration remains open. |
@@ -178,7 +199,7 @@ Launch/product gates:
 Runtime/production proof gates:
 
 - `GAP-028`: real Stripe test-mode runtime and webhook delivery are deferred.
-- `GAP-029`: live object storage/scanner/report-renderer smoke, browser PDF, streaming large-package hardening, and deployed export runtime proof are deferred; local stable internal-readiness CSV export, JSON/CSV report-export metadata rows, deterministic binary evidence-package tar bundles, and package size/file-count guardrails exist.
+- `GAP-029`: live object storage/scanner/deployed report-renderer smoke, streaming large-package hardening, and deployed export runtime proof are deferred; local stable internal-readiness CSV export, JSON/CSV/PDF report-export metadata rows, deterministic binary evidence-package tar bundles, audited evidence-backed PDF downloads, and package size/file-count guardrails exist.
 - `GAP-030`: live provider write execution remains intentionally deferred.
 - `GAP-032`: live Microsoft/Google/GitHub OIDC callback smoke is deferred.
 - `GAP-033`: Microsoft Exchange/SharePoint/Teams/Purview read modules are deferred.
@@ -190,15 +211,11 @@ Runtime/production proof gates:
 
 ## Recommended Next Step
 
-M92 is complete. The next high-leverage motion is still a product/operator decision rather than another local UI reshaping pass:
+M93 is complete. The user-directed product implementation order stages `docs/PLAN_M94.md` next for Milestone 2, notification and alert delivery.
 
-```txt
-Choose either Romanian legal/product activation work or exactly one approved disposable external proof target.
-```
+`docs/PLAN_M80.md` still records the separate decision-gated handoff for Romanian legal/product activation or one approved disposable external proof target. Until a reviewer or disposable/test target is explicitly selected, keep GAP-006, GAP-042, and GAP-044 open and avoid adding DNSC submission, certification claims, provider writes, public regulatory fetches, or live external calls.
 
-`docs/PLAN_M80.md` records that decision-gated handoff. Until a reviewer or disposable/test target is explicitly selected, keep GAP-006, GAP-042, and GAP-044 open and avoid adding DNSC submission, certification claims, provider writes, public regulatory fetches, or live external calls.
-
-For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For recursive one-slice-at-a-time implementation, use `docs/recursive-gap-codex-prompt.md` with the staged `docs/PLAN_M93.md` runner.
+For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For the current product milestone sequence, use `docs/PLAN_M94.md`.
 
 For Microsoft 365 real-life tenant testing, use `docs/real-tenant-testing.md`, prepare local environment values from `docs/microsoft365-read-only-smoke.env.example`, and record each run with `docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, friendly/internal pilot second, customer pilot only with written authorization, and production customer testing only after earlier evidence exists. The current runner remains read-only and selector-gated.
 

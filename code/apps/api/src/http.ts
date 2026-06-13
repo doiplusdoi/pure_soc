@@ -28,6 +28,15 @@ export interface JsonResult {
   headers?: Record<string, string | string[]>;
 }
 
+export interface BinaryResult {
+  kind: "binary";
+  statusCode: number;
+  body: Uint8Array;
+  headers: Record<string, string | string[]>;
+}
+
+export type ApiResult = JsonResult | BinaryResult;
+
 export interface BodyParserLimitOptions {
   maxBytes?: number;
 }
@@ -389,4 +398,17 @@ export const sendJson = (response: ServerResponse, result: JsonResult): void => 
   }
 
   response.end(JSON.stringify(result.body));
+};
+
+export const sendApiResult = (response: ServerResponse, result: ApiResult): void => {
+  if ("kind" in result && result.kind === "binary") {
+    response.statusCode = result.statusCode;
+    for (const [name, value] of Object.entries(result.headers)) {
+      response.setHeader(name, value);
+    }
+    response.end(Buffer.from(result.body));
+    return;
+  }
+
+  sendJson(response, result);
 };

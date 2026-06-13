@@ -116,6 +116,7 @@ describe("database schema groups", () => {
     expect(fieldLine("evidence_links", "targetType")).toContain('@map("target_type")');
     expect(fieldLine("report_exports", "generatedReportId")).toContain('@map("generated_report_id")');
     expect(fieldLine("report_exports", "status")).toContain("ExportStatus");
+    expect(fieldLine("generated_reports", "contentHashSha256")).toContain('@map("content_hash_sha256")');
     expect(fieldLine("dashboard_widgets", "dashboardSnapshotId")).toContain('@map("dashboard_snapshot_id")');
     expect(fieldLine("dashboard_widgets", "valueJson")).toContain("Json");
   });

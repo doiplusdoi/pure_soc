@@ -746,6 +746,7 @@ const main = async (): Promise<void> => {
         sourceReferences: [{ sourceRecordId: sourceId }]
       },
       evidenceArtifactId,
+      contentHashSha256: "c".repeat(64),
       createdBy: actorUserId,
       createdAt: nowIso
     });
