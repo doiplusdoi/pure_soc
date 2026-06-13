@@ -733,6 +733,7 @@ export class OidcSocialLoginService {
       throw new AuthError("provider_disabled", "OIDC provider is disabled.", 404);
     }
 
+    assertOperationalOidcProviderConfigured(provider);
     return provider;
   }
 
@@ -795,9 +796,7 @@ export const validateOidcProviderConfig = (provider: OidcProviderConfig): void =
   for (const [name, value] of [
     ["issuer", provider.issuer],
     ["authorizationEndpoint", provider.authorizationEndpoint],
-    ["tokenEndpoint", provider.tokenEndpoint],
-    ["clientId", provider.clientId],
-    ["redirectUri", provider.redirectUri]
+    ["tokenEndpoint", provider.tokenEndpoint]
   ] as const) {
     if (!value) {
       throw new OidcConfigurationError(`${provider.providerKey} requires ${name}.`);
@@ -807,7 +806,9 @@ export const validateOidcProviderConfig = (provider: OidcProviderConfig): void =
   assertValidUrl(provider.issuer, `${provider.providerKey} issuer`);
   assertValidUrl(provider.authorizationEndpoint, `${provider.providerKey} authorization endpoint`);
   assertValidUrl(provider.tokenEndpoint, `${provider.providerKey} token endpoint`);
-  assertValidUrl(provider.redirectUri, `${provider.providerKey} redirect URI`);
+  if (provider.redirectUri) {
+    assertValidUrl(provider.redirectUri, `${provider.providerKey} redirect URI`);
+  }
 
   if (provider.mode === "oidc") {
     if (!provider.scopes.includes("openid")) {
@@ -833,6 +834,22 @@ export const validateOidcProviderConfig = (provider: OidcProviderConfig): void =
     assertValidUrl(provider.profileEndpoint, `${provider.providerKey} profile endpoint`);
     if (provider.emailEndpoint) {
       assertValidUrl(provider.emailEndpoint, `${provider.providerKey} email endpoint`);
+    }
+  }
+};
+
+export const assertOperationalOidcProviderConfigured = (provider: OidcProviderConfig): void => {
+  for (const [name, value] of [
+    ["clientId", provider.clientId],
+    ["clientSecret", provider.clientSecret],
+    ["redirectUri", provider.redirectUri]
+  ] as const) {
+    if (!value) {
+      throw new AuthError(
+        "provider_not_configured",
+        `${provider.providerKey} sign-in is enabled but missing ${name}.`,
+        503
+      );
     }
   }
 };

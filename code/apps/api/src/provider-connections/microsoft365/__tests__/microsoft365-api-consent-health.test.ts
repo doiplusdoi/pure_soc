@@ -1,11 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import { AuditWriter, InMemoryAuditSink } from "@puresoc/audit";
+import { InMemoryProviderConsentStateStore } from "@puresoc/database";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
   permissionsForMicrosoft365Bundles,
+  type Microsoft365CredentialResolver,
+  type Microsoft365TokenCipher,
   type Microsoft365StoredCredential
 } from "@puresoc/provider-microsoft365";
 import type { MicrosoftGraphHttpClient } from "@puresoc/provider-microsoft365";
@@ -154,5 +157,84 @@ describe("microsoft365 API consent and health service", () => {
     expect(auditSink.findByAction("provider_consent_completed")).toHaveLength(1);
     expect(JSON.stringify(auditSink.records)).not.toContain(accessToken);
     expect(JSON.stringify(auditSink.records)).not.toContain("client-secret");
+  });
+
+  it("completes Microsoft admin consent after a fresh API service instance consumes persisted state", async () => {
+    const store = new InMemoryProviderResourceStore({ now: fixedNow });
+    const consentStates = new InMemoryProviderConsentStateStore({ now: fixedNow });
+    const auditWriter = new AuditWriter({
+      sink: new InMemoryAuditSink(),
+      now: fixedNow
+    });
+    const tokenCipher = createLocalMicrosoft365TokenCipher({ masterKey: "api-test-master-key" });
+    const accessToken = jwt(baselinePermissions);
+    const createConnector = (input: {
+      credentialResolver: Microsoft365CredentialResolver;
+      tokenCipher: Microsoft365TokenCipher;
+    }) =>
+      createMicrosoft365Connector({
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        graphHttpClient,
+        credentialResolver: input.credentialResolver,
+        tokenCipher: input.tokenCipher,
+        tokenClient: async () => ({
+          accessToken,
+          tokenType: "Bearer",
+          expiresIn: 3600,
+          tenantId,
+          grantedPermissions: baselinePermissions
+        }),
+        idFactory: () => "m365_api_connection_persisted",
+        now: fixedNow
+      });
+
+    const beginService = new Microsoft365ProviderConnectionService({
+      store,
+      consentStateStore: consentStates,
+      auditWriter,
+      now: fixedNow,
+      stateFactory: () => "raw_state_that_must_not_be_stored",
+      tokenCipher,
+      createConnector
+    });
+
+    const begin = await beginService.beginConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      requestedPermissionBundles: ["m365_read_baseline"]
+    });
+    expect(JSON.stringify([...consentStates.states.values()])).not.toContain("raw_state_that_must_not_be_stored");
+
+    const callbackService = new Microsoft365ProviderConnectionService({
+      store,
+      consentStateStore: consentStates,
+      auditWriter,
+      now: fixedNow,
+      tokenCipher,
+      createConnector
+    });
+    const completed = await callbackService.completeConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      state: begin.state,
+      tenantId,
+      adminConsent: true,
+      redirectUri: "https://app.example.test/providers/microsoft365/callback"
+    });
+
+    await expect(
+      callbackService.completeConsent({
+        organizationId: "org_1",
+        actorUserId: "user_1",
+        state: begin.state,
+        tenantId,
+        adminConsent: true,
+        redirectUri: "https://app.example.test/providers/microsoft365/callback"
+      })
+    ).rejects.toMatchObject({ code: "invalid_request" });
+    expect(completed.connection.id).toBe("m365_api_connection_persisted");
+    expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_read_baseline")?.enabled).toBe(true);
   });
 });

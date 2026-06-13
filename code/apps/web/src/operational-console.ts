@@ -45,12 +45,14 @@ export interface RenderLoginScreenOptions {
   activeOrganizationId?: string | null;
   errorMessage?: string;
   locale?: string | null;
+  microsoftEntraEnabled?: boolean;
   productName?: string;
 }
 
 export interface RenderRegisterScreenOptions {
   errorMessage?: string;
   locale?: string | null;
+  microsoftEntraEnabled?: boolean;
   productName?: string;
 }
 
@@ -298,6 +300,7 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
       : "",
     renderCommandButton({ label: copy.signIn, ariaLabel: `${copy.signIn} PureSOC`, tone: "primary", type: "submit" }),
     "</form>",
+    normalized.microsoftEntraEnabled === false ? "" : renderMicrosoftEntraSignInForm("Sign in with Microsoft"),
     '<p class="ps-muted">Need a local account? <a class="ps-command" href="/register" data-ui-action="open-register">Register</a></p>',
     "</div>",
     "</section>",
@@ -337,6 +340,7 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     )}</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required><span class="ps-help">Minimum 12 characters for local development accounts.</span></div>`,
     renderCommandButton({ label: "Register", ariaLabel: "Register local PureSOC account", tone: "primary", type: "submit" }),
     "</form>",
+    options.microsoftEntraEnabled === false ? "" : renderMicrosoftEntraSignInForm("Continue with Microsoft"),
     '<p class="ps-muted"><a class="ps-command" href="/login" data-ui-action="back-to-login">Back to sign in</a></p>',
     "</div>",
     "</section>",
@@ -345,6 +349,18 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     "</html>"
   ].join("");
 };
+
+const renderMicrosoftEntraSignInForm = (label: string): string =>
+  [
+    '<form class="ps-form" action="/auth/oidc/microsoft_entra/begin" method="post" data-ui-action="microsoft-entra-signin">',
+    renderCommandButton({
+      label,
+      ariaLabel: `${label} Entra ID`,
+      tone: "secondary",
+      type: "submit"
+    }),
+    "</form>"
+  ].join("");
 
 export const renderEmailVerificationScreen = (options: RenderEmailVerificationScreenOptions = {}): string => {
   const productName = options.productName ?? "PureSOC";

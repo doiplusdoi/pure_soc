@@ -59,6 +59,10 @@ describe("loadConfig", () => {
     expect(config.auth.localEnabled).toBe(true);
     expect(config.auth.requireEmailVerification).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(false);
+    expect(config.auth.socialLogin.providers.microsoft_entra.enabled).toBe(true);
+    expect(config.auth.socialLogin.providers.microsoft_entra.redirectUri).toBe(
+      "http://localhost:3000/auth/oidc/microsoft_entra/callback"
+    );
     expect(config.auth.socialLogin.transientStateEncryptionKey).toBe(
       "local-dev-oidc-transient-state-key-change-me"
     );
@@ -458,6 +462,8 @@ describe("loadConfig", () => {
         "production_origin_protection_required",
         "production_origin_or_referer_required",
         "oidc_transient_state_key_required",
+        "oidc_provider_client_id_required",
+        "oidc_provider_client_secret_required",
         "microsoft365_client_secret_required",
         "provider_token_key_id_required",
         "provider_token_key_required",
@@ -478,6 +484,7 @@ describe("loadConfig", () => {
         PURESOC_PERSISTENCE_MODE: "prisma",
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
+        PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
         PURESOC_BILLING_PROVIDER: "none",
         PURESOC_OBJECT_STORAGE_PROVIDER: "memory",
@@ -714,6 +721,8 @@ describe("loadConfig", () => {
         PURESOC_AUTH_COOKIE_SECURE: "true",
         PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true",
         PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+        PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID: "entra-client-id",
+        PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET: "entra-client-secret",
         MICROSOFT365_CLIENT_ID: "m365-client-id",
         MICROSOFT365_CLIENT_SECRET: "m365-client-secret",
         PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: "prod-oidc-transient-state-key-with-sufficient-entropy",

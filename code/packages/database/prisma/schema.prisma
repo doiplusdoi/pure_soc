@@ -709,6 +709,23 @@ model ProviderConnection {
   @@map("provider_connections")
 }
 
+model ProviderConsentState {
+  id                         String    @id @default(uuid()) @db.Uuid
+  organizationId             String    @map("organization_id") @db.Uuid
+  providerKey                String    @map("provider_key")
+  stateHash                  String    @map("state_hash")
+  actorUserId                String    @map("actor_user_id") @db.Uuid
+  redirectUri                String    @map("redirect_uri")
+  requestedPermissionBundles String[]  @map("requested_permission_bundles")
+  createdAt                  DateTime  @default(now()) @map("created_at")
+  expiresAt                  DateTime  @map("expires_at")
+  consumedAt                 DateTime? @map("consumed_at")
+
+  @@unique([providerKey, stateHash], map: "provider_consent_states_provider_state_key")
+  @@index([organizationId, providerKey, expiresAt, consumedAt], map: "provider_consent_states_org_provider_expiry_idx")
+  @@map("provider_consent_states")
+}
+
 model ProviderCredential {
   id                   String                 @id @default(uuid()) @db.Uuid
   organizationId       String                 @map("organization_id") @db.Uuid

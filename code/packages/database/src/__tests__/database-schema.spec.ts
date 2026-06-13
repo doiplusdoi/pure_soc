@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(80);
+    expect(requiredTables).toHaveLength(81);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -157,5 +157,16 @@ describe("database schema groups", () => {
     expect(model).toContain("codeVerifierEnvelope");
     expect(model).not.toContain("codeVerifier String");
     expect(model).not.toContain('@map("organization_id")');
+  });
+
+  it("models provider consent callback state without plaintext state storage", () => {
+    const model = modelBlocks.get("provider_consent_states");
+
+    expect(model).toContain('@map("organization_id")');
+    expect(model).toContain("stateHash");
+    expect(model).toContain("requestedPermissionBundles");
+    expect(model).toContain("consumedAt");
+    expect(model).not.toContain("state String");
+    expect(model).toContain('@@unique([providerKey, stateHash]');
   });
 });

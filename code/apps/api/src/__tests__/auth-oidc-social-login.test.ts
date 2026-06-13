@@ -77,18 +77,21 @@ const makeTestConfig = (): PureSocConfig => {
             ...config.auth.socialLogin.providers.microsoft_entra,
             enabled: true,
             clientId: "microsoft-client-id",
+            clientSecret: "microsoft-client-secret",
             redirectUri: "http://127.0.0.1/auth/oidc/microsoft_entra/callback"
           },
           google: {
             ...config.auth.socialLogin.providers.google,
             enabled: true,
             clientId: "google-client-id",
+            clientSecret: "google-client-secret",
             redirectUri: "http://127.0.0.1/auth/oidc/google/callback"
           },
           github: {
             ...config.auth.socialLogin.providers.github,
             enabled: true,
             clientId: "github-client-id",
+            clientSecret: "github-client-secret",
             redirectUri: "http://127.0.0.1/auth/oidc/github/callback"
           }
         }
@@ -395,5 +398,42 @@ describe("auth oidc social-login callbacks", () => {
     expect(serializedAudit).not.toContain("super-secret-oauth-code");
     expect(serializedAudit).not.toContain("secret-access-token");
     expect(serializedAudit).not.toContain("secret-refresh-token");
+  });
+});
+
+describe("default Microsoft Entra social-login availability", () => {
+  it("keeps API startup healthy and returns a not-configured error until Entra app credentials are supplied", async () => {
+    const defaultServices = createApiServices({
+      now: () => now,
+      config: loadConfig({
+        env: {
+          PURESOC_PERSISTENCE_MODE: "memory"
+        }
+      })
+    });
+    const defaultServer = startApiServer(0, defaultServices);
+    const address = defaultServer.address() as AddressInfo;
+    const defaultBaseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const response = await fetch(`${defaultBaseUrl}/auth/oidc/microsoft_entra/begin`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json"
+        },
+        body: "{}"
+      });
+
+      expect(response.status).toBe(503);
+      await expect(readJson<{ error: { code: string } }>(response)).resolves.toMatchObject({
+        error: {
+          code: "provider_not_configured"
+        }
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        defaultServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 });

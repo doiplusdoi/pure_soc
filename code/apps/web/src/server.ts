@@ -16,12 +16,12 @@ import {
   type WorkspaceSelectionModel
 } from "./app-data";
 import {
-  renderLoginScreen,
+  renderLoginScreen as renderBaseLoginScreen,
   renderMicrosoft365ConnectorPage,
   renderEmailVerificationScreen,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
-  renderRegisterScreen,
+  renderRegisterScreen as renderBaseRegisterScreen,
   renderRomaniaOnboardingRoute,
   renderRuntimeMessageScreen,
   renderWorkspaceSelectionScreen,
@@ -113,6 +113,15 @@ interface Microsoft365ConsentBeginWebResponse {
   };
 }
 
+interface OidcBeginWebResponse {
+  redirectUrl?: string;
+  providerKey?: string;
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
 interface Microsoft365HealthWebResponse {
   connection: {
     id: string;
@@ -177,6 +186,19 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.API_BASE_URL ??
       "http://127.0.0.1:3001"
   );
+  const microsoftEntraSignInEnabled = process.env.PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED !== "false";
+  const renderLoginScreen = (screenOptions: Parameters<typeof renderBaseLoginScreen>[0] = {}) =>
+    typeof screenOptions === "string"
+      ? renderBaseLoginScreen(screenOptions)
+      : renderBaseLoginScreen({
+          ...screenOptions,
+          microsoftEntraEnabled: microsoftEntraSignInEnabled
+        });
+  const renderRegisterScreen = (screenOptions: Parameters<typeof renderBaseRegisterScreen>[0] = {}) =>
+    renderBaseRegisterScreen({
+      ...screenOptions,
+      microsoftEntraEnabled: microsoftEntraSignInEnabled
+    });
 
   const server = createServer(async (request, response) => {
     try {
@@ -350,6 +372,86 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+
+    if (request.method === "POST" && url.pathname === "/auth/oidc/microsoft_entra/begin") {
+      const begin = await apiJson<OidcBeginWebResponse>(apiBaseUrl, "/auth/oidc/microsoft_entra/begin", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {}
+      });
+
+      if (begin.statusCode !== 200 || !begin.body.redirectUrl) {
+        const errorCode = begin.body.error?.code;
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage:
+              errorCode === "provider_not_configured"
+                ? "Microsoft sign-in is enabled but the Entra app client ID, client secret, or redirect URI is not configured yet."
+                : "Microsoft sign-in could not start. Use local sign-in or check the Entra app configuration."
+          }),
+          begin.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader("location", begin.body.redirectUrl);
+      response.end();
+      return;
+    }
+
+    if (
+      (request.method === "GET" || request.method === "POST") &&
+      url.pathname === "/auth/oidc/microsoft_entra/callback"
+    ) {
+      const callbackInput =
+        request.method === "GET"
+          ? Object.fromEntries(url.searchParams.entries())
+          : Object.fromEntries((await readFormBody(request)).entries());
+
+      if (typeof callbackInput.error === "string") {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Microsoft sign-in was not completed."
+          }),
+          401
+        );
+        return;
+      }
+
+      const completed = await apiJson<OidcBeginWebResponse>(apiBaseUrl, "/auth/oidc/microsoft_entra/callback", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: callbackInput
+      });
+
+      if (completed.statusCode !== 200) {
+        const errorCode = completed.body.error?.code;
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage:
+              errorCode === "account_link_required"
+                ? "A PureSOC account already uses that Microsoft email. Sign in locally first, then approve account linking."
+                : "Microsoft sign-in could not complete. Use local sign-in or retry from Microsoft."
+          }),
+          completed.statusCode
+        );
+        return;
+      }
+
+      if (completed.setCookie) {
+        response.setHeader("set-cookie", completed.setCookie);
+      }
+      response.statusCode = 303;
+      response.setHeader("location", "/workspaces");
+      response.end();
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/providers/microsoft365/connect") {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {

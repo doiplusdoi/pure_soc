@@ -105,6 +105,7 @@ export type AuthErrorCode =
   | "session_invalid"
   | "forbidden"
   | "provider_disabled"
+  | "provider_not_configured"
   | "oidc_callback_invalid"
   | "account_link_required"
   | "account_link_rejected";

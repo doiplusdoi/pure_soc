@@ -993,6 +993,38 @@ export const collectStartupConfigIssues = (
     });
   }
 
+  if (isProduction) {
+    for (const [providerKey, provider] of Object.entries(config.auth.socialLogin.providers)) {
+      if (!provider.enabled) {
+        continue;
+      }
+
+      if (!nonEmpty(provider.clientId)) {
+        issues.push({
+          code: "oidc_provider_client_id_required",
+          path: `auth.socialLogin.providers.${providerKey}.clientId`,
+          message: `Production OIDC/social login for ${providerKey} requires its client ID.`
+        });
+      }
+
+      if (!nonEmpty(provider.clientSecret)) {
+        issues.push({
+          code: "oidc_provider_client_secret_required",
+          path: `auth.socialLogin.providers.${providerKey}.clientSecret`,
+          message: `Production OIDC/social login for ${providerKey} requires its client secret.`
+        });
+      }
+
+      if (!nonEmpty(provider.redirectUri)) {
+        issues.push({
+          code: "oidc_provider_redirect_uri_required",
+          path: `auth.socialLogin.providers.${providerKey}.redirectUri`,
+          message: `Production OIDC/social login for ${providerKey} requires its redirect URI.`
+        });
+      }
+    }
+  }
+
   if (
     config.audit.externalCheckpoint.provider !== "none" &&
     config.audit.externalCheckpoint.provider !== "fake-local"

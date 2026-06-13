@@ -72,6 +72,13 @@ export {
   type PrismaProviderResourceClient
 } from "./repositories/provider-resources";
 export {
+  InMemoryProviderConsentStateStore,
+  PrismaProviderConsentStateStore,
+  type ProviderConsentStateRecord,
+  type ProviderConsentStateStore,
+  type PrismaProviderConsentStateClient
+} from "./repositories/provider-consent-state";
+export {
   PrismaOidcAuthorizationStateStore,
   type PrismaOidcAuthorizationStateClient,
   type PrismaOidcAuthorizationStateRecord,

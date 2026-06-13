@@ -29,6 +29,7 @@ export const schemaGroups = {
   ],
   connectorConfigurationAndTelemetry: [
     "provider_connections",
+    "provider_consent_states",
     "provider_credentials",
     "provider_permission_bundles",
     "provider_capabilities",
@@ -108,6 +109,7 @@ export const tenantOwnedTables = [
   "ro_nis2_onboarding_progress",
   "customer_documents",
   "provider_connections",
+  "provider_consent_states",
   "provider_credentials",
   "provider_permission_bundles",
   "provider_capabilities",

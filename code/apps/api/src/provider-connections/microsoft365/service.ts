@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import type { LocalAuthAuditWriter } from "@puresoc/auth-local";
 import {
@@ -23,6 +23,11 @@ import {
   type Microsoft365TokenCipher
 } from "@puresoc/provider-microsoft365";
 import { AuthError } from "@puresoc/auth-core";
+import {
+  InMemoryProviderConsentStateStore,
+  type ProviderConsentStateRecord,
+  type ProviderConsentStateStore
+} from "@puresoc/database";
 import { safeConnectionView, type ProviderConnectionView } from "../service";
 
 export interface Microsoft365ConsentBeginInput {
@@ -71,6 +76,7 @@ export interface Microsoft365ProviderConnectionServiceOptions {
   stateFactory?: () => string;
   tokenCipher?: Microsoft365TokenCipher;
   tokenCipherFactory?: () => Microsoft365TokenCipher;
+  consentStateStore?: ProviderConsentStateStore;
   connectorApp?: Microsoft365ConnectorAppConfig;
   createConnector?: (input: {
     credentialResolver: Microsoft365CredentialResolver;
@@ -101,12 +107,12 @@ export class Microsoft365ProviderConnectionService {
   private readonly now: () => Date;
   private readonly stateFactory: () => string;
   private readonly tokenCipherFactory: () => Microsoft365TokenCipher;
+  private readonly consentStateStore: ProviderConsentStateStore;
   private tokenCipher?: Microsoft365TokenCipher;
   private readonly createConnector: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
   }) => CloudProviderConnector;
-  private readonly pendingStates = new Map<string, PendingConsentState>();
 
   constructor(options: Microsoft365ProviderConnectionServiceOptions) {
     this.store = options.store ?? new InMemoryProviderResourceStore({ now: options.now });
@@ -115,6 +121,11 @@ export class Microsoft365ProviderConnectionService {
     this.stateFactory = options.stateFactory ?? randomUUID;
     this.tokenCipher = options.tokenCipher;
     this.tokenCipherFactory = options.tokenCipherFactory ?? defaultTokenCipher;
+    this.consentStateStore =
+      options.consentStateStore ??
+      new InMemoryProviderConsentStateStore({
+        now: this.now
+      });
     const connectorApp = options.connectorApp ?? { clientId: "" };
     this.createConnector =
       options.createConnector ??
@@ -145,12 +156,16 @@ export class Microsoft365ProviderConnectionService {
       requestedPermissionBundles
     });
 
-    this.pendingStates.set(state, {
+    const expiresAt = redirect.expiresAt ?? new Date(this.now().getTime() + 10 * 60_000).toISOString();
+    await this.consentStateStore.saveConsentState({
       organizationId: input.organizationId,
+      providerKey: microsoft365ProviderKey,
+      stateHash: hashConsentState(state),
       actorUserId: input.actorUserId,
       redirectUri: input.redirectUri,
       requestedPermissionBundles,
-      expiresAt: redirect.expiresAt ?? new Date(this.now().getTime() + 10 * 60_000).toISOString()
+      createdAt: this.now().toISOString(),
+      expiresAt
     });
 
     await this.auditWriter.write({
@@ -169,7 +184,7 @@ export class Microsoft365ProviderConnectionService {
     return {
       url: redirect.url,
       state: redirect.state,
-      expiresAt: redirect.expiresAt ?? null,
+      expiresAt,
       requestedPermissionBundles
     };
   }
@@ -180,7 +195,7 @@ export class Microsoft365ProviderConnectionService {
     capabilities: ProviderCapabilityRecord[];
     tenantProfileSync: ProviderPipelineResult;
   }> {
-    const pending = this.consumePendingState(input);
+    const pending = await this.consumePendingState(input);
     const connector = this.microsoftConnector();
     const result = await connector.completeConnection({
       organizationId: input.organizationId,
@@ -367,9 +382,13 @@ export class Microsoft365ProviderConnectionService {
     return this.getTokenCipher().decrypt<Microsoft365StoredCredential>(credential.encryptedPayload);
   };
 
-  private consumePendingState(input: Microsoft365ConsentCallbackInput): PendingConsentState {
-    const pending = this.pendingStates.get(input.state);
-    this.pendingStates.delete(input.state);
+  private async consumePendingState(input: Microsoft365ConsentCallbackInput): Promise<PendingConsentState> {
+    const persisted = await this.consentStateStore.consumeConsentState({
+      providerKey: microsoft365ProviderKey,
+      stateHash: hashConsentState(input.state),
+      consumedAt: this.now().toISOString()
+    });
+    const pending = persisted ? consentStateRecordToPendingState(persisted) : null;
 
     if (!pending) {
       throw new AuthError("invalid_request", "Microsoft 365 consent state is invalid or expired.", 400);
@@ -390,6 +409,16 @@ export class Microsoft365ProviderConnectionService {
     return pending;
   }
 }
+
+const hashConsentState = (state: string): string => createHash("sha256").update(state, "utf8").digest("hex");
+
+const consentStateRecordToPendingState = (record: ProviderConsentStateRecord): PendingConsentState => ({
+  organizationId: record.organizationId,
+  actorUserId: record.actorUserId,
+  redirectUri: record.redirectUri,
+  requestedPermissionBundles: record.requestedPermissionBundles,
+  expiresAt: record.expiresAt
+});
 
 const latestModules = (modules: ProviderSyncModuleRecord[]): ProviderSyncModuleRecord[] => {
   const latest = new Map<string, ProviderSyncModuleRecord>();

@@ -43,6 +43,7 @@ import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import {
   InMemoryNotificationDraftRepository,
   InMemoryOutputRecordRepository,
+  InMemoryProviderConsentStateStore,
   InMemoryRoNis2ReadinessRepository,
   PrismaActionRepository,
   PrismaAuditCheckpointRepository,
@@ -52,6 +53,7 @@ import {
   PrismaNotificationDraftRepository,
   PrismaOutputRecordRepository,
   PrismaOidcAuthorizationStateStore,
+  PrismaProviderConsentStateStore,
   PrismaRoNis2ReadinessRepository,
   PrismaAuditSink,
   PrismaProviderResourceStore,
@@ -60,6 +62,7 @@ import {
   createPrismaClient,
   type NotificationDraftRepository,
   type OutputRecordRepository,
+  type ProviderConsentStateStore,
   type RoNis2ReadinessRepository,
   type PureSocPrismaClient
 } from "@puresoc/database";
@@ -314,6 +317,7 @@ export const createApiServices = (
   const microsoft365ProviderConnections = new Microsoft365ProviderConnectionService({
     store: providerStore,
     auditWriter,
+    consentStateStore: runtimeRepositories.providerConsentStateStore,
     connectorApp: {
       clientId: config.connectors.microsoft365.clientId,
       clientSecret: config.connectors.microsoft365.clientSecret,
@@ -438,6 +442,7 @@ interface RuntimeRepositorySet {
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
   providerResourceStore: InMemoryProviderResourceStore | PrismaProviderResourceStore;
+  providerConsentStateStore: ProviderConsentStateStore;
   oidcAuthorizationStateStore: OidcAuthorizationStateStore;
 }
 
@@ -483,6 +488,7 @@ const createRuntimeRepositories = (input: {
       outputRepository: new InMemoryOutputRecordRepository(),
       identityRepository: input.memoryRepositories.identityRepository,
       providerResourceStore: new InMemoryProviderResourceStore({ now: input.now }),
+      providerConsentStateStore: new InMemoryProviderConsentStateStore({ now: input.now }),
       oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore()
     };
   }
@@ -523,6 +529,7 @@ const createRuntimeRepositories = (input: {
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
     identityRepository,
     providerResourceStore: new PrismaProviderResourceStore(prismaClient as never, { now: input.now }),
+    providerConsentStateStore: new PrismaProviderConsentStateStore(prismaClient as never, { now: input.now }),
     oidcAuthorizationStateStore: new PrismaOidcAuthorizationStateStore(prismaClient as never, {
       codeVerifierEncryptionKey: input.config.auth.socialLogin.transientStateEncryptionKey
     })

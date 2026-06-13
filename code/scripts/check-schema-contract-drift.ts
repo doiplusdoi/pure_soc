@@ -151,6 +151,27 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "ProviderConsentStateRecord",
+    modelName: "ProviderConsentState",
+    tableName: "provider_consent_states",
+    modelAttributes: [
+      '@@unique([providerKey, stateHash], map: "provider_consent_states_provider_state_key")',
+      '@@index([organizationId, providerKey, expiresAt, consumedAt], map: "provider_consent_states_org_provider_expiry_idx")'
+    ],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("providerKey", "String", "provider_key"),
+      s("stateHash", "String", "state_hash"),
+      s("actorUserId", "String", "actor_user_id"),
+      s("redirectUri", "String", "redirect_uri"),
+      s("requestedPermissionBundles", "String", "requested_permission_bundles", { isList: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("expiresAt", "DateTime", "expires_at"),
+      s("consumedAt", "DateTime", "consumed_at", { isOptional: true })
+    ]
+  },
+  {
     contractName: "OrganizationInvitationRecord",
     modelName: "OrganizationInvitation",
     tableName: "organization_invitations",

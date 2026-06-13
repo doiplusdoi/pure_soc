@@ -93,7 +93,13 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain('<label for="password">Password</label>');
     expect(login).toContain('autocomplete="current-password"');
     expect(login).toContain('type="submit"');
+    expect(login).toContain('action="/auth/oidc/microsoft_entra/begin"');
+    expect(login).toContain('data-ui-action="microsoft-entra-signin"');
+    expect(login).toContain("Sign in with Microsoft");
     expect(renderRegisterScreen()).toContain('minlength="12"');
+    expect(renderRegisterScreen()).toContain("Continue with Microsoft");
+    expect(renderLoginScreen({ microsoftEntraEnabled: false })).not.toContain("Sign in with Microsoft");
+    expect(renderRegisterScreen({ microsoftEntraEnabled: false })).not.toContain("Continue with Microsoft");
 
     const buttonLabels = [...html.matchAll(/<button[^>]*>\s*(?:<span[^>]*>[^<]*<\/span>)?<span>([^<]+)<\/span>/g)].map(
       (match) => match[1] ?? ""
@@ -466,8 +472,10 @@ describe("web dashboard reports operational UI", () => {
     expect(login).toContain("Sesiune API");
     expect(login).toContain('<label for="password">Parola</label>');
     expect(login).toContain('href="/register"');
+    expect(login).toContain('action="/auth/oidc/microsoft_entra/begin"');
     expect(register).toContain('data-ui-smoke="register-screen"');
     expect(register).toContain('action="/auth/register"');
+    expect(register).toContain('action="/auth/oidc/microsoft_entra/begin"');
     expect(register).toContain("continue to workspace setup");
     expect(register).toContain('minlength="12"');
     expect(verification).toContain('data-ui-smoke="email-verification-screen"');

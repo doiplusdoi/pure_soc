@@ -1,6 +1,6 @@
 # PureSOC Deployment Guide
 
-Status: deployment guide for the current repository state as of 2026-06-12.
+Status: deployment guide for the current repository state as of 2026-06-13.
 Scope: local development, in-a-box deployments, and SaaS-like deployment preparation.
 
 PureSOC is Docker-first, TypeScript-first, provider-neutral, and Romania-first for V1. The current runtime is intentionally lighter than the original target stack: `apps/api` and `apps/web` use `node:http`, jobs use the local `@puresoc/jobs` adapter, and the browser smoke path uses deterministic HTTP snapshots plus host Firefox WebDriver BiDi when available. Do not describe the current implementation as NestJS, Next.js, BullMQ-package, or Playwright-backed unless those migrations are actually implemented.
@@ -19,7 +19,7 @@ Provider writes and remediation execution remain disabled. Microsoft 365 is read
 
 ## Minimal Installer Secret Surface
 
-The first-run environment is intentionally small. `code/.env.example` leaves Microsoft 365 app credentials, social login, Stripe, and S3 unset, so another infrastructure installer does not need to ask for their client secrets or access keys during the Romania/local readiness bootstrap.
+The first-run environment is intentionally small. `code/.env.example` leaves Microsoft 365 app credentials, Microsoft Entra sign-in credentials, Stripe, and S3 unset, so another infrastructure installer does not need to ask for connector, OAuth, billing, or storage secrets during local bootstrap. Microsoft Entra user sign-in is enabled by default, but it stays non-operational until the Entra app client ID, client secret, redirect URI, and production OIDC state key are supplied.
 
 For a minimal local or in-a-box path, start with:
 
@@ -35,8 +35,9 @@ For durable Prisma mode, the only required first-boot secret-like value is the P
 
 | Feature | Enable when needed | Secrets introduced |
 |---|---|---|
-| Microsoft 365 managed provider | configure `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID` and client secret | PureSOC platform app client secret, `PURESOC_PROVIDER_TOKEN_KEY` |
-| Microsoft/Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
+| Microsoft 365 managed provider | configure `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID`, client secret, and redirect URI | PureSOC platform app client secret, provider-token key ID/material |
+| Microsoft Entra user sign-in | enabled by default through `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true` | Entra app client ID/secret, deployed web callback URI, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
+| Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
 | Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
 | S3/MinIO object storage | `PURESOC_OBJECT_STORAGE_PROVIDER=s3` | object-storage access key and secret key |
 | Redis-backed jobs/rate limits | `PURESOC_JOB_QUEUE_PROVIDER=bullmq` or `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` | Redis URL if the Redis service requires credentials |
@@ -101,7 +102,7 @@ cd code
 cp .env.example .env
 ```
 
-The template omits optional integration secrets by default. Do not add Microsoft, social-login, Stripe, S3, or Redis credentials unless that feature is intentionally enabled.
+The template omits optional integration secrets by default. Add Microsoft Entra sign-in credentials when the deployed app should offer Microsoft login; otherwise explicitly set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false` for an internal/local-only account model. Do not add Microsoft 365 connector, Google/GitHub, Stripe, S3, or Redis credentials unless that feature is intentionally enabled.
 
 3. Choose persistence:
 
@@ -193,7 +194,7 @@ If the deployment is Romania/local readiness only, leave optional integration cr
 PURESOC_BILLING_PROVIDER=none
 ```
 
-With those integration credentials unset and no social-login provider enabled, production startup does not require provider-token, OIDC, Stripe, or S3 secrets. Configuring those features re-enables their fail-fast startup checks.
+With Microsoft Entra sign-in enabled, production Prisma startup requires the Entra app client ID, client secret, web callback URI, and `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY`. If the deployment uses local/internal accounts only, set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false`; then production startup does not require OIDC secrets. Configuring Microsoft 365 connector, Google/GitHub login, Stripe, S3, or Redis-backed services re-enables their own fail-fast startup checks.
 
 If a reverse proxy supplies forwarded client IPs, trust them only from explicit proxy IPs:
 
@@ -345,15 +346,25 @@ Do not use `sk_live_*` keys until product, finance, support, tax, refund, and op
 
 Microsoft 365 is a managed provider connection, not a sign-in identity. Keep it separate from Microsoft Entra social login.
 
-The Microsoft 365 connector routes are available by default. Configure the app credentials only when a read-only Microsoft tenant proof or customer onboarding is in scope:
+The Microsoft 365 connector routes are available by default. Configure the app credentials only when a read-only Microsoft tenant proof or customer onboarding is in scope.
+
+For a SaaS or hosted deployment, PureSOC owns one Microsoft Entra app registration per environment, usually one for production and one for staging/test. Register it in the PureSOC-operated tenant as a multitenant app for work or school accounts, add a Web redirect URI that exactly matches the deployed connector callback, and configure Microsoft Graph application permissions for the read-only V1 bundles. Customer tenants do not create their own Azure app registration for the GUI flow; their tenant admin approves the PureSOC platform app from the workspace connector page.
+
+For an in-a-box deployment owned by a single customer, the operator may register the connector app in that customer's tenant instead. The runtime variables are the same, but the app is not a PureSOC SaaS multitenant asset.
+
+Do not use `PURESOC_AUTH_MICROSOFT_ENTRA_*` values for this flow. Those variables control Microsoft as a PureSOC user sign-in provider, not Microsoft 365 Graph connection.
 
 External setup needed:
 
 - disposable/test Microsoft Entra tenant for smoke;
 - PureSOC app registration for Microsoft 365 provider consent;
+- supported account type selected for the deployment model: multitenant for SaaS/customer onboarding, single tenant only for a customer-owned in-a-box app;
+- Web redirect URI exactly matching the deployed `PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI`;
+- Microsoft Graph application permissions matching the read-only V1 bundles;
 - client ID and client secret;
 - each customer workspace connects its own Microsoft tenant through the provider-connection OAuth/admin-consent flow;
 - admin consent for read-only permission bundles only during first onboarding;
+- provider-token key material for encrypted tenant credential envelopes;
 - known license/service-plan expectations for Intune, Defender XDR, and Secure Score;
 - no customer production data;
 - no Graph write permissions.
@@ -361,14 +372,27 @@ External setup needed:
 Environment:
 
 ```sh
-PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=...
-PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=...
+PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=<entra-application-client-id>
+PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=<entra-client-secret-value>
 PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST=https://login.microsoftonline.com
-PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI=https://app.example.test/providers/microsoft365/callback
-PURESOC_MICROSOFT365_SMOKE_TENANT_ID=...
+PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI=https://app.example.com/providers/microsoft365/callback
+PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED=false
 PURESOC_PROVIDER_TOKEN_KEY_PROVIDER=local-env-key-ring
-PURESOC_PROVIDER_TOKEN_KEY_ID=...
-PURESOC_PROVIDER_TOKEN_KEY=...
+PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND=in_a_box
+PURESOC_PROVIDER_TOKEN_KEY_ID=<active-provider-token-key-id>
+PURESOC_PROVIDER_TOKEN_KEY=<strong-provider-token-key-material>
+PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS=
+PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED=false
+PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED=false
+PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED=false
+```
+
+`PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND=in_a_box` is the supported profile for deployments that inject `local-env-key-ring` material through an operator-controlled secret source. Use `local` only for development/disposable smoke. `saas` currently reports external custody as deferred until a real KMS/HSM/secret-manager adapter exists.
+
+`PURESOC_MICROSOFT365_SMOKE_TENANT_ID` is not a customer onboarding variable. Set it only for an approved disposable/test smoke tenant:
+
+```sh
+PURESOC_MICROSOFT365_SMOKE_TENANT_ID=<disposable-test-tenant-id>
 ```
 
 Read-only V1 bundles are documented in `docs/microsoft365-permissions.md`:
@@ -392,12 +416,14 @@ The smoke must not print client secrets, access tokens, tenant IDs, raw tenant p
 
 ### Microsoft Entra, Google, And GitHub Login
 
-Social login is optional and separate from managed provider consent. Local email/password auth is enabled by default.
+Social login is separate from managed provider consent. Local email/password auth remains available, and Microsoft Entra user sign-in is enabled by default.
+
+Set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false` only for deployments where PureSOC users authenticate exclusively with local/internal accounts and connect Microsoft 365 Graph from inside the app.
 
 Shared requirements:
 
 - provider app registration;
-- callback/redirect URI for the deployed API;
+- callback/redirect URI for the deployed callback endpoint; Microsoft Entra browser sign-in uses the web callback, while the current Google/GitHub contract examples use API callbacks;
 - client ID and secret;
 - issuer/JWKS/profile endpoints as needed by the provider;
 - strong `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` when any social-login provider is enabled in production Prisma mode;
@@ -411,7 +437,7 @@ PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY=replace-with-strong-secret
 PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true
 PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID=...
 PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET=...
-PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI=https://api.example.com/auth/oidc/microsoft_entra/callback
+PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI=https://app.example.com/auth/oidc/microsoft_entra/callback
 
 PURESOC_AUTH_GOOGLE_ENABLED=true
 PURESOC_AUTH_GOOGLE_CLIENT_ID=...

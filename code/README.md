@@ -92,6 +92,8 @@ Implemented web paths:
 - `GET /verify-email`: renders the local email verification form when verification is enabled. Local development can opt into a file-backed delivery sink with `PURESOC_AUTH_DEV_EMAIL_DELIVERY_FILE=/tmp/puresoc-email-verification.jsonl`; this is treated as a local mailbox, not an API/web/audit response surface.
 - `POST /auth/email/verify`: forwards the submitted token to API `/auth/email/verify`; tokens remain omitted from registration responses, web HTML, and audit records.
 - `GET /login`: renders the local email/password sign-in form.
+- `POST /auth/oidc/microsoft_entra/begin`: starts the Microsoft Entra user sign-in flow through API `/auth/oidc/microsoft_entra/begin` and redirects the browser to the provider authorization URL when the Entra app is configured.
+- `GET|POST /auth/oidc/microsoft_entra/callback`: completes Microsoft Entra user sign-in through API `/auth/oidc/microsoft_entra/callback`, preserves the API-issued `puresoc_session` cookie, and redirects to `/workspaces`. In Prisma mode, OIDC-created users, account links, transient state, and sessions are persisted through the same identity repositories as local auth.
 - `POST /auth/login`: forwards form credentials to API `/auth/login`, preserves the API-issued `puresoc_session` cookie, and redirects to `/`.
 - `POST /auth/logout`: forwards to API `/auth/logout`, preserves the cleared cookie, and redirects to `/login`.
 - `GET /auth/session`: proxies API `/auth/session` for same-origin browser checks.
