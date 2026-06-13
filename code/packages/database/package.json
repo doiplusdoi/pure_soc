@@ -17,6 +17,7 @@
     "@puresoc/billing-core": "workspace:*",
     "@puresoc/compliance-core": "workspace:*",
     "@puresoc/evidence": "workspace:*",
+    "@puresoc/notifications": "workspace:*",
     "@puresoc/providers-core": "workspace:*",
     "@puresoc/regulatory-sources": "workspace:*",
     "@puresoc/recommendations": "workspace:*",

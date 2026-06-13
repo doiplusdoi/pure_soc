@@ -8,7 +8,9 @@
   },
   "dependencies": {
     "@puresoc/config": "workspace:*",
+    "@puresoc/database": "workspace:*",
     "@puresoc/jobs": "workspace:*",
+    "@puresoc/notifications": "workspace:*",
     "@puresoc/regulatory-sources": "workspace:*"
   }
 }

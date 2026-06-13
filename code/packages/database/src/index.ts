@@ -36,6 +36,11 @@ export {
   type PrismaNotificationDraftClient
 } from "./repositories/notification-drafts";
 export {
+  InMemoryNotificationRepository,
+  PrismaNotificationRepository,
+  type PrismaNotificationClient
+} from "./repositories/notifications";
+export {
   InMemoryOutputRecordRepository,
   PrismaOutputRecordRepository,
   type OutputRecordRepository,

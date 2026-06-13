@@ -53,6 +53,7 @@ for (const file of [
   "config/defaults/connectors.json",
   "config/defaults/compliance.json",
   "config/defaults/reports.json",
+  "config/defaults/notifications.json",
   "config/defaults/audit.json",
   "config/defaults/storage.json",
   "config/defaults/billing.json",

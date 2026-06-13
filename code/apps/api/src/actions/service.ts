@@ -1,4 +1,5 @@
 import type { AuditWriter } from "@puresoc/audit";
+import type { NotificationService } from "@puresoc/notifications";
 import {
   RemediationActionLifecycle,
   type ActionPreflightResult,
@@ -21,10 +22,12 @@ export interface ActionAuditInput {
 export class ActionApiService {
   private readonly lifecycle: RemediationActionLifecycle;
   private readonly auditWriter: AuditWriter;
+  private readonly notifications?: Pick<NotificationService, "send">;
 
   constructor(options: {
     repository: RemediationActionRepository;
     auditWriter: AuditWriter;
+    notifications?: Pick<NotificationService, "send">;
     now?: () => Date;
   }) {
     this.lifecycle = new RemediationActionLifecycle({
@@ -32,6 +35,7 @@ export class ActionApiService {
       now: options.now
     });
     this.auditWriter = options.auditWriter;
+    this.notifications = options.notifications;
   }
 
   createTemplate(input: Parameters<RemediationActionLifecycle["createTemplate"]>[0]): Promise<ActionTemplate> {
@@ -187,6 +191,15 @@ export class ActionApiService {
         evidenceArtifactIds: run.verificationResult?.evidenceArtifactIds
       }
     });
+    if (run.status === "verified") {
+      await this.notifications?.send(run.organizationId, "REMEDIATION_ACTION_COMPLETED", {
+        actionRunId: run.id,
+        title: run.title,
+        controlId: run.controlId,
+        verifiedAt: run.verificationResult?.verifiedAt,
+        verifiedBy: run.verificationResult?.verifiedBy
+      });
+    }
     return run;
   }
 

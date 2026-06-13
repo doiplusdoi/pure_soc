@@ -12,6 +12,7 @@ import {
   type ProviderResourceStore,
   type ProviderSyncModuleRecord
 } from "@puresoc/providers-core";
+import type { ProviderFinding } from "@puresoc/providers-core";
 import {
   createMicrosoft365TokenCipherFromEnv,
   createMicrosoft365Connector,
@@ -29,6 +30,7 @@ import {
   type ProviderConsentStateStore
 } from "@puresoc/database";
 import { safeConnectionView, type ProviderConnectionView } from "../service";
+import type { NotificationService } from "@puresoc/notifications";
 
 export interface Microsoft365ConsentBeginInput {
   organizationId: string;
@@ -78,6 +80,7 @@ export interface Microsoft365ProviderConnectionServiceOptions {
   tokenCipherFactory?: () => Microsoft365TokenCipher;
   consentStateStore?: ProviderConsentStateStore;
   connectorApp?: Microsoft365ConnectorAppConfig;
+  notifications?: Pick<NotificationService, "send">;
   createConnector?: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
@@ -108,6 +111,7 @@ export class Microsoft365ProviderConnectionService {
   private readonly stateFactory: () => string;
   private readonly tokenCipherFactory: () => Microsoft365TokenCipher;
   private readonly consentStateStore: ProviderConsentStateStore;
+  private readonly notifications?: Pick<NotificationService, "send">;
   private tokenCipher?: Microsoft365TokenCipher;
   private readonly createConnector: (input: {
     credentialResolver: Microsoft365CredentialResolver;
@@ -126,6 +130,7 @@ export class Microsoft365ProviderConnectionService {
       new InMemoryProviderConsentStateStore({
         now: this.now
       });
+    this.notifications = options.notifications;
     const connectorApp = options.connectorApp ?? { clientId: "" };
     this.createConnector =
       options.createConnector ??
@@ -340,6 +345,7 @@ export class Microsoft365ProviderConnectionService {
         summary: result.syncRun.summary
       }
     });
+    await this.notifyNewOpenFindings(input.organizationId, result.findings);
 
     return result;
   }
@@ -358,6 +364,23 @@ export class Microsoft365ProviderConnectionService {
       capabilities,
       moduleStatuses
     };
+  }
+
+  private async notifyNewOpenFindings(organizationId: string, findings: ProviderFinding[]): Promise<void> {
+    if (!this.notifications) {
+      return;
+    }
+
+    for (const finding of findings.filter((candidate) => candidate.status === "open" && candidate.firstSeenAt === candidate.lastSeenAt)) {
+      await this.notifications.send(organizationId, "M365_DRIFT_DETECTED", {
+        providerConnectionId: finding.providerConnectionId,
+        findingId: finding.id,
+        findingKey: finding.findingKey,
+        findingTitle: finding.title,
+        moduleKey: finding.moduleKey,
+        severity: finding.severity
+      });
+    }
   }
 
   private microsoftConnector(): CloudProviderConnector {

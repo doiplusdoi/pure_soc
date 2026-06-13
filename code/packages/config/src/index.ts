@@ -100,6 +100,25 @@ export interface PureSocConfig {
       maxBundleBytes: number;
     };
   };
+  notifications: {
+    smtp: {
+      enabled: boolean;
+      host: string;
+      port: number;
+      secure: boolean;
+      startTls: boolean;
+      username: string;
+      password: string;
+      from: string;
+      timeoutMs: number;
+    };
+    webhooks: {
+      timeoutMs: number;
+    };
+    scheduler: {
+      deadlineScanIntervalMs: number;
+    };
+  };
   audit: {
     retention: {
       policyKey: string;
@@ -307,6 +326,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
     connectors: readJson<PureSocConfig["connectors"]>(defaultsDir, "connectors"),
     compliance: readJson<PureSocConfig["compliance"]>(defaultsDir, "compliance"),
     reports: readJson<PureSocConfig["reports"]>(defaultsDir, "reports"),
+    notifications: readJson<PureSocConfig["notifications"]>(defaultsDir, "notifications"),
     audit: readJson<PureSocConfig["audit"]>(defaultsDir, "audit"),
     storage: readJson<PureSocConfig["storage"]>(defaultsDir, "storage"),
     billing: readJson<PureSocConfig["billing"]>(defaultsDir, "billing"),
@@ -542,6 +562,38 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
         maxBundleBytes: readPositiveInteger(
           env.PURESOC_REPORT_EVIDENCE_PACKAGE_MAX_BUNDLE_BYTES,
           config.reports.evidencePackage.maxBundleBytes
+        )
+      }
+    },
+    notifications: {
+      ...config.notifications,
+      smtp: {
+        ...config.notifications.smtp,
+        enabled: readBoolean(env.PURESOC_NOTIFICATIONS_SMTP_ENABLED, config.notifications.smtp.enabled),
+        host: env.PURESOC_NOTIFICATIONS_SMTP_HOST ?? config.notifications.smtp.host,
+        port: readPositiveInteger(env.PURESOC_NOTIFICATIONS_SMTP_PORT, config.notifications.smtp.port),
+        secure: readBoolean(env.PURESOC_NOTIFICATIONS_SMTP_SECURE, config.notifications.smtp.secure),
+        startTls: readBoolean(env.PURESOC_NOTIFICATIONS_SMTP_STARTTLS, config.notifications.smtp.startTls),
+        username: env.PURESOC_NOTIFICATIONS_SMTP_USERNAME ?? config.notifications.smtp.username,
+        password: env.PURESOC_NOTIFICATIONS_SMTP_PASSWORD ?? config.notifications.smtp.password,
+        from: env.PURESOC_NOTIFICATIONS_SMTP_FROM ?? config.notifications.smtp.from,
+        timeoutMs: readPositiveInteger(
+          env.PURESOC_NOTIFICATIONS_SMTP_TIMEOUT_MS,
+          config.notifications.smtp.timeoutMs
+        )
+      },
+      webhooks: {
+        ...config.notifications.webhooks,
+        timeoutMs: readPositiveInteger(
+          env.PURESOC_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS,
+          config.notifications.webhooks.timeoutMs
+        )
+      },
+      scheduler: {
+        ...config.notifications.scheduler,
+        deadlineScanIntervalMs: readPositiveInteger(
+          env.PURESOC_NOTIFICATIONS_DEADLINE_SCAN_INTERVAL_MS,
+          config.notifications.scheduler.deadlineScanIntervalMs
         )
       }
     },
@@ -842,6 +894,24 @@ export const collectStartupConfigIssues = (
       path: "storage.uploadScanner.endpoint",
       message: "HTTP upload scanning requires PURESOC_UPLOAD_SCANNER_ENDPOINT."
     });
+  }
+
+  if (config.notifications.smtp.enabled) {
+    if (!nonEmpty(config.notifications.smtp.host)) {
+      issues.push({
+        code: "notification_smtp_host_required",
+        path: "notifications.smtp.host",
+        message: "SMTP notification delivery requires PURESOC_NOTIFICATIONS_SMTP_HOST."
+      });
+    }
+
+    if (!nonEmpty(config.notifications.smtp.from)) {
+      issues.push({
+        code: "notification_smtp_from_required",
+        path: "notifications.smtp.from",
+        message: "SMTP notification delivery requires PURESOC_NOTIFICATIONS_SMTP_FROM."
+      });
+    }
   }
 
   if (isProduction && config.storage.uploadScanner.mode === "noop" && !config.storage.uploadScanner.allowNoopInProduction) {

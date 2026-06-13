@@ -91,8 +91,15 @@ import {
   listAuditCheckpointsRoute,
   recordAuditCheckpointRoute
 } from "./audit/routes";
+import {
+  createNotificationChannelRoute,
+  deleteNotificationChannelRoute,
+  listNotificationChannelsRoute,
+  listNotificationLogsRoute,
+  sendNotificationChannelTestRoute
+} from "./notifications/routes";
 
-type ApiRouteMethod = "GET" | "POST" | "PUT";
+type ApiRouteMethod = "DELETE" | "GET" | "POST" | "PUT";
 
 interface ApiRouteDispatchInput {
   request: IncomingMessage;
@@ -209,6 +216,16 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     getLatestDashboardSnapshotRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
   route("GET", /^\/organizations\/([^/]+)\/billing\/entitlements$/, "billing", ({ params, request, services }) =>
     listBillingEntitlementsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/notification-channels$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationChannelsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/notification-channels$/, "organization", ({ params, body, request, context, services }) =>
+    createNotificationChannelRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("DELETE", /^\/organizations\/([^/]+)\/notification-channels\/([^/]+)$/, "organization", ({ params, request, context, services }) =>
+    deleteNotificationChannelRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/notification-channels\/([^/]+)\/test$/, "organization", ({ params, request, context, services }) =>
+    sendNotificationChannelTestRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/notification-logs$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationLogsRoute(params[0] ?? "", request.headers.cookie, services)),
   route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/checkout$/, "billing", ({ params, body, request, context, services }) =>
     createBillingCheckoutSessionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/portal$/, "billing", ({ params, body, request, context, services }) =>

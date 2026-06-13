@@ -9,6 +9,7 @@ import {
   createRomaniaOnboardingRouteModel,
   type Microsoft365HealthSurface,
   type Microsoft365ModuleSurface,
+  type NotificationSettingsScreenModel,
   type OrganizationInvitationScreenModel,
   type OperationalStatus,
   type RomaniaOnboardingRouteInput,
@@ -18,6 +19,7 @@ import {
 import {
   renderLoginScreen as renderBaseLoginScreen,
   renderMicrosoft365ConnectorPage,
+  renderNotificationSettingsScreen,
   renderEmailVerificationScreen,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
@@ -178,6 +180,14 @@ interface AuditCheckpointsResponse {
   checkpoints: unknown[];
 }
 
+interface NotificationChannelsResponse {
+  channels: NotificationSettingsScreenModel["channels"];
+}
+
+interface NotificationLogsResponse {
+  logs: NotificationSettingsScreenModel["logs"];
+}
+
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
   const apiBaseUrl = normalizeBaseUrl(
     options.apiBaseUrl ??
@@ -256,6 +266,27 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       }
 
       sendHtml(response, renderOrganizationInvitationsScreen(invitationModel));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/settings/notifications") {
+      const settingsModel = await loadNotificationSettingsScreenModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie
+      });
+
+      if (!settingsModel) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to manage notification settings."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderNotificationSettingsScreen(settingsModel));
       return;
     }
 
@@ -372,6 +403,129 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+
+    if (request.method === "POST" && url.pathname === "/settings/notifications/channels") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const form = await readFormBody(request);
+      const created = await apiJson<unknown>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/notification-channels`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {
+            type: form.get("type") ?? "",
+            destination: form.get("destination") ?? ""
+          }
+        }
+      );
+
+      if (created.statusCode !== 201) {
+        const settingsModel = await loadNotificationSettingsScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Notification channel was not created. Check your role and destination format."
+        });
+        sendHtml(
+          response,
+          settingsModel
+            ? renderNotificationSettingsScreen(settingsModel)
+            : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
+          created.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/settings/notifications?message=${encodeURIComponent("Notification channel created.")}`
+      );
+      response.end();
+      return;
+    }
+
+    const notificationChannelAction = /^\/settings\/notifications\/channels\/([^/]+)\/(test|delete)$/.exec(
+      url.pathname
+    );
+    if (request.method === "POST" && notificationChannelAction) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const channelId = notificationChannelAction[1] ?? "";
+      const action = notificationChannelAction[2];
+      const result =
+        action === "test"
+          ? await apiJson<unknown>(
+              apiBaseUrl,
+              `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}/test`,
+              {
+                method: "POST",
+                cookie: request.headers.cookie,
+                origin: requestOrigin,
+                body: {}
+              }
+            )
+          : await apiJson<unknown>(
+              apiBaseUrl,
+              `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}`,
+              {
+                method: "DELETE",
+                cookie: request.headers.cookie,
+                origin: requestOrigin
+              }
+            );
+
+      if (!apiSucceeded(result.statusCode)) {
+        const settingsModel = await loadNotificationSettingsScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage:
+            action === "test"
+              ? "Test notification was not sent. Check channel delivery configuration and recent logs."
+              : "Notification channel was not removed. Check your workspace role."
+        });
+        sendHtml(
+          response,
+          settingsModel
+            ? renderNotificationSettingsScreen(settingsModel)
+            : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
+          result.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/settings/notifications?message=${encodeURIComponent(
+          action === "test" ? "Test notification attempted. Review the delivery log." : "Notification channel removed."
+        )}`
+      );
+      response.end();
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/auth/oidc/microsoft_entra/begin") {
       const begin = await apiJson<OidcBeginWebResponse>(apiBaseUrl, "/auth/oidc/microsoft_entra/begin", {
@@ -1327,6 +1481,74 @@ const loadOrganizationInvitationScreenModel = async (input: {
   };
 };
 
+const loadNotificationSettingsScreenModel = async (input: {
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  errorMessage?: string;
+}): Promise<NotificationSettingsScreenModel | null> => {
+  const selection = await loadWorkspaceSelectionModel({
+    apiBaseUrl: input.apiBaseUrl,
+    cookie: input.cookie
+  });
+  if (!selection) {
+    return null;
+  }
+
+  const activeOrganizationId = selection.session.session.activeOrganizationId ?? null;
+  const activeOrganization =
+    selection.organizations.find((organization) => organization.id === activeOrganizationId) ?? null;
+  const roleKeys = activeOrganization?.roleKeys ?? [];
+  const canManageChannels = roleKeys.includes("owner") || roleKeys.includes("org_admin");
+
+  if (!activeOrganizationId) {
+    return {
+      actionMessage: input.actionMessage ?? undefined,
+      activeOrganization,
+      canManageChannels,
+      channels: [],
+      errorMessage: input.errorMessage,
+      logs: [],
+      roleKeys,
+      session: selection.session
+    };
+  }
+
+  const [channels, logs] = await Promise.all([
+    apiJson<NotificationChannelsResponse>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(activeOrganizationId)}/notification-channels`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    ),
+    apiJson<NotificationLogsResponse>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(activeOrganizationId)}/notification-logs`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    )
+  ]);
+
+  return {
+    actionMessage: input.actionMessage ?? undefined,
+    activeOrganization,
+    canManageChannels,
+    channels: channels.statusCode === 200 ? channels.body.channels : [],
+    errorMessage:
+      input.errorMessage ??
+      (channels.statusCode === 200 && logs.statusCode === 200
+        ? undefined
+        : "Notification settings could not load all API data for this workspace."),
+    logs: logs.statusCode === 200 ? logs.body.logs : [],
+    roleKeys,
+    session: selection.session
+  };
+};
+
 const resolveActiveOrganizationSurface = async (
   apiBaseUrl: string,
   cookie: string | undefined,
@@ -1990,7 +2212,7 @@ const apiJson = async <T>(
   apiBaseUrl: string,
   path: string,
   input: {
-    method: "GET" | "POST" | "PUT";
+    method: "DELETE" | "GET" | "POST" | "PUT";
     body?: Record<string, unknown>;
     cookie?: string;
     origin?: string;

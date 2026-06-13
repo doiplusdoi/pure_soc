@@ -24,6 +24,7 @@ import type {
   CountryPackSurface,
   GapSurface,
   Microsoft365ModuleSurface,
+  NotificationSettingsScreenModel,
   OnboardingSurface,
   OrganizationInvitationScreenModel,
   OperationalConsoleModel,
@@ -90,6 +91,11 @@ export interface RenderWorkspaceSelectionOptions {
 }
 
 export interface RenderOrganizationInvitationsOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
+}
+
+export interface RenderNotificationSettingsOptions {
   includeDocumentShell?: boolean;
   locale?: string | null;
 }
@@ -585,6 +591,56 @@ export const renderOrganizationInvitationsScreen = (
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
     "<title>Organization invitations | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+export const renderNotificationSettingsScreen = (
+  model: NotificationSettingsScreenModel,
+  options: RenderNotificationSettingsOptions = {}
+): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="notification-settings">',
+    '<section class="ps-section" aria-labelledby="notification-settings-title">',
+    '<div class="ps-section__header">',
+    '<div><h1 class="ps-section__title" id="notification-settings-title">Notification settings</h1><p class="ps-muted">Organization-scoped channels for critical gaps, Microsoft 365 drift, deadline windows, evidence expiry, checklist overdue, and verified remediation events.</p></div>',
+    renderStatusPill({
+      label: model.canManageChannels ? "owner or admin" : "read only",
+      tone: model.canManageChannels ? "success" : "warning"
+    }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-grid">',
+    renderNotificationChannelCreatePanel(model),
+    renderNotificationChannelListPanel(model),
+    "</div>",
+    renderNotificationLogPanel(model),
+    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Notification settings | PureSOC</title>",
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
@@ -1949,6 +2005,7 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     '<div class="ps-topbar__actions">',
     '<label class="ps-topbar__search"><span aria-hidden="true">Search</span><input type="search" placeholder="Search evidence..." aria-label="Search evidence and controls"></label>',
     renderStatusPill({ label: `Readiness: ${model.dashboard.readinessScores.overallInternalReadiness}%`, tone: "success" }),
+    '<a class="ps-command" href="/settings/notifications" data-ui-action="open-notification-settings">Notifications</a>',
     '<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>',
     '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
     "</div>",
@@ -1991,6 +2048,147 @@ const renderInvitationCreatePanel = (model: OrganizationInvitationScreenModel, c
     "</form>",
     "</article>"
   ].join("");
+};
+
+const renderNotificationChannelCreatePanel = (model: NotificationSettingsScreenModel): string => {
+  const canCreate = model.canManageChannels && Boolean(model.activeOrganization);
+
+  return [
+    '<article class="ps-panel ps-panel--wide" aria-labelledby="create-notification-channel-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="create-notification-channel-title">Add channel</h2><p class="ps-muted">Create one delivery route for this workspace.</p></div>',
+    renderStatusPill({ label: canCreate ? "ready" : "owner or admin required", tone: canCreate ? "success" : "warning" }),
+    "</div>",
+    model.activeOrganization
+      ? `<p class="ps-muted">Active workspace: ${escapeHtml(model.activeOrganization.name)}.</p>`
+      : '<p class="ps-muted">Select a workspace before adding channels.</p>',
+    '<form class="ps-form ps-form--wide" action="/settings/notifications/channels" method="post" data-ui-action="create-notification-channel">',
+    '<div class="ps-form-grid">',
+    '<div class="ps-field"><label for="notificationChannelType">Channel type</label>',
+    `<select id="notificationChannelType" name="type"${canCreate ? "" : " disabled"}>`,
+    '<option value="email">Email</option>',
+    '<option value="slack_webhook">Slack webhook</option>',
+    '<option value="teams_webhook">Teams webhook</option>',
+    "</select>",
+    '<span class="ps-help">Email uses the configured SMTP transport. Webhooks post directly to the saved URL.</span></div>',
+    `<div class="ps-field"><label for="notificationDestination">Destination</label><input id="notificationDestination" name="destination" type="text" autocomplete="off" spellcheck="false" required${canCreate ? "" : " disabled"}><span class="ps-help">Use an email address or an HTTPS webhook URL owned by this workspace.</span></div>`,
+    "</div>",
+    renderCommandButton({
+      label: "Add channel",
+      ariaLabel: "Add notification channel",
+      disabled: !canCreate,
+      tone: canCreate ? "primary" : "secondary",
+      type: "submit"
+    }),
+    "</form>",
+    "</article>"
+  ].join("");
+};
+
+const renderNotificationChannelListPanel = (model: NotificationSettingsScreenModel): string =>
+  [
+    '<article class="ps-panel" aria-labelledby="notification-channel-list-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="notification-channel-list-title">Channels</h2><p class="ps-muted">Delivery attempts are logged per channel.</p></div>',
+    renderStatusPill({ label: `${model.channels.length} configured`, tone: model.channels.length > 0 ? "info" : "warning" }),
+    "</div>",
+    renderDataTable(
+      "Notification channels",
+      [
+        {
+          header: "Type",
+          render: (channel) => escapeHtml(notificationChannelTypeLabel(channel.type))
+        },
+        {
+          header: "Destination",
+          render: (channel) => escapeHtml(channel.destination ?? channel.destinationPreview)
+        },
+        {
+          header: "Status",
+          render: (channel) =>
+            renderStatusPill({ label: channel.enabled ? "enabled" : "disabled", tone: channel.enabled ? "success" : "warning" })
+        },
+        {
+          header: "Actions",
+          render: (channel) => renderNotificationChannelActions(channel.id, model.canManageChannels)
+        }
+      ],
+      model.channels
+    ),
+    "</article>"
+  ].join("");
+
+const renderNotificationLogPanel = (model: NotificationSettingsScreenModel): string =>
+  [
+    '<article class="ps-panel ps-panel--quiet ps-stack-top" aria-labelledby="notification-log-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="notification-log-title">Recent delivery log</h2><p class="ps-muted">Last 100 send attempts for this workspace.</p></div>',
+    renderStatusPill({ label: `${model.logs.length} attempts`, tone: model.logs.length > 0 ? "info" : "neutral" }),
+    "</div>",
+    renderDataTable(
+      "Notification send attempts",
+      [
+        {
+          header: "Event",
+          render: (log) => escapeHtml(log.eventType)
+        },
+        {
+          header: "Status",
+          render: (log) => renderStatusPill({ label: log.status, tone: log.status === "sent" ? "success" : "danger" })
+        },
+        {
+          header: "Sent",
+          render: (log) => escapeHtml(formatTimestamp(log.sentAt))
+        },
+        {
+          header: "Error",
+          render: (log) => escapeHtml(log.errorMessage ?? "")
+        }
+      ],
+      model.logs
+    ),
+    "</article>"
+  ].join("");
+
+const renderNotificationChannelActions = (channelId: string, canManage: boolean): string =>
+  [
+    '<div class="ps-chip-row">',
+    `<form class="ps-inline-form" action="/settings/notifications/channels/${escapeHtml(channelId)}/test" method="post" data-ui-action="test-notification-channel">`,
+    renderCommandButton({
+      label: "Send test",
+      ariaLabel: "Send test notification",
+      disabled: !canManage,
+      tone: "secondary",
+      type: "submit"
+    }),
+    "</form>",
+    `<form class="ps-inline-form" action="/settings/notifications/channels/${escapeHtml(channelId)}/delete" method="post" data-ui-action="delete-notification-channel">`,
+    renderCommandButton({
+      label: "Remove",
+      ariaLabel: "Remove notification channel",
+      disabled: !canManage,
+      tone: "danger",
+      type: "submit"
+    }),
+    "</form>",
+    "</div>"
+  ].join("");
+
+const notificationChannelTypeLabel = (type: string): string => {
+  if (type === "slack_webhook") {
+    return "Slack webhook";
+  }
+  if (type === "teams_webhook") {
+    return "Teams webhook";
+  }
+  return "Email";
+};
+
+const formatTimestamp = (value: string): string => {
+  if (!value) {
+    return "";
+  }
+  return value.replace("T", " ").replace(".000Z", "Z");
 };
 
 const renderInvitationAcceptPanel = (model: OrganizationInvitationScreenModel): string => {

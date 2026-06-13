@@ -262,6 +262,27 @@ enum ExportStatus {
   expired
 }
 
+enum NotificationChannelType {
+  email
+  slack_webhook
+  teams_webhook
+}
+
+enum NotificationSendStatus {
+  sent
+  failed
+}
+
+enum NotificationDeadlineSourceType {
+  incident_reporting
+}
+
+enum NotificationDeadlineStatus {
+  open
+  completed
+  canceled
+}
+
 enum NotificationDraftStatus {
   draft
   ready_for_review
@@ -1437,9 +1458,11 @@ model ChecklistRun {
   templateId     String   @map("template_id") @db.Uuid
   assessmentId   String?  @map("assessment_id") @db.Uuid
   status         String   @default("open")
+  dueDate        DateTime? @map("due_date")
   createdAt      DateTime @default(now()) @map("created_at")
   completedAt    DateTime? @map("completed_at")
 
+  @@index([organizationId, dueDate], map: "checklist_runs_org_due_date_idx")
   @@map("checklist_runs")
 }
 
@@ -1583,6 +1606,49 @@ model NotificationDraft {
   updatedAt      DateTime                @updatedAt @map("updated_at")
 
   @@map("notification_drafts")
+}
+
+model NotificationChannel {
+  id             String                  @id @default(uuid()) @db.Uuid
+  organizationId String                  @map("organization_id") @db.Uuid
+  type           NotificationChannelType
+  destination    String
+  enabled        Boolean                 @default(true)
+  createdAt      DateTime                @default(now()) @map("created_at")
+
+  @@index([organizationId, enabled], map: "notification_channels_org_enabled_idx")
+  @@map("notification_channels")
+}
+
+model NotificationLog {
+  id             String                 @id @default(uuid()) @db.Uuid
+  organizationId String                 @map("organization_id") @db.Uuid
+  channelId      String?                @map("channel_id") @db.Uuid
+  eventType      String                 @map("event_type")
+  payloadHash    String                 @map("payload_hash")
+  sentAt         DateTime               @default(now()) @map("sent_at")
+  status         NotificationSendStatus
+  errorMessage   String?                @map("error_message")
+
+  @@index([organizationId, sentAt], map: "notification_logs_org_sent_at_idx")
+  @@index([organizationId, eventType, payloadHash], map: "notification_logs_org_event_payload_idx")
+  @@map("notification_logs")
+}
+
+model NotificationDeadline {
+  id             String                         @id @default(uuid()) @db.Uuid
+  organizationId String                         @map("organization_id") @db.Uuid
+  sourceType     NotificationDeadlineSourceType @map("source_type")
+  sourceId       String?                        @map("source_id")
+  deadlineType   String                         @map("deadline_type")
+  deadlineAt     DateTime                       @map("deadline_at")
+  status         NotificationDeadlineStatus     @default(open)
+  lastNotifiedAt DateTime?                      @map("last_notified_at")
+  createdAt      DateTime                       @default(now()) @map("created_at")
+
+  @@index([status, deadlineAt], map: "notification_deadlines_status_deadline_at_idx")
+  @@index([organizationId, deadlineAt], map: "notification_deadlines_org_deadline_at_idx")
+  @@map("notification_deadlines")
 }
 
 model RoNis2NotificationDraft {

@@ -108,6 +108,36 @@ export interface OrganizationInvitationScreenModel {
   session: RuntimeSessionSurface;
 }
 
+export interface NotificationChannelSettingsSurface {
+  id: string;
+  type: "email" | "slack_webhook" | "teams_webhook";
+  destination?: string;
+  destinationPreview: string;
+  enabled: boolean;
+  createdAt: string;
+}
+
+export interface NotificationLogSettingsSurface {
+  id: string;
+  channelId?: string;
+  eventType: string;
+  payloadHash: string;
+  sentAt: string;
+  status: "sent" | "failed";
+  errorMessage?: string;
+}
+
+export interface NotificationSettingsScreenModel {
+  actionMessage?: string;
+  activeOrganization: WorkspaceSelectionOrganizationSurface | null;
+  canManageChannels: boolean;
+  channels: NotificationChannelSettingsSurface[];
+  errorMessage?: string;
+  logs: NotificationLogSettingsSurface[];
+  roleKeys: string[];
+  session: RuntimeSessionSurface;
+}
+
 export interface OnboardingSurface {
   title: string;
   status: OperationalStatus;

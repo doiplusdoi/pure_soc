@@ -6,6 +6,7 @@ import {
   generateReadinessPlan,
   loadDefaultControlCatalog,
   type ComplianceResultRepository,
+  type ComplianceGap,
   type CountryPackWarning,
   type EvidenceArtifactState,
   type ManualChecklistItemState
@@ -20,6 +21,7 @@ import {
   generateStructuredRecommendations,
   type RecommendationContract
 } from "@puresoc/recommendations";
+import type { NotificationService } from "@puresoc/notifications";
 
 export interface ComplianceAssessmentEvaluationInput {
   organizationId: string;
@@ -44,6 +46,7 @@ export interface ComplianceEvaluationServiceOptions {
     listArtifacts(organizationId: string): Promise<EvidenceArtifactMetadata[]>;
   };
   resultRepository?: ComplianceResultRepository<RecommendationContract>;
+  notifications?: Pick<NotificationService, "send">;
   now?: () => Date;
 }
 
@@ -51,12 +54,14 @@ export class ComplianceEvaluationService {
   private readonly store: ProviderResourceStore;
   private readonly analysisRepository?: ComplianceEvaluationServiceOptions["analysisRepository"];
   private readonly resultRepository?: ComplianceResultRepository<RecommendationContract>;
+  private readonly notifications?: Pick<NotificationService, "send">;
   private readonly now: () => Date;
 
   constructor(options: ComplianceEvaluationServiceOptions) {
     this.store = options.store;
     this.analysisRepository = options.analysisRepository;
     this.resultRepository = options.resultRepository;
+    this.notifications = options.notifications;
     this.now = options.now ?? (() => new Date());
   }
 
@@ -133,6 +138,12 @@ export class ComplianceEvaluationService {
       readinessPlan,
       evidenceArtifacts: storedEvidenceArtifacts
     });
+    await this.notifyCriticalGaps({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      gaps,
+      controlTitlesById: new Map(catalog.controls.map((control) => [control.id, control.title]))
+    });
 
     return {
       catalogVersion: catalog.catalogVersion,
@@ -143,6 +154,28 @@ export class ComplianceEvaluationService {
       checklistItems,
       countryPackWarnings
     };
+  }
+
+  private async notifyCriticalGaps(input: {
+    organizationId: string;
+    assessmentId: string;
+    gaps: ComplianceGap[];
+    controlTitlesById: Map<string, string>;
+  }): Promise<void> {
+    if (!this.notifications) {
+      return;
+    }
+
+    for (const gap of input.gaps.filter((candidate) => candidate.severity === "critical")) {
+      await this.notifications.send(input.organizationId, "CRITICAL_GAP_DETECTED", {
+        assessmentId: input.assessmentId,
+        gapId: gap.id,
+        controlId: gap.controlId,
+        controlName: input.controlTitlesById.get(gap.controlId) ?? gap.controlId,
+        summary: gap.summary,
+        severity: gap.severity
+      });
+    }
   }
 }
 

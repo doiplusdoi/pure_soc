@@ -29,6 +29,9 @@ importers:
       '@puresoc/jobs':
         specifier: workspace:*
         version: link:packages/jobs
+      '@puresoc/notifications':
+        specifier: workspace:*
+        version: link:packages/notifications
       '@puresoc/provider-microsoft365':
         specifier: workspace:*
         version: link:packages/providers/microsoft365
@@ -110,6 +113,9 @@ importers:
       '@puresoc/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@puresoc/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@puresoc/provider-microsoft365':
         specifier: workspace:*
         version: link:../../packages/providers/microsoft365
@@ -170,9 +176,15 @@ importers:
       '@puresoc/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@puresoc/database':
+        specifier: workspace:*
+        version: link:../../packages/database
       '@puresoc/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
+      '@puresoc/notifications':
+        specifier: workspace:*
+        version: link:../../packages/notifications
       '@puresoc/regulatory-sources':
         specifier: workspace:*
         version: link:../../packages/regulatory-sources
@@ -317,6 +329,9 @@ importers:
       '@puresoc/evidence':
         specifier: workspace:*
         version: link:../evidence
+      '@puresoc/notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@puresoc/providers-core':
         specifier: workspace:*
         version: link:../providers/core
@@ -343,6 +358,8 @@ importers:
   packages/evidence: {}
 
   packages/jobs: {}
+
+  packages/notifications: {}
 
   packages/providers/core:
     dependencies:

@@ -1,0 +1,19 @@
+{
+  "smtp": {
+    "enabled": false,
+    "host": "",
+    "port": 587,
+    "secure": false,
+    "startTls": true,
+    "username": "",
+    "password": "",
+    "from": "notifications@puresoc.local",
+    "timeoutMs": 10000
+  },
+  "webhooks": {
+    "timeoutMs": 5000
+  },
+  "scheduler": {
+    "deadlineScanIntervalMs": 1800000
+  }
+}

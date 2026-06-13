@@ -216,6 +216,7 @@ const makePrismaOidcConfig = (): PureSocConfig => {
             ...config.auth.socialLogin.providers.google,
             enabled: true,
             clientId: "google-client-id",
+            clientSecret: "google-client-secret",
             redirectUri: "http://127.0.0.1/auth/oidc/google/callback"
           }
         }
@@ -284,8 +285,11 @@ class FakePrismaClient {
   readonly evidenceLink = new FakeDelegate();
   readonly generatedReport = new FakeDelegate();
   readonly identityAccount = new FakeDelegate();
+  readonly notificationChannel = new FakeDelegate();
+  readonly notificationDeadline = new FakeDelegate();
   readonly localCredential = new FakeDelegate();
   readonly notificationDraft = new FakeDelegate();
+  readonly notificationLog = new FakeDelegate();
   readonly oidcAuthorizationState = new FakeDelegate();
   readonly organization = new FakeDelegate();
   readonly organizationMember = new FakeDelegate();

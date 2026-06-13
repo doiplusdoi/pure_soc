@@ -8,6 +8,7 @@ import { RegulatorySourceReviewError } from "@puresoc/regulatory-sources";
 import { RemediationActionError } from "@puresoc/recommendations";
 import { ReportExportError } from "@puresoc/reports";
 import { ProviderConnectorError } from "@puresoc/providers-core";
+import { NotificationValidationError } from "@puresoc/notifications";
 
 export interface RequestContext {
   ipAddress: string | null;
@@ -344,6 +345,18 @@ export const toJsonResultError = (error: unknown): JsonResult => {
   if (error instanceof ProviderConnectorError) {
     return {
       statusCode: 400,
+      body: {
+        error: {
+          code: error.code,
+          message: error.message
+        }
+      }
+    };
+  }
+
+  if (error instanceof NotificationValidationError) {
+    return {
+      statusCode: error.statusCode,
       body: {
         error: {
           code: error.code,

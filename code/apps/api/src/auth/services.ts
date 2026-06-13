@@ -42,6 +42,7 @@ import type { RecommendationContract, RemediationActionRepository } from "@pures
 import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import {
   InMemoryNotificationDraftRepository,
+  InMemoryNotificationRepository,
   InMemoryOutputRecordRepository,
   InMemoryProviderConsentStateStore,
   InMemoryRoNis2ReadinessRepository,
@@ -51,6 +52,7 @@ import {
   PrismaComplianceResultRepository,
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
+  PrismaNotificationRepository,
   PrismaOutputRecordRepository,
   PrismaOidcAuthorizationStateStore,
   PrismaProviderConsentStateStore,
@@ -61,6 +63,7 @@ import {
   PrismaRegulatorySourceRepository,
   createPrismaClient,
   type NotificationDraftRepository,
+  type PrismaNotificationClient,
   type OutputRecordRepository,
   type ProviderConsentStateStore,
   type RoNis2ReadinessRepository,
@@ -96,6 +99,17 @@ import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365TokenKeyProviderFromConfig
 } from "@puresoc/provider-microsoft365";
+import {
+  DisabledNotificationTransport,
+  NotificationService,
+  SlackWebhookNotificationTransport,
+  SmtpNotificationTransport,
+  TeamsWebhookNotificationTransport,
+  type NotificationChannelType,
+  type NotificationRepository,
+  type NotificationTransport
+} from "@puresoc/notifications";
+import { NotificationApiService } from "../notifications/service";
 
 export interface ApiPersistenceRuntime {
   mode: PureSocConfig["app"]["persistenceMode"];
@@ -232,6 +246,9 @@ export interface ApiServices {
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
   rbacRepository: RbacRepository;
   notificationDrafts: NotificationDraftApiService;
+  notifications: NotificationApiService;
+  notificationRepository: NotificationRepository;
+  notificationDelivery: NotificationService;
   actionsRepository: RemediationActionRepository;
   actions: ActionApiService;
 }
@@ -247,6 +264,7 @@ export const createApiServices = (
     organizationInvitationDelivery?: OrganizationInvitationDelivery;
     evidencePackageLimits?: EvidencePackageLimitConfig;
     reportPdfRenderer?: ReportPdfRendererClient;
+    notificationTransports?: Partial<Record<NotificationChannelType, NotificationTransport>>;
     prismaClient?: PureSocPrismaClient;
     oidcTokenClient?: OidcTokenClient;
     oidcTokenVerifier?: OidcTokenVerifier;
@@ -312,6 +330,11 @@ export const createApiServices = (
     now: options.now
   });
   const providerStore = runtimeRepositories.providerResourceStore;
+  const notificationDelivery = new NotificationService({
+    repository: runtimeRepositories.notificationRepository,
+    transports: options.notificationTransports ?? createNotificationTransports(config),
+    now: options.now
+  });
   const providerConnections = new ProviderConnectionsService({
     store: providerStore,
     auditWriter,
@@ -338,15 +361,7 @@ export const createApiServices = (
           }))
         })
       }),
-    now: options.now
-  });
-  const compliance = new ComplianceEvaluationService({
-    store: providerStore,
-    analysisRepository: {
-      listArtifacts: (organizationId) => runtimeRepositories.evidenceRepository.listArtifacts(organizationId),
-      saveStoredAnalysis: (record) => runtimeRepositories.outputRepository.saveStoredAnalysis(record)
-    },
-    resultRepository: runtimeRepositories.complianceResultRepository,
+    notifications: notificationDelivery,
     now: options.now
   });
   const recommendations = new RecommendationApiService();
@@ -388,6 +403,21 @@ export const createApiServices = (
     companionBuilders: [createRoNis2NotificationDraftCompanionBuilder()],
     now: options.now
   });
+  const compliance = new ComplianceEvaluationService({
+    store: providerStore,
+    analysisRepository: {
+      listArtifacts: (organizationId) => runtimeRepositories.evidenceRepository.listArtifacts(organizationId),
+      saveStoredAnalysis: (record) => runtimeRepositories.outputRepository.saveStoredAnalysis(record)
+    },
+    resultRepository: runtimeRepositories.complianceResultRepository,
+    notifications: notificationDelivery,
+    now: options.now
+  });
+  const notifications = new NotificationApiService({
+    repository: runtimeRepositories.notificationRepository,
+    service: notificationDelivery,
+    auditWriter
+  });
   const roNis2Readiness = new RoNis2ReadinessApiService({
     repository: runtimeRepositories.roNis2ReadinessRepository,
     now: options.now
@@ -395,6 +425,7 @@ export const createApiServices = (
   const actions = new ActionApiService({
     repository: runtimeRepositories.actionsRepository,
     auditWriter,
+    notifications: notificationDelivery,
     now: options.now
   });
 
@@ -426,6 +457,9 @@ export const createApiServices = (
     identityRepository: runtimeRepositories.identityRepository,
     rbacRepository: runtimeRepositories.identityRepository,
     notificationDrafts,
+    notifications,
+    notificationRepository: runtimeRepositories.notificationRepository,
+    notificationDelivery,
     actionsRepository: runtimeRepositories.actionsRepository,
     actions
   };
@@ -442,6 +476,7 @@ interface RuntimeRepositorySet {
   evidenceRepository: EvidenceRepository;
   billingRepository: BillingRepository;
   notificationDraftRepository: NotificationDraftRepository;
+  notificationRepository: NotificationRepository;
   roNis2ReadinessRepository: RoNis2ReadinessRepository;
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
@@ -475,6 +510,7 @@ const createRuntimeRepositories = (input: {
           "regulatory_sources",
           "remediation_actions",
           "notification_drafts",
+          "notification_channels_logs_deadlines",
           "ro_nis2_onboarding_classification",
           "stored_analysis_reports_dashboards",
           "oidc_transient_state"
@@ -488,6 +524,7 @@ const createRuntimeRepositories = (input: {
       evidenceRepository: input.memoryRepositories.evidenceRepository,
       billingRepository: input.memoryRepositories.billingRepository,
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
+      notificationRepository: new InMemoryNotificationRepository({ now: input.now }),
       roNis2ReadinessRepository: new InMemoryRoNis2ReadinessRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
       identityRepository: input.memoryRepositories.identityRepository,
@@ -513,6 +550,7 @@ const createRuntimeRepositories = (input: {
         "regulatory_sources",
         "remediation_actions",
         "notification_drafts",
+        "notification_channels_logs_deadlines",
         "ro_nis2_onboarding_classification",
         "provider_connections_and_telemetry",
         "stored_analysis_reports_dashboards",
@@ -529,6 +567,7 @@ const createRuntimeRepositories = (input: {
     evidenceRepository: new PrismaEvidenceRepository(prismaClient as never),
     billingRepository: new PrismaBillingRepository(prismaClient as never),
     notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
+    notificationRepository: new PrismaNotificationRepository(prismaClient as unknown as PrismaNotificationClient),
     roNis2ReadinessRepository: new PrismaRoNis2ReadinessRepository(prismaClient as never),
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
     identityRepository,
@@ -607,3 +646,26 @@ const createUploadScanner = (config: PureSocConfig, now: (() => Date) | undefine
     now
   });
 };
+
+const createNotificationTransports = (
+  config: PureSocConfig
+): Partial<Record<NotificationChannelType, NotificationTransport>> => ({
+  email: config.notifications.smtp.enabled
+    ? new SmtpNotificationTransport({
+        host: config.notifications.smtp.host,
+        port: config.notifications.smtp.port,
+        secure: config.notifications.smtp.secure,
+        startTls: config.notifications.smtp.startTls,
+        username: config.notifications.smtp.username,
+        password: config.notifications.smtp.password,
+        from: config.notifications.smtp.from,
+        timeoutMs: config.notifications.smtp.timeoutMs
+      })
+    : new DisabledNotificationTransport("SMTP notification delivery is not configured."),
+  slack_webhook: new SlackWebhookNotificationTransport({
+    timeoutMs: config.notifications.webhooks.timeoutMs
+  }),
+  teams_webhook: new TeamsWebhookNotificationTransport({
+    timeoutMs: config.notifications.webhooks.timeoutMs
+  })
+});

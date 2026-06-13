@@ -10,6 +10,7 @@ import {
   renderEmailVerificationScreen,
   renderLoginScreen,
   renderMicrosoft365ConnectorPage,
+  renderNotificationSettingsScreen,
   renderOrganizationInvitationsScreen,
   renderOperationalConsole,
   renderRegisterScreen,
@@ -218,11 +219,75 @@ describe("web dashboard reports operational UI", () => {
     );
     expect(dashboardHtml).toContain('<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>');
     expect(dashboardHtml).toContain('<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>');
+    expect(dashboardHtml).toContain('<a class="ps-command" href="/settings/notifications" data-ui-action="open-notification-settings">Notifications</a>');
     expect(dashboardHtml).toContain('action="/auth/logout"');
     expect(dashboardHtml).toContain('data-ui-action="sign-out"');
     expect(dashboardHtml).not.toContain('onclick="');
     expect(romaniaHtml).toContain('<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>');
     expect(romaniaHtml).not.toContain('onclick="');
+  });
+
+  it("renders notification settings with channel management and secret-safe webhook previews", () => {
+    const html = renderNotificationSettingsScreen({
+      activeOrganization: {
+        id: "org_notifications",
+        name: "Notifications Org",
+        primaryCountryCode: "RO",
+        billingStatus: "none",
+        membershipStatus: "active",
+        roleKeys: ["owner"],
+        isActive: true
+      },
+      canManageChannels: true,
+      channels: [
+        {
+          id: "channel_email",
+          type: "email",
+          destination: "alerts@example.test",
+          destinationPreview: "alerts@example.test",
+          enabled: true,
+          createdAt: "2026-06-14T09:00:00.000Z"
+        },
+        {
+          id: "channel_slack",
+          type: "slack_webhook",
+          destinationPreview: "https://hooks.slack.test/services...",
+          enabled: true,
+          createdAt: "2026-06-14T09:00:00.000Z"
+        }
+      ],
+      logs: [
+        {
+          id: "log_1",
+          channelId: "channel_email",
+          eventType: "TEST_NOTIFICATION",
+          payloadHash: "abc123",
+          sentAt: "2026-06-14T09:00:00.000Z",
+          status: "sent"
+        }
+      ],
+      roleKeys: ["owner"],
+      session: {
+        user: {
+          id: "user_notifications",
+          email: "owner@example.test"
+        },
+        session: {
+          activeOrganizationId: "org_notifications"
+        }
+      }
+    });
+
+    expect(html).toContain('data-ui-smoke="notification-settings"');
+    expect(html).toContain('action="/settings/notifications/channels"');
+    expect(html).toContain('data-ui-action="create-notification-channel"');
+    expect(html).toContain('data-ui-action="test-notification-channel"');
+    expect(html).toContain('data-ui-action="delete-notification-channel"');
+    expect(html).toContain("critical gaps");
+    expect(html).toContain("TEST_NOTIFICATION");
+    expect(html).toContain("alerts@example.test");
+    expect(html).toContain("https://hooks.slack.test/services...");
+    expect(html).not.toContain("sensitive-secret");
   });
 
   it("renders Microsoft 365 tenant connector as a standalone workspace page", () => {
