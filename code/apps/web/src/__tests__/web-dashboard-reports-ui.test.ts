@@ -505,10 +505,61 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Runtime User");
     expect(html).toContain("API dashboard snapshot");
     expect(html).toContain("GET /organizations/:orgId/dashboards/snapshots/latest");
+    expect(html).toContain("Compliance Score Trend");
+    expect(html).toContain("Not enough data");
     expect(html).toContain('data-ui-action="open-workspace-selector"');
     expect(html).toContain('data-ui-action="connect-microsoft365-tenant"');
     expect(html).toContain('action="/providers/microsoft365/connect"');
     expect(html).toContain("stored_analysis");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("renders the compliance score trend chart with range toggles and movement copy", () => {
+    const demo = createOperationalConsoleDemoModel();
+    const html = renderOperationalConsole(
+      createOperationalConsoleRuntimeModel({
+        session: {
+          user: {
+            id: "user_trend",
+            email: "trend@example.test",
+            displayName: "Trend User"
+          },
+          session: {
+            activeOrganizationId: "org_trend"
+          }
+        },
+        dashboard: demo.dashboard,
+        dashboardHistory: [
+          {
+            date: "2026-04-01",
+            overall_score: 50,
+            critical_gaps: 3,
+            high_gaps: 5
+          },
+          {
+            date: "2026-04-15",
+            overall_score: 57,
+            critical_gaps: 2,
+            high_gaps: 4
+          },
+          {
+            date: "2026-04-30",
+            overall_score: 62,
+            critical_gaps: 1,
+            high_gaps: 2
+          }
+        ]
+      })
+    );
+
+    expect(html).toContain('data-score-trend-card');
+    expect(html).toContain('data-trend-days="30" aria-pressed="true"');
+    expect(html).toContain('data-trend-days="90"');
+    expect(html).toContain('data-trend-days="180"');
+    expect(html).toContain('<polyline class="ps-trend-line ps-trend-line--score"');
+    expect(html).toContain('<polyline class="ps-trend-line ps-trend-line--critical"');
+    expect(html).toContain("Score improved +12 points in the last 30 days");
+    expect(html).toContain("2026-04-30: score 62, critical gaps 1, high gaps 2");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 

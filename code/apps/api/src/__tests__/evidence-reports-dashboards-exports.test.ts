@@ -3,6 +3,7 @@ import type { AddressInfo } from "node:net";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { defaultRoleDefinitions } from "@puresoc/auth-core";
+import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 import { LEGAL_CAVEAT_MESSAGE_KEY, PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import { createApiServices } from "../auth/services";
 import type { ReportPdfRendererClient } from "../reports/service";
@@ -271,12 +272,103 @@ describe("api evidence reports dashboards exports", () => {
       owner.cookie
     );
     expect(dashboardResponse.status).toBe(201);
-    const dashboardBody = await readJson<{
-      snapshot: { source: string; sourceRecordCounts: { controlResults: number; evidenceArtifacts: number } };
-    }>(dashboardResponse);
+    const dashboardBody = await readJson<{ snapshot: DashboardSnapshotContract }>(dashboardResponse);
     expect(dashboardBody.snapshot.source).toBe("stored_analysis");
     expect(dashboardBody.snapshot.sourceRecordCounts.controlResults).toBeGreaterThan(0);
     expect(dashboardBody.snapshot.sourceRecordCounts.evidenceArtifacts).toBe(1);
+    await services.outputRepository.saveDashboardSnapshot({
+      id: randomUUID(),
+      organizationId: organization.id,
+      assessmentId: "assessment_i",
+      snapshotType: "readiness_overview",
+      source: "stored_analysis",
+      snapshot: {
+        ...dashboardBody.snapshot,
+        generatedAt: "2026-04-28T08:00:00.000Z",
+        trendMetrics: {
+          ...dashboardBody.snapshot.trendMetrics,
+          overallScore: 42,
+          gapCountBySeverity: {
+            critical: 3,
+            high: 4,
+            medium: 0,
+            low: 0
+          }
+        }
+      },
+      createdAt: "2026-04-28T08:00:00.000Z"
+    });
+    await services.outputRepository.saveDashboardSnapshot({
+      id: randomUUID(),
+      organizationId: organization.id,
+      assessmentId: "assessment_i",
+      snapshotType: "readiness_overview",
+      source: "stored_analysis",
+      snapshot: {
+        ...dashboardBody.snapshot,
+        generatedAt: "2026-04-29T08:00:00.000Z",
+        trendMetrics: {
+          ...dashboardBody.snapshot.trendMetrics,
+          overallScore: 60,
+          gapCountBySeverity: {
+            critical: 2,
+            high: 3,
+            medium: 0,
+            low: 0
+          }
+        }
+      },
+      createdAt: "2026-04-29T08:00:00.000Z"
+    });
+    await services.outputRepository.saveDashboardSnapshot({
+      id: randomUUID(),
+      organizationId: organization.id,
+      assessmentId: "assessment_i",
+      snapshotType: "readiness_overview",
+      source: "stored_analysis",
+      snapshot: {
+        ...dashboardBody.snapshot,
+        generatedAt: "2026-04-29T12:00:00.000Z",
+        trendMetrics: {
+          ...dashboardBody.snapshot.trendMetrics,
+          overallScore: 61,
+          gapCountBySeverity: {
+            critical: 1,
+            high: 2,
+            medium: 0,
+            low: 0
+          }
+        }
+      },
+      createdAt: "2026-04-29T12:00:00.000Z"
+    });
+
+    const historyResponse = await fetch(`${baseUrl}/organizations/${organization.id}/dashboards/snapshots?days=30`, {
+      headers: {
+        cookie: owner.cookie
+      }
+    });
+    expect(historyResponse.status).toBe(200);
+    const historyBody = await readJson<{
+      snapshots: Array<{ date: string; overall_score: number; critical_gaps: number; high_gaps: number }>;
+    }>(historyResponse);
+    expect(historyBody.snapshots).toEqual([
+      {
+        date: "2026-04-28",
+        overall_score: 42,
+        critical_gaps: 3,
+        high_gaps: 4
+      },
+      {
+        date: "2026-04-29",
+        overall_score: 61,
+        critical_gaps: 1,
+        high_gaps: 2
+      },
+      expect.objectContaining({
+        date: "2026-04-30"
+      })
+    ]);
 
     const latestDashboardResponse = await fetch(
       `${baseUrl}/organizations/${organization.id}/dashboards/snapshots/latest`,

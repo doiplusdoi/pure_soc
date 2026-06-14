@@ -54,7 +54,7 @@ export {
 export { EvidenceApiService } from "./evidence/service";
 export { ReportApiService } from "./reports/service";
 export { DashboardApiService } from "./dashboards/service";
-export { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute } from "./dashboards/routes";
+export { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute, listDashboardSnapshotsRoute } from "./dashboards/routes";
 export { BillingApiService } from "./billing/service";
 export {
   createBillingCheckoutSessionRoute,

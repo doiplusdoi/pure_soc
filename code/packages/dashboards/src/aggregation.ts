@@ -35,6 +35,7 @@ export interface BuildDashboardSnapshotInput {
   assessmentId?: string;
   generatedAt?: string;
   countryPackCompleteness?: number;
+  providerConnectionHealth?: number;
   controlResults: readonly StoredDashboardControlResult[];
   gaps?: readonly StoredDashboardGap[];
   recommendations?: readonly StoredDashboardRecommendation[];
@@ -58,6 +59,7 @@ const statusInternalReadinessScore: Record<string, number> = {
   failing: 0,
   not_started: 0
 };
+const compliantControlStatuses = new Set(["passing", "not_applicable", "accepted_risk"]);
 
 export const aggregateDashboardFromStoredAnalysis = (
   input: BuildDashboardSnapshotInput
@@ -83,6 +85,8 @@ export const aggregateDashboardFromStoredAnalysis = (
   const processComplianceScore = percentage(controlResults.length - processGaps.length, controlResults.length);
   const evidenceCompletenessScore = requiredEvidence === 0 ? 100 : percentage(presentEvidence, requiredEvidence);
   const countryPackCompletenessScore = clampScore(input.countryPackCompleteness ?? 0);
+  const controlsCompliant = controlResults.filter((result) => compliantControlStatuses.has(result.status)).length;
+  const gapCountBySeverity = countGapsBySeverity(gaps);
   const highRecommendations = recommendations.filter(
     (recommendation) => recommendation.status !== "completed" && ["high", "critical"].includes(recommendation.severity)
   );
@@ -143,9 +147,32 @@ export const aggregateDashboardFromStoredAnalysis = (
       gaps: gaps.length,
       recommendations: recommendations.length,
       evidenceArtifacts: evidenceArtifacts.length
+    },
+    trendMetrics: {
+      overallScore: percentage(controlsCompliant, controlResults.length),
+      gapCountBySeverity,
+      controlsCompliant,
+      controlsTotal: controlResults.length,
+      providerConnectionHealth: Math.max(0, Math.round(input.providerConnectionHealth ?? 0))
     }
   };
 };
+
+const countGapsBySeverity = (
+  gaps: readonly StoredDashboardGap[]
+): DashboardSnapshotContract["trendMetrics"]["gapCountBySeverity"] =>
+  gaps.reduce<DashboardSnapshotContract["trendMetrics"]["gapCountBySeverity"]>(
+    (counts, gap) => ({
+      ...counts,
+      [gap.severity]: counts[gap.severity] + 1
+    }),
+    {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0
+    }
+  );
 
 const percentage = (numerator: number, denominator: number): number => {
   if (denominator <= 0) {

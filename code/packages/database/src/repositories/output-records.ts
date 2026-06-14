@@ -11,12 +11,14 @@ type DelegateArgs = Record<string, unknown>;
 
 interface SnapshotDelegate<TRow> {
   findFirst(args: DelegateArgs): Promise<TRow | null>;
+  findMany(args?: DelegateArgs): Promise<TRow[]>;
   findUnique(args: DelegateArgs): Promise<TRow | null>;
   upsert(args: DelegateArgs): Promise<TRow>;
 }
 
 interface OutputRecordDelegate<TRow> {
   findFirst(args: DelegateArgs): Promise<TRow | null>;
+  findMany(args?: DelegateArgs): Promise<TRow[]>;
   upsert(args: DelegateArgs): Promise<TRow>;
 }
 
@@ -75,7 +77,16 @@ export interface OutputRecordRepository {
   ): Promise<DashboardSnapshotRecordContract | null>;
   findReportExport(organizationId: string, exportId: string): Promise<ReportExportRecordContract | null>;
   findLatestStoredAnalysis(organizationId: string): Promise<StoredAnalysisRecordContract | null>;
+  listLatestStoredAnalyses(): Promise<StoredAnalysisRecordContract[]>;
   findStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecordContract | null>;
+  listDashboardSnapshots(
+    organizationId: string,
+    options?: {
+      assessmentId?: string;
+      since?: string;
+      until?: string;
+    }
+  ): Promise<DashboardSnapshotRecordContract[]>;
   listReportExportsForReport(
     organizationId: string,
     generatedReportId: string
@@ -119,6 +130,21 @@ export class InMemoryOutputRecordRepository implements OutputRecordRepository {
         .sort((left, right) => right.recordedAt.localeCompare(left.recordedAt))[0] ?? null;
 
     return record ? clone(record) : null;
+  }
+
+  async listLatestStoredAnalyses(): Promise<StoredAnalysisRecordContract[]> {
+    const byOrganization = new Map<string, StoredAnalysisRecordContract>();
+    for (const analysis of [...this.storedAnalyses.values()].sort((left, right) =>
+      right.recordedAt.localeCompare(left.recordedAt)
+    )) {
+      if (!byOrganization.has(analysis.organizationId)) {
+        byOrganization.set(analysis.organizationId, analysis);
+      }
+    }
+
+    return [...byOrganization.values()]
+      .sort((left, right) => left.organizationId.localeCompare(right.organizationId))
+      .map((record) => clone(record));
   }
 
   async saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract> {
@@ -173,6 +199,26 @@ export class InMemoryOutputRecordRepository implements OutputRecordRepository {
         .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0] ?? null;
 
     return record ? clone(record) : null;
+  }
+
+  async listDashboardSnapshots(
+    organizationId: string,
+    options: {
+      assessmentId?: string;
+      since?: string;
+      until?: string;
+    } = {}
+  ): Promise<DashboardSnapshotRecordContract[]> {
+    return [...this.dashboardSnapshots.values()]
+      .filter(
+        (snapshot) =>
+          snapshot.organizationId === organizationId &&
+          (options.assessmentId === undefined || snapshot.assessmentId === options.assessmentId) &&
+          (options.since === undefined || snapshot.createdAt >= options.since) &&
+          (options.until === undefined || snapshot.createdAt <= options.until)
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .map((record) => clone(record));
   }
 }
 
@@ -240,6 +286,22 @@ export class PrismaOutputRecordRepository implements OutputRecordRepository {
     });
 
     return row ? fromStoredAnalysisSnapshotRow(row) : null;
+  }
+
+  async listLatestStoredAnalyses(): Promise<StoredAnalysisRecordContract[]> {
+    const rows = await this.client.complianceResultSnapshot.findMany({
+      orderBy: {
+        recordedAt: "desc"
+      }
+    });
+    const byOrganization = new Map<string, StoredAnalysisRecordContract>();
+    for (const row of rows) {
+      if (!byOrganization.has(row.organizationId)) {
+        byOrganization.set(row.organizationId, fromStoredAnalysisSnapshotRow(row));
+      }
+    }
+
+    return [...byOrganization.values()].sort((left, right) => left.organizationId.localeCompare(right.organizationId));
   }
 
   async saveGeneratedReport(record: GeneratedReportRecordContract): Promise<GeneratedReportRecordContract> {
@@ -332,6 +394,32 @@ export class PrismaOutputRecordRepository implements OutputRecordRepository {
     });
 
     return row ? fromDashboardSnapshotRow(row) : null;
+  }
+
+  async listDashboardSnapshots(
+    organizationId: string,
+    options: {
+      assessmentId?: string;
+      since?: string;
+      until?: string;
+    } = {}
+  ): Promise<DashboardSnapshotRecordContract[]> {
+    const createdAt = stripUndefined({
+      gte: options.since ? toDateTime(options.since) : undefined,
+      lte: options.until ? toDateTime(options.until) : undefined
+    });
+    const row = await this.client.dashboardSnapshot.findMany({
+      where: stripUndefined({
+        organizationId,
+        assessmentId: options.assessmentId,
+        createdAt: Object.keys(createdAt).length > 0 ? createdAt : undefined
+      }),
+      orderBy: {
+        createdAt: "asc"
+      }
+    });
+
+    return row.map(fromDashboardSnapshotRow);
   }
 }
 

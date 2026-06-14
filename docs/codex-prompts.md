@@ -1,6 +1,6 @@
 # Codex Prompts
 
-Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-06-14 after completing M94, adding the notification and alert system slice, and staging Prompt 94 / `docs/PLAN_M95.md` as the next product milestone runner.
+Use these prompts as the active PureSOC implementation tickets. This file was refreshed on 2026-06-14 after completing M95, adding the compliance score trend chart slice, and staging Prompt 95 / `docs/PLAN_M96.md` as the next product milestone runner.
 
 Completed Phase A through the contract-level Phase I output work, M11 OIDC/social-login callback work, M12 Microsoft read-only module expansion work, and M13 Article 21 catalog/scoring work has been removed from the active prompt list. Do not re-run old bootstrap, schema-contract, local-auth/OIDC, EU foundation, Romania importer/classifier, provider-core, Microsoft consent/read-only baseline, compliance-engine, catalog/scoring, or in-memory evidence/report/dashboard prompts unless a prompt below explicitly asks you to modify that surface.
 
@@ -118,6 +118,7 @@ The repository currently contains:
 - PLAN_M92 customer onboarding wizard UX: `apps/web` now routes signup/workspace continuation into a short-page Romania NIS2 readiness wizard, keeps data-entry screens capped at five questions, adds Microsoft 365 tenant connector handoff, derives a local gap list from onboarding/output/evidence/connector state, and exposes JSON/CSV/evidence-package export controls without live external calls or provider writes.
 - PLAN_M93 PDF report generation: `apps/report-renderer` now has a Playwright-backed HTML-to-PDF route, `@puresoc/reports` has PDF HTML templates for executive summary, gap report, Romania notification draft, and evidence-package index, the API exposes authenticated gap-report and Romania notification-draft PDF download routes, generated PDFs are stored as evidence with `GeneratedReport` and `report_exports` content hashes, direct PDF downloads are audited through `EvidenceAccessLog`, and the renderer Compose service is internal-only.
 - PLAN_M94 notification and alert system: `@puresoc/notifications` now has non-throwing SMTP/Slack/Teams transport boundaries, org-scoped notification channels/logs/deadlines persist in memory and Prisma modes, API and Settings -> Notifications routes manage channels and logs with webhook redaction, compliance/Microsoft/remediation triggers send events, and the scheduler scans incident/evidence/checklist alert windows without live external delivery proof.
+- PLAN_M95 compliance score trend chart: dashboard snapshots now include trend metrics for compliant/accepted-risk score, severity counts, compliant/total controls, and provider connection health; the scheduler creates at most one daily snapshot per organization with stored analysis; the API exposes ascending dashboard history rows; and the served dashboard renders a dependency-free SVG trend chart with 30/90/180 day toggles, exact-value hover labels, not-enough-data state, and movement copy without provider writes or live external calls.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, sequenced in `docs/gap-implementation-path.md`, and supplemented by `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
 
@@ -213,7 +214,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 91 / `docs/PLAN_M92.md` is completed.
 - Prompt 92 / `docs/PLAN_M93.md` is completed.
 - Prompt 93 / `docs/PLAN_M94.md` is completed.
-- Prompt 94 / `docs/PLAN_M95.md` is staged as the next product milestone runner.
+- Prompt 94 / `docs/PLAN_M95.md` is completed.
+- Prompt 95 / `docs/PLAN_M96.md` is staged as the next product milestone runner.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -229,11 +231,11 @@ During each prompt run:
 Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
-2. Prompt 94 / `docs/PLAN_M95.md`: Product Milestone 3 - Compliance Score Trend Chart.
+2. Prompt 95 / `docs/PLAN_M96.md`: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius.
 
-M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads, and M94 narrowed local notification/alert delivery plumbing while opening GAP-048 for live delivery operations and incident workflow modeling. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads, M94 narrowed local notification/alert delivery plumbing while opening GAP-048 for live delivery operations and incident workflow modeling, and M95 added local compliance score trend history/charting. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
-Use M95 when continuing the user-directed product milestone sequence. It should implement Milestone 3 compliance score trend charts, validate with local tests, update docs, and stage the next milestone plan.
+Use M96 when continuing the user-directed product milestone sequence. It should implement Milestone 4 write actions wave 1 only, keeping all four actions zero-blast-radius, evidence-producing, approval-gated, and free of Microsoft 365 configuration writes.
 
 ## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
@@ -350,7 +352,7 @@ Final response must include:
 - Next staged prompt/PLAN file
 - Residual blockers
 
-## Active Prompt 94 / PLAN_M95: Product Milestone 3 - Compliance Score Trend Chart
+## Active Prompt 95 / PLAN_M96: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius
 
 Read:
 
@@ -359,24 +361,37 @@ Read:
 - `docs/implementation-gaps.md`
 - `docs/codex-prompts.md`
 - `docs/LEARNINGS.md`
+- `docs/PLAN_M96.md`
 - `docs/PLAN_M95.md`
 
-Implement Milestone 3 from the user-provided PureSOC product prompt only:
+Implement Milestone 4 from the user-provided PureSOC product prompt only:
 
-- Ensure the scheduler creates one `DashboardSnapshot` per organization per day without duplicates.
-- Store daily snapshot metrics for overall score, severity counts, compliant/total controls, provider connection health, and `created_at`.
-- Add `GET /organizations/:orgId/dashboards/snapshots?days=90` returning ascending trend rows.
-- Add a simple SVG trend chart to the main dashboard with 30/90/180 day controls, score and critical-gap lines, hover tooltip, and not-enough-data state.
-- Add a stat row summarizing improvement, decline, or unchanged score over the selected window.
+- Implement four zero-blast-radius Microsoft 365 action templates: audit-log export setup guide, MFA coverage report, guest-user review task creation, and app-registration credential-expiry report.
+- Keep each action inside the existing preflight -> approval -> apply -> post-snapshot -> verify -> evidence lifecycle.
+- Generate evidence artifacts or checklist tasks only; do not modify Microsoft 365 configuration.
+- Surface available actions in Recommendations when corresponding gaps exist.
+- Update the approval queue UI to show action type, preflight summary, and approver-only approval controls.
 
 Negative constraints:
 
-- Do not implement Milestones 4-9 in this slice.
-- Do not send provider writes or remediation actions.
-- Do not add a new charting dependency unless an existing local charting pattern already uses it.
-- Do not fabricate live provider or evidence data; derive the trend from existing persisted/local output and provider state.
+- Do not implement Milestones 5-9 in this slice.
+- Do not call live Microsoft Graph unless an existing local fake/fixture harness is explicitly being used; keep tests deterministic and local.
+- Do not enable generic provider writes or broad Microsoft 365 write executors.
+- Do not modify Microsoft 365 configuration; all four actions must produce reports, guides, evidence metadata, or manual checklist work only.
+- Do not bypass existing remediation approval, audit, preflight, snapshot, verification, and evidence metadata boundaries.
 
-Use the validation plan from `docs/PLAN_M95.md`, and always run `git diff --check`.
+Use the validation plan from `docs/PLAN_M96.md`, and always run `git diff --check`.
+
+## Completed Prompt 94 / PLAN_M95: Compliance Score Trend Chart
+
+Completed on 2026-06-14.
+
+Summary:
+- Added dashboard snapshot trend metrics for compliant/accepted-risk score, severity counts, compliant/total controls, and provider connection health while preserving existing readiness scores.
+- Added output repository history/latest-analysis reads, `GET /organizations/:orgId/dashboards/snapshots?days=90`, and ascending trend-row API coverage.
+- Added the scheduler `dashboards.createDailySnapshots` job and startup/interval enqueueing, with one UTC daily snapshot per organization with stored analysis.
+- Added a served dashboard SVG trend chart with 30/90/180 day toggles, score and critical-gap lines, exact-value hover labels, not-enough-data state, and movement stat row.
+- Validation passed with typecheck, focused tests, lint/drift checks, Prisma schema validation, and `git diff --check`.
 
 ## Completed Prompt 93 / PLAN_M94: Notification And Alert System
 

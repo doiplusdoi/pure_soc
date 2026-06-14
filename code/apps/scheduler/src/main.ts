@@ -22,6 +22,7 @@ try {
     queueKind: scheduler.runtime.queueKind,
     registeredJobs: scheduler.runtime.registeredJobNames,
     sourceMonitorEnabled: config.compliance.sourceMonitor.enabled,
+    dashboardSnapshotIntervalMs: config.jobs.scheduler.intervalMs,
     notificationDeadlineScanIntervalMs: config.notifications.scheduler.deadlineScanIntervalMs,
     runOnStartup: config.jobs.scheduler.runOnStartup
   });
@@ -38,6 +39,7 @@ try {
     if (config.jobs.scheduler.runOnStartup) {
       await scheduler.enqueueRegulatorySourceMonitorJob({ reason: "startup" });
       await scheduler.enqueueNotificationDeadlineScanJob({ reason: "startup" });
+      await scheduler.enqueueDashboardSnapshotJob({ reason: "startup" });
     }
 
     let nextIntervalAt = Date.now() + config.jobs.scheduler.intervalMs;
@@ -48,6 +50,7 @@ try {
 
       if (Date.now() >= nextIntervalAt) {
         await scheduler.enqueueRegulatorySourceMonitorJob({ reason: "interval" });
+        await scheduler.enqueueDashboardSnapshotJob({ reason: "interval" });
         nextIntervalAt = Date.now() + config.jobs.scheduler.intervalMs;
       }
 

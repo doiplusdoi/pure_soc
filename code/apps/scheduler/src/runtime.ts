@@ -7,7 +7,16 @@ import {
   type JobQueueAdapter
 } from "@puresoc/jobs";
 import type { PureSocConfig } from "@puresoc/config";
-import { createPrismaClient, InMemoryNotificationRepository, PrismaNotificationRepository } from "@puresoc/database";
+import {
+  createPrismaClient,
+  InMemoryNotificationRepository,
+  InMemoryOutputRecordRepository,
+  PrismaNotificationRepository,
+  PrismaOutputRecordRepository,
+  PrismaProviderResourceStore,
+  type OutputRecordRepository
+} from "@puresoc/database";
+import { InMemoryProviderResourceStore, type ProviderResourceStore } from "@puresoc/providers-core";
 import {
   InMemoryRegulatorySourceRepository,
   type RegulatorySourceMetadataCheckClient,
@@ -31,6 +40,12 @@ import {
   runNotificationDeadlineScanJob,
   type NotificationDeadlineScanResult
 } from "./notifications";
+import {
+  dashboardSnapshotJobName,
+  runDashboardSnapshotJob,
+  type DashboardSnapshotJobResult,
+  type DashboardSnapshotScheduledJob
+} from "./dashboard-snapshots";
 
 export interface RegulatorySourceMonitorScheduledJob {
   reason: "startup" | "interval" | "manual";
@@ -41,6 +56,8 @@ export interface SchedulerRuntimeDependencies {
   config: Pick<PureSocConfig, "app" | "jobs" | "compliance" | "notifications">;
   repository?: RegulatorySourceRepository;
   metadataClient?: RegulatorySourceMetadataCheckClient;
+  outputRepository?: OutputRecordRepository;
+  providerStore?: Pick<ProviderResourceStore, "listConnections">;
   notificationRepository?: NotificationRepository;
   notificationTransports?: Partial<Record<NotificationChannelType, NotificationTransport>>;
   queue?: JobQueueAdapter;
@@ -56,6 +73,9 @@ export interface SchedulerRuntime {
   enqueueNotificationDeadlineScanJob: (
     input?: Partial<NotificationDeadlineScanScheduledJob>
   ) => Promise<JobDispatchResult<NotificationDeadlineScanScheduledJob>>;
+  enqueueDashboardSnapshotJob: (
+    input?: Partial<DashboardSnapshotScheduledJob>
+  ) => Promise<JobDispatchResult<DashboardSnapshotScheduledJob>>;
 }
 
 export interface NotificationDeadlineScanScheduledJob {
@@ -66,6 +86,8 @@ export interface NotificationDeadlineScanScheduledJob {
 export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencies): SchedulerRuntime => {
   const now = dependencies.now ?? (() => new Date());
   const repository = dependencies.repository ?? new InMemoryRegulatorySourceRepository();
+  const outputRepository = dependencies.outputRepository ?? createSchedulerOutputRepository(dependencies.config);
+  const providerStore = dependencies.providerStore ?? createSchedulerProviderStore(dependencies.config);
   const notificationRepository =
     dependencies.notificationRepository ?? createSchedulerNotificationRepository(dependencies.config);
   const notificationDelivery = new NotificationService({
@@ -99,6 +121,18 @@ export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencie
         scanIntervalMs: dependencies.config.notifications.scheduler.deadlineScanIntervalMs,
         now
       })
+  }).register<DashboardSnapshotScheduledJob, DashboardSnapshotJobResult>({
+    name: dashboardSnapshotJobName,
+    defaultMaxAttempts: dependencies.config.jobs.defaultMaxAttempts,
+    retryBackoffMs: dependencies.config.jobs.retryBackoffMs,
+    idempotencyKey: (payload) => `${payload.reason}:${payload.scheduledAt}`,
+    handler: () =>
+      runDashboardSnapshotJob({
+        repository: outputRepository,
+        providerStore,
+        now,
+        idFactory: dependencies.idFactory
+      })
   });
 
   const runtime = new JobRuntime({
@@ -126,6 +160,17 @@ export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencie
       const scheduledAt = input.scheduledAt ?? now().toISOString();
       return runtime.dispatch({
         name: notificationDeadlineScanJobName,
+        payload: {
+          reason: input.reason ?? "manual",
+          scheduledAt
+        },
+        idempotencyKey: `${input.reason ?? "manual"}:${scheduledAt}`
+      });
+    },
+    enqueueDashboardSnapshotJob: (input = {}) => {
+      const scheduledAt = input.scheduledAt ?? now().toISOString();
+      return runtime.dispatch({
+        name: dashboardSnapshotJobName,
         payload: {
           reason: input.reason ?? "manual",
           scheduledAt
@@ -164,6 +209,20 @@ const createSchedulerNotificationRepository = (
     ? new PrismaNotificationRepository(createPrismaClient() as never)
     : new InMemoryNotificationRepository();
 
+const createSchedulerOutputRepository = (
+  config: Pick<PureSocConfig, "app">
+): OutputRecordRepository =>
+  config.app.persistenceMode === "prisma"
+    ? new PrismaOutputRecordRepository(createPrismaClient() as never)
+    : new InMemoryOutputRecordRepository();
+
+const createSchedulerProviderStore = (
+  config: Pick<PureSocConfig, "app">
+): Pick<ProviderResourceStore, "listConnections"> =>
+  config.app.persistenceMode === "prisma"
+    ? new PrismaProviderResourceStore(createPrismaClient() as never)
+    : new InMemoryProviderResourceStore();
+
 const createSchedulerNotificationTransports = (
   config: Pick<PureSocConfig, "notifications">
 ): Partial<Record<NotificationChannelType, NotificationTransport>> => ({
@@ -197,11 +256,16 @@ export const runSchedulerTick = async (scheduler: SchedulerRuntime): Promise<{
   const notificationDispatch = await scheduler.enqueueNotificationDeadlineScanJob({
     reason: "manual"
   });
+  const dashboardSnapshotDispatch = await scheduler.enqueueDashboardSnapshotJob({
+    reason: "manual"
+  });
   const result = await scheduler.runtime.runUntilIdle();
 
   return {
     enqueued:
-      (dispatch.status === "enqueued" ? 1 : 0) + (notificationDispatch.status === "enqueued" ? 1 : 0),
+      (dispatch.status === "enqueued" ? 1 : 0) +
+      (notificationDispatch.status === "enqueued" ? 1 : 0) +
+      (dashboardSnapshotDispatch.status === "enqueued" ? 1 : 0),
     processed: result.processedCount
   };
 };

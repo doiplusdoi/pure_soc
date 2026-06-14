@@ -24,7 +24,7 @@ describe("dashboards aggregate from stored analysis", () => {
         {
           organizationId: "org_dashboards",
           assessmentId: "assessment_dashboards",
-          status: "needs_evidence",
+          status: "accepted_risk",
           evidenceCompleteness: {
             required: 1,
             present: 0,
@@ -34,6 +34,11 @@ describe("dashboards aggregate from stored analysis", () => {
         }
       ],
       gaps: [
+        {
+          organizationId: "org_dashboards",
+          assessmentId: "assessment_dashboards",
+          severity: "critical"
+        },
         {
           organizationId: "org_dashboards",
           assessmentId: "assessment_dashboards",
@@ -48,6 +53,7 @@ describe("dashboards aggregate from stored analysis", () => {
           evidenceRequired: true
         }
       ],
+      providerConnectionHealth: 1,
       evidenceArtifacts: [
         {
           organizationId: "org_dashboards",
@@ -60,11 +66,21 @@ describe("dashboards aggregate from stored analysis", () => {
     expect(snapshot.readinessScoreLabel).toBe("PureSOC internal readiness");
     expect(snapshot.sourceRecordCounts).toMatchObject({
       controlResults: 2,
-      gaps: 1,
+      gaps: 2,
       recommendations: 1,
       evidenceArtifacts: 1
     });
     expect(snapshot.readinessScores.evidenceCompleteness).toBe(50);
+    expect(snapshot.trendMetrics).toMatchObject({
+      overallScore: 100,
+      controlsCompliant: 2,
+      controlsTotal: 2,
+      providerConnectionHealth: 1,
+      gapCountBySeverity: {
+        critical: 1,
+        medium: 1
+      }
+    });
     expect(snapshot.widgets.find((widget) => widget.key === "open_gaps")?.sourceQuery).toContain("compliance_gaps");
   });
 });

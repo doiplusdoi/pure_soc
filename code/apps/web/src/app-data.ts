@@ -45,6 +45,7 @@ export interface OperationalConsoleModel {
     role: string;
   };
   dashboard: DashboardSnapshotContract;
+  dashboardHistory: DashboardSnapshotHistoryPoint[];
   onboarding: {
     eu: OnboardingSurface;
     countryPacks: CountryPackSurface[];
@@ -61,6 +62,13 @@ export interface OperationalConsoleModel {
     label: string;
     detail: string;
   };
+}
+
+export interface DashboardSnapshotHistoryPoint {
+  date: string;
+  overall_score: number;
+  critical_gaps: number;
+  high_gaps: number;
 }
 
 export interface RuntimeSessionSurface {
@@ -467,6 +475,26 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
       role: "Compliance owner"
     },
     dashboard,
+    dashboardHistory: [
+      {
+        date: "2026-04-28",
+        overall_score: 38,
+        critical_gaps: 4,
+        high_gaps: 6
+      },
+      {
+        date: "2026-04-29",
+        overall_score: 46,
+        critical_gaps: 3,
+        high_gaps: 5
+      },
+      {
+        date: "2026-04-30",
+        overall_score: dashboard.trendMetrics.overallScore,
+        critical_gaps: dashboard.trendMetrics.gapCountBySeverity.critical,
+        high_gaps: dashboard.trendMetrics.gapCountBySeverity.high
+      }
+    ],
     onboarding: {
       eu: {
         title: "Business profile",
@@ -581,6 +609,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
 export const createOperationalConsoleRuntimeModel = (input: {
   session: RuntimeSessionSurface;
   dashboard: DashboardSnapshotContract;
+  dashboardHistory?: DashboardSnapshotHistoryPoint[];
   organization?: {
     id: string;
     name?: string | null;
@@ -606,6 +635,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
       role: "Authenticated user"
     },
     dashboard: input.dashboard,
+    dashboardHistory: input.dashboardHistory ?? [],
     runtimeSource: {
       label: "API snapshot",
       detail: `GET /organizations/:orgId/dashboards/snapshots/latest | snapshot ${input.dashboard.organizationId}`

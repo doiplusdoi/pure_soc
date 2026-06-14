@@ -797,6 +797,198 @@ a {
   font-weight: 750;
 }
 
+.ps-trend-card {
+  display: grid;
+  gap: 0.85rem;
+}
+
+.ps-trend-card__header {
+  align-items: center;
+}
+
+.ps-trend-toggle-row {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  justify-content: flex-end;
+}
+
+.ps-trend-toggle {
+  min-height: 2rem;
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-panel);
+  color: var(--ps-color-muted);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+  padding: 0.35rem 0.6rem;
+}
+
+.ps-trend-toggle[aria-pressed="true"] {
+  border-color: var(--ps-color-accent);
+  background: var(--ps-color-accent-soft);
+  color: var(--ps-color-accent);
+}
+
+.ps-trend-panel[hidden] {
+  display: none;
+}
+
+.ps-trend-chart {
+  --ps-trend-score-color: var(--ps-color-warning);
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-panel-subtle);
+  padding: 0.55rem 0.55rem 0.4rem;
+}
+
+.ps-trend-chart--up {
+  --ps-trend-score-color: var(--ps-color-success);
+}
+
+.ps-trend-chart--down {
+  --ps-trend-score-color: var(--ps-color-danger);
+}
+
+.ps-trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+}
+
+.ps-trend-axis {
+  stroke: var(--ps-color-border-strong);
+  stroke-width: 1;
+}
+
+.ps-trend-gridline {
+  stroke: var(--ps-color-border);
+  stroke-width: 1;
+}
+
+.ps-trend-axis-label,
+.ps-trend-date-label {
+  fill: var(--ps-color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.ps-trend-axis-label--left {
+  text-anchor: end;
+}
+
+.ps-trend-date-label--end {
+  text-anchor: end;
+}
+
+.ps-trend-line {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.ps-trend-line--score {
+  stroke: var(--ps-trend-score-color);
+  stroke-width: 4;
+}
+
+.ps-trend-line--critical {
+  stroke: var(--ps-color-critical);
+  stroke-dasharray: 7 5;
+  stroke-width: 3;
+}
+
+.ps-trend-point {
+  outline: none;
+}
+
+.ps-trend-point__dot {
+  fill: var(--ps-color-panel);
+  stroke: var(--ps-trend-score-color);
+  stroke-width: 3;
+}
+
+.ps-trend-tooltip {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease-out;
+}
+
+.ps-trend-point:hover .ps-trend-tooltip,
+.ps-trend-point:focus .ps-trend-tooltip {
+  opacity: 1;
+}
+
+.ps-trend-tooltip rect {
+  fill: var(--ps-color-ink);
+}
+
+.ps-trend-tooltip text {
+  fill: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 750;
+}
+
+.ps-trend-legend,
+.ps-trend-stat-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.65rem;
+  justify-content: space-between;
+}
+
+.ps-trend-legend {
+  margin-top: 0.35rem;
+  color: var(--ps-color-muted);
+  font-size: 0.78rem;
+}
+
+.ps-trend-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.ps-trend-legend__swatch {
+  display: inline-block;
+  width: 1.2rem;
+  height: 0.18rem;
+  border-radius: 999px;
+}
+
+.ps-trend-legend__swatch--score {
+  background: var(--ps-trend-score-color);
+}
+
+.ps-trend-legend__swatch--critical {
+  background: var(--ps-color-critical);
+}
+
+.ps-trend-stat-row {
+  border-top: 1px solid var(--ps-color-border);
+  margin-top: 0.8rem;
+  padding-top: 0.75rem;
+}
+
+.ps-trend-stat__summary {
+  margin: 0;
+  font-weight: 850;
+}
+
+.ps-trend-empty {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 12rem;
+  border: 1px dashed var(--ps-color-border-strong);
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-panel-subtle);
+  padding: 1rem;
+}
+
 .ps-route-hero {
   border: 1px solid var(--ps-color-border);
   border-radius: var(--ps-radius-md);
@@ -1599,6 +1791,9 @@ a {
   .ps-topbar,
   .ps-section__header,
   .ps-next-action,
+  .ps-trend-card__header,
+  .ps-trend-empty,
+  .ps-trend-stat-row,
   .ps-page-hero {
     align-items: stretch;
     flex-direction: column;
@@ -1614,7 +1809,8 @@ a {
   }
 
   .ps-topbar__actions .ps-command,
-  .ps-topbar__actions .ps-status {
+  .ps-topbar__actions .ps-status,
+  .ps-trend-toggle-row .ps-trend-toggle {
     flex: 1 1 10rem;
   }
 

@@ -33,6 +33,18 @@ export interface DashboardSnapshotContract {
     recommendations: number;
     evidenceArtifacts: number;
   };
+  trendMetrics: {
+    overallScore: number;
+    gapCountBySeverity: {
+      critical: number;
+      high: number;
+      medium: number;
+      low: number;
+    };
+    controlsCompliant: number;
+    controlsTotal: number;
+    providerConnectionHealth: number;
+  };
 }
 
 export const createStoredAnalysisDashboardSnapshot = (
@@ -59,5 +71,17 @@ export const createStoredAnalysisDashboardSnapshot = (
     gaps: 0,
     recommendations: 0,
     evidenceArtifacts: 0
+  },
+  trendMetrics: {
+    overallScore: 0,
+    gapCountBySeverity: {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0
+    },
+    controlsCompliant: 0,
+    controlsTotal: 0,
+    providerConnectionHealth: 0
   }
 });

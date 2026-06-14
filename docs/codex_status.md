@@ -1,8 +1,8 @@
 ---
-title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, Billing Customer Drift Coverage, Customer Onboarding Wizard UX, PDF Report Generation, And Notification Alerts
+title: PureSOC Codex Status, Remediation, Local Product Progress, Served Invitation UX, CSV Exports, Export Metadata, Evidence Packages, Package Guardrails, Regulatory Drift Coverage, Billing Customer Drift Coverage, Customer Onboarding Wizard UX, PDF Report Generation, Notification Alerts, And Compliance Trend Charts
 date: 2026-06-14
 author: Codex
-scope: Repository-level current status after M94 notification and alert system implementation on 2026-06-14, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
+scope: Repository-level current status after M95 compliance score trend chart implementation on 2026-06-14, preserving the 2026-05-04 M71-M78 product-finish snapshot as history.
 aligned_with:
   - docs/claude_status.md
   - docs/puresoc_vision.md
@@ -62,6 +62,8 @@ M93 implements the first user-requested product milestone for PDF report generat
 
 M94 implements the second user-requested product milestone for notifications and alerts: `@puresoc/notifications` provides non-throwing send orchestration with SMTP/Slack/Teams transport boundaries, notification channels/logs/deadlines are org-scoped in memory and Prisma modes, API and Settings -> Notifications UI manage channels with webhook redaction, compliance/Microsoft/remediation services emit alert events, and the scheduler scans incident, evidence-expiry, and checklist-overdue windows. This is local/tested delivery plumbing only; live SMTP/webhook proof and the full incident workflow model remain under GAP-048.
 
+M95 implements the third user-requested product milestone for compliance score trend charts: dashboard snapshots now include additive trend metrics for compliant/accepted-risk score, severity counts, compliant/total controls, and provider connection health; the API exposes ascending dashboard history rows; the scheduler creates at most one UTC daily snapshot per organization with stored analysis; and the served dashboard renders a dependency-free SVG trend chart with 30/90/180 day toggles, exact-value labels, not-enough-data state, and movement copy. This is local/API/runtime proof and does not change provider write posture or score-calibration approval status.
+
 The main unfinished work is not another architecture pass. It is product/legal approval, one approved live/disposable external smoke target, runtime hardening, and full customer-grade frontend hardening beyond the lightweight served UI.
 
 ## Repo Inspection
@@ -85,13 +87,14 @@ Inspected and validated on 2026-06-11:
 - `docs/PLAN_M92.md` narrows GAP-031 and GAP-046 with the short-page customer NIS2 wizard, Microsoft tenant connector handoff, derived gap list, and export controls.
 - `docs/PLAN_M93.md` narrows GAP-029 with Playwright-backed local PDF rendering, PDF report routes, generated-report/report-export hash metadata, audited evidence-backed PDF downloads, and internal-only renderer Compose wiring.
 - `docs/PLAN_M94.md` is completed for Product Milestone 2, notification and alert delivery.
-- `docs/PLAN_M95.md` is staged for Product Milestone 3, compliance score trend chart.
+- `docs/PLAN_M95.md` is completed for Product Milestone 3, compliance score trend chart.
+- `docs/PLAN_M96.md` is staged for Product Milestone 4, write actions wave 1 zero blast radius.
 - `git diff --check` passed for the M92 changes.
 - The workspace has 371 files under `code/` according to `rg --files code`.
 - The app layout and package layout match the docs' `code/` convention.
 - `docs/implementation-gaps.md` still shows the major launch/runtime gaps open; M79 narrowed GAP-031 and GAP-042 but did not add legal activation, DNSC submission, provider writes, or live external proof.
 
-The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation; M92 added focused web render, Romania workflow, UI smoke, lint, Compose config, and diff validation; M93 added focused report-renderer, evidence/report API, lint, Compose config, and migration-attempt validation; M94 added focused notification API/scheduler/web validation plus full Vitest/lint/schema validation:
+The M79 baseline validation below remains the latest broad local product snapshot. M82 additionally ran the lint gate, regulatory drift check, and focused drift tests with npm tooling; M83 added focused auth/web/UI validation; M84 added focused evidence/report/dashboard validation; M85 added focused output-record/report-export validation; M86 added focused report/evidence-package validation; M87 added focused evidence-package guardrail validation; M88 added focused auth/organization invitation validation; M89 added focused web/invitation UI validation; M90 added focused regulatory source activation drift validation; M91 added focused billing customer drift validation; M92 added focused web render, Romania workflow, UI smoke, lint, Compose config, and diff validation; M93 added focused report-renderer, evidence/report API, lint, Compose config, and migration-attempt validation; M94 added focused notification API/scheduler/web validation plus full Vitest/lint/schema validation; M95 added focused dashboards/scheduler/web/output-record validation plus typecheck/lint/schema validation:
 
 ```txt
 npm run lint
@@ -183,6 +186,21 @@ passed for M94
 
 npm test
 passed outside the sandbox for M94, 87 files / 410 tests
+
+npm test -- dashboards scheduler web output-records
+passed for M95, 10 files / 45 tests
+
+npm run typecheck
+passed for M95
+
+npm run lint
+passed for M95, schema drift check covered 40 models / 558 fields
+
+DATABASE_URL=postgresql://pure_soc:pure_soc@127.0.0.1:5432/pure_soc npm run prisma:validate
+passed for M95
+
+git diff --check
+passed for M95
 ```
 
 Vitest selections that bind ephemeral local API servers were run outside the sandbox after sandboxed execution hit `listen EPERM`.
@@ -198,7 +216,7 @@ Vitest selections that bind ephemeral local API servers were run outside the san
 | Romania country pack | Best current product path | Workbook import, generated seed/source map/import report, runtime catalog model, classification, onboarding schema, complete imported notification draft mapping, saved progress, and product-safe short-page wizard workflow exist. Legal activation/copy approval remain open. |
 | Microsoft 365 | Read-only contract/fixture baseline | Permission bundles and read modules are modeled. No approved disposable tenant/live Graph smoke has run. Write executor remains disabled. |
 | Compliance engine | Strong internal-readiness baseline | Article 21 catalog, gaps, recommendations, readiness plan, checklist and dashboard/report integration exist. Score calibration still needs product/legal approval. |
-| Evidence/reports/dashboard | Strong local JSON/CSV/PDF/package baseline | Local authenticated evidence, JSON report metadata, stable internal-readiness CSV export, persisted JSON/CSV/PDF report-export metadata rows, deterministic local binary evidence-package tar bundles, audited evidence-backed PDF downloads, Playwright-backed internal renderer code, and configurable package size/file-count guardrails exist. Live disposable storage/scanner/deployed-renderer smoke, host/container browser fidelity proof, and streaming large-package support remain open. |
+| Evidence/reports/dashboard | Strong local JSON/CSV/PDF/package/trend baseline | Local authenticated evidence, JSON report metadata, stable internal-readiness CSV export, persisted JSON/CSV/PDF report-export metadata rows, deterministic local binary evidence-package tar bundles, audited evidence-backed PDF downloads, Playwright-backed internal renderer code, configurable package size/file-count guardrails, daily dashboard trend metrics, history API, scheduler snapshots, and served SVG trend chart exist. Live disposable storage/scanner/deployed-renderer smoke, host/container browser fidelity proof, and streaming large-package support remain open. |
 | Notifications/alerts | Strong local plumbing baseline | Org-scoped channels/logs/deadlines, SMTP/Slack/Teams transport boundaries, API/UI management, critical-gap/Microsoft-drift/remediation/scheduler triggers, send-attempt logging, and webhook redaction exist. Live delivery smoke, retry/backoff policy, endpoint rotation, and full incident workflow modeling remain open. |
 | Billing | Contract-complete, product-incomplete | Stripe adapter/webhook/entitlements exist. Pricing, plan packaging, and real test-mode smoke remain product/operator work. |
 | Audit | Tamper-evident database baseline | Hash chain/checkpoint/export metadata exists. WORM storage, external signing, and legal-grade retention are deferred. |
@@ -211,7 +229,7 @@ Launch/product gates:
 
 - `GAP-006`: legal review process and Romania activation ownership remain open.
 - `GAP-012`: billing products, prices, trial/downgrade policy, and entitlement packaging need product approval.
-- `GAP-021`: readiness score weights, stale-evidence policy, accepted-risk credit, and customer-facing copy need product/legal approval.
+- `GAP-021`: readiness score weights, trend-score semantics, provider-health semantics, stale-evidence policy, accepted-risk credit, and customer-facing copy need product/legal approval.
 - `GAP-042`: Romanian legal caveat and regulatory notification copy remain English/source-mapped fallback until approved.
 - `GAP-044`: no approved live/disposable external smoke target has been selected or run.
 - `GAP-046`: self-service signup now has local email-verification completion, API-level owner-managed invitations, served invitation creation/acceptance UX, and signup/workspace continuation into the NIS2 wizard, but real delivery, open-vs-invite-only policy, platform-admin operations, and abuse controls remain open.
@@ -232,11 +250,11 @@ Runtime/production proof gates:
 
 ## Recommended Next Step
 
-M94 is complete. The user-directed product implementation order stages `docs/PLAN_M95.md` next for Milestone 3, compliance score trend chart.
+M95 is complete. The user-directed product implementation order stages `docs/PLAN_M96.md` next for Milestone 4, write actions wave 1 zero blast radius.
 
 `docs/PLAN_M80.md` still records the separate decision-gated handoff for Romanian legal/product activation or one approved disposable external proof target. Until a reviewer or disposable/test target is explicitly selected, keep GAP-006, GAP-042, and GAP-044 open and avoid adding DNSC submission, certification claims, provider writes, public regulatory fetches, or live external calls.
 
-For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For the current product milestone sequence, use `docs/PLAN_M95.md`.
+For the full gap-by-gap execution sequence, use `docs/gap-implementation-path.md`. It groups the remaining gaps into human decision gates, external proof gates, production runtime hardening, and post-proof feature expansion. For the current product milestone sequence, use `docs/PLAN_M96.md`.
 
 For Microsoft 365 real-life tenant testing, use `docs/real-tenant-testing.md`, prepare local environment values from `docs/microsoft365-read-only-smoke.env.example`, and record each run with `docs/real-tenant-test-record-template.md`. The required order is disposable/test tenant first, friendly/internal pilot second, customer pilot only with written authorization, and production customer testing only after earlier evidence exists. The current runner remains read-only and selector-gated.
 

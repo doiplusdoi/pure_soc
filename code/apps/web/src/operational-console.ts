@@ -22,6 +22,7 @@ import {
 
 import type {
   CountryPackSurface,
+  DashboardSnapshotHistoryPoint,
   GapSurface,
   Microsoft365ModuleSurface,
   NotificationSettingsScreenModel,
@@ -266,6 +267,7 @@ export const renderOperationalConsole = (
     '<body class="ps-body">',
     content,
     renderRomaniaServiceSearchScript(),
+    renderDashboardTrendScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -1835,6 +1837,27 @@ const renderRomaniaServiceSearchScript = (): string =>
 })();
 </script>`;
 
+const renderDashboardTrendScript = (): string =>
+  `<script>
+(() => {
+  document.querySelectorAll("[data-score-trend-card]").forEach((card) => {
+    const buttons = Array.from(card.querySelectorAll("[data-trend-days]"));
+    const panels = Array.from(card.querySelectorAll("[data-trend-panel]"));
+    buttons.forEach((button) => {
+      button.addEventListener("click", () => {
+        const selected = button.getAttribute("data-trend-days");
+        buttons.forEach((candidate) => {
+          candidate.setAttribute("aria-pressed", candidate === button ? "true" : "false");
+        });
+        panels.forEach((panel) => {
+          panel.hidden = panel.getAttribute("data-trend-panel") !== selected;
+        });
+      });
+    });
+  });
+})();
+</script>`;
+
 const renderRomaniaLegalRepresentativeFields = (model: RomaniaOnboardingRouteModel): string =>
   [
     '<fieldset class="ps-fieldset">',
@@ -2298,6 +2321,7 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     "</div>",
     "</div>",
     renderDashboardNextAction(model),
+    renderScoreTrendPanel(model.dashboardHistory),
     '<div class="ps-dashboard-grid ps-stack-top">',
     '<article class="ps-panel ps-readiness-ring-card" aria-labelledby="readiness-score-title">',
     '<h2 class="ps-panel__title" id="readiness-score-title">Overall Readiness Score</h2>',
@@ -2389,6 +2413,203 @@ const renderDashboardNextAction = (model: OperationalConsoleModel): string => {
     "</div>"
   ].join("");
 };
+
+const trendRanges = [30, 90, 180] as const;
+
+const renderScoreTrendPanel = (history: DashboardSnapshotHistoryPoint[]): string => {
+  const points = normalizeTrendHistory(history);
+  const defaultDays = 30;
+
+  return [
+    '<article class="ps-panel ps-trend-card ps-stack-top" aria-labelledby="score-trend-title" data-score-trend-card>',
+    '<div class="ps-section__header ps-section__header--flat ps-trend-card__header">',
+    '<div><h2 class="ps-panel__title" id="score-trend-title">Compliance Score Trend</h2><p class="ps-muted">Daily internal-readiness snapshots from stored assessment outputs.</p></div>',
+    '<div class="ps-trend-toggle-row" role="group" aria-label="Trend window">',
+    ...trendRanges.map(
+      (days) =>
+        `<button type="button" class="ps-trend-toggle" data-trend-days="${days}" aria-pressed="${days === defaultDays ? "true" : "false"}">${days} days</button>`
+    ),
+    "</div>",
+    "</div>",
+    ...trendRanges.map((days) => renderTrendRangePanel(points, days, days === defaultDays)),
+    "</article>"
+  ].join("");
+};
+
+const renderTrendRangePanel = (
+  points: DashboardSnapshotHistoryPoint[],
+  days: (typeof trendRanges)[number],
+  active: boolean
+): string => {
+  const rangePoints = filterTrendRange(points, days);
+  const hidden = active ? "" : " hidden";
+
+  if (rangePoints.length < 3) {
+    return [
+      `<div class="ps-trend-panel"${hidden} data-trend-panel="${days}">`,
+      '<div class="ps-trend-empty" role="status">',
+      '<div><h3 class="ps-panel__title">Not enough data</h3>',
+      `<p class="ps-muted">At least 3 daily snapshots are needed for the ${days}-day trend. ${rangePoints.length} available.</p></div>`,
+      renderStatusPill({ label: "collecting snapshots", tone: "warning" }),
+      "</div>",
+      "</div>"
+    ].join("");
+  }
+
+  return [
+    `<div class="ps-trend-panel"${hidden} data-trend-panel="${days}">`,
+    renderTrendSvg(rangePoints),
+    renderTrendStatRow(rangePoints, days),
+    "</div>"
+  ].join("");
+};
+
+const renderTrendSvg = (points: DashboardSnapshotHistoryPoint[]): string => {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) {
+    return "";
+  }
+
+  const width = 760;
+  const height = 280;
+  const plot = {
+    left: 50,
+    right: 56,
+    top: 22,
+    bottom: 42
+  };
+  const plotWidth = width - plot.left - plot.right;
+  const plotHeight = height - plot.top - plot.bottom;
+  const maxCritical = Math.max(1, ...points.map((point) => point.critical_gaps));
+  const movement = last.overall_score - first.overall_score;
+  const scoreTone = movement > 0 ? "up" : movement < 0 ? "down" : "flat";
+  const xFor = (index: number): number =>
+    plot.left + (points.length === 1 ? 0 : (index / (points.length - 1)) * plotWidth);
+  const scoreY = (score: number): number => plot.top + ((100 - score) / 100) * plotHeight;
+  const criticalY = (count: number): number => plot.top + ((maxCritical - count) / maxCritical) * plotHeight;
+  const scoreLine = points.map((point, index) => `${roundChart(xFor(index))},${roundChart(scoreY(point.overall_score))}`).join(" ");
+  const criticalLine = points
+    .map((point, index) => `${roundChart(xFor(index))},${roundChart(criticalY(point.critical_gaps))}`)
+    .join(" ");
+
+  return [
+    `<div class="ps-trend-chart ps-trend-chart--${scoreTone}">`,
+    '<svg class="ps-trend-svg" viewBox="0 0 760 280" role="img" aria-labelledby="trend-svg-title trend-svg-desc">',
+    '<title id="trend-svg-title">Compliance score trend chart</title>',
+    `<desc id="trend-svg-desc">Score line from ${first.overall_score} to ${last.overall_score}; critical gaps from ${first.critical_gaps} to ${last.critical_gaps}.</desc>`,
+    `<line class="ps-trend-axis" x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${height - plot.bottom}"></line>`,
+    `<line class="ps-trend-axis" x1="${width - plot.right}" y1="${plot.top}" x2="${width - plot.right}" y2="${height - plot.bottom}"></line>`,
+    `<line class="ps-trend-axis" x1="${plot.left}" y1="${height - plot.bottom}" x2="${width - plot.right}" y2="${height - plot.bottom}"></line>`,
+    ...[0, 50, 100].map((value) => {
+      const y = scoreY(value);
+      return [
+        `<line class="ps-trend-gridline" x1="${plot.left}" y1="${roundChart(y)}" x2="${width - plot.right}" y2="${roundChart(y)}"></line>`,
+        `<text class="ps-trend-axis-label ps-trend-axis-label--left" x="${plot.left - 10}" y="${roundChart(y + 4)}">${value}</text>`
+      ].join("");
+    }),
+    `<text class="ps-trend-axis-label ps-trend-axis-label--right" x="${width - plot.right + 10}" y="${plot.top + 4}">${maxCritical}</text>`,
+    `<text class="ps-trend-axis-label ps-trend-axis-label--right" x="${width - plot.right + 10}" y="${height - plot.bottom + 4}">0</text>`,
+    `<polyline class="ps-trend-line ps-trend-line--score" points="${scoreLine}"></polyline>`,
+    `<polyline class="ps-trend-line ps-trend-line--critical" points="${criticalLine}"></polyline>`,
+    ...points.map((point, index) => renderTrendPoint(point, xFor(index), scoreY(point.overall_score))),
+    `<text class="ps-trend-date-label" x="${plot.left}" y="${height - 10}">${escapeHtml(formatTrendDate(first.date))}</text>`,
+    `<text class="ps-trend-date-label ps-trend-date-label--end" x="${width - plot.right}" y="${height - 10}">${escapeHtml(
+      formatTrendDate(last.date)
+    )}</text>`,
+    "</svg>",
+    '<div class="ps-trend-legend" aria-label="Chart legend">',
+    '<span><i class="ps-trend-legend__swatch ps-trend-legend__swatch--score" aria-hidden="true"></i>Compliance score</span>',
+    '<span><i class="ps-trend-legend__swatch ps-trend-legend__swatch--critical" aria-hidden="true"></i>Critical gaps</span>',
+    "</div>",
+    "</div>"
+  ].join("");
+};
+
+const renderTrendPoint = (point: DashboardSnapshotHistoryPoint, x: number, y: number): string => {
+  const tooltipWidth = 168;
+  const tooltipHeight = 48;
+  const tooltipX = x > 580 ? x - tooltipWidth - 10 : x + 10;
+  const tooltipY = y < 72 ? y + 16 : y - tooltipHeight - 10;
+  const label = `${point.date}: score ${point.overall_score}, critical gaps ${point.critical_gaps}, high gaps ${point.high_gaps}`;
+
+  return [
+    `<g class="ps-trend-point" tabindex="0" aria-label="${escapeHtml(label)}">`,
+    `<circle class="ps-trend-point__dot" cx="${roundChart(x)}" cy="${roundChart(y)}" r="4.5"></circle>`,
+    '<g class="ps-trend-tooltip" aria-hidden="true">',
+    `<rect x="${roundChart(tooltipX)}" y="${roundChart(tooltipY)}" width="${tooltipWidth}" height="${tooltipHeight}" rx="4"></rect>`,
+    `<text x="${roundChart(tooltipX + 8)}" y="${roundChart(tooltipY + 17)}">`,
+    `<tspan x="${roundChart(tooltipX + 8)}">${escapeHtml(point.date)}</tspan>`,
+    `<tspan x="${roundChart(tooltipX + 8)}" dy="15">Score ${point.overall_score} | Critical ${point.critical_gaps} | High ${point.high_gaps}</tspan>`,
+    "</text>",
+    "</g>",
+    "</g>"
+  ].join("");
+};
+
+const renderTrendStatRow = (points: DashboardSnapshotHistoryPoint[], days: number): string => {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) {
+    return "";
+  }
+
+  const delta = last.overall_score - first.overall_score;
+  const movement = delta > 0 ? "improved" : delta < 0 ? "declined" : "unchanged";
+  const signedDelta = delta > 0 ? `+${delta}` : String(delta);
+  const tone = delta > 0 ? "success" : delta < 0 ? "danger" : "warning";
+
+  return [
+    '<div class="ps-trend-stat-row">',
+    `<p class="ps-trend-stat__summary">Score ${movement} ${signedDelta} points in the last ${days} days</p>`,
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: `${first.overall_score} -> ${last.overall_score} score`, tone }),
+    renderStatusPill({ label: `${first.critical_gaps} -> ${last.critical_gaps} critical gaps`, tone: last.critical_gaps <= first.critical_gaps ? "success" : "danger" }),
+    renderStatusPill({ label: `${first.high_gaps} -> ${last.high_gaps} high gaps`, tone: last.high_gaps <= first.high_gaps ? "success" : "warning" }),
+    "</div>",
+    "</div>"
+  ].join("");
+};
+
+const normalizeTrendHistory = (history: DashboardSnapshotHistoryPoint[]): DashboardSnapshotHistoryPoint[] => {
+  const byDate = new Map<string, DashboardSnapshotHistoryPoint>();
+  for (const point of history) {
+    if (!isIsoDate(point.date)) {
+      continue;
+    }
+    byDate.set(point.date, {
+      date: point.date,
+      overall_score: clampPercent(point.overall_score),
+      critical_gaps: nonNegativeTrendInteger(point.critical_gaps),
+      high_gaps: nonNegativeTrendInteger(point.high_gaps)
+    });
+  }
+
+  return [...byDate.values()].sort((left, right) => left.date.localeCompare(right.date));
+};
+
+const filterTrendRange = (
+  points: DashboardSnapshotHistoryPoint[],
+  days: (typeof trendRanges)[number]
+): DashboardSnapshotHistoryPoint[] => {
+  const latest = points[points.length - 1];
+  if (!latest) {
+    return [];
+  }
+
+  const earliestMs = trendDateMs(latest.date) - (days - 1) * 86_400_000;
+  return points.filter((point) => trendDateMs(point.date) >= earliestMs);
+};
+
+const isIsoDate = (value: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(trendDateMs(value));
+
+const trendDateMs = (date: string): number => new Date(`${date}T00:00:00.000Z`).getTime();
+
+const formatTrendDate = (date: string): string => `${date.slice(5, 7)}/${date.slice(8, 10)}`;
+
+const nonNegativeTrendInteger = (value: number): number => Math.max(0, Math.round(value));
+
+const roundChart = (value: number): string => Number(value.toFixed(1)).toString();
 
 const renderReadinessRing = ({ caption, label, value }: { caption: string; label: string; value: number }): string => {
   const percent = clampPercent(value);

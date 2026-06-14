@@ -46,6 +46,11 @@ describe("output record repositories", () => {
       id: newSnapshot.id,
       organizationId: ORG_A
     });
+    await expect(repository.listDashboardSnapshots(ORG_A, { since: "2026-05-01T00:00:00.000Z" })).resolves.toEqual([
+      oldSnapshot,
+      newSnapshot
+    ]);
+    await expect(repository.listLatestStoredAnalyses()).resolves.toEqual([analysis]);
   });
 
   it("persists stored analyses, generated reports, and dashboard snapshots through Prisma delegates", async () => {
@@ -92,6 +97,11 @@ describe("output record repositories", () => {
         readinessScoreLabel: "PureSOC internal readiness"
       }
     });
+    await expect(repository.listDashboardSnapshots(ORG_A, { since: "2026-05-01T00:00:00.000Z" })).resolves.toEqual([
+      oldSnapshot,
+      newSnapshot
+    ]);
+    await expect(repository.listLatestStoredAnalyses()).resolves.toEqual([analysis]);
 
     expect(client.generatedReport.lastFindFirstWhere).toEqual({
       id: report.id,
@@ -261,12 +271,21 @@ class FakeDelegate {
   }
 
   async findMany(input: {
-    orderBy?: { createdAt?: "asc" | "desc" };
+    orderBy?: { createdAt?: "asc" | "desc"; recordedAt?: "asc" | "desc" };
     where: Record<string, unknown>;
   }): Promise<Array<Record<string, unknown>>> {
-    const rows = this.rows.filter((row) => matchesWhere(row, input.where));
+    const rows = this.rows.filter((row) => matchesWhere(row, input.where ?? {}));
+    if (input.orderBy?.createdAt === "asc") {
+      rows.sort((left, right) => toDate(left.createdAt).getTime() - toDate(right.createdAt).getTime());
+    }
     if (input.orderBy?.createdAt === "desc") {
       rows.sort((left, right) => toDate(right.createdAt).getTime() - toDate(left.createdAt).getTime());
+    }
+    if (input.orderBy?.recordedAt === "asc") {
+      rows.sort((left, right) => toDate(left.recordedAt).getTime() - toDate(right.recordedAt).getTime());
+    }
+    if (input.orderBy?.recordedAt === "desc") {
+      rows.sort((left, right) => toDate(right.recordedAt).getTime() - toDate(left.recordedAt).getTime());
     }
 
     return rows;
@@ -286,6 +305,17 @@ const matchesWhere = (row: Record<string, unknown>, where: Record<string, unknow
   for (const [field, expected] of Object.entries(where)) {
     if (field === "organizationId_assessmentId" && isRecord(expected)) {
       if (row.organizationId !== expected.organizationId || row.assessmentId !== expected.assessmentId) {
+        return false;
+      }
+      continue;
+    }
+
+    if (field === "createdAt" && isRecord(expected)) {
+      const value = toDate(row.createdAt).getTime();
+      if (expected.gte !== undefined && value < toDate(expected.gte).getTime()) {
+        return false;
+      }
+      if (expected.lte !== undefined && value > toDate(expected.lte).getTime()) {
         return false;
       }
       continue;

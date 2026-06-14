@@ -67,7 +67,7 @@ import {
   downloadGapReportPdfRoute,
   downloadRomaniaNotificationDraftPdfRoute
 } from "./reports/routes";
-import { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute } from "./dashboards/routes";
+import { createDashboardSnapshotRoute, getLatestDashboardSnapshotRoute, listDashboardSnapshotsRoute } from "./dashboards/routes";
 import {
   createBillingCheckoutSessionRoute,
   createBillingPortalSessionRoute,
@@ -212,6 +212,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     downloadRomaniaNotificationDraftPdfRoute(params[0] ?? "", url.searchParams, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/dashboards\/snapshots$/, "compliance", ({ params, body, request, services }) =>
     createDashboardSnapshotRoute(params[0] ?? "", body, request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/dashboards\/snapshots$/, "compliance", ({ params, url, request, services }) =>
+    listDashboardSnapshotsRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
   route("GET", /^\/organizations\/([^/]+)\/dashboards\/snapshots\/latest$/, "compliance", ({ params, url, request, services }) =>
     getLatestDashboardSnapshotRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
   route("GET", /^\/organizations\/([^/]+)\/billing\/entitlements$/, "billing", ({ params, request, services }) =>

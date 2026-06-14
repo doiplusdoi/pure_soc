@@ -4,6 +4,7 @@ import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
 import {
   createOperationalConsoleRuntimeModel,
+  type DashboardSnapshotHistoryPoint,
   disconnectedMicrosoft365Surface,
   organizationInvitationRoleOptions,
   createRomaniaOnboardingRouteModel,
@@ -67,6 +68,10 @@ const microsoft365ReadOnlyConnectionBundles = ["m365_read_baseline", "m365_secur
 
 interface LatestDashboardSnapshotResponse {
   snapshot: DashboardSnapshotContract;
+}
+
+interface DashboardSnapshotHistoryResponse {
+  snapshots: DashboardSnapshotHistoryPoint[];
 }
 
 interface OrganizationListResponse {
@@ -1238,14 +1243,24 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      const dashboard = await apiJson<LatestDashboardSnapshotResponse>(
-        apiBaseUrl,
-        `/organizations/${encodeURIComponent(activeOrganizationId)}/dashboards/snapshots/latest`,
-        {
-          method: "GET",
-          cookie: request.headers.cookie
-        }
-      );
+      const [dashboard, dashboardHistory] = await Promise.all([
+        apiJson<LatestDashboardSnapshotResponse>(
+          apiBaseUrl,
+          `/organizations/${encodeURIComponent(activeOrganizationId)}/dashboards/snapshots/latest`,
+          {
+            method: "GET",
+            cookie: request.headers.cookie
+          }
+        ),
+        apiJson<DashboardSnapshotHistoryResponse>(
+          apiBaseUrl,
+          `/organizations/${encodeURIComponent(activeOrganizationId)}/dashboards/snapshots?days=180`,
+          {
+            method: "GET",
+            cookie: request.headers.cookie
+          }
+        )
+      ]);
 
       if (dashboard.statusCode !== 200) {
         sendHtml(
@@ -1269,6 +1284,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           createOperationalConsoleRuntimeModel({
             session: session.body,
             dashboard: dashboard.body.snapshot,
+            dashboardHistory: dashboardHistory.statusCode === 200 ? dashboardHistory.body.snapshots : [],
             organization: await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body),
             microsoft365: await loadMicrosoft365HealthSurface({
               apiBaseUrl,

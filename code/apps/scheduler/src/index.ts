@@ -12,6 +12,13 @@ export {
   type RunNotificationDeadlineScanJobInput
 } from "./notifications";
 export {
+  dashboardSnapshotJobName,
+  runDashboardSnapshotJob,
+  type DashboardSnapshotJobResult,
+  type DashboardSnapshotRepository,
+  type DashboardSnapshotScheduledJob
+} from "./dashboard-snapshots";
+export {
   createSchedulerRuntime,
   runSchedulerTick,
   type NotificationDeadlineScanScheduledJob,

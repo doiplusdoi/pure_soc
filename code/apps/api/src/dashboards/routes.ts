@@ -75,3 +75,36 @@ export const getLatestDashboardSnapshotRoute = async (
     throw error;
   }
 };
+
+export const listDashboardSnapshotsRoute = async (
+  organizationId: string,
+  query: URLSearchParams,
+  cookieHeader: string | undefined,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "auditor"]
+  });
+
+  return {
+    statusCode: 200,
+    body: await services.dashboards.listReadinessSnapshotHistory({
+      organizationId,
+      assessmentId: query.get("assessmentId") ?? undefined,
+      days: parseDays(query.get("days"))
+    })
+  };
+};
+
+const parseDays = (value: string | null): number | undefined => {
+  if (!value) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
