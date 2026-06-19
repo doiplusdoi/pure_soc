@@ -1,0 +1,498 @@
+# PureSOC — Full Product Implementation Prompt
+
+## Context
+PureSOC is a Docker-first, multitenant EU NIS2 compliance and remediation platform.
+Stack: Node.js API, Prisma/PostgreSQL, lightweight node:http web server, BullMQ workers,
+Microsoft 365 Graph connector, Stripe billing. All containers defined in docker-compose.
+The codebase is at /mnt/solodata/SoloCode/pure_soc.
+
+Implement all items below in order. Each section is a self-contained milestone. Commit
+after each milestone with a descriptive message. Do not skip sections or combine them.
+Read existing code before writing new code — patterns are already established.
+
+---
+
+## MILESTONE 1 — PDF Report Generation
+
+### Goal
+Make all existing report types downloadable as real PDFs.
+
+### What to do
+1. Implement the `puresoc-report-renderer` service using Playwright (already stubbed).
+   - Accept POST /render with { html: string, filename: string }
+   - Return PDF binary with correct Content-Type
+   - Run as a separate container on internal network only
+
+2. Create HTML templates (using existing report data structures) for:
+   - Executive Summary (1 page, traffic-light layout, overall score, top 3 gaps, fine exposure)
+   - Gap Report (full control list, severity badges, evidence status per control)
+   - Romanian NIS2 Notification Draft (pre-filled form fields from NotificationDraft model)
+   - Evidence Package Index (manifest of all evidence artifacts with hashes)
+
+3. Wire the existing `/compliance/reports/*` and `/onboarding/romania/reports/*` API routes
+   to call the renderer service when format=pdf.
+
+4. Add legal caveat footer on every PDF page (text already defined in codebase constants).
+
+5. Every GeneratedReport row must record content_hash after PDF is stored.
+
+### Acceptance criteria
+- GET /organizations/:orgId/compliance/reports/gap-report?format=pdf returns a valid PDF
+- GET /organizations/:orgId/onboarding/romania/reports/notification-draft?format=pdf returns PDF
+- PDF contains the legal caveat on every page
+- content_hash is stored in GeneratedReport row
+- Playwright service has its own Dockerfile and entry in docker-compose.yml
+
+---
+
+## MILESTONE 2 — Notification & Alert System
+
+### Goal
+Alert users by email (and optionally Slack/Teams webhook) for time-critical events.
+
+### What to do
+1. Add a `notifications` schema section in Prisma:
+   - NotificationChannel { id, org_id, type: email|slack_webhook|teams_webhook, destination,
+     enabled, created_at }
+   - NotificationLog { id, org_id, channel_id, event_type, payload_hash, sent_at, status,
+     error_message }
+
+2. Create a NotificationService with send(orgId, event, payload) method.
+   - Dispatches to all enabled channels for that org
+   - Logs every send attempt in NotificationLog
+   - Never throws — failures are logged, not propagated
+
+3. Define notification event types and their triggers:
+   - CRITICAL_GAP_DETECTED → trigger when ComplianceGap with severity=critical is created/updated
+   - M365_DRIFT_DETECTED → trigger when a ProviderFinding status changes open→new after a sync
+   - INCIDENT_DEADLINE_APPROACHING → trigger 6h before each incident reporting deadline
+   - EVIDENCE_EXPIRING → trigger 7 days before EvidenceArtifact expiry date
+   - CHECKLIST_OVERDUE → trigger when ChecklistRun passes due date without completion
+   - REMEDIATION_ACTION_COMPLETED → trigger when ProviderActionRun reaches verified state
+
+4. Add a scheduler job (runs every 30 min) that queries for upcoming deadlines and queues
+   INCIDENT_DEADLINE_APPROACHING and EVIDENCE_EXPIRING notifications.
+
+5. Add API endpoints:
+   - GET  /organizations/:orgId/notification-channels
+   - POST /organizations/:orgId/notification-channels  (create email or webhook channel)
+   - DELETE /organizations/:orgId/notification-channels/:id
+   - POST /organizations/:orgId/notification-channels/:id/test  (send test notification)
+   - GET  /organizations/:orgId/notification-logs
+
+6. Add UI settings panel under Settings → Notifications with channel list, add/remove,
+   and a "Send test" button per channel.
+
+### Email template content (plain text + HTML)
+- Subject prefix: [PureSOC]
+- CRITICAL_GAP_DETECTED: "New critical NIS2 gap detected in {controlName}. Login to review."
+- INCIDENT_DEADLINE_APPROACHING: "Action required: {deadlineType} deadline in 6 hours."
+- EVIDENCE_EXPIRING: "{count} evidence artifact(s) expire in 7 days."
+- CHECKLIST_OVERDUE: "Checklist '{name}' is overdue. Assigned to {assignee}."
+
+### Acceptance criteria
+- Creating an email channel and triggering a test sends a real email via configured SMTP
+- Creating a Slack webhook channel and triggering a test posts to Slack
+- CRITICAL_GAP_DETECTED fires when a new critical gap is persisted
+- INCIDENT_DEADLINE_APPROACHING fires via scheduler within 30 min of the 6h window
+- All sends are logged in NotificationLog regardless of success/failure
+
+---
+
+## MILESTONE 3 — Compliance Score Trend Chart
+
+### Goal
+Show the user their compliance score improving over time on the dashboard.
+
+### What to do
+1. The DashboardSnapshot model already exists. Ensure the scheduler creates one snapshot
+   per org per day containing:
+   - overall_score (0–100, percentage of controls that are compliant or accepted_risk)
+   - gap_count_by_severity { critical, high, medium, low }
+   - controls_compliant, controls_total
+   - provider_connection_health (number of healthy connections)
+   - Snapshot must include a created_at timestamp
+
+2. Add API endpoint:
+   GET /organizations/:orgId/dashboards/snapshots?days=90
+   Returns array of { date, overall_score, critical_gaps, high_gaps } sorted ascending.
+
+3. Add a trend chart component on the main dashboard:
+   - Simple SVG line chart (no external charting library unless one is already present)
+   - X axis: dates (last 30 days by default, toggle to 90/180 days)
+   - Y axis: 0–100 compliance score
+   - Secondary line: critical gap count on right axis
+   - Tooltip on hover showing exact values and date
+   - Show "Not enough data" state if fewer than 3 snapshots exist
+   - Green line for score going up, amber if flat, red if declining
+
+4. Below the chart, show a stat row:
+   "Score improved +12 points in the last 30 days" (or declined, or unchanged)
+
+### Acceptance criteria
+- Dashboard shows the trend chart when ≥ 3 daily snapshots exist
+- Scheduler creates one snapshot per org per day without duplicates
+- API returns correct historical data
+- "Not enough data" state renders correctly for new orgs
+
+---
+
+## MILESTONE 4 — Write Actions (Wave 1 — Zero Blast Radius)
+
+### Goal
+Enable the first wave of automated remediation actions that produce outputs for human
+review but make no configuration changes.
+
+### What to do
+1. Set PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=true only for the actions below.
+   All other write gates remain false.
+
+2. Implement these four ProviderActionTemplates for Microsoft 365:
+   a. AUDIT_LOG_EXPORT_SETUP
+      - Reads current audit log configuration via Graph API
+      - If not enabled: generates a step-by-step setup guide (Markdown) as evidence artifact
+      - If already enabled: records a "compliant" evidence artifact
+      - No API writes
+
+   b. MFA_COVERAGE_REPORT
+      - Queries all admin role members via Graph
+      - Checks each for registered MFA methods (authenticationMethods endpoint)
+      - Generates a CSV: user, role, mfa_registered (yes/no), mfa_methods
+      - Stores CSV as evidence artifact
+      - No API writes
+
+   c. GUEST_USER_REVIEW_TASK
+      - Queries all guest users (userType eq 'Guest') with last sign-in date
+      - Generates a review checklist task for each guest inactive > 90 days
+      - Creates ChecklistRun items for the security_operator to action manually
+      - No API writes
+
+   d. APP_REGISTRATION_CREDENTIAL_EXPIRY_REPORT
+      - Queries all app registrations and their passwordCredentials / keyCredentials
+      - Flags any credential expiring within 30 days or already expired
+      - Generates a CSV report stored as evidence artifact
+      - No API writes
+
+3. Each action must follow the existing action lifecycle:
+   preflight → approval (remediation_approver role) → apply → post-snapshot → verify → evidence
+
+4. Surface these four actions in the Recommendations section as "Available Actions" when
+   the relevant gaps exist.
+
+5. Update the Approval Queue UI to show action type, preflight results, and a one-click
+   Approve button for remediation_approver role.
+
+### Acceptance criteria
+- All four actions appear in Recommendations when their corresponding gaps are open
+- Each action completes the full lifecycle and produces an evidence artifact
+- No Microsoft 365 configuration is modified by any of these actions
+- Approval Queue shows pending actions with preflight summary
+- remediation_approver can approve; other roles see read-only view
+
+---
+
+## MILESTONE 5 — MSP Console
+
+### Goal
+Give MSP-tier customers a multi-client management dashboard.
+
+### What to do
+1. Add an MSP context to the session model:
+   - An org can be designated as msp_parent (boolean on Organization)
+   - MspClientLink { id, msp_org_id, client_org_id, created_at, status: active|suspended }
+   - Only orgs with entitlement `msp_console` can be msp_parent
+
+2. Add MSP management API endpoints:
+   - GET  /msp/clients                          (list all linked client orgs with summary)
+   - POST /msp/clients/invite                   (invite a client org by email; creates org + invitation)
+   - DELETE /msp/clients/:clientOrgId           (unlink a client)
+   - GET  /msp/clients/:clientOrgId/summary     (compliance score, gaps, last sync, open actions)
+   - POST /msp/clients/:clientOrgId/sync        (trigger M365 sync for a client)
+   - GET  /msp/alerts                           (aggregated alert feed across all clients)
+
+3. MSP members with org_admin role can impersonate any linked client org:
+   - POST /auth/session/active-organization     (already exists — extend to allow MSP→client switch)
+   - Add an "acting as {ClientName}" banner in the UI when impersonating
+   - Impersonation is audit-logged
+
+4. Add an MSP Console UI section (visible only to msp_parent orgs):
+   - Client list table: Name | Score | Critical Gaps | Last Sync | Status
+   - Row click → drills into that client's full PureSOC console (via impersonation)
+   - Alert feed panel: last 50 alerts across all clients, sorted by severity then time
+   - "Add Client" button with invite flow
+   - Bulk "Sync All" button (queues sync jobs for all active clients)
+
+5. Add `msp_console` entitlement to the MSP billing tier.
+
+### Acceptance criteria
+- MSP org admin can invite a client org and see it in the client list
+- MSP admin can switch into a client org context and see their compliance data
+- Impersonation events appear in AuditLog
+- Alert feed shows events from all linked clients
+- Non-MSP orgs do not see the MSP Console section
+
+---
+
+## MILESTONE 6 — Executive Summary Report
+
+### Goal
+A one-page PDF report suitable for board/executive presentation.
+
+### What to do
+1. Add report type EXECUTIVE_SUMMARY to GeneratedReport enum.
+
+2. Data to include in the report:
+   - Organization name and report generation date
+   - Overall NIS2 Readiness Score (large number, color-coded: <40 red, 40-70 amber, >70 green)
+   - Three traffic-light rows: Infrastructure & Identity | Data & Access | Incident Readiness
+   - Top 3 critical/high gaps (name, severity badge, one-line description)
+   - Count of: controls compliant / in progress / failing
+   - Provider connection status (M365: connected/disconnected)
+   - Fine exposure callout box:
+     "NIS2 Article 36 penalties: up to €10,000,000 or 2% of global annual turnover for
+      essential entities; up to €7,000,000 or 1.4% for important entities."
+   - Footer: legal caveat (one sentence) + PureSOC branding + report hash
+
+3. Add API endpoint:
+   GET /organizations/:orgId/compliance/reports/executive-summary?format=pdf
+
+4. Add "Download Executive Summary" button on the main dashboard, prominent placement.
+
+5. The report must render in under 3 seconds. Pre-compute all scores at snapshot time,
+   do not run live queries during PDF rendering.
+
+### Acceptance criteria
+- Executive Summary PDF is one page, clearly readable by a non-technical CEO
+- Renders in under 3 seconds
+- Fine exposure box is always present
+- Legal caveat appears in footer
+- Download button is visible on dashboard without navigating to Reports section
+
+---
+
+## MILESTONE 7 — Freemium / Trial Tier
+
+### Goal
+Let companies try PureSOC without a subscription to demonstrate value before purchase.
+
+### What to do
+1. Add a `free` tier to BillingSubscription (status: free, no Stripe subscription required).
+   New organizations start on the free tier automatically.
+
+2. Free tier entitlements:
+   - nis2_eu_portal: YES (EU baseline applicability check)
+   - m365_baseline_scan: YES (one-time scan, up to 50 resources)
+   - nis2_country_packs: NO (locked)
+   - evidence_vault: NO (locked)
+   - pdf_reports: YES but watermarked ("PureSOC Trial — Not for distribution")
+   - manual_checklists: NO
+   - api_access: NO
+   - remediation actions: NO
+
+3. Add scan limit enforcement in the M365 connector:
+   - If org is on free tier, stop ingesting after 50 ProviderRawResource rows
+   - Set a ProviderSyncRun.limit_reached flag
+   - Show "Upgrade to scan your full environment" banner when limit reached
+
+4. Add upgrade prompts at key moments:
+   - When user tries to access a locked feature: modal with "Upgrade to Pro" CTA
+   - After M365 scan completes on free tier: "You have X gaps. Upgrade to see full details
+     and start fixing them."
+   - On the gap list: blur rows beyond the first 5, show "Upgrade to see all {N} gaps"
+
+5. Free-to-paid upgrade flow:
+   - "Upgrade" button in nav header (always visible on free tier)
+   - Clicking opens Stripe Checkout (existing /billing/stripe/checkout endpoint)
+   - After successful checkout webhook, remove scan limit and unlock all entitled features
+
+6. Add a /pricing page (static HTML served by the web container) showing:
+   - Free: M365 scan, EU baseline check, trial report
+   - Pro: full gap analysis, country packs, evidence vault, PDF reports, actions
+   - MSP: all Pro features + MSP console, client management, bulk operations
+   - Pricing amounts: leave as {{ PRICE_PRO }} and {{ PRICE_MSP }} placeholders
+
+### Acceptance criteria
+- New registration lands on free tier without requiring a credit card
+- M365 scan works but stops at 50 resources with correct banner
+- Locked features show upgrade modal, not errors
+- Gap list blurs rows beyond 5
+- Upgrade flow completes via Stripe and unlocks features immediately on webhook receipt
+- Watermark appears on all PDFs generated on free tier
+
+---
+
+## MILESTONE 8 — Supplier Assessment Questionnaire
+
+### Goal
+Cover NIS2 Article 21(2)(d) supply chain risk management with a lightweight supplier
+questionnaire workflow.
+
+### What to do
+1. Add Prisma models:
+   - Supplier { id, org_id, name, contact_email, website, criticality: low|medium|high|critical,
+     status: pending|assessment_sent|responded|reviewed|approved|rejected, created_at }
+   - SupplierAssessment { id, supplier_id, org_id, template_version, sent_at, responded_at,
+     response_token (unique, hashed), expires_at, status, risk_score }
+   - SupplierAnswer { id, assessment_id, question_key, answer_value, evidence_url }
+
+2. Define a standard NIS2 supplier questionnaire with 12 questions covering:
+   - Do you have an information security policy? (yes/no/in-progress)
+   - Do you conduct annual security awareness training? (yes/no)
+   - Do you have a vulnerability management process? (yes/no)
+   - Do you perform penetration testing? (never/annually/more_frequent)
+   - Do you have a documented incident response plan? (yes/no)
+   - Have you had a security incident in the last 12 months? (yes/no/prefer_not_to_say)
+   - Do you hold any certifications? (ISO27001/SOC2/NIS2_compliant/none)
+   - Do you encrypt data in transit? (yes/no)
+   - Do you encrypt data at rest? (yes/no)
+   - Do you have a backup and recovery procedure? (yes/no)
+   - Do you restrict access on a need-to-know basis? (yes/no)
+   - Are you subject to NIS2 yourself? (yes/no/unknown)
+
+3. Risk scoring algorithm (stored as data, not hardcode):
+   - Each answer maps to a risk_points value
+   - Total score 0–100; <40 = high risk, 40–70 = medium, >70 = low risk
+
+4. Supplier response flow (no login required for suppliers):
+   - POST /supplier-assessments/:token/respond — accepts answers, sets responded_at
+   - Serve a standalone /supplier-response?token=xxx page (minimal HTML, no auth required)
+   - Token is single-use; expires after 30 days
+   - After response, send confirmation email to supplier and alert email to org
+
+5. Internal management API:
+   - GET  /organizations/:orgId/suppliers
+   - POST /organizations/:orgId/suppliers               (create supplier record)
+   - POST /organizations/:orgId/suppliers/:id/assess    (send questionnaire email)
+   - GET  /organizations/:orgId/suppliers/:id/assessment (view responses + risk score)
+   - POST /organizations/:orgId/suppliers/:id/review    (mark as approved/rejected with notes)
+
+6. Supplier Register UI section (under a new "Supply Chain" nav item):
+   - Table: Supplier Name | Criticality | Assessment Status | Risk Score | Last Assessed
+   - "Add Supplier" button
+   - "Send Assessment" button per row
+   - Click row → detail panel with all answers and risk score breakdown
+
+7. Map supplier risk to NIS2 supply chain controls in the gap calculation:
+   - If org has ≥1 high-criticality supplier not assessed: gap on supply_chain_security control
+   - If org has supplier with risk_score < 40: gap on supply_chain_due_diligence control
+
+8. Include supplier register summary in the Evidence Package export.
+
+### Acceptance criteria
+- Supplier can respond to questionnaire via public URL with no login
+- Risk score is calculated automatically on response submission
+- High-risk supplier triggers a compliance gap on the supply chain control
+- Supplier register is exportable as CSV
+- Assessment link expires after 30 days (responds with 410 Gone after expiry)
+
+---
+
+## MILESTONE 9 — Country Pack SDK and Romania Cleanup
+
+### Goal
+Make it possible for external contributors (legal/compliance partners) to add new country
+packs without touching core application code.
+
+### What to do
+1. Define and document a Country Pack JSON Schema at /packages/country-pack-schema/schema.json:
+   - countryCode (ISO 3166-1 alpha-2)
+   - frameworkKey (nis2)
+   - version (semver)
+   - displayName, authorName, authorOrg, legalReviewDate
+   - sections: classification_rules, registration_rules, incident_rules, sources, questions,
+     options, nace_overrides, authority_contacts
+   - Each rule must reference a source by source_key
+   - Classification algorithm expressed as a decision tree (JSON, not code)
+
+2. Write a pack validator (CLI script at /tools/validate-country-pack.ts):
+   - Reads a JSON file path as argument
+   - Validates against the schema
+   - Checks all source_key references resolve
+   - Checks all question_key references in rules exist
+   - Reports errors with line/path references
+   - Exit code 0 if valid, 1 if invalid
+
+3. Write a pack importer (extends existing regulatory importer):
+   - Reads a validated JSON pack file
+   - Upserts all CountryPack, RegistrationRule, IncidentReportingRule, RegulatorySource,
+     RegulatoryQuestion, RegulatoryOption rows
+   - Idempotent — safe to run twice
+   - Records the pack version in CountryPackVersion
+
+4. Migrate Romania's existing hardcoded classification logic:
+   - The current Romania classification algorithm is in TypeScript code
+   - Re-express it as a JSON decision tree conforming to the new schema
+   - Run both implementations in parallel for 30 days (validate outputs match)
+   - Remove the TypeScript implementation once validated
+
+5. Add to docs/COUNTRY_PACK_AUTHORING.md:
+   - Schema reference with field descriptions
+   - Step-by-step guide for adding a new country
+   - Example: a minimal "XX" stub pack that passes validation
+   - How to submit a pack for review (PR template)
+
+6. Add a Poland stub pack (/packs/pl/nis2-pl-stub.json):
+   - Mark status: classification_rules_partial
+   - Include identified official sources (UODO, CSIRT.GOV.PL, DSA.gov.pl)
+   - Leave classification_rules empty (to be completed by legal partner)
+   - Include EU baseline passthrough (same as baseline controls, no country overlays yet)
+
+### Acceptance criteria
+- validate-country-pack.ts correctly validates and rejects packs with schema errors
+- Romania pack imported via new importer produces identical classification results as current code
+- Poland stub pack passes validation (partial status is valid)
+- A hypothetical contributor can add a new country by only editing JSON, no TypeScript required
+
+---
+
+## Cross-Cutting Requirements (apply to all milestones)
+
+### Security
+- All new API endpoints require valid session + org membership check
+- MSP impersonation must be audit-logged with msp_org_id and target_org_id
+- Supplier response tokens must be stored as HMAC-SHA256 hash, never plaintext
+- Notification channel destinations (email addresses, webhook URLs) must be org-scoped,
+  never cross-org readable
+- PDF downloads must be logged in EvidenceAccessLog
+
+### RBAC (use existing roles)
+- Notification channel management: org_admin only
+- MSP client management: org_admin of the MSP org
+- Supplier approve/reject: remediation_approver or compliance_manager
+- Supplier add/send-assessment: security_operator or compliance_manager
+- Executive summary download: any org member
+- Write action approval: remediation_approver only
+
+### Data integrity
+- All new Prisma models must have created_at, updated_at timestamps
+- All new models with org scope must have org_id foreign key with cascade delete
+- Run prisma migrate dev after each milestone's schema changes
+- Add appropriate indexes for all foreign keys and frequently filtered columns
+
+### Testing
+- Each milestone must include at minimum:
+  - One happy-path integration test using the existing test harness
+  - One auth boundary test (unauthenticated request returns 401)
+  - One role boundary test (wrong role returns 403)
+- Use the existing memory persistence mode (PURESOC_PERSISTENCE_MODE=memory) for tests
+- Follow existing test file naming and structure conventions
+
+### UI consistency
+- Follow existing CSS/component patterns already in the codebase
+- New nav items go in the same sidebar/nav structure as existing ones
+- All tables follow the existing table component pattern
+- All modals follow the existing modal pattern
+- No new UI frameworks or component libraries unless one is already present
+
+### Commit discipline
+- One commit per milestone, labeled: "feat(milestone-N): <description>"
+- Each commit must pass existing tests before proceeding to the next milestone
+- Do not mix schema changes from multiple milestones in one migration file
+
+---
+
+## Implementation order
+1 → 2 → 3 → 4 → 5 → 6 → 7 → 8 → 9
+
+Start with Milestone 1. Read the existing report generation code, PDF renderer stub,
+and evidence vault before writing anything. Match existing patterns exactly.
