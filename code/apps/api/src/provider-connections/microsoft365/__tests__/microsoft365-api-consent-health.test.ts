@@ -6,6 +6,7 @@ import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
+  microsoft365CoreDemoReadModules,
   permissionsForMicrosoft365Bundles,
   type Microsoft365CredentialResolver,
   type Microsoft365TokenCipher,
@@ -236,5 +237,56 @@ describe("microsoft365 API consent and health service", () => {
     ).rejects.toMatchObject({ code: "invalid_request" });
     expect(completed.connection.id).toBe("m365_api_connection_persisted");
     expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_read_baseline")?.enabled).toBe(true);
+  });
+
+  it("runs fixture-mode consent and five-module sync without Microsoft connector app secrets", async () => {
+    const store = new InMemoryProviderResourceStore({ now: fixedNow });
+    const auditSink = new InMemoryAuditSink();
+    const service = new Microsoft365ProviderConnectionService({
+      store,
+      auditWriter: new AuditWriter({
+        sink: auditSink,
+        now: fixedNow
+      }),
+      now: fixedNow,
+      stateFactory: () => "fixture_api_state",
+      tokenCipher: createLocalMicrosoft365TokenCipher({ masterKey: "api-fixture-master-key" }),
+      connectorMode: "fixture",
+      fixtureSet: "partner_demo"
+    });
+
+    const begin = await service.beginConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      requestedPermissionBundles: ["m365_read_baseline", "m365_security_read"]
+    });
+    const callback = new URL(begin.url);
+    const completed = await service.completeConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      state: callback.searchParams.get("state") ?? "",
+      tenantId: callback.searchParams.get("tenant") ?? "",
+      adminConsent: callback.searchParams.get("admin_consent") === "True",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback"
+    });
+    const sync = await service.runSync({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      providerConnectionId: completed.connection.id
+    });
+    const health = await service.getHealth("org_1", completed.connection.id);
+
+    expect(begin.url).toContain("/providers/microsoft365/callback");
+    expect(completed.connection.writeEnabled).toBe(false);
+    expect(completed.connection.metadata.connectorMode).toBe("fixture");
+    expect(sync.modules.map((module) => module.moduleKey)).toEqual([...microsoft365CoreDemoReadModules]);
+    expect(sync.rawResources.some((resource) => resource.externalResourceType === "mfaRegistrationDetail")).toBe(true);
+    expect(health.connectorMode).toBe("fixture");
+    expect(health.effectiveConnectorMode).toBe("fixture");
+    expect(health.moduleStatuses.map((module) => module.moduleKey).sort()).toEqual(
+      [...microsoft365CoreDemoReadModules].sort()
+    );
+    expect(JSON.stringify(auditSink.records)).not.toContain("puresoc-fixture-no-secret");
   });
 });

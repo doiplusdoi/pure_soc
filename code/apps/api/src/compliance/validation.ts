@@ -9,6 +9,11 @@ import type {
   ManualChecklistItemState,
   SourceReference
 } from "@puresoc/compliance-core";
+import type {
+  Microsoft365SecurityCapability,
+  Microsoft365SubscriptionInput,
+  RecommendationContextInput
+} from "@puresoc/recommendations";
 
 export interface ParsedComplianceEvaluationBody {
   assessmentId: string;
@@ -65,6 +70,14 @@ const countryPackCompletenessValues = new Set([
 const gapSeverities = new Set<GapSeverity>(["low", "medium", "high", "critical"]);
 const confidenceValues = new Set<Confidence>(["low", "medium", "high"]);
 const evidenceFreshnessValues = new Set<NonNullable<EvidenceArtifactState["freshnessStatus"]>>(["current", "stale"]);
+const microsoft365Capabilities = new Set<Microsoft365SecurityCapability>([
+  "identity_policy",
+  "conditional_access",
+  "device_management",
+  "endpoint_protection",
+  "advanced_email_protection",
+  "secure_score_availability"
+]);
 
 export const parseComplianceEvaluationBody = (
   body: Record<string, unknown>,
@@ -90,6 +103,28 @@ export const parseComplianceGaps = (value: unknown, organizationId: string): Com
   }
 
   return value.map((entry, index) => parseComplianceGap(entry, `gaps[${index}]`, organizationId));
+};
+
+export const parseRecommendationContext = (value: unknown): RecommendationContextInput | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const record = requireRecord(value, "context");
+
+  return {
+    countryCode: optionalString(record, "countryCode", "context.countryCode"),
+    country: optionalString(record, "country", "context.country"),
+    sector: optionalString(record, "sector", "context.sector"),
+    subsector: optionalString(record, "subsector", "context.subsector"),
+    likelyEntityCategory: optionalString(record, "likelyEntityCategory", "context.likelyEntityCategory"),
+    employeeCount: optionalNumber(record, "employeeCount", "context.employeeCount"),
+    sizeRange: optionalString(record, "sizeRange", "context.sizeRange"),
+    businessAnswers: optionalRecord(record, "businessAnswers", "context.businessAnswers"),
+    operationalDependencies: parseOptionalStringArray(record.operationalDependencies, "context.operationalDependencies"),
+    evidenceConfidence: parseEvidenceConfidence(record.evidenceConfidence),
+    microsoft365: parseMicrosoft365RecommendationContext(record.microsoft365)
+  };
 };
 
 const parseComplianceGap = (value: unknown, path: string, organizationId: string): ComplianceGap => {
@@ -225,6 +260,86 @@ const parseSourceReference = (value: unknown, path: string): SourceReference => 
   };
 };
 
+const parseEvidenceConfidence = (
+  value: unknown
+): RecommendationContextInput["evidenceConfidence"] => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string" && confidenceValues.has(value as Confidence)) {
+    return value as Confidence;
+  }
+
+  throw invalid("context.evidenceConfidence must be a confidence value or finite number when provided.");
+};
+
+const parseMicrosoft365RecommendationContext = (
+  value: unknown
+): RecommendationContextInput["microsoft365"] => {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  const record = requireRecord(value, "context.microsoft365");
+
+  return {
+    subscriptions: parseOptionalArray(
+      record.subscriptions,
+      "context.microsoft365.subscriptions",
+      parseMicrosoft365Subscription
+    ),
+    verifiedCapabilities: parseOptionalArray(
+      record.verifiedCapabilities,
+      "context.microsoft365.verifiedCapabilities",
+      parseMicrosoft365Capability
+    ),
+    userCount: optionalNumber(record, "userCount", "context.microsoft365.userCount"),
+    securityFindings: parseOptionalStringArray(record.securityFindings, "context.microsoft365.securityFindings")
+  };
+};
+
+const parseMicrosoft365Subscription = (value: unknown, path: string): Microsoft365SubscriptionInput => {
+  const record = requireRecord(value, path);
+  const servicePlans =
+    parseOptionalArray(record.servicePlans, `${path}.servicePlans`, parseMicrosoft365ServicePlan) ??
+    parseOptionalArray(record.servicePlanNames, `${path}.servicePlanNames`, parseMicrosoft365ServicePlan);
+
+  return {
+    skuPartNumber: requiredString(record, `${path}.skuPartNumber`),
+    consumedUnits: optionalNumber(record, "consumedUnits", `${path}.consumedUnits`),
+    servicePlans
+  };
+};
+
+const parseMicrosoft365ServicePlan = (
+  value: unknown,
+  path: string
+): NonNullable<Microsoft365SubscriptionInput["servicePlans"]>[number] => {
+  if (typeof value === "string" && value.length > 0) {
+    return value;
+  }
+
+  const record = requireRecord(value, path);
+
+  return {
+    servicePlanName: requiredString(record, `${path}.servicePlanName`),
+    provisioningStatus: optionalString(record, "provisioningStatus", `${path}.provisioningStatus`)
+  };
+};
+
+const parseMicrosoft365Capability = (value: unknown, path: string): Microsoft365SecurityCapability => {
+  if (typeof value !== "string" || !microsoft365Capabilities.has(value as Microsoft365SecurityCapability)) {
+    throw invalid(`${path} is not a supported Microsoft 365 capability.`);
+  }
+
+  return value as Microsoft365SecurityCapability;
+};
+
 const parseOptionalArray = <T>(
   value: unknown,
   path: string,
@@ -304,6 +419,34 @@ const optionalString = (record: Record<string, unknown>, field: string, path = f
   }
 
   return value;
+};
+
+const optionalNumber = (record: Record<string, unknown>, field: string, path = field): number | undefined => {
+  const value = record[field];
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (typeof value !== "number" || !Number.isFinite(value) || value < 0) {
+    throw invalid(`${path} must be a non-negative finite number when provided.`);
+  }
+
+  return value;
+};
+
+const optionalRecord = (
+  record: Record<string, unknown>,
+  field: string,
+  path = field
+): Record<string, unknown> | undefined => {
+  const value = record[field];
+
+  if (value === undefined) {
+    return undefined;
+  }
+
+  return requireRecord(value, path);
 };
 
 const requireRecord = (value: unknown, path: string): Record<string, unknown> => {

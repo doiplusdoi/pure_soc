@@ -4,7 +4,12 @@ import { EU_MEMBER_STATE_COUNT, euMemberStates } from "@puresoc/database";
 import {
   buildCountryPackNotificationDraftEnvelope,
   buildCountryPackStatuses,
+  classifyWithNis2CountryPack,
+  demoCountryPackDefinitions,
+  germanyNis2DemoCountryPack,
+  polandNis2DemoCountryPack,
   parseCountryPackNotificationDraftEnvelope,
+  validateNis2CountryPackDefinition,
   validateCountryPackNotificationDraftEnvelope
 } from "../index";
 
@@ -19,14 +24,65 @@ describe("nis2 country-pack status", () => {
 
   it("keeps the planned full pack state data-driven and distinct from baseline-only countries", () => {
     const statuses = buildCountryPackStatuses(euMemberStates);
-    const plannedFullPack = statuses.find((status) => status.countryCode === "RO");
-    const baselineOnlyStatuses = statuses.filter((status) => status.countryCode !== "RO");
+    const plannedFullPacks = statuses.filter((status) => ["DE", "PL", "RO"].includes(status.countryCode));
+    const baselineOnlyStatuses = statuses.filter((status) => !["DE", "PL", "RO"].includes(status.countryCode));
 
-    expect(plannedFullPack?.countryPackStatus).toBe("planned_full_pack");
-    expect(plannedFullPack?.completeness).toBe("official_sources_identified");
-    expect(plannedFullPack?.unsupportedFeatures.map((feature) => feature.featureKey)).toEqual(["full_pack_pending"]);
+    expect(plannedFullPacks.map((status) => status.countryCode).sort()).toEqual(["DE", "PL", "RO"]);
+    expect(plannedFullPacks.every((status) => status.countryPackStatus === "planned_full_pack")).toBe(true);
+    expect(plannedFullPacks.every((status) => status.completeness === "official_sources_identified")).toBe(true);
+    expect(plannedFullPacks.every((status) => status.unsupportedFeatures.map((feature) => feature.featureKey).includes("full_pack_pending"))).toBe(true);
     expect(baselineOnlyStatuses.every((status) => status.countryPackStatus === "baseline_only")).toBe(true);
     expect(baselineOnlyStatuses.every((status) => status.unsupportedFeatures.length > 0)).toBe(true);
+  });
+
+  it("validates EU, Poland, and Germany demo country-pack definitions", () => {
+    for (const pack of demoCountryPackDefinitions) {
+      expect(validateNis2CountryPackDefinition(pack)).toEqual({
+        valid: true,
+        issues: []
+      });
+    }
+
+    expect(polandNis2DemoCountryPack.status).toBe("demo");
+    expect(germanyNis2DemoCountryPack.status).toBe("demo");
+    expect(polandNis2DemoCountryPack.officialSources.map((source) => source.url)).toEqual(
+      expect.arrayContaining([
+        "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa",
+        "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---jak-dokonac-samoidentyfikacji"
+      ])
+    );
+    expect(germanyNis2DemoCountryPack.officialSources.map((source) => source.url)).toEqual(
+      expect.arrayContaining([
+        "https://mip2.bsi.bund.de/en/info-nis2-registrierung/",
+        "https://www.bsi.bund.de/DE/Themen/Regulierte-Wirtschaft/NIS-2-regulierte-Unternehmen/NIS-2-Anleitung-Registrierung/Anleitung-Registrierung_node.html"
+      ])
+    );
+  });
+
+  it("returns structured demo classification with source references and legal-review caveats", () => {
+    const poland = classifyWithNis2CountryPack(polandNis2DemoCountryPack, {
+      employeeCount: 42,
+      sector: "food"
+    });
+    const germany = classifyWithNis2CountryPack(germanyNis2DemoCountryPack, {
+      employeeCount: 180,
+      publicAdministration: true,
+      sector: "public_administration"
+    });
+
+    expect(poland).toMatchObject({
+      result: "possibly_in_scope",
+      legalReviewRequired: true,
+      confidence: "low"
+    });
+    expect(poland.matchedRules).toContain("pl-demo-food-or-manufacturing");
+    expect(poland.legalBasisReferences.length).toBeGreaterThan(0);
+    expect(germany).toMatchObject({
+      result: "possibly_in_scope",
+      legalReviewRequired: true
+    });
+    expect(germany.matchedRules).toContain("de-demo-public-administration");
+    expect(germany.explanation).not.toMatch(/certified|guaranteed|binding legal determination/i);
   });
 });
 

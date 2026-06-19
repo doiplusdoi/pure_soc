@@ -14,6 +14,64 @@ export type { RecommendationAutomationMode };
 
 export type RecommendationType = RecommendationActionType;
 
+export type RecommendationEvidenceSourceType =
+  | "business_context"
+  | "capability_catalog"
+  | "compliance_gap"
+  | "existing_recommendation"
+  | "microsoft_license"
+  | "microsoft_security_signal";
+
+export interface RecommendationRuleMetadata {
+  id: string;
+  version: string;
+  catalogVersion?: string;
+}
+
+export interface RecommendationEvidenceUsed {
+  type: RecommendationEvidenceSourceType;
+  label: string;
+  value?: string;
+  sourceId?: string;
+}
+
+export interface RecommendationDecisionMetadata {
+  finding: string;
+  whyItMatters: string;
+  evidenceUsed: RecommendationEvidenceUsed[];
+  nis2ControlMappings: string[];
+  countryMappings: string[];
+  priority: RecommendationSeverity;
+  recommendedAction: string;
+  expectedReadinessEffect: string;
+  requiredCapability: string;
+  microsoftProductOrLicense?: string;
+  partnerServiceOpportunity?: string;
+  customerCta: string;
+  partnerCta: string;
+  disclaimer: string;
+}
+
+export interface RecommendationCapabilityDiagnostics {
+  catalogVersion: string;
+  knownSkuPartNumbers: string[];
+  unknownSkuPartNumbers: string[];
+  activeCapabilities: string[];
+  missingCapabilities: string[];
+  lowerBusinessPlanDetected: boolean;
+  evaluatedUserCount?: number;
+}
+
+export interface RecommendationOpportunityMetadata {
+  type: string;
+  priority: RecommendationSeverity;
+  relevantMicrosoftCapabilityOrPlan?: string;
+  affectedUsers?: number;
+  nis2Areas: string[];
+  evidenceSource: string;
+  nextAction: string;
+}
+
 export interface RecommendationContract extends RecommendationSummary {
   id: string;
   organizationId: string;
@@ -36,6 +94,39 @@ export interface RecommendationContract extends RecommendationSummary {
   evidenceRequired: boolean;
   status: RecommendationStatus;
   sourceReferences?: SourceReference[];
+  rule?: RecommendationRuleMetadata;
+  decision?: RecommendationDecisionMetadata;
+  opportunity?: RecommendationOpportunityMetadata;
+  capabilityDiagnostics?: RecommendationCapabilityDiagnostics;
+  snapshotId?: string;
+}
+
+export interface RecommendationSnapshot {
+  id: string;
+  organizationId: string;
+  assessmentIds: string[];
+  generatedAt: string;
+  ruleVersions: RecommendationRuleMetadata[];
+  catalogVersions: string[];
+  inputSummary: {
+    gapCount: number;
+    countryCode?: string;
+    sector?: string;
+    subsector?: string;
+    likelyEntityCategory?: string;
+    employeeCount?: number;
+    sizeRange?: string;
+    operationalDependencies: string[];
+    existingRecommendationCount: number;
+  };
+  diagnostics: {
+    unknownMicrosoftSkuPartNumbers: string[];
+    knownMicrosoftSkuPartNumbers: string[];
+    activeCapabilities: string[];
+    missingCapabilities: string[];
+    lowerBusinessPlanDetected: boolean;
+  };
+  recommendations: RecommendationContract[];
 }
 
 export interface RecommendationPlanItemInput {

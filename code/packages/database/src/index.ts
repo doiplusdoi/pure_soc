@@ -64,6 +64,14 @@ export {
   type RoleRecordContract
 } from "./repositories/identity-organization-rbac";
 export {
+  PrismaPartnerRepository,
+  type PartnerMemberRecordContract,
+  type PartnerRecordContract,
+  type PartnerTenantGrantRecordContract,
+  type PrismaPartnerClient,
+  type TenantAccessSessionRecordContract
+} from "./repositories/partners";
+export {
   auditScopeAdvisoryLockKey,
   auditScopeKeyForOrganization,
   PrismaAuditCheckpointRepository,

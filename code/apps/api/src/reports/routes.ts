@@ -4,6 +4,7 @@ import type { StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type BinaryResult, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
+import type { InternalReadinessReportVersionContext } from "./service";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
@@ -32,6 +33,37 @@ export const buildInternalReadinessReportRoute = async (
       organizationId,
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
+      versionContext: parseInternalReadinessReportVersionContext(body),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
+export const buildMicrosoft365VerifiedInternalReadinessReportRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "auditor"]
+  });
+
+  return {
+    statusCode: 201,
+    body: await services.reports.buildMicrosoft365VerifiedInternalReadinessReport({
+      organizationId,
+      actorUserId,
+      previousReportId: requireString(body, "previousReportId"),
+      providerConnectionId: requireString(body, "providerConnectionId"),
+      assessmentId: optionalString(body.assessmentId),
+      versionContext: parseInternalReadinessReportVersionContext(body),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -59,6 +91,7 @@ export const buildInternalReadinessCsvExportRoute = async (
       organizationId,
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
+      versionContext: parseInternalReadinessReportVersionContext(body),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -86,6 +119,7 @@ export const buildInternalReadinessEvidencePackageRoute = async (
       organizationId,
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
+      versionContext: parseInternalReadinessReportVersionContext(body),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -214,6 +248,57 @@ const requireString = (body: Record<string, unknown>, field: string): string => 
 
   return value;
 };
+
+const parseInternalReadinessReportVersionContext = (
+  body: Record<string, unknown>
+): InternalReadinessReportVersionContext => ({
+  classificationResult: parseClassificationSnapshot(body.classificationResult),
+  countryPackVersion: optionalString(body.countryPackVersion),
+  onboardingSchemaVersion: optionalString(body.onboardingSchemaVersion),
+  previousReportId: optionalString(body.previousReportId),
+  reportVersion: body.reportVersion === 2 ? 2 : 1,
+  triggerType: parseReportTriggerType(body.triggerType)
+});
+
+const parseClassificationSnapshot = (
+  value: unknown
+): InternalReadinessReportVersionContext["classificationResult"] => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const record = value as Record<string, unknown>;
+  const result = optionalString(record.result);
+  if (!result) {
+    return undefined;
+  }
+
+  return {
+    confidence: optionalString(record.confidence),
+    countryCode: optionalString(record.countryCode),
+    explanation: optionalString(record.explanation),
+    legalReviewRequired: typeof record.legalReviewRequired === "boolean" ? record.legalReviewRequired : true,
+    missingInformation: Array.isArray(record.missingInformation)
+      ? record.missingInformation.filter((entry): entry is string => typeof entry === "string")
+      : undefined,
+    result
+  };
+};
+
+const parseReportTriggerType = (value: unknown): InternalReadinessReportVersionContext["triggerType"] => {
+  if (
+    value === "onboarding_completed" ||
+    value === "manual_regenerate" ||
+    value === "microsoft_sync_completed"
+  ) {
+    return value;
+  }
+
+  return "onboarding_completed";
+};
+
+const optionalString = (value: unknown): string | undefined =>
+  typeof value === "string" && value.trim().length > 0 ? value.trim() : undefined;
 
 const parseRomaniaDraft = (
   organizationId: string,

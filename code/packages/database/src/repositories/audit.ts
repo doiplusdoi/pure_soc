@@ -69,6 +69,7 @@ export interface PrismaAuditCanonicalPayload {
   action: string;
   ipAddress: string | null;
   userAgent: string | null;
+  contextJson: unknown;
   beforeJson: unknown;
   afterJson: unknown;
   createdAt: string;
@@ -87,6 +88,7 @@ export interface PrismaAuditLogRecord {
   action: string;
   ipAddress: string | null;
   userAgent: string | null;
+  contextJson: unknown;
   beforeJson: unknown;
   afterJson: unknown;
   previousHash: string | null;
@@ -113,6 +115,7 @@ interface AuditLogExportRow {
   action: string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  contextJson?: unknown;
   beforeJson?: unknown;
   afterJson?: unknown;
   previousHash?: string | null;
@@ -286,6 +289,7 @@ const toAuditLogData = (record: PrismaAuditLogRecord): Record<string, unknown> =
   action: record.action,
   ipAddress: record.ipAddress,
   userAgent: record.userAgent,
+  contextJson: jsonOrEmptyObject(record.canonicalPayload.contextJson),
   beforeJson: jsonOrNull(record.canonicalPayload.beforeJson),
   afterJson: jsonOrNull(record.canonicalPayload.afterJson),
   previousHash: record.previousHash,
@@ -335,6 +339,7 @@ const toAuditLogRecord = (row: AuditLogExportRow): AuditLogRecord => {
     action: row.action,
     ipAddress: row.ipAddress ?? null,
     userAgent: row.userAgent ?? null,
+    contextJson: row.contextJson ?? {},
     beforeJson: row.beforeJson ?? null,
     afterJson: row.afterJson ?? null,
     previousHash: row.previousHash ?? null,
@@ -413,6 +418,7 @@ const toAuditCheckpointRecord = (row: AuditCheckpointRow): AuditCheckpointRecord
 };
 
 const jsonOrNull = (value: unknown): unknown => (value === undefined ? null : value);
+const jsonOrEmptyObject = (value: unknown): unknown => (value === undefined ? {} : value);
 
 export const auditScopeKeyForOrganization = (organizationId: string | null): string =>
   organizationId === null ? "global" : `organization:${organizationId}`;

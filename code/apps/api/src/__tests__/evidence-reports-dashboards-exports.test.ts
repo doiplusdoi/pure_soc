@@ -4,8 +4,10 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { defaultRoleDefinitions } from "@puresoc/auth-core";
 import type { DashboardSnapshotContract } from "@puresoc/dashboards";
+import { createLocalMicrosoft365TokenCipher } from "@puresoc/provider-microsoft365";
 import { LEGAL_CAVEAT_MESSAGE_KEY, PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import { createApiServices } from "../auth/services";
+import { Microsoft365ProviderConnectionService } from "../provider-connections/microsoft365/service";
 import type { ReportPdfRendererClient } from "../reports/service";
 import { startApiServer } from "../server";
 
@@ -213,7 +215,19 @@ describe("api evidence reports dashboards exports", () => {
     const reportResponse = await postJson(
       `/organizations/${organization.id}/reports/internal-readiness`,
       {
-        assessmentId: "assessment_i"
+        assessmentId: "assessment_i",
+        classificationResult: {
+          confidence: "medium",
+          countryCode: "RO",
+          explanation: "Romania saved onboarding indicates likely important entity pending review.",
+          legalReviewRequired: true,
+          missingInformation: [],
+          result: "likely_important_entity"
+        },
+        countryPackVersion: "2026.06.demo",
+        onboardingSchemaVersion: "Entity data V2.1 ENG_45915; Entity assessment V2.0_45898",
+        reportVersion: 1,
+        triggerType: "onboarding_completed"
       },
       owner.cookie
     );
@@ -222,11 +236,49 @@ describe("api evidence reports dashboards exports", () => {
       report: {
         id: string;
         evidenceArtifactId?: string;
-        reportData: { legalCaveat: string; sourceReferences: unknown[]; provenance: { source: string } };
+        reportData: {
+          concepts: {
+            applicability: { result: string; legalReviewRequired: boolean };
+            evidenceConfidence: { value: number };
+            priority: { result: string };
+            readiness: { value: number };
+          };
+          legalCaveat: string;
+          sourceReferences: unknown[];
+          provenance: { source: string };
+          version: {
+            countryPackVersion: string;
+            immutable: boolean;
+            inputSnapshot: { classificationResult: { result: string }; controlResultCount: number };
+            onboardingSchemaVersion: string;
+            reportVersion: number;
+            triggerType: string;
+          };
+        };
       };
       exportJson: string;
     }>(reportResponse);
     expect(reportBody.report.reportData.legalCaveat).toBe(PURESOC_LEGAL_CAVEAT);
+    expect(reportBody.report.reportData.version).toMatchObject({
+      countryPackVersion: "2026.06.demo",
+      immutable: true,
+      onboardingSchemaVersion: "Entity data V2.1 ENG_45915; Entity assessment V2.0_45898",
+      reportVersion: 1,
+      triggerType: "onboarding_completed",
+      inputSnapshot: {
+        classificationResult: {
+          result: "likely_important_entity"
+        },
+        controlResultCount: expect.any(Number)
+      }
+    });
+    expect(reportBody.report.reportData.concepts.applicability).toMatchObject({
+      result: "likely_important_entity",
+      legalReviewRequired: true
+    });
+    expect(reportBody.report.reportData.concepts.readiness.value).toBeGreaterThanOrEqual(0);
+    expect(reportBody.report.reportData.concepts.evidenceConfidence.value).toBeGreaterThanOrEqual(0);
+    expect(reportBody.report.reportData.concepts.priority.result).toMatch(/^(none|low|medium|high|critical)$/);
     expect(reportBody.report.reportData.sourceReferences.length).toBeGreaterThan(0);
     expect(reportBody.report.reportData.provenance.source).toBe("stored_analysis");
     expect(reportBody.exportJson).toContain('"schemaVersion": "puresoc.report.internal_readiness.v1"');
@@ -394,6 +446,176 @@ describe("api evidence reports dashboards exports", () => {
       }
     );
     expect(rejectedLatestDashboardResponse.status).toBe(403);
+  });
+
+  it("generates a version 2 Microsoft-verified report without mutating the previous report", async () => {
+    const owner = await registerAndLogin("verified-report-owner@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    const assessmentId = "assessment_verified_route";
+    const recordedAt = "2026-04-30T09:30:00.000Z";
+    await services.outputRepository.saveStoredAnalysis({
+      organizationId: organization.id,
+      assessmentId,
+      jurisdiction: "EU",
+      catalogVersion: "phase-m6-route",
+      recordedAt,
+      results: [
+        {
+          id: `${assessmentId}:nis2.access-control.mfa:EU`,
+          organizationId: organization.id,
+          assessmentId,
+          controlId: "nis2.access-control.mfa",
+          controlCode: "NIS2-EU-MFA-001",
+          jurisdiction: "EU",
+          status: "passing",
+          confidence: "medium",
+          providerSignalIds: [],
+          evidenceArtifactIds: [],
+          checklistRunItemIds: [],
+          summary: "Customer declared Microsoft MFA complete.",
+          matchedFindings: [],
+          missingEvidence: [],
+          manualTasks: [],
+          countryPackWarnings: [],
+          sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", article: "21" }],
+          evidenceCompleteness: {
+            required: 1,
+            present: 0,
+            missing: 1,
+            ratio: 0
+          },
+          evaluatedAt: recordedAt
+        }
+      ],
+      gaps: [],
+      recommendations: [],
+      readinessPlan: {
+        id: `${assessmentId}:readiness-plan`,
+        organizationId: organization.id,
+        assessmentId,
+        title: "PureSOC internal readiness plan",
+        targetReadinessPercent: 100,
+        status: "draft",
+        generatedAt: recordedAt,
+        items: []
+      },
+      evidenceArtifacts: []
+    });
+
+    const reportV1Response = await postJson(
+      `/organizations/${organization.id}/reports/internal-readiness`,
+      {
+        assessmentId,
+        reportVersion: 1
+      },
+      owner.cookie
+    );
+    expect(reportV1Response.status).toBe(201);
+    const reportV1 = await readJson<{
+      report: {
+        id: string;
+        reportData: {
+          concepts: { readiness: { value: number }; evidenceConfidence: { value: number } };
+          version: { reportVersion: number };
+        };
+      };
+    }>(reportV1Response);
+    expect(reportV1.report.reportData.version.reportVersion).toBe(1);
+    expect(reportV1.report.reportData.concepts.readiness.value).toBe(100);
+
+    const microsoft365 = new Microsoft365ProviderConnectionService({
+      store: services.microsoft365ProviderConnections.store,
+      auditWriter: services.auditWriter,
+      now: () => new Date("2026-04-30T10:00:00.000Z"),
+      stateFactory: () => "verified_report_m365_state",
+      tokenCipher: createLocalMicrosoft365TokenCipher({ masterKey: "verified-report-test-master-key" }),
+      connectorMode: "fixture",
+      fixtureSet: "partner_demo"
+    });
+    const redirectUri = `${baseUrl}/providers/microsoft365/callback`;
+    const begin = await microsoft365.beginConsent({
+      organizationId: organization.id,
+      actorUserId: owner.registerBody.user.id,
+      redirectUri,
+      requestedPermissionBundles: ["m365_read_baseline", "m365_security_read"]
+    });
+    const callback = new URL(begin.url);
+    const completed = await microsoft365.completeConsent({
+      organizationId: organization.id,
+      actorUserId: owner.registerBody.user.id,
+      state: callback.searchParams.get("state") ?? "",
+      tenantId: callback.searchParams.get("tenant") ?? "",
+      adminConsent: callback.searchParams.get("admin_consent") === "True",
+      redirectUri
+    });
+    await microsoft365.runSync({
+      organizationId: organization.id,
+      actorUserId: owner.registerBody.user.id,
+      providerConnectionId: completed.connection.id
+    });
+
+    const reportV2Response = await postJson(
+      `/organizations/${organization.id}/reports/internal-readiness/verified-microsoft365`,
+      {
+        assessmentId,
+        previousReportId: reportV1.report.id,
+        providerConnectionId: completed.connection.id
+      },
+      owner.cookie
+    );
+    expect(reportV2Response.status).toBe(201);
+    const reportV2 = await readJson<{
+      report: {
+        reportData: {
+          comparison: {
+            readinessDelta: number;
+            evidenceConfidenceDelta: number;
+            contradictions: string[];
+            newVerifiedFindings: string[];
+          };
+          controlResults: Array<{ controlId: string; status: string; provenance: string[]; providerSignalIds: string[] }>;
+          verifiedEvidence: { contradictions: Array<{ declaredStatus: string; effectiveStatus: string }> };
+          version: { previousReportId: string; reportVersion: number; triggerType: string };
+        };
+      };
+    }>(reportV2Response);
+
+    expect(reportV2.report.reportData.version).toMatchObject({
+      previousReportId: reportV1.report.id,
+      reportVersion: 2,
+      triggerType: "microsoft_sync_completed"
+    });
+    expect(reportV2.report.reportData.controlResults[0]).toMatchObject({
+      controlId: "nis2.access-control.mfa",
+      status: "failing",
+      provenance: ["declared_by_customer", "verified_through_microsoft"],
+      providerSignalIds: ["m365:mfa-registration:coverage"]
+    });
+    expect(reportV2.report.reportData.verifiedEvidence.contradictions[0]).toMatchObject({
+      declaredStatus: "passing",
+      effectiveStatus: "failing"
+    });
+    expect(reportV2.report.reportData.comparison).toMatchObject({
+      readinessDelta: -100,
+      evidenceConfidenceDelta: 100,
+      contradictions: ["contradiction:m365:mfa-registration:coverage"],
+      newVerifiedFindings: ["m365:mfa-registration:coverage"]
+    });
+
+    const storedV1 = await services.outputRepository.findGeneratedReport(organization.id, reportV1.report.id);
+    expect(storedV1?.reportData.reportType).toBe("internal_readiness");
+    if (storedV1?.reportData.reportType !== "internal_readiness") {
+      throw new Error("Expected stored v1 report to be an internal readiness report.");
+    }
+    expect(storedV1.reportData.version.reportVersion).toBe(1);
+    expect("verifiedEvidence" in (storedV1?.reportData ?? {})).toBe(false);
+    expect(services.auditSink.findByAction("report_generated").at(-1)?.afterJson).toMatchObject({
+      reportVersion: 2,
+      previousReportId: reportV1.report.id,
+      contradictionCount: 1,
+      readinessDelta: -100,
+      evidenceConfidenceDelta: 100
+    });
   });
 
   it("exports Romania notification drafts with source-mapped fields and the legal caveat", async () => {

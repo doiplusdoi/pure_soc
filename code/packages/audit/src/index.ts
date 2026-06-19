@@ -36,6 +36,7 @@ export interface AuditLogInput {
   action: AuditAction | string;
   ipAddress?: string | null;
   userAgent?: string | null;
+  contextJson?: unknown;
   beforeJson?: unknown;
   afterJson?: unknown;
 }
@@ -49,6 +50,7 @@ export interface AuditLogRecord {
   action: AuditAction | string;
   ipAddress: string | null;
   userAgent: string | null;
+  contextJson: unknown;
   beforeJson: unknown;
   afterJson: unknown;
   previousHash: string | null;
@@ -69,6 +71,7 @@ export interface AuditCanonicalPayload {
   action: AuditAction | string;
   ipAddress: string | null;
   userAgent: string | null;
+  contextJson: unknown;
   beforeJson: unknown;
   afterJson: unknown;
   createdAt: string;
@@ -135,6 +138,7 @@ export interface AuditExportedRecord {
   action: AuditAction | string;
   ipAddress: string | null;
   userAgent: string | null;
+  contextJson: unknown;
   beforeJson: unknown;
   afterJson: unknown;
   previousHash: string | null;
@@ -369,6 +373,7 @@ export interface AuditWriterOptions {
   sink: AuditSink;
   now?: () => Date;
   idFactory?: () => string;
+  contextEnricher?: (input: AuditLogInput) => unknown | Promise<unknown>;
 }
 
 const sensitiveKeyFragments = [
@@ -574,6 +579,7 @@ export const buildAuditCanonicalPayload = (
     | "action"
     | "ipAddress"
     | "userAgent"
+    | "contextJson"
     | "beforeJson"
     | "afterJson"
     | "createdAt"
@@ -589,6 +595,7 @@ export const buildAuditCanonicalPayload = (
   action: record.action,
   ipAddress: record.ipAddress,
   userAgent: record.userAgent,
+  contextJson: stableJsonValue(record.contextJson),
   beforeJson: stableJsonValue(record.beforeJson),
   afterJson: stableJsonValue(record.afterJson),
   createdAt: record.createdAt.toISOString(),
@@ -744,6 +751,7 @@ export const toAuditExportedRecord = (record: AuditLogRecord): AuditExportedReco
     action: record.action,
     ipAddress: record.ipAddress,
     userAgent: record.userAgent,
+    contextJson: redactSensitiveAuditValue(record.contextJson),
     beforeJson: redactSensitiveAuditValue(record.beforeJson),
     afterJson: redactSensitiveAuditValue(record.afterJson),
     previousHash: record.previousHash,
@@ -1154,14 +1162,20 @@ export class AuditWriter {
   private readonly sink: AuditSink;
   private readonly now: () => Date;
   private readonly idFactory: () => string;
+  private readonly contextEnricher?: (input: AuditLogInput) => unknown | Promise<unknown>;
 
   constructor(options: AuditWriterOptions) {
     this.sink = options.sink;
     this.now = options.now ?? (() => new Date());
     this.idFactory = options.idFactory ?? randomUUID;
+    this.contextEnricher = options.contextEnricher;
   }
 
   async write(input: AuditLogInput): Promise<AuditLogRecord> {
+    const enrichedContext = mergeAuditContext(
+      input.contextJson ?? {},
+      this.contextEnricher ? await this.contextEnricher(input) : null
+    );
     const draft: AuditLogDraft = {
       id: this.idFactory(),
       organizationId: input.organizationId ?? null,
@@ -1171,6 +1185,7 @@ export class AuditWriter {
       action: input.action,
       ipAddress: input.ipAddress ?? null,
       userAgent: input.userAgent ?? null,
+      contextJson: redactSensitiveAuditValue(enrichedContext),
       beforeJson: redactSensitiveAuditValue(input.beforeJson ?? null),
       afterJson: redactSensitiveAuditValue(input.afterJson ?? null),
       createdAt: this.now()
@@ -1189,6 +1204,24 @@ export class AuditWriter {
     return record;
   }
 }
+
+const mergeAuditContext = (base: unknown, extension: unknown): unknown => {
+  if (!extension) {
+    return base;
+  }
+
+  if (!isPlainAuditRecord(base) || !isPlainAuditRecord(extension)) {
+    return base;
+  }
+
+  return {
+    ...extension,
+    ...base
+  };
+};
+
+const isPlainAuditRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === "object" && !Array.isArray(value) && !(value instanceof Date);
 
 export class InMemoryAuditSink implements AuditSink {
   readonly records: AuditLogRecord[] = [];

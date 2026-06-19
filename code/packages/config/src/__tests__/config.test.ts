@@ -72,11 +72,16 @@ describe("loadConfig", () => {
     expect(config.connectors.providerTokenEncryptionKey).toBe("");
     expect(config.connectors.providerTokenEncryptionPreviousKeys).toEqual([]);
     expect(config.connectors.microsoft365).toEqual({
+      mode: "fixture",
       writeScopesAllowed: false,
       clientId: "",
       clientSecret: "",
       authorityHost: "https://login.microsoftonline.com",
-      redirectUri: ""
+      redirectUri: "",
+      graphBaseUrl: "https://graph.microsoft.com/v1.0",
+      fixtureSet: "partner_demo",
+      requestTimeoutMs: 10_000,
+      maxRetries: 3
     });
     expect(config.compliance.sourceMonitor).toEqual({
       enabled: false,
@@ -172,10 +177,15 @@ describe("loadConfig", () => {
         PURESOC_PROVIDER_TOKEN_KEY: "test-provider-token-key-with-enough-entropy",
         PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: "previous-a=old-provider-token-key,previous-b=older-provider-token-key",
         PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false",
+        PURESOC_CONNECTOR_MICROSOFT365_MODE: "auto",
         PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "connector-app-id",
         PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: "connector-app-secret",
         PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: "https://login.microsoftonline.com",
         PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: "https://app.example.test/providers/microsoft365/callback",
+        PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: "https://graph.microsoft.us/v1.0",
+        PURESOC_CONNECTOR_MICROSOFT365_FIXTURE_SET: "partner_demo_partial",
+        PURESOC_CONNECTOR_MICROSOFT365_REQUEST_TIMEOUT_MS: "2500",
+        PURESOC_CONNECTOR_MICROSOFT365_MAX_RETRIES: "4",
         PURESOC_BILLING_PROVIDER: "stripe",
         PURESOC_OBJECT_STORAGE_PROVIDER: "s3",
         PURESOC_OBJECT_STORAGE_BUCKET: "evidence-test",
@@ -274,11 +284,16 @@ describe("loadConfig", () => {
       }
     ]);
     expect(config.connectors.microsoft365).toEqual({
+      mode: "auto",
       writeScopesAllowed: false,
       clientId: "connector-app-id",
       clientSecret: "connector-app-secret",
       authorityHost: "https://login.microsoftonline.com",
-      redirectUri: "https://app.example.test/providers/microsoft365/callback"
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      graphBaseUrl: "https://graph.microsoft.us/v1.0",
+      fixtureSet: "partner_demo_partial",
+      requestTimeoutMs: 2500,
+      maxRetries: 4
     });
     expect(config.billing.provider).toBe("stripe");
     expect(config.audit).toEqual({
@@ -519,12 +534,29 @@ describe("loadConfig", () => {
     });
 
     expect(config.connectors.microsoft365).toEqual({
+      mode: "fixture",
       clientId: "configured-client-id",
       clientSecret: "configured-client-secret",
       writeScopesAllowed: false,
       authorityHost: "https://login.microsoftonline.com",
-      redirectUri: ""
+      redirectUri: "",
+      graphBaseUrl: "https://graph.microsoft.com/v1.0",
+      fixtureSet: "partner_demo",
+      requestTimeoutMs: 10_000,
+      maxRetries: 3
     });
+  });
+
+  it("fails explicit Microsoft 365 live mode safely when connector secrets are missing", () => {
+    const config = loadConfig({
+      env: {
+        PURESOC_CONNECTOR_MICROSOFT365_MODE: "live"
+      }
+    });
+
+    expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toEqual(
+      expect.arrayContaining(["microsoft365_client_id_required", "microsoft365_client_secret_required"])
+    );
   });
 
   it("rejects incomplete production Microsoft 365 connector credentials without provider-token custody", () => {

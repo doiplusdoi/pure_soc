@@ -32,6 +32,7 @@ describe("API runtime persistence selection", () => {
     expect(services.persistence.persistedContexts).toEqual([
       "audit_logs",
       "identity_sessions_organizations_rbac",
+      "partner_tenant_access",
       "compliance_results",
       "evidence_metadata_access_logs",
       "billing",
@@ -97,6 +98,10 @@ const createPrismaClientFixture = () =>
     providerCapability: {},
     providerConnection: {},
     providerCredential: {},
+    partner: {},
+    partnerMember: {},
+    partnerTenantGrant: {},
+    tenantAccessSession: {},
     providerFinding: {},
     providerNormalizedResource: {},
     providerPermissionBundle: {},

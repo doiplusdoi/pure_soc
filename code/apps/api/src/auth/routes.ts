@@ -98,11 +98,14 @@ export const selectActiveOrganizationRoute = async (
 ): Promise<JsonResult> => {
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
   const session = await services.localAuth.getSession(sessionToken ?? "");
-  const organizationId = requireString(body, "organizationId");
-  const membership = await services.rbacRepository.findMembership(organizationId, session.user.id);
+  const organizationId = optionalString(body, "organizationId");
 
-  if (!membership || membership.status !== "active") {
-    throw new AuthError("forbidden", "The authenticated user is not an active member of this organization.", 403);
+  if (organizationId) {
+    const membership = await services.rbacRepository.findMembership(organizationId, session.user.id);
+
+    if (!membership || membership.status !== "active") {
+      throw new AuthError("forbidden", "The authenticated user is not an active member of this organization.", 403);
+    }
   }
 
   return {

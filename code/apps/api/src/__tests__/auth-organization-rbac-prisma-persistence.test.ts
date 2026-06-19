@@ -162,19 +162,87 @@ describe("auth organization RBAC Prisma runtime persistence", () => {
     expect(services.memoryRepositories.identityRepository.organizationMembers.size).toBe(0);
     expect(services.memoryRepositories.identityRepository.roleBindings.size).toBe(0);
   });
+
+  it("creates partner customer organizations and grants in one Prisma transaction", async () => {
+    const owner = await registerAndLogin("partner-prisma-owner@example.test");
+    const partnerResponse = await postJson(
+      "/partners",
+      {
+        name: "Prisma Partner",
+        slug: "prisma-partner"
+      },
+      owner.cookie
+    );
+    expect(partnerResponse.status).toBe(201);
+    const partnerBody = await readJson<{ partner: { id: string } }>(partnerResponse);
+    const transactionCallsBeforeCustomer = prismaClient.transactionCalls;
+
+    const customerResponse = await postJson(
+      `/partners/${partnerBody.partner.id}/customers`,
+      {
+        name: "Prisma Customer SRL",
+        legalName: "Prisma Customer SRL",
+        primaryCountryCode: "RO",
+        accessLevel: "analyst"
+      },
+      owner.cookie
+    );
+    expect(customerResponse.status).toBe(201);
+    const customerBody = await readJson<{
+      organization: { id: string; name: string };
+      grant: { organizationId: string; grantLevel: string };
+    }>(customerResponse);
+
+    expect(prismaClient.transactionCalls).toBeGreaterThan(transactionCallsBeforeCustomer);
+    expect(
+      prismaClient.transactionCreateScopes
+        .slice(transactionCallsBeforeCustomer)
+        .some((scope) => scope.includes("organization") && scope.includes("partnerTenantGrant"))
+    ).toBe(true);
+    expect(prismaClient.organization.rows).toContainEqual(
+      expect.objectContaining({
+        id: customerBody.organization.id,
+        name: "Prisma Customer SRL",
+        primaryCountryCode: "RO"
+      })
+    );
+    expect(prismaClient.partnerTenantGrant.rows).toContainEqual(
+      expect.objectContaining({
+        organizationId: customerBody.organization.id,
+        accessLevel: "analyst",
+        status: "active"
+      })
+    );
+    expect(customerBody.grant).toMatchObject({
+      organizationId: customerBody.organization.id,
+      grantLevel: "analyst"
+    });
+    expect(prismaClient.organizationMember.rows).toHaveLength(0);
+    expect(prismaClient.auditLog.rows.map((row) => row.action)).toEqual(
+      expect.arrayContaining(["organization_created", "partner.tenant_grant.created"])
+    );
+  });
 });
 
 class FakePrismaClient {
+  transactionCalls = 0;
+  readonly transactionCreateScopes: string[][] = [];
+  private activeTransactionCreates: string[] | null = null;
+
   readonly emailVerificationToken = new FakeDelegate();
   readonly identityAccount = new FakeDelegate();
   readonly localCredential = new FakeDelegate();
   readonly oidcAuthorizationState = new FakeDelegate();
-  readonly organization = new FakeDelegate();
+  readonly organization = new FakeDelegate("organization", this);
   readonly organizationMember = new FakeDelegate();
   readonly passwordResetToken = new FakeDelegate();
+  readonly partner = new FakeDelegate();
+  readonly partnerMember = new FakeDelegate();
+  readonly partnerTenantGrant = new FakeDelegate("partnerTenantGrant", this);
   readonly role = new FakeDelegate();
   readonly roleBinding = new FakeDelegate();
   readonly session = new FakeDelegate();
+  readonly tenantAccessSession = new FakeDelegate();
   readonly user = new FakeDelegate();
   readonly auditLog = new FakeDelegate();
 
@@ -213,16 +281,36 @@ class FakePrismaClient {
   readonly billingEvent = {};
 
   async $transaction<T>(callback: (tx: FakePrismaClient) => Promise<T>): Promise<T> {
-    return callback(this);
+    this.transactionCalls += 1;
+    const previousTransactionCreates = this.activeTransactionCreates;
+    this.activeTransactionCreates = [];
+    try {
+      return await callback(this);
+    } finally {
+      this.transactionCreateScopes.push(this.activeTransactionCreates);
+      this.activeTransactionCreates = previousTransactionCreates;
+    }
+  }
+
+  recordTransactionCreate(delegateName: string): void {
+    this.activeTransactionCreates?.push(delegateName);
   }
 }
 
 class FakeDelegate {
   readonly rows: Array<Record<string, unknown>> = [];
 
+  constructor(
+    private readonly delegateName?: string,
+    private readonly client?: { recordTransactionCreate(delegateName: string): void }
+  ) {}
+
   async create(input: { data: Record<string, unknown> }): Promise<Record<string, unknown>> {
     const row = materialize(input.data);
     this.rows.push(row);
+    if (this.delegateName) {
+      this.client?.recordTransactionCreate(this.delegateName);
+    }
     return row;
   }
 

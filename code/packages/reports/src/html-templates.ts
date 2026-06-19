@@ -123,6 +123,7 @@ const renderExecutiveSummary = (report: InternalReadinessReport): string => {
     renderTrafficRow("Incident Readiness", readinessScoreForGroup(report.controlResults, ["inc", "bcp", "doc"])),
     "</article>",
     "</section>",
+    renderConceptSummary(report),
     '<section class="three-column-stats">',
     renderStat("Compliant", counts.compliant),
     renderStat("In progress", counts.inProgress),
@@ -147,6 +148,8 @@ const renderGapReport = (report: InternalReadinessReport): string => {
     renderStat("Open gaps", report.gaps.length),
     renderStat("Evidence artifacts", report.evidence.length),
     "</section>",
+    renderConceptSummary(report),
+    renderVerifiedEvidenceComparison(report),
     '<section><h2>Top 3 gaps</h2>',
     report.gaps.length > 0
       ? `<ol class="gap-list">${[...report.gaps].sort(compareGaps).slice(0, 3).map((gap) => `<li>${renderGapInline(gap)}</li>`).join("")}</ol>`
@@ -166,6 +169,77 @@ const renderGapReport = (report: InternalReadinessReport): string => {
       .join("\n"),
     "</tbody></table></section>",
     renderSourceReferences(report.sourceReferences)
+  ].join("\n");
+};
+
+const renderConceptSummary = (report: InternalReadinessReport): string =>
+  [
+    '<section class="summary-band">',
+    renderStat("Applicability", report.concepts.applicability.result.replaceAll("_", " ")),
+    renderStat("Readiness", `${report.concepts.readiness.value}%`),
+    renderStat("Evidence confidence", `${report.concepts.evidenceConfidence.value}%`),
+    renderStat("Priority", report.concepts.priority.result),
+    "</section>"
+  ].join("\n");
+
+const renderVerifiedEvidenceComparison = (report: InternalReadinessReport): string => {
+  if (!report.comparison && !report.verifiedEvidence) {
+    return "";
+  }
+
+  const comparison = report.comparison;
+  const contradictions = report.verifiedEvidence?.contradictions ?? [];
+  return [
+    '<section class="verified-box">',
+    "<h2>Declared vs verified comparison</h2>",
+    comparison
+      ? [
+          '<div class="summary-band">',
+          renderStat("Readiness delta", formatDelta(comparison.readinessDelta)),
+          renderStat("Evidence confidence delta", formatDelta(comparison.evidenceConfidenceDelta)),
+          renderStat("Contradictions", comparison.contradictions.length),
+          "</div>",
+          comparison.changedControlAreas.length > 0
+            ? [
+                "<h2>Changed control areas</h2>",
+                "<table><thead><tr><th>Control</th><th>Previous</th><th>Current</th><th>Deltas</th></tr></thead><tbody>",
+                comparison.changedControlAreas
+                  .map(
+                    (change) =>
+                      `<tr><td>${escapeHtml(change.controlId)}</td><td>${escapeHtml(
+                        change.previousStatus.replaceAll("_", " ")
+                      )}</td><td>${escapeHtml(change.currentStatus.replaceAll("_", " "))}</td><td>Readiness ${escapeHtml(
+                        formatDelta(change.readinessDelta)
+                      )}; evidence ${escapeHtml(formatDelta(change.evidenceConfidenceDelta))}</td></tr>`
+                  )
+                  .join("\n"),
+                "</tbody></table>"
+              ].join("\n")
+            : '<p class="empty">No changed control areas in this version comparison.</p>'
+        ].join("\n")
+      : "",
+    contradictions.length > 0
+      ? [
+          "<h2>Contradictions</h2>",
+          "<table><thead><tr><th>Control</th><th>Declared</th><th>Verified observation</th><th>Effective result</th></tr></thead><tbody>",
+          contradictions
+            .map(
+              (contradiction) =>
+                `<tr><td>${escapeHtml(contradiction.controlId)}</td><td>${escapeHtml(
+                  `${contradiction.declaredStatus}: ${contradiction.declaredSummary}`
+                )}</td><td>${escapeHtml(
+                  `${contradiction.verifiedStatus}: ${contradiction.verifiedSummary}`
+                )}</td><td>${escapeHtml(
+                  `${contradiction.effectiveStatus}; readiness ${formatDelta(
+                    contradiction.readinessDelta
+                  )}; evidence ${formatDelta(contradiction.evidenceConfidenceDelta)}`
+                )}</td></tr>`
+            )
+            .join("\n"),
+          "</tbody></table>"
+        ].join("\n")
+      : '<p class="empty">No declared vs verified contradictions in this report version.</p>',
+    "</section>"
   ].join("\n");
 };
 
@@ -334,6 +408,8 @@ const formatDateTime = (value: string): string => {
   return Number.isNaN(date.getTime()) ? value : date.toISOString().slice(0, 10);
 };
 
+const formatDelta = (value: number): string => `${value > 0 ? "+" : ""}${value}%`;
+
 const escapeHtml = (value: string): string =>
   value
     .replaceAll("&", "&amp;")
@@ -390,6 +466,8 @@ code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; over
 .empty { color: #5d6975; font-style: italic; }
 .fine-box { background: #eef6ff; border-color: #9fc5ef; margin: 18px 0; }
 .fine-box h2 { margin-top: 0; }
+.verified-box { border: 1px solid #b7c7d5; border-radius: 8px; margin: 18px 0; padding: 14px; }
+.verified-box h2:first-child { margin-top: 0; }
 .report-footer { border-top: 1px solid #cdd5dd; color: #5d6975; display: grid; gap: 6px; grid-template-columns: 1fr auto auto; margin-top: 26px; padding-top: 10px; }
 @page { margin: 18mm 13mm 20mm; }
 `;

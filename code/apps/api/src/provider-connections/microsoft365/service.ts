@@ -16,7 +16,8 @@ import type { ProviderFinding } from "@puresoc/providers-core";
 import {
   createMicrosoft365TokenCipherFromEnv,
   createMicrosoft365Connector,
-  microsoft365DefaultReadModules,
+  createMicrosoft365FixtureConnector,
+  microsoft365CoreDemoReadModules,
   microsoft365ProviderKey,
   normalizeMicrosoft365RequestedBundles,
   type Microsoft365CredentialResolver,
@@ -66,6 +67,9 @@ export interface Microsoft365RunSyncInput {
 export interface Microsoft365ConnectionHealth {
   connection: ProviderConnectionView;
   status: ProviderConnectionRecord["status"];
+  connectorMode: Microsoft365ConnectorMode;
+  effectiveConnectorMode: "fixture" | "live";
+  fixtureSet?: string;
   permissionBundles: ProviderPermissionBundleRecord[];
   capabilities: ProviderCapabilityRecord[];
   moduleStatuses: ProviderSyncModuleRecord[];
@@ -85,6 +89,10 @@ export interface Microsoft365ProviderConnectionServiceOptions {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
   }) => CloudProviderConnector;
+  connectorMode?: Microsoft365ConnectorMode;
+  fixtureSet?: string;
+  graphBaseUrl?: string;
+  maxRetries?: number;
 }
 
 export interface Microsoft365ConnectorAppConfig {
@@ -92,6 +100,8 @@ export interface Microsoft365ConnectorAppConfig {
   clientSecret?: string;
   authorityHost?: string;
 }
+
+export type Microsoft365ConnectorMode = "fixture" | "live" | "auto";
 
 interface PendingConsentState {
   organizationId: string;
@@ -113,6 +123,11 @@ export class Microsoft365ProviderConnectionService {
   private readonly consentStateStore: ProviderConsentStateStore;
   private readonly notifications?: Pick<NotificationService, "send">;
   private tokenCipher?: Microsoft365TokenCipher;
+  private readonly connectorMode: Microsoft365ConnectorMode;
+  private readonly effectiveMode: "fixture" | "live";
+  private readonly fixtureSet: string;
+  private readonly graphBaseUrl?: string;
+  private readonly maxRetries: number;
   private readonly createConnector: (input: {
     credentialResolver: Microsoft365CredentialResolver;
     tokenCipher: Microsoft365TokenCipher;
@@ -132,16 +147,36 @@ export class Microsoft365ProviderConnectionService {
       });
     this.notifications = options.notifications;
     const connectorApp = options.connectorApp ?? { clientId: "" };
+    this.connectorMode = options.connectorMode ?? "live";
+    this.fixtureSet = options.fixtureSet ?? "partner_demo";
+    this.graphBaseUrl = options.graphBaseUrl;
+    this.maxRetries = options.maxRetries ?? 3;
+    this.effectiveMode = effectiveConnectorMode(this.connectorMode, connectorApp);
     this.createConnector =
       options.createConnector ??
-      ((input) =>
-        createMicrosoft365Connector({
+      ((input) => {
+        if (this.effectiveMode === "fixture") {
+          return createMicrosoft365FixtureConnector({
+            clientId: connectorApp.clientId || undefined,
+            authorityHost: connectorApp.authorityHost,
+            graphBaseUrl: this.graphBaseUrl,
+            fixtureSet: this.fixtureSet,
+            credentialResolver: input.credentialResolver,
+            tokenCipher: input.tokenCipher,
+            now: this.now
+          });
+        }
+
+        return createMicrosoft365Connector({
           clientId: connectorApp.clientId,
           clientSecret: connectorApp.clientSecret,
           authorityHost: connectorApp.authorityHost,
+          graphBaseUrl: this.graphBaseUrl,
+          sourceMode: "live",
           credentialResolver: input.credentialResolver,
           tokenCipher: input.tokenCipher
-        }));
+        });
+      });
   }
 
   async beginConsent(input: Microsoft365ConsentBeginInput): Promise<{
@@ -318,17 +353,20 @@ export class Microsoft365ProviderConnectionService {
       userAgent: input.userAgent,
       afterJson: {
         providerKey: microsoft365ProviderKey,
-        requestedModules: input.requestedModules ?? microsoft365DefaultReadModules
+        requestedModules: input.requestedModules ?? [...microsoft365CoreDemoReadModules],
+        connectorMode: this.connectorMode,
+        effectiveConnectorMode: this.effectiveMode
       }
     });
 
+    const requestedModules = input.requestedModules ?? [...microsoft365CoreDemoReadModules];
     const result = await runProviderConnectorPipeline({
       connector: this.microsoftConnector(),
       store: this.store,
       organizationId: input.organizationId,
       providerConnectionId: input.providerConnectionId,
-      requestedModules: input.requestedModules,
-      maxRetries: input.maxRetries
+      requestedModules,
+      maxRetries: input.maxRetries ?? this.maxRetries
     });
 
     await this.auditWriter.write({
@@ -341,6 +379,8 @@ export class Microsoft365ProviderConnectionService {
       userAgent: input.userAgent,
       afterJson: {
         providerKey: microsoft365ProviderKey,
+        connectorMode: this.connectorMode,
+        effectiveConnectorMode: this.effectiveMode,
         status: result.syncRun.status,
         summary: result.syncRun.summary
       }
@@ -360,6 +400,9 @@ export class Microsoft365ProviderConnectionService {
     return {
       connection: safeConnectionView(connection),
       status,
+      connectorMode: this.connectorMode,
+      effectiveConnectorMode: this.effectiveMode,
+      fixtureSet: this.effectiveMode === "fixture" ? this.fixtureSet : undefined,
       permissionBundles,
       capabilities,
       moduleStatuses
@@ -434,6 +477,21 @@ export class Microsoft365ProviderConnectionService {
 }
 
 const hashConsentState = (state: string): string => createHash("sha256").update(state, "utf8").digest("hex");
+
+const effectiveConnectorMode = (
+  connectorMode: Microsoft365ConnectorMode,
+  connectorApp: Microsoft365ConnectorAppConfig
+): "fixture" | "live" => {
+  if (connectorMode === "fixture") {
+    return "fixture";
+  }
+
+  if (connectorMode === "auto") {
+    return connectorApp.clientId && connectorApp.clientSecret ? "live" : "fixture";
+  }
+
+  return "live";
+};
 
 const consentStateRecordToPendingState = (record: ProviderConsentStateRecord): PendingConsentState => ({
   organizationId: record.organizationId,

@@ -43,6 +43,7 @@ export interface ReportRecommendationSummary {
   severity: ActionableSeverity;
   summary: string;
   requiredEvidence: boolean;
+  provenance?: InternalReadinessFindingProvenance[];
   sourceReferences?: ReportSourceReference[];
 }
 
@@ -61,6 +62,7 @@ export interface ReportControlResultSummary {
     missing: number;
     ratio: number;
   };
+  provenance?: InternalReadinessFindingProvenance[];
   sourceReferences: ReportSourceReference[];
 }
 
@@ -72,6 +74,7 @@ export interface ReportGapSummary {
   summary: string;
   missingEvidence: string[];
   recommendedActions: string[];
+  provenance?: InternalReadinessFindingProvenance[];
   sourceReferences: ReportSourceReference[];
 }
 
@@ -106,6 +109,139 @@ export interface ReportReadinessPlanSummary {
   }>;
 }
 
+export type InternalReadinessReportTriggerType =
+  | "onboarding_completed"
+  | "manual_regenerate"
+  | "microsoft_sync_completed";
+
+export interface InternalReadinessReportClassificationSnapshot {
+  confidence?: string;
+  countryCode?: string;
+  explanation?: string;
+  legalReviewRequired: boolean;
+  missingInformation?: readonly string[];
+  result: string;
+}
+
+export interface InternalReadinessReportVersionMetadata {
+  countryPackVersion?: string;
+  inputSnapshot: {
+    assessmentId: string;
+    classificationResult?: InternalReadinessReportClassificationSnapshot;
+    controlResultCount: number;
+    evidenceArtifactCount: number;
+    gapCount: number;
+    recommendationCount: number;
+  };
+  immutable: true;
+  methodologyVersion: string;
+  onboardingSchemaVersion?: string;
+  previousReportId?: string;
+  rendererVersion: string;
+  reportVersion: 1 | 2;
+  triggerType: InternalReadinessReportTriggerType;
+}
+
+export interface InternalReadinessReportConcepts {
+  applicability: {
+    confidence: string;
+    legalReviewRequired: boolean;
+    result: string;
+    summary: string;
+  };
+  evidenceConfidence: {
+    methodologyVersion: string;
+    missingEvidenceCount: number;
+    result: "low" | "medium" | "high";
+    summary: string;
+    value: number;
+  };
+  priority: {
+    criticalGapCount: number;
+    highGapCount: number;
+    result: "none" | "low" | "medium" | "high" | "critical";
+    summary: string;
+  };
+  readiness: {
+    applicableControlCount: number;
+    methodologyVersion: string;
+    missingInformationCount: number;
+    result: "low" | "medium" | "high";
+    summary: string;
+    value: number;
+  };
+}
+
+export type InternalReadinessFindingProvenance =
+  | "declared_by_customer"
+  | "uploaded_evidence"
+  | "verified_through_microsoft"
+  | "inferred_by_rule"
+  | "unavailable_permission"
+  | "unavailable_product_or_license";
+
+export interface InternalReadinessVerifiedObservation {
+  id: string;
+  controlId: string;
+  title: string;
+  summary: string;
+  provenance: InternalReadinessFindingProvenance;
+  providerKey?: string;
+  providerConnectionId?: string;
+  syncRunId?: string;
+  moduleKey?: string;
+  observedAt: string;
+  status: "verified_passing" | "verified_gap" | "unavailable" | "informational";
+  readinessImpact: "improves" | "reduces" | "neutral";
+  evidenceConfidenceImpact: "improves" | "reduces" | "neutral";
+  sourceReferenceIds?: string[];
+}
+
+export interface InternalReadinessContradiction {
+  id: string;
+  controlId: string;
+  declaredStatus: string;
+  declaredSummary: string;
+  verifiedStatus: string;
+  verifiedSummary: string;
+  effectiveStatus: string;
+  readinessDelta: number;
+  evidenceConfidenceDelta: number;
+  provenance: InternalReadinessFindingProvenance;
+  providerKey?: string;
+  providerConnectionId?: string;
+  syncRunId?: string;
+  moduleKey?: string;
+  observedAt: string;
+}
+
+export interface InternalReadinessReportComparison {
+  previousReportId: string;
+  readinessDelta: number;
+  evidenceConfidenceDelta: number;
+  changedControlAreas: Array<{
+    controlId: string;
+    previousStatus: string;
+    currentStatus: string;
+    readinessDelta: number;
+    evidenceConfidenceDelta: number;
+  }>;
+  newVerifiedFindings: string[];
+  resolvedUnknowns: string[];
+  contradictions: string[];
+  newRecommendations: string[];
+}
+
+export interface InternalReadinessVerifiedEvidence {
+  providerKey: string;
+  providerConnectionId: string;
+  syncRunId?: string;
+  generatedAt: string;
+  observations: InternalReadinessVerifiedObservation[];
+  contradictions: InternalReadinessContradiction[];
+  unavailableSignals: InternalReadinessVerifiedObservation[];
+}
+
 export interface InternalReadinessReport {
   schemaVersion: "puresoc.report.internal_readiness.v1";
   organizationId: string;
@@ -121,12 +257,16 @@ export interface InternalReadinessReport {
   legalCaveatRequestedLocale?: string;
   legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
+  version: InternalReadinessReportVersionMetadata;
+  concepts: InternalReadinessReportConcepts;
   sourceReferences: ReportSourceReference[];
   controlResults: ReportControlResultSummary[];
   gaps: ReportGapSummary[];
   recommendations: ReportRecommendationSummary[];
   readinessPlan?: ReportReadinessPlanSummary;
   evidence: ReportEvidenceSummary[];
+  verifiedEvidence?: InternalReadinessVerifiedEvidence;
+  comparison?: InternalReadinessReportComparison;
   provenance: {
     source: "stored_analysis";
     catalogVersion?: string;
@@ -258,6 +398,49 @@ export const createReportShell = (organizationId: string, jurisdiction = "eu"): 
   legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
   legalCaveatReviewStatus: "source_approved",
   locale: "en",
+  version: {
+    immutable: true,
+    inputSnapshot: {
+      assessmentId: "unassigned",
+      controlResultCount: 0,
+      evidenceArtifactCount: 0,
+      gapCount: 0,
+      recommendationCount: 0
+    },
+    methodologyVersion: "puresoc.readiness.declared.v1",
+    rendererVersion: "puresoc-report-renderer-json.v1",
+    reportVersion: 1,
+    triggerType: "manual_regenerate"
+  },
+  concepts: {
+    applicability: {
+      confidence: "low",
+      legalReviewRequired: true,
+      result: "not_assessed",
+      summary: "Applicability was not assessed for this empty report shell."
+    },
+    readiness: {
+      applicableControlCount: 0,
+      methodologyVersion: "puresoc.readiness.declared.v1",
+      missingInformationCount: 0,
+      result: "low",
+      summary: "No applicable controls were available for readiness calculation.",
+      value: 0
+    },
+    evidenceConfidence: {
+      methodologyVersion: "puresoc.readiness.declared.v1",
+      missingEvidenceCount: 0,
+      result: "low",
+      summary: "No evidence requirements were available for confidence calculation.",
+      value: 0
+    },
+    priority: {
+      criticalGapCount: 0,
+      highGapCount: 0,
+      result: "none",
+      summary: "No gaps were available for priority calculation."
+    }
+  },
   controlResults: [],
   gaps: [],
   sourceReferences: [],

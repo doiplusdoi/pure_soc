@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(84);
+    expect(requiredTables).toHaveLength(88);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -42,7 +42,13 @@ describe("database schema groups", () => {
       const modelBody = modelBlocks.get(table);
 
       expect(modelBody, `missing tenant-owned table ${table}`).toBeDefined();
-      expect(modelBody, `${table} must include organization_id`).toContain('@map("organization_id")');
+      if (table === "tenant_access_sessions") {
+        expect(modelBody, `${table} must include effective_organization_id`).toContain(
+          '@map("effective_organization_id")'
+        );
+      } else {
+        expect(modelBody, `${table} must include organization_id`).toContain('@map("organization_id")');
+      }
     }
   });
 
@@ -64,11 +70,13 @@ describe("database schema groups", () => {
     }
   });
 
-  it("seeds all 27 EU Member States with Romania marked for full-pack implementation", () => {
+  it("seeds all 27 EU Member States with demo countries marked for full-pack implementation", () => {
     expect(euMemberStates).toHaveLength(27);
     expect(new Set(euMemberStates.map((state) => state.countryCode)).size).toBe(27);
     expect(euMemberStates.every((state) => state.officialLanguages.length > 0)).toBe(true);
     expect(euMemberStates.find((state) => state.countryCode === "RO")?.countryPackStatus).toBe("planned_full_pack");
+    expect(euMemberStates.find((state) => state.countryCode === "PL")?.countryPackStatus).toBe("planned_full_pack");
+    expect(euMemberStates.find((state) => state.countryCode === "DE")?.countryPackStatus).toBe("planned_full_pack");
   });
 
   it("stores logical control identifiers as strings instead of UUID-only fields", () => {

@@ -205,6 +205,45 @@ export class OrganizationService {
     };
   }
 
+  async createPartnerCustomerOrganization(input: CreateOrganizationInput) {
+    if (!(await this.repository.findUserById(input.actorUserId))) {
+      throw new Error("Cannot create partner customer organization for an unknown user.");
+    }
+
+    const now = this.now();
+    const organization = await this.repository.createOrganization({
+      id: randomUUID(),
+      name: input.name,
+      legalName: input.legalName ?? null,
+      billingStatus: "none",
+      defaultLocale: "en",
+      primaryCountryCode: input.primaryCountryCode ?? null,
+      headquartersCountryCode: input.headquartersCountryCode ?? null,
+      createdAt: now,
+      updatedAt: now
+    });
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: organization.id,
+      targetType: "organization",
+      targetId: organization.id,
+      action: "organization_created",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        createdThrough: "partner_portfolio",
+        name: organization.name,
+        legalName: organization.legalName,
+        primaryCountryCode: organization.primaryCountryCode
+      }
+    });
+
+    return {
+      organization: this.safeOrganizationView(organization)
+    };
+  }
+
   async createInvitation(input: CreateOrganizationInvitationInput) {
     const actor = await this.repository.findUserById(input.actorUserId);
     if (!actor) {

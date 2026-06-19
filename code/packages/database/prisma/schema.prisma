@@ -29,6 +29,42 @@ enum OrganizationInvitationStatus {
   expired
 }
 
+enum PartnerStatus {
+  active
+  suspended
+  archived
+}
+
+enum PartnerMemberRole {
+  owner
+  admin
+  analyst
+  viewer
+}
+
+enum PartnerMemberStatus {
+  active
+  suspended
+  removed
+}
+
+enum PartnerTenantAccessLevel {
+  admin
+  analyst
+  viewer
+}
+
+enum PartnerTenantGrantStatus {
+  active
+  revoked
+}
+
+enum TenantAccessSessionStatus {
+  active
+  ended
+  expired
+}
+
 enum ProviderConnectionStatus {
   pending
   connected
@@ -485,6 +521,72 @@ model OrganizationInvitation {
   @@map("organization_invitations")
 }
 
+model Partner {
+  id              String        @id @default(uuid()) @db.Uuid
+  name            String
+  slug            String        @unique
+  status          PartnerStatus @default(active)
+  parentPartnerId String?       @map("parent_partner_id") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+  updatedAt       DateTime      @updatedAt @map("updated_at")
+
+  @@index([parentPartnerId], map: "partners_parent_partner_idx")
+  @@map("partners")
+}
+
+model PartnerMember {
+  id        String              @id @default(uuid()) @db.Uuid
+  partnerId String              @map("partner_id") @db.Uuid
+  userId    String              @map("user_id") @db.Uuid
+  role      PartnerMemberRole
+  status    PartnerMemberStatus @default(active)
+  createdAt DateTime            @default(now()) @map("created_at")
+  updatedAt DateTime            @updatedAt @map("updated_at")
+
+  @@unique([partnerId, userId], map: "partner_members_partner_user_key")
+  @@index([userId, status], map: "partner_members_user_status_idx")
+  @@map("partner_members")
+}
+
+model PartnerTenantGrant {
+  id             String                   @id @default(uuid()) @db.Uuid
+  partnerId      String                   @map("partner_id") @db.Uuid
+  organizationId String                   @map("organization_id") @db.Uuid
+  accessLevel    PartnerTenantAccessLevel @map("access_level")
+  status         PartnerTenantGrantStatus @default(active)
+  grantedByUserId String                  @map("granted_by_user_id") @db.Uuid
+  revokedAt      DateTime?                @map("revoked_at")
+  createdAt      DateTime                 @default(now()) @map("created_at")
+  updatedAt      DateTime                 @updatedAt @map("updated_at")
+
+  @@index([partnerId, status], map: "partner_tenant_grants_partner_status_idx")
+  @@index([organizationId, status], map: "partner_tenant_grants_org_status_idx")
+  @@map("partner_tenant_grants")
+}
+
+model TenantAccessSession {
+  id                      String                    @id @default(uuid()) @db.Uuid
+  realActorUserId          String                    @map("real_actor_user_id") @db.Uuid
+  partnerId               String                    @map("partner_id") @db.Uuid
+  effectiveOrganizationId String                    @map("effective_organization_id") @db.Uuid
+  reason                  String
+  status                  TenantAccessSessionStatus @default(active)
+  startedAt               DateTime                  @map("started_at")
+  expiresAt               DateTime                  @map("expires_at")
+  endedAt                 DateTime?                 @map("ended_at")
+  endReason               String?                   @map("end_reason")
+  ipAddress               String?                   @map("ip_address")
+  userAgent               String?                   @map("user_agent")
+  requestId               String?                   @map("request_id")
+  traceId                 String?                   @map("trace_id")
+  createdAt               DateTime                  @default(now()) @map("created_at")
+  updatedAt               DateTime                  @updatedAt @map("updated_at")
+
+  @@index([realActorUserId, status, expiresAt], map: "tenant_access_sessions_actor_status_expiry_idx")
+  @@index([partnerId, effectiveOrganizationId, status], map: "tenant_access_sessions_partner_org_status_idx")
+  @@map("tenant_access_sessions")
+}
+
 model Role {
   id          String   @id @default(uuid()) @db.Uuid
   key         String   @unique
@@ -519,6 +621,7 @@ model AuditLog {
   chainSequence  Int      @map("chain_sequence")
   ipAddress      String?  @map("ip_address")
   userAgent      String?  @map("user_agent")
+  contextJson    Json     @default("{}") @map("context_json")
   beforeJson     Json?    @map("before_json")
   afterJson      Json?    @map("after_json")
   previousHash   String?  @map("previous_hash")

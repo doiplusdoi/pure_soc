@@ -21,7 +21,7 @@ export const evaluateComplianceAssessmentRoute = async (
     repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
-    allowedRoles: ["owner", "org_admin", "auditor"]
+    allowedRoles: ["owner", "org_admin", "compliance_manager"]
   });
 
   const input = parseComplianceEvaluationBody(body, organizationId);

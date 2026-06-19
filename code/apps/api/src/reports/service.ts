@@ -1,7 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
 
+import { AuthError } from "@puresoc/auth-core";
 import type { AuditWriter } from "@puresoc/audit";
 import type { OutputRecordRepository } from "@puresoc/database";
+import type { ProviderNormalizedResource, ProviderResourceStore, ProviderSyncModuleRecord } from "@puresoc/providers-core";
 import {
   buildPdfReportHtml,
   buildInternalReadinessEvidencePackageExport,
@@ -12,11 +14,15 @@ import {
   normalizeEvidencePackageLimits,
   ReportExportError,
   stableJsonExport,
+  type BuildInternalReadinessVerifiedEvidenceInput,
   type EvidencePackageEvidenceFileInput,
   type EvidencePackageLimitConfig,
   type InternalReadinessCsvExport,
   type InternalReadinessEvidencePackageExport,
+  type InternalReadinessReportClassificationSnapshot,
+  type InternalReadinessReportTriggerType,
   type InternalReadinessReport,
+  type InternalReadinessVerifiedObservation,
   type RomaniaNotificationDraftExport,
   type StoredRomaniaNotificationDraftInput
 } from "@puresoc/reports";
@@ -25,13 +31,19 @@ import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-reco
 
 export type ReportRepository = Pick<
   OutputRecordRepository,
-  "findLatestStoredAnalysis" | "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
+  "findGeneratedReport" | "findLatestStoredAnalysis" | "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
+>;
+
+export type ReportProviderResourceStore = Pick<
+  ProviderResourceStore,
+  "listNormalizedResources" | "listSyncModulesForConnection"
 >;
 
 export interface ReportApiServiceOptions {
   repository: ReportRepository;
   evidence?: EvidenceApiService;
   auditWriter?: AuditWriter;
+  providerStore?: ReportProviderResourceStore;
   renderer?: ReportRendererClient;
   pdfRenderer?: ReportPdfRendererClient;
   storeGeneratedReportsAsEvidence?: boolean;
@@ -64,10 +76,20 @@ export interface RenderedReportArtifact {
   renderedAt: string;
 }
 
+export interface InternalReadinessReportVersionContext {
+  classificationResult?: InternalReadinessReportClassificationSnapshot;
+  countryPackVersion?: string;
+  onboardingSchemaVersion?: string;
+  previousReportId?: string;
+  reportVersion?: 1 | 2;
+  triggerType?: InternalReadinessReportTriggerType;
+}
+
 export class ReportApiService {
   private readonly repository: ReportRepository;
   private readonly evidence?: EvidenceApiService;
   private readonly auditWriter?: AuditWriter;
+  private readonly providerStore?: ReportProviderResourceStore;
   private readonly renderer: ReportRendererClient;
   private readonly pdfRenderer?: ReportPdfRendererClient;
   private readonly storeGeneratedReportsAsEvidence: boolean;
@@ -78,6 +100,7 @@ export class ReportApiService {
     this.repository = options.repository;
     this.evidence = options.evidence;
     this.auditWriter = options.auditWriter;
+    this.providerStore = options.providerStore;
     this.renderer =
       options.renderer ??
       ({
@@ -103,6 +126,7 @@ export class ReportApiService {
     organizationId: string;
     assessmentId: string;
     actorUserId: string;
+    versionContext?: InternalReadinessReportVersionContext;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{ report: GeneratedReportRecord; exportJson: string }> {
@@ -118,7 +142,8 @@ export class ReportApiService {
       gaps: analysis.gaps,
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
-      evidence: analysis.evidenceArtifacts
+      evidence: analysis.evidenceArtifacts,
+      ...input.versionContext
     });
     const report = await this.persistReport({
       organizationId: input.organizationId,
@@ -137,10 +162,88 @@ export class ReportApiService {
     };
   }
 
+  async buildMicrosoft365VerifiedInternalReadinessReport(input: {
+    organizationId: string;
+    actorUserId: string;
+    previousReportId: string;
+    providerConnectionId: string;
+    assessmentId?: string;
+    versionContext?: InternalReadinessReportVersionContext;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{ report: GeneratedReportRecord; exportJson: string }> {
+    if (!this.providerStore) {
+      throw new AuthError("invalid_request", "Provider resource store is not available for verified reports.", 400);
+    }
+
+    const previousReport = await this.repository.findGeneratedReport(input.organizationId, input.previousReportId);
+    if (!previousReport) {
+      throw new AuthError("invalid_request", "Previous internal readiness report was not found.", 404);
+    }
+    if (previousReport.reportData.reportType !== "internal_readiness") {
+      throw new AuthError("invalid_request", "Previous report must be an internal readiness report.", 400);
+    }
+
+    const assessmentId = input.assessmentId ?? previousReport.assessmentId;
+    if (!assessmentId) {
+      throw new AuthError("invalid_request", "Missing assessmentId for verified internal readiness report.", 400);
+    }
+
+    const analysis = await this.requireStoredAnalysis(input.organizationId, assessmentId);
+    const [normalizedResources, syncModules] = await Promise.all([
+      this.providerStore.listNormalizedResources(input.organizationId, input.providerConnectionId),
+      this.providerStore.listSyncModulesForConnection(input.organizationId, input.providerConnectionId)
+    ]);
+    const generatedAt = this.now().toISOString();
+    const verifiedEvidence = buildMicrosoft365VerifiedEvidenceSnapshot({
+      providerConnectionId: input.providerConnectionId,
+      generatedAt,
+      normalizedResources,
+      syncModules,
+      controlResults: analysis.results
+    });
+    const reportData = buildInternalReadinessReport({
+      organizationId: input.organizationId,
+      assessmentId,
+      jurisdiction: analysis.jurisdiction,
+      generatedAt,
+      catalogVersion: analysis.catalogVersion,
+      analysisRecordedAt: analysis.recordedAt,
+      controlResults: analysis.results,
+      gaps: analysis.gaps,
+      recommendations: analysis.recommendations,
+      readinessPlan: analysis.readinessPlan,
+      evidence: analysis.evidenceArtifacts,
+      methodologyVersion: "puresoc.readiness.verified-microsoft.v1",
+      ...input.versionContext,
+      previousReportId: input.previousReportId,
+      previousReport: previousReport.reportData,
+      reportVersion: 2,
+      triggerType: "microsoft_sync_completed",
+      verifiedEvidence
+    });
+    const report = await this.persistReport({
+      organizationId: input.organizationId,
+      assessmentId,
+      reportType: "internal_readiness",
+      jurisdiction: analysis.jurisdiction,
+      reportData,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    return {
+      report,
+      exportJson: stableJsonExport(reportData)
+    };
+  }
+
   async buildInternalReadinessCsvExport(input: {
     organizationId: string;
     assessmentId: string;
     actorUserId: string;
+    versionContext?: InternalReadinessReportVersionContext;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -161,7 +264,8 @@ export class ReportApiService {
       gaps: analysis.gaps,
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
-      evidence: analysis.evidenceArtifacts
+      evidence: analysis.evidenceArtifacts,
+      ...input.versionContext
     });
     const report = await this.persistReport({
       organizationId: input.organizationId,
@@ -208,6 +312,7 @@ export class ReportApiService {
     organizationId: string;
     assessmentId: string;
     actorUserId: string;
+    versionContext?: InternalReadinessReportVersionContext;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -228,7 +333,8 @@ export class ReportApiService {
       gaps: analysis.gaps,
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
-      evidence: analysis.evidenceArtifacts
+      evidence: analysis.evidenceArtifacts,
+      ...input.versionContext
     });
     const evidencePackageLimits = normalizeEvidencePackageLimits(this.evidencePackageLimits);
     if (reportData.evidence.length > evidencePackageLimits.maxEvidenceFiles) {
@@ -486,6 +592,21 @@ export class ReportApiService {
       afterJson: {
         reportType: input.reportType,
         jurisdiction: input.jurisdiction,
+        reportVersion: input.reportData.reportType === "internal_readiness" ? input.reportData.version.reportVersion : undefined,
+        triggerType: input.reportData.reportType === "internal_readiness" ? input.reportData.version.triggerType : undefined,
+        readinessValue: input.reportData.reportType === "internal_readiness" ? input.reportData.concepts.readiness.value : undefined,
+        evidenceConfidenceValue:
+          input.reportData.reportType === "internal_readiness" ? input.reportData.concepts.evidenceConfidence.value : undefined,
+        previousReportId:
+          input.reportData.reportType === "internal_readiness" ? input.reportData.version.previousReportId : undefined,
+        readinessDelta:
+          input.reportData.reportType === "internal_readiness" ? input.reportData.comparison?.readinessDelta : undefined,
+        evidenceConfidenceDelta:
+          input.reportData.reportType === "internal_readiness" ? input.reportData.comparison?.evidenceConfidenceDelta : undefined,
+        contradictionCount:
+          input.reportData.reportType === "internal_readiness"
+            ? input.reportData.verifiedEvidence?.contradictions.length
+            : undefined,
         sourceReferenceCount: report.sourceReferences.length,
         evidenceArtifactId
       }
@@ -862,3 +983,186 @@ export class ReportApiService {
     return upload.artifact.id;
   }
 }
+
+interface Microsoft365VerifiedEvidenceSnapshotInput {
+  providerConnectionId: string;
+  generatedAt: string;
+  normalizedResources: readonly ProviderNormalizedResource[];
+  syncModules: readonly ProviderSyncModuleRecord[];
+  controlResults: StoredAnalysisRecord["results"];
+}
+
+const microsoft365ProviderKey = "microsoft365";
+
+const buildMicrosoft365VerifiedEvidenceSnapshot = (
+  input: Microsoft365VerifiedEvidenceSnapshotInput
+): BuildInternalReadinessVerifiedEvidenceInput => {
+  const latestModules = latestSyncModules(input.syncModules);
+  const observations: InternalReadinessVerifiedObservation[] = [
+    ...microsoft365MfaObservations(input, latestModules),
+    ...microsoft365SecureScoreObservations(input, latestModules),
+    ...microsoft365UnavailableObservations(input, latestModules)
+  ];
+
+  return {
+    providerKey: microsoft365ProviderKey,
+    providerConnectionId: input.providerConnectionId,
+    syncRunId: latestSyncRunId([...latestModules.values()]),
+    generatedAt: input.generatedAt,
+    observations
+  };
+};
+
+const microsoft365MfaObservations = (
+  input: Microsoft365VerifiedEvidenceSnapshotInput,
+  latestModules: Map<string, ProviderSyncModuleRecord>
+): InternalReadinessVerifiedObservation[] => {
+  const module = latestModules.get("mfa-registration");
+  if (module && module.status !== "succeeded" && module.status !== "partial") {
+    return [];
+  }
+
+  const users = input.normalizedResources.filter(
+    (resource) => resource.providerKey === microsoft365ProviderKey && resource.resourceType === "cloud_user" && resource.sourceModule === "mfa-registration"
+  );
+  if (users.length === 0) {
+    return [];
+  }
+
+  const registered = users.filter((resource) => booleanValue(resource.normalizedJson.mfaRegistered)).length;
+  const ratio = users.length === 0 ? 0 : registered / users.length;
+  const status = ratio >= 0.95 ? "verified_passing" : "verified_gap";
+  return [
+    {
+      id: "m365:mfa-registration:coverage",
+      controlId: controlIdFor(input.controlResults, ["mfa"], "nis2.access-control.mfa"),
+      title: "Microsoft MFA registration coverage",
+      summary: `${registered} of ${users.length} Microsoft 365 users are registered for MFA (${Math.round(ratio * 100)}%).`,
+      provenance: "verified_through_microsoft",
+      providerKey: microsoft365ProviderKey,
+      providerConnectionId: input.providerConnectionId,
+      syncRunId: module?.syncRunId,
+      moduleKey: "mfa-registration",
+      observedAt: module?.completedAt ?? module?.startedAt ?? input.generatedAt,
+      status,
+      readinessImpact: status === "verified_gap" ? "reduces" : "improves",
+      evidenceConfidenceImpact: "improves"
+    }
+  ];
+};
+
+const microsoft365SecureScoreObservations = (
+  input: Microsoft365VerifiedEvidenceSnapshotInput,
+  latestModules: Map<string, ProviderSyncModuleRecord>
+): InternalReadinessVerifiedObservation[] => {
+  const module = latestModules.get("secure-score");
+  if (module && module.status !== "succeeded" && module.status !== "partial") {
+    return [];
+  }
+
+  const secureScore = input.normalizedResources
+    .filter((resource) => resource.providerKey === microsoft365ProviderKey && resource.resourceType === "cloud_secure_score")
+    .sort((left, right) => right.lastSeenAt.localeCompare(left.lastSeenAt))[0];
+  if (!secureScore) {
+    return [];
+  }
+
+  const currentScore = numberValue(secureScore.normalizedJson.currentScore);
+  const maxScore = numberValue(secureScore.normalizedJson.maxScore);
+  const ratio = maxScore > 0 ? currentScore / maxScore : 0;
+  const status = ratio >= 0.7 ? "verified_passing" : "verified_gap";
+  return [
+    {
+      id: "m365:secure-score:current",
+      controlId: controlIdFor(input.controlResults, ["secure-score", "security"], "nis2.security-posture.secure-score"),
+      title: "Microsoft Secure Score",
+      summary: `Microsoft Secure Score is ${currentScore} of ${maxScore} (${Math.round(ratio * 100)}%).`,
+      provenance: "verified_through_microsoft",
+      providerKey: microsoft365ProviderKey,
+      providerConnectionId: input.providerConnectionId,
+      syncRunId: module?.syncRunId,
+      moduleKey: "secure-score",
+      observedAt: module?.completedAt ?? module?.startedAt ?? secureScore.lastSeenAt,
+      status,
+      readinessImpact: status === "verified_gap" ? "reduces" : "improves",
+      evidenceConfidenceImpact: "improves"
+    }
+  ];
+};
+
+const microsoft365UnavailableObservations = (
+  input: Microsoft365VerifiedEvidenceSnapshotInput,
+  latestModules: Map<string, ProviderSyncModuleRecord>
+): InternalReadinessVerifiedObservation[] =>
+  [...latestModules.values()]
+    .filter((module) => module.status === "missing_permission" || module.status === "unavailable_license")
+    .map((module) => ({
+      id: `m365:${module.moduleKey}:unavailable`,
+      controlId: controlIdForModule(input.controlResults, module.moduleKey),
+      title: `Microsoft ${module.moduleKey} unavailable`,
+      summary:
+        module.status === "missing_permission"
+          ? `Microsoft module ${module.moduleKey} could not be verified because required permission ${module.missingPermissions.join(", ") || "unknown"} was not granted.`
+          : `Microsoft module ${module.moduleKey} could not be verified because required product/license ${module.missingLicenses.join(", ") || "unknown"} was not detected.`,
+      provenance: module.status === "missing_permission" ? "unavailable_permission" : "unavailable_product_or_license",
+      providerKey: microsoft365ProviderKey,
+      providerConnectionId: input.providerConnectionId,
+      syncRunId: module.syncRunId,
+      moduleKey: module.moduleKey,
+      observedAt: module.completedAt ?? module.startedAt ?? input.generatedAt,
+      status: "unavailable",
+      readinessImpact: "neutral",
+      evidenceConfidenceImpact: "reduces"
+    }));
+
+const latestSyncModules = (modules: readonly ProviderSyncModuleRecord[]): Map<string, ProviderSyncModuleRecord> => {
+  const latest = new Map<string, ProviderSyncModuleRecord>();
+  for (const module of modules) {
+    const existing = latest.get(module.moduleKey);
+    if (!existing || moduleTimestamp(module).localeCompare(moduleTimestamp(existing)) > 0) {
+      latest.set(module.moduleKey, module);
+    }
+  }
+
+  return latest;
+};
+
+const latestSyncRunId = (modules: readonly ProviderSyncModuleRecord[]): string | undefined =>
+  [...modules].sort((left, right) => moduleTimestamp(right).localeCompare(moduleTimestamp(left)))[0]?.syncRunId;
+
+const moduleTimestamp = (module: ProviderSyncModuleRecord): string =>
+  module.completedAt ?? module.startedAt ?? new Date(0).toISOString();
+
+const controlIdForModule = (controls: StoredAnalysisRecord["results"], moduleKey: string): string => {
+  if (moduleKey === "mfa-registration") {
+    return controlIdFor(controls, ["mfa"], "nis2.access-control.mfa");
+  }
+  if (moduleKey === "secure-score") {
+    return controlIdFor(controls, ["secure-score", "security"], "nis2.security-posture.secure-score");
+  }
+  if (moduleKey === "licensing") {
+    return controlIdFor(controls, ["license", "asset"], "nis2.asset-inventory.licensing");
+  }
+  return controlIdFor(controls, [moduleKey], `microsoft365.${moduleKey}`);
+};
+
+const controlIdFor = (
+  controls: StoredAnalysisRecord["results"],
+  keywords: readonly string[],
+  fallbackControlId: string
+): string => {
+  for (const keyword of keywords) {
+    const control = controls.find((candidate) =>
+      [candidate.controlId, candidate.controlCode ?? "", candidate.summary].join(" ").toLowerCase().includes(keyword)
+    );
+    if (control) {
+      return control.controlId;
+    }
+  }
+
+  return fallbackControlId;
+};
+
+const booleanValue = (value: unknown): boolean => value === true || value === "true";
+
+const numberValue = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);

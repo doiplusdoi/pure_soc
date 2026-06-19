@@ -398,6 +398,28 @@ a {
   width: min(100%, 80rem);
 }
 
+.ps-tenant-banner {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  border: 1px solid var(--ps-color-warning);
+  border-radius: var(--ps-radius-md);
+  background: var(--ps-color-warning-soft);
+  color: var(--ps-color-ink);
+}
+
+.ps-tenant-banner__inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.85rem;
+  align-items: center;
+  padding: 0.75rem 1rem;
+}
+
+.ps-tenant-banner__inner p {
+  margin: 0;
+}
+
 .ps-connector-shell {
   display: grid;
   grid-template-columns: minmax(17rem, 0.48fr) minmax(0, 1fr);
@@ -1723,6 +1745,7 @@ a {
   .ps-route-hero__status-strip,
   .ps-route-tabs,
   .ps-stepper,
+  .ps-tenant-banner__inner,
   .ps-form-grid {
     grid-template-columns: 1fr;
   }

@@ -1,12 +1,12 @@
 # Microsoft 365 Permission Bundles
 
-Validated on 2026-04-30 against Microsoft Learn references. Admin-consent endpoint shape was rechecked against Microsoft Learn on 2026-06-12.
+Validated on 2026-04-30 against Microsoft Learn references. Admin-consent endpoint shape was rechecked against Microsoft Learn on 2026-06-12. The partner-demo subscribed SKU, MFA registration, Secure Score, and v2 admin-consent assumptions were rechecked on 2026-06-19.
 
 ## Read-Only V1 Bundles
 
 | Bundle | Permissions | Modules enabled |
 |---|---|---|
-| `m365_read_baseline` | `Organization.Read.All`, `Domain.Read.All`, `LicenseAssignment.Read.All`, `User.Read.All`, `GroupMember.Read.All`, `RoleManagement.Read.Directory`, `Application.Read.All`, `Policy.Read.All`, `AuditLog.Read.All` | Tenant profile, domains, licenses, users, groups, directory roles, role members, app registrations, service principals, Conditional Access policies, Entra directory audit logs, Entra sign-in logs |
+| `m365_read_baseline` | `Organization.Read.All`, `Domain.Read.All`, `LicenseAssignment.Read.All`, `User.Read.All`, `GroupMember.Read.All`, `RoleManagement.Read.Directory`, `Application.Read.All`, `Policy.Read.All`, `AuditLog.Read.All` | Tenant profile, domains, licenses, users, groups, directory roles, role members, MFA registration details, app registrations, service principals, Conditional Access policies, Entra directory audit logs, Entra sign-in logs |
 | `m365_security_read` | `SecurityEvents.Read.All`, `SecurityIncident.Read.All`, `SecurityAlert.Read.All` | Secure Score and Defender XDR incidents/alerts where licensed and available |
 | `m365_intune_read` | `DeviceManagementManagedDevices.Read.All`, `DeviceManagementConfiguration.Read.All` | Intune managed device reads where `INTUNE_A` is detected |
 
@@ -24,6 +24,7 @@ Write bundles stay separate and are not requested during first onboarding:
 | Tenant profile | `GET /organization`, `GET /domains` | `Organization.Read.All`, `Domain.Read.All` |
 | Licensing | `GET /subscribedSkus` | `LicenseAssignment.Read.All` |
 | Users/groups/roles | `GET /users`, `GET /groups`, `GET /directoryRoles`, `GET /directoryRoles/{id}/members` | `User.Read.All`, `GroupMember.Read.All`, `RoleManagement.Read.Directory` |
+| MFA registration | `GET /reports/authenticationMethods/userRegistrationDetails` | `AuditLog.Read.All` |
 | Applications | `GET /applications`, `GET /servicePrincipals` | `Application.Read.All` |
 | Conditional Access | `GET /identity/conditionalAccess/policies` | `Policy.Read.All` |
 | Entra directory audit logs | `GET /auditLogs/directoryAudits` | `AuditLog.Read.All` |
@@ -47,7 +48,7 @@ Write bundles stay separate and are not requested during first onboarding:
 
 ## Current Limitations
 
-- Conditional Access, Entra audit/sign-in logs, Secure Score, Defender XDR incidents, and Defender XDR alerts are fixture-backed read modules. Live tenant rollout still needs production smoke coverage for customer licensing, retention windows, tenant security-provider enablement, and national-cloud endpoint behavior.
+- MFA registration, Conditional Access, Entra audit/sign-in logs, Secure Score, Defender XDR incidents, and Defender XDR alerts are fixture-backed read modules. Live tenant rollout still needs production smoke coverage for customer licensing, retention windows, tenant security-provider enablement, and national-cloud endpoint behavior.
 - Exchange, SharePoint, Teams, and Purview posture reads remain deferred because M12 did not select reliable Graph-first read-only signals for those modules.
 - Secure Score, Defender XDR incidents, and Defender XDR alerts are not available in China operated by 21Vianet according to the Microsoft Learn Graph pages checked on 2026-04-30.
 - Intune reads are gated by both permissions and detected service plans; `INTUNE_A` is the V1 detector used by the fixture and capability model.
@@ -79,6 +80,7 @@ M45 adds `pnpm microsoft365:smoke:read-only` as the guarded runner for that futu
 - List domains: https://learn.microsoft.com/en-us/graph/api/domain-list
 - List subscribed SKUs: https://learn.microsoft.com/en-us/graph/api/subscribedsku-list
 - List users: https://learn.microsoft.com/en-us/graph/api/user-list
+- List MFA registration details: https://learn.microsoft.com/en-us/graph/api/authenticationmethodsroot-list-userregistrationdetails
 - List groups: https://learn.microsoft.com/en-us/graph/api/group-list
 - List directory roles: https://learn.microsoft.com/en-us/graph/api/directoryrole-list
 - List service principals: https://learn.microsoft.com/en-us/graph/api/serviceprincipal-list

@@ -6,6 +6,7 @@ export const microsoft365ReadModules = [
   "tenant-profile",
   "licensing",
   "users-groups-roles",
+  "mfa-registration",
   "applications",
   "conditional-access",
   "entra-audit-logs",
@@ -19,6 +20,7 @@ export const microsoft365DefaultReadModules = [
   "tenant-profile",
   "licensing",
   "users-groups-roles",
+  "mfa-registration",
   "applications",
   "conditional-access",
   "entra-audit-logs",
@@ -27,6 +29,14 @@ export const microsoft365DefaultReadModules = [
 ] as const;
 
 export type Microsoft365ModuleKey = (typeof microsoft365ReadModules)[number];
+
+export const microsoft365CoreDemoReadModules = [
+  "tenant-profile",
+  "licensing",
+  "users-groups-roles",
+  "mfa-registration",
+  "secure-score"
+] as const satisfies readonly Microsoft365ModuleKey[];
 
 export const microsoft365DeferredReadModules = [
   "exchange-posture",
@@ -132,6 +142,11 @@ export const microsoft365ModuleRequirements: Record<Microsoft365ModuleKey, Micro
     permissionsRequired: ["User.Read.All", "GroupMember.Read.All", "RoleManagement.Read.Directory"],
     licenseRequired: []
   },
+  "mfa-registration": {
+    moduleKey: "mfa-registration",
+    permissionsRequired: ["AuditLog.Read.All"],
+    licenseRequired: []
+  },
   applications: {
     moduleKey: "applications",
     permissionsRequired: ["Application.Read.All"],
@@ -176,6 +191,9 @@ const microsoft365AllBundleKeys = new Set<string>([
   ...microsoft365ReadPermissionBundles,
   ...microsoft365WritePermissionBundles
 ]);
+const microsoft365WritePermissionKeys = new Set<string>(
+  microsoft365WritePermissionBundles.flatMap((bundleKey) => microsoft365PermissionBundles[bundleKey].permissions)
+);
 
 export const assertMicrosoft365ReadOnlyBundles = (bundleKeys: readonly string[]): void => {
   const unsupported = bundleKeys.filter((bundleKey) => !microsoft365AllBundleKeys.has(bundleKey));
@@ -191,6 +209,19 @@ export const assertMicrosoft365ReadOnlyBundles = (bundleKeys: readonly string[])
       "microsoft365_write_bundle_disabled",
       "Microsoft 365 write permission bundles are disabled during first onboarding.",
       { writeBundles }
+    );
+  }
+};
+
+export const assertMicrosoft365NoWritePermissionsGranted = (grantedPermissions: readonly string[]): void => {
+  const writePermissions = grantedPermissions.filter((permission) => microsoft365WritePermissionKeys.has(permission));
+  if (writePermissions.length > 0) {
+    throw new ProviderConnectorError(
+      "microsoft365_write_permission_granted_disabled",
+      "Microsoft 365 app-only token includes write permissions while write scopes are disabled.",
+      {
+        writePermissions: [...new Set(writePermissions)].sort()
+      }
     );
   }
 };

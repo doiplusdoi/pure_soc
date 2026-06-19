@@ -35,6 +35,7 @@ export type OperationalStatus =
   | "not_configured";
 
 export interface OperationalConsoleModel {
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   organization: {
     name: string;
     primaryCountryCode: string;
@@ -93,6 +94,7 @@ export interface WorkspaceSelectionOrganizationSurface {
 }
 
 export interface WorkspaceSelectionModel {
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   errorMessage?: string;
   organizations: WorkspaceSelectionOrganizationSurface[];
   session: RuntimeSessionSurface;
@@ -107,6 +109,7 @@ export interface OrganizationInvitationRoleOption {
 export interface OrganizationInvitationScreenModel {
   acceptOrganizationId?: string | null;
   actionMessage?: string;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   activeOrganization: WorkspaceSelectionOrganizationSurface | null;
   canCreateInvitations: boolean;
   errorMessage?: string;
@@ -137,12 +140,119 @@ export interface NotificationLogSettingsSurface {
 
 export interface NotificationSettingsScreenModel {
   actionMessage?: string;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   activeOrganization: WorkspaceSelectionOrganizationSurface | null;
   canManageChannels: boolean;
   channels: NotificationChannelSettingsSurface[];
   errorMessage?: string;
   logs: NotificationLogSettingsSurface[];
   roleKeys: string[];
+  session: RuntimeSessionSurface;
+}
+
+export interface PartnerMembershipSurface {
+  id: string;
+  partnerId: string;
+  role: "owner" | "admin" | "analyst" | "viewer" | string;
+  status: string;
+}
+
+export interface PartnerSurface {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  parentPartnerId?: string | null;
+}
+
+export interface PartnerPortfolioOpportunitySurface {
+  customerId?: string;
+  customerName?: string;
+  opportunityType: string;
+  priority: "low" | "medium" | "high" | "critical" | string;
+  relevantMicrosoftCapabilityOrPlan?: string;
+  affectedUsers?: number;
+  nis2Areas: string[];
+  evidenceSource: string;
+  nextAction: string;
+}
+
+export interface PartnerPortfolioTenantSnapshotSurface {
+  assessmentId?: string;
+  assessmentCompleted: boolean;
+  sector?: string;
+  likelyClassification?: string;
+  readinessPercent?: number;
+  evidenceConfidencePercent?: number;
+  microsoftConnectionState: "connected" | "disconnected" | "partial" | "error" | string;
+  highPriorityGapCount: number;
+  topRecommendationOrOpportunity?: string;
+  lastAssessmentOrSyncAt?: string;
+  opportunities: PartnerPortfolioOpportunitySurface[];
+}
+
+export interface PartnerPortfolioMetricsSurface {
+  totalCustomerTenants: number;
+  completedAssessments: number;
+  customersLikelyOrPossiblyInScope: number;
+  connectedMicrosoftTenants: number;
+  highPriorityGaps: number;
+  opportunities: number;
+}
+
+export interface PartnerPortfolioCustomerSurface {
+  grant: {
+    id: string;
+    organizationId: string;
+    grantLevel: "admin" | "analyst" | "viewer" | string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+  };
+  organization: {
+    id: string;
+    name: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    billingStatus?: string | null;
+  } | null;
+  snapshot?: PartnerPortfolioTenantSnapshotSurface;
+}
+
+export interface PartnerTenantSessionSurface {
+  id: string;
+  realActorUserId: string;
+  partnerId: string;
+  effectiveOrganizationId: string;
+  reason: string;
+  status: string;
+  startedAt: string;
+  expiresAt: string;
+  endedAt?: string | null;
+  endReason?: string | null;
+}
+
+export interface ActiveTenantAccessBannerSurface {
+  partnerId: string;
+  partnerName: string;
+  customerName: string;
+  grantLevel?: string | null;
+  session: PartnerTenantSessionSurface;
+}
+
+export interface PartnerConsoleModel {
+  actionMessage?: string;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
+  activePartnerId?: string | null;
+  currentTenantSession?: PartnerTenantSessionSurface | null;
+  errorMessage?: string;
+  partners: Array<{
+    membership: PartnerMembershipSurface;
+    partner: PartnerSurface;
+  }>;
+  metrics?: PartnerPortfolioMetricsSurface;
+  opportunities?: PartnerPortfolioOpportunitySurface[];
+  portfolio: PartnerPortfolioCustomerSurface[];
   session: RuntimeSessionSurface;
 }
 
@@ -163,6 +273,84 @@ export interface CountryPackSurface {
   sourceReview: string;
   unsupportedAreas: string[];
   sourceReferences: ReportSourceReference[];
+}
+
+export interface Nis2CountryPackSourceSurface {
+  id: string;
+  title: string;
+  url: string;
+  retrievedAt: string;
+  trustLevel: "primary" | "secondary";
+  notes?: string;
+}
+
+export interface Nis2CountryPackQuestionSurface {
+  key: string;
+  label: string;
+  answerType: "boolean" | "choice" | "multi_choice" | "number" | "text";
+  choices?: readonly string[];
+  sourceIds: readonly string[];
+}
+
+export interface Nis2CountryPackDefinitionSurface {
+  countryCode: string;
+  displayName: string;
+  packVersion: string;
+  effectiveDate: string;
+  status: "demo" | "reviewed" | "active" | "retired";
+  extendsBasePackVersion?: string;
+  supportedUiLanguages: readonly string[];
+  authorityGuidance: readonly string[];
+  officialSources: readonly Nis2CountryPackSourceSurface[];
+  nationalTerminology: Record<string, string>;
+  registrationGuidance: readonly string[];
+  sectorRules: readonly string[];
+  sizeThresholds: readonly string[];
+  specialInclusionRules: readonly string[];
+  dynamicQuestions: readonly Nis2CountryPackQuestionSurface[];
+  classificationRules: ReadonlyArray<{
+    id: string;
+    outcome: string;
+    plainLanguage: string;
+    confidence: "low" | "medium" | "high";
+    legalReviewRequired: boolean;
+    sourceIds: readonly string[];
+    version: string;
+  }>;
+  reportLanguage: {
+    classificationDisclaimer: string;
+    readinessDisclaimer: string;
+  };
+  disclaimers: readonly string[];
+}
+
+export interface Nis2CountryPackStructuredClassificationSurface {
+  result: string;
+  matchedRules: readonly string[];
+  legalBasisReferences: readonly Nis2CountryPackSourceSurface[];
+  assumptions: readonly string[];
+  missingInformation: readonly string[];
+  explanation: string;
+  confidence: "low" | "medium" | "high";
+  legalReviewRequired: boolean;
+}
+
+export interface Nis2CountryAwareOnboardingModel {
+  actionMessage?: string;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
+  activeOrganizationId?: string | null;
+  classification?: Nis2CountryPackStructuredClassificationSurface | null;
+  classificationInput: {
+    employeeCount?: number;
+    publicAdministration?: boolean;
+    sector?: string;
+    telecomProvider?: boolean;
+  };
+  countryPacks: readonly Nis2CountryPackDefinitionSurface[];
+  errorMessage?: string;
+  selectedCountryCode: string;
+  selectedCountryPack: Nis2CountryPackDefinitionSurface;
+  session: RuntimeSessionSurface;
 }
 
 export interface Microsoft365HealthSurface {
@@ -227,6 +415,7 @@ export interface RomaniaOnboardingUnsupportedSignal {
 
 export interface RomaniaOnboardingRouteModel {
   actionMessage?: string;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   classification: Nis2Classification;
   classificationPersisted: boolean;
   classificationRunId?: string;
@@ -452,6 +641,56 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
     legalCaveatLocale: "en",
     legalCaveatMessageKey: LEGAL_CAVEAT_MESSAGE_KEY,
     locale: "en",
+    version: {
+      countryPackVersion: "2026.06.demo",
+      immutable: true,
+      inputSnapshot: {
+        assessmentId,
+        classificationResult: {
+          countryCode: "RO",
+          legalReviewRequired: true,
+          result: "possibly_in_scope"
+        },
+        controlResultCount: 0,
+        evidenceArtifactCount: evidence.length,
+        gapCount: 0,
+        recommendationCount: 0
+      },
+      methodologyVersion: "puresoc.readiness.declared.v1",
+      onboardingSchemaVersion: "Entity data V2.1 ENG_45915; Entity assessment V2.0_45898",
+      rendererVersion: "puresoc-report-renderer-json.v1",
+      reportVersion: 1,
+      triggerType: "onboarding_completed"
+    },
+    concepts: {
+      applicability: {
+        confidence: "low",
+        legalReviewRequired: true,
+        result: "possibly_in_scope",
+        summary: "Demo company is treated as possibly in scope until legal review."
+      },
+      readiness: {
+        applicableControlCount: 0,
+        methodologyVersion: "puresoc.readiness.declared.v1",
+        missingInformationCount: 0,
+        result: "low",
+        summary: "Demo dashboard snapshot provides readiness detail outside this report fixture.",
+        value: dashboard.readinessScores.overallInternalReadiness
+      },
+      evidenceConfidence: {
+        methodologyVersion: "puresoc.readiness.declared.v1",
+        missingEvidenceCount: 0,
+        result: "medium",
+        summary: "Demo evidence confidence is represented by local evidence artifacts.",
+        value: dashboard.readinessScores.evidenceCompleteness
+      },
+      priority: {
+        criticalGapCount: dashboard.sourceRecordCounts.gaps,
+        highGapCount: 0,
+        result: "critical",
+        summary: "Demo dashboard contains critical readiness gaps."
+      }
+    },
     sourceReferences: [euArticle21, roRegistrationSource],
     controlResults: [],
     gaps: [],
@@ -607,6 +846,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
 };
 
 export const createOperationalConsoleRuntimeModel = (input: {
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   session: RuntimeSessionSurface;
   dashboard: DashboardSnapshotContract;
   dashboardHistory?: DashboardSnapshotHistoryPoint[];
@@ -625,6 +865,7 @@ export const createOperationalConsoleRuntimeModel = (input: {
 
   return {
     ...base,
+    activeTenantAccess: input.activeTenantAccess ?? null,
     organization: {
       name: organizationName,
       primaryCountryCode: input.organization?.primaryCountryCode ?? base.organization.primaryCountryCode,
@@ -698,6 +939,7 @@ export const disconnectedMicrosoft365Surface = (generatedAt: string): Microsoft3
 
 export interface RomaniaOnboardingRouteInput {
   actionMessage?: string | null;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   auditCheckpointCount?: number;
   billingEntitlementCount?: number;
   billingProviderKey?: string;
@@ -821,6 +1063,7 @@ export const createRomaniaOnboardingRouteModel = (input: RomaniaOnboardingRouteI
   };
 
   return {
+    activeTenantAccess: input.activeTenantAccess ?? null,
     actionMessage: input.actionMessage ?? undefined,
     assessmentId: input.progress?.assessmentId,
     audit: {

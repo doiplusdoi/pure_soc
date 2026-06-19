@@ -71,11 +71,16 @@ export interface PureSocConfig {
     providerTokenEncryptionKey: string;
     providerTokenEncryptionPreviousKeys: ProviderTokenEncryptionKeyConfig[];
     microsoft365: {
+      mode: Microsoft365ConnectorMode;
       clientId: string;
       clientSecret: string;
       writeScopesAllowed: boolean;
       authorityHost: string;
       redirectUri: string;
+      graphBaseUrl: string;
+      fixtureSet: string;
+      requestTimeoutMs: number;
+      maxRetries: number;
     };
   };
   compliance: {
@@ -205,6 +210,8 @@ export interface ProviderTokenEncryptionKeyConfig {
   key: string;
 }
 
+export type Microsoft365ConnectorMode = "fixture" | "live" | "auto";
+
 export interface LoadConfigOptions {
   defaultsDir?: string;
   env?: NodeJS.ProcessEnv;
@@ -314,6 +321,12 @@ const readApiRateLimitStoreProvider = (
   value: string | undefined,
   fallback: ApiRateLimitStoreConfig["provider"]
 ): ApiRateLimitStoreConfig["provider"] => (value === "redis" ? "redis" : fallback);
+
+const readMicrosoft365ConnectorMode = (
+  value: string | undefined,
+  fallback: Microsoft365ConnectorMode
+): Microsoft365ConnectorMode =>
+  value === "live" || value === "auto" || value === "fixture" ? value : fallback;
 
 export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
   const env = options.env ?? process.env;
@@ -490,6 +503,10 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
       ),
       microsoft365: {
         ...config.connectors.microsoft365,
+        mode: readMicrosoft365ConnectorMode(
+          env.PURESOC_CONNECTOR_MICROSOFT365_MODE,
+          config.connectors.microsoft365.mode
+        ),
         writeScopesAllowed: readBoolean(
           env.PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED ??
             env.PURESOC_MICROSOFT365_WRITE_SCOPES_ALLOWED,
@@ -514,7 +531,21 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
           env.PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI ??
           env.MICROSOFT365_REDIRECT_URI ??
           env.M365_REDIRECT_URI ??
-          config.connectors.microsoft365.redirectUri
+          config.connectors.microsoft365.redirectUri,
+        graphBaseUrl:
+          env.PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL ??
+          config.connectors.microsoft365.graphBaseUrl,
+        fixtureSet:
+          env.PURESOC_CONNECTOR_MICROSOFT365_FIXTURE_SET ??
+          config.connectors.microsoft365.fixtureSet,
+        requestTimeoutMs: readPositiveInteger(
+          env.PURESOC_CONNECTOR_MICROSOFT365_REQUEST_TIMEOUT_MS,
+          config.connectors.microsoft365.requestTimeoutMs
+        ),
+        maxRetries: readPositiveInteger(
+          env.PURESOC_CONNECTOR_MICROSOFT365_MAX_RETRIES,
+          config.connectors.microsoft365.maxRetries
+        )
       }
     },
     compliance: {
@@ -762,6 +793,7 @@ export const collectStartupConfigIssues = (
     config.connectors.providerTokenEncryptionPreviousKeys.length > 0;
   const microsoft365ConnectorCredentialConfigured =
     nonEmpty(config.connectors.microsoft365.clientId) || nonEmpty(config.connectors.microsoft365.clientSecret);
+  const microsoft365LiveMode = config.connectors.microsoft365.mode === "live";
   const providerTokenCustodyRequired =
     providerTokenConfigExplicitlyConfigured || (isProduction && microsoft365ConnectorCredentialConfigured);
   const oidcTransientStateRequired =
@@ -922,12 +954,12 @@ export const collectStartupConfigIssues = (
     });
   }
 
-  if (isProduction && microsoft365ConnectorCredentialConfigured) {
+  if ((isProduction && microsoft365ConnectorCredentialConfigured) || microsoft365LiveMode) {
     if (!nonEmpty(config.connectors.microsoft365.clientId)) {
       issues.push({
         code: "microsoft365_client_id_required",
         path: "connectors.microsoft365.clientId",
-        message: "Production startup with Microsoft 365 connector credentials configured requires MICROSOFT365_CLIENT_ID."
+        message: "Microsoft 365 live connector mode requires MICROSOFT365_CLIENT_ID."
       });
     }
 
@@ -936,7 +968,7 @@ export const collectStartupConfigIssues = (
         code: "microsoft365_client_secret_required",
         path: "connectors.microsoft365.clientSecret",
         message:
-          "Production startup with Microsoft 365 connector credentials configured requires MICROSOFT365_CLIENT_SECRET for consent token exchange."
+          "Microsoft 365 live connector mode requires MICROSOFT365_CLIENT_SECRET for consent token exchange."
       });
     }
   }

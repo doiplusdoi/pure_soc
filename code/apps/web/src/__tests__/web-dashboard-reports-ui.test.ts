@@ -10,8 +10,10 @@ import {
   renderEmailVerificationScreen,
   renderLoginScreen,
   renderMicrosoft365ConnectorPage,
+  renderNis2CountryAwareOnboardingScreen,
   renderNotificationSettingsScreen,
   renderOrganizationInvitationsScreen,
+  renderPartnerConsoleScreen,
   renderOperationalConsole,
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -432,6 +434,242 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
+  it("renders partner portfolio with add-customer, reason-gated customer entry, and active customer banner", () => {
+    const html = renderPartnerConsoleScreen({
+      activePartnerId: "partner_asterion",
+      actionMessage: "Customer session started. Actions are logged with your real user.",
+      activeTenantAccess: {
+        partnerId: "partner_asterion",
+        partnerName: "Asterion Cloud Partners",
+        customerName: "NordFrucht GmbH",
+        grantLevel: "admin",
+        session: {
+          id: "tenant_session_1",
+          realActorUserId: "user_partner_owner",
+          partnerId: "partner_asterion",
+          effectiveOrganizationId: "org_nordfrucht",
+          reason: "Prepare customer NIS2 readiness review",
+          status: "active",
+          startedAt: "2026-06-19T09:00:00.000Z",
+          expiresAt: "2026-06-19T10:00:00.000Z",
+          endedAt: null,
+          endReason: null
+        }
+      },
+      currentTenantSession: {
+        id: "tenant_session_1",
+        realActorUserId: "user_partner_owner",
+        partnerId: "partner_asterion",
+        effectiveOrganizationId: "org_nordfrucht",
+        reason: "Prepare customer NIS2 readiness review",
+        status: "active",
+        startedAt: "2026-06-19T09:00:00.000Z",
+        expiresAt: "2026-06-19T10:00:00.000Z",
+        endedAt: null,
+        endReason: null
+      },
+      partners: [
+        {
+          partner: {
+            id: "partner_asterion",
+            name: "Asterion Cloud Partners",
+            slug: "asterion-cloud",
+            status: "active",
+            parentPartnerId: null
+          },
+          membership: {
+            id: "partner_member_owner",
+            partnerId: "partner_asterion",
+            role: "owner",
+            status: "active"
+          }
+        }
+      ],
+      metrics: {
+        totalCustomerTenants: 1,
+        completedAssessments: 1,
+        customersLikelyOrPossiblyInScope: 1,
+        connectedMicrosoftTenants: 1,
+        highPriorityGaps: 2,
+        opportunities: 1
+      },
+      opportunities: [
+        {
+          customerId: "org_nordfrucht",
+          customerName: "NordFrucht GmbH",
+          opportunityType: "microsoft_security_capability_evaluation",
+          priority: "high",
+          relevantMicrosoftCapabilityOrPlan: "Microsoft 365 Business Premium",
+          affectedUsers: 72,
+          nis2Areas: ["nis2.identity-access"],
+          evidenceSource: "Microsoft 365 subscription context and NIS2 readiness gaps",
+          nextAction: "Add supplier continuity and endpoint coverage review to the readiness plan"
+        }
+      ],
+      portfolio: [
+        {
+          grant: {
+            id: "grant_nordfrucht",
+            organizationId: "org_nordfrucht",
+            grantLevel: "admin",
+            status: "active",
+            createdAt: "2026-06-19T09:00:00.000Z",
+            updatedAt: "2026-06-19T09:00:00.000Z"
+          },
+          organization: {
+            id: "org_nordfrucht",
+            name: "NordFrucht GmbH",
+            legalName: "NordFrucht GmbH",
+            primaryCountryCode: "DE",
+            billingStatus: "none"
+          },
+          snapshot: {
+            assessmentId: "assessment_nordfrucht",
+            assessmentCompleted: true,
+            sector: "food distributor",
+            likelyClassification: "likely in scope",
+            readinessPercent: 50,
+            evidenceConfidencePercent: 60,
+            microsoftConnectionState: "connected",
+            highPriorityGapCount: 2,
+            topRecommendationOrOpportunity: "Add supplier continuity and endpoint coverage review to the readiness plan",
+            lastAssessmentOrSyncAt: "2026-06-19T09:30:00.000Z",
+            opportunities: []
+          }
+        }
+      ],
+      session: {
+        user: {
+          id: "user_partner_owner",
+          email: "partner-owner@example.test",
+          displayName: "Partner Owner"
+        },
+        session: {
+          activeOrganizationId: null
+        }
+      }
+    });
+
+    expect(html).toContain('data-ui-smoke="partner-console"');
+    expect(html).toContain("Partner portfolio");
+    expect(html).toContain("Asterion Cloud Partners");
+    expect(html).toContain("NordFrucht GmbH");
+    expect(html).toContain("Assessments done");
+    expect(html).toContain("Likely in scope");
+    expect(html).toContain("Microsoft 365 Business Premium");
+    expect(html).toContain("72");
+    expect(html).toContain("nis2.identity-access");
+    expect(html).toContain("Microsoft 365 subscription context and NIS2 readiness gaps");
+    expect(html).toContain("Add supplier continuity and endpoint coverage review to the readiness plan");
+    expect(html).toContain("food distributor");
+    expect(html).toContain("Evidence 60%");
+    expect(html).toContain("connected");
+    expect(html).toContain("You are accessing NordFrucht GmbH through Asterion Cloud Partners.");
+    expect(html).toContain("Actions are logged with your real user");
+    expect(html).toContain('data-ui-action="exit-customer-tenant"');
+    expect(html).toContain('action="/partners/partner_asterion/tenant-sessions/tenant_session_1/exit"');
+    expect(html).toContain('data-ui-action="create-partner-customer"');
+    expect(html).toContain('action="/partners/partner_asterion/customers"');
+    expect(html).toContain('name="grantLevel"');
+    expect(html).toContain("It does not add workspace membership.");
+    expect(html).toContain('data-ui-action="enter-customer-tenant"');
+    expect(html).toContain('name="reason" type="text" minlength="8"');
+    expect(html).toContain('name="organizationId" value="org_nordfrucht"');
+    expect(html).toContain("customer session active");
+    expect(html).not.toContain("partner-owner@example.test");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("persists the active customer banner across operational routes", () => {
+    const activeTenantAccess = {
+      partnerId: "partner_asterion",
+      partnerName: "Asterion Cloud Partners",
+      customerName: "NordFrucht GmbH",
+      grantLevel: "admin",
+      session: {
+        id: "tenant_session_1",
+        realActorUserId: "user_partner_owner",
+        partnerId: "partner_asterion",
+        effectiveOrganizationId: "org_nordfrucht",
+        reason: "Prepare customer NIS2 readiness review",
+        status: "active",
+        startedAt: "2026-06-19T09:00:00.000Z",
+        expiresAt: "2026-06-19T10:00:00.000Z",
+        endedAt: null,
+        endReason: null
+      }
+    };
+    const session = {
+      user: {
+        id: "user_partner_owner",
+        email: "partner-owner@example.test",
+        displayName: "Partner Owner"
+      },
+      session: {
+        activeOrganizationId: "org_nordfrucht"
+      }
+    };
+    const demo = createOperationalConsoleDemoModel();
+    const organization = {
+      id: "org_nordfrucht",
+      name: "NordFrucht GmbH",
+      primaryCountryCode: "DE",
+      billingStatus: "none",
+      membershipStatus: "active",
+      roleKeys: ["auditor"],
+      isActive: true
+    };
+    const renderedScreens = [
+      renderOperationalConsole(
+        createOperationalConsoleRuntimeModel({
+          activeTenantAccess,
+          dashboard: demo.dashboard,
+          session
+        })
+      ),
+      renderMicrosoft365ConnectorPage({
+        activeTenantAccess,
+        activeOrganizationName: "NordFrucht GmbH",
+        microsoft365: demo.microsoft365
+      }),
+      renderWorkspaceSelectionScreen({
+        activeTenantAccess,
+        organizations: [organization],
+        session
+      }),
+      renderNotificationSettingsScreen({
+        activeTenantAccess,
+        activeOrganization: organization,
+        canManageChannels: false,
+        channels: [],
+        logs: [],
+        roleKeys: ["auditor"],
+        session
+      }),
+      renderOrganizationInvitationsScreen({
+        activeTenantAccess,
+        activeOrganization: organization,
+        canCreateInvitations: false,
+        organizations: [organization],
+        roleKeys: ["auditor"],
+        roleOptions: [],
+        session
+      }),
+      renderRomaniaOnboardingRoute(
+        createRomaniaOnboardingRouteModel({
+          activeTenantAccess
+        })
+      )
+    ];
+
+    for (const html of renderedScreens) {
+      expect(html).toContain("You are accessing NordFrucht GmbH through Asterion Cloud Partners.");
+      expect(html).toContain('data-ui-action="exit-customer-tenant"');
+      expect(html).toContain('action="/partners/partner_asterion/tenant-sessions/tenant_session_1/exit"');
+      expect(html).toContain("Actions are logged with your real user");
+    }
+  });
+
   it("disables invitation creation for non-admin workspace members while keeping acceptance available", () => {
     const html = renderOrganizationInvitationsScreen({
       activeOrganization: {
@@ -473,6 +711,116 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
+  it("keeps partner viewers from using the add-customer form while allowing portfolio review", () => {
+    const html = renderPartnerConsoleScreen({
+      activePartnerId: "partner_viewer",
+      partners: [
+        {
+          partner: {
+            id: "partner_viewer",
+            name: "Viewer Partner",
+            slug: "viewer-partner",
+            status: "active",
+            parentPartnerId: null
+          },
+          membership: {
+            id: "partner_member_viewer",
+            partnerId: "partner_viewer",
+            role: "viewer",
+            status: "active"
+          }
+        }
+      ],
+      portfolio: [],
+      session: {
+        user: {
+          id: "user_viewer",
+          email: "viewer@example.test",
+          displayName: "Partner Viewer"
+        },
+        session: {
+          activeOrganizationId: null
+        }
+      }
+    });
+
+    expect(html).toContain("viewer is read only");
+    expect(html).toContain('id="customerName" name="name" type="text" autocomplete="organization" required disabled');
+    expect(html).toContain('<select id="customerGrantLevel" name="grantLevel" disabled>');
+    expect(html).toContain("No customer grants exist for this partner.");
+    expect(html).not.toContain("viewer@example.test");
+  });
+
+  it("renders country-aware NIS2 onboarding with demo country packs and legal-review caveats", () => {
+    const html = renderNis2CountryAwareOnboardingScreen({
+      activeOrganizationId: "org_country_pack",
+      classificationInput: {
+        employeeCount: 42,
+        sector: "food"
+      },
+      classification: {
+        result: "possibly_in_scope",
+        matchedRules: ["pl-demo-food-or-manufacturing"],
+        legalBasisReferences: [
+          {
+            id: "pl-ksc-amendment-overview-2026",
+            title: "KSC amendment overview",
+            url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa",
+            retrievedAt: "2026-06-19",
+            trustLevel: "primary"
+          }
+        ],
+        assumptions: ["Pack status is demo.", "Classification language is preliminary and non-binding."],
+        missingInformation: [],
+        explanation: "Food or manufacturing activity should be reviewed against national rules.",
+        confidence: "low",
+        legalReviewRequired: true
+      },
+      countryPacks: [
+        buildCountryPackFixture("EU", "EU NIS2 baseline"),
+        buildCountryPackFixture("RO", "Romania DNSC NIS2 demo pack"),
+        buildCountryPackFixture("PL", "Poland KSC NIS2 demo pack"),
+        buildCountryPackFixture("DE", "Germany BSI NIS2 demo pack")
+      ],
+      selectedCountryCode: "PL",
+      selectedCountryPack: buildCountryPackFixture("PL", "Poland KSC NIS2 demo pack"),
+      session: {
+        user: {
+          id: "user_country_pack",
+          email: "country-pack@example.test",
+          displayName: "Country Pack User"
+        },
+        session: {
+          activeOrganizationId: "org_country_pack"
+        }
+      }
+    });
+
+    expect(html).toContain('data-ui-smoke="nis2-country-aware-onboarding"');
+    expect(html).toContain("NIS2 country onboarding");
+    expect(html).toContain("EU active");
+    expect(html).toContain("RO demo");
+    expect(html).toContain("PL demo");
+    expect(html).toContain("DE demo");
+    expect(html).toContain("Company and contacts");
+    expect(html).toContain("Business profile");
+    expect(html).toContain("NIS2 scope");
+    expect(html).toContain("Operational dependencies");
+    expect(html).toContain("Governance and controls");
+    expect(html).toContain("Review and assessment");
+    expect(html).toContain('action="/onboarding/nis2"');
+    expect(html).toContain("Country-pack dynamic questions");
+    expect(html).toContain("Which sector best matches the customer?");
+    expect(html).toContain("possibly in scope");
+    expect(html).toContain("legal review required");
+    expect(html).toContain("pl-demo-food-or-manufacturing");
+    expect(html).toContain("Official source references");
+    expect(html).toContain("KSC amendment overview");
+    expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
+    expect(html).not.toContain("country-pack@example.test");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
   it("can render the console from an API session and dashboard snapshot contract", () => {
     const demo = createOperationalConsoleDemoModel();
     const html = renderOperationalConsole(
@@ -505,7 +853,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Runtime User");
     expect(html).toContain("API dashboard snapshot");
     expect(html).toContain("GET /organizations/:orgId/dashboards/snapshots/latest");
-    expect(html).toContain("Compliance Score Trend");
+    expect(html).toContain("Readiness Score Trend");
     expect(html).toContain("Not enough data");
     expect(html).toContain('data-ui-action="open-workspace-selector"');
     expect(html).toContain('data-ui-action="connect-microsoft365-tenant"');
@@ -921,3 +1269,59 @@ const createSavedRomaniaRouteModel = () =>
       status: "ready_for_classification"
     }
   });
+
+const buildCountryPackFixture = (countryCode: "DE" | "EU" | "PL" | "RO", displayName: string) => ({
+  countryCode,
+  displayName,
+  packVersion: "2026.06.demo",
+  effectiveDate: countryCode === "EU" ? "2022-12-27" : "2026-06-19",
+  status: countryCode === "EU" ? "active" : "demo",
+  extendsBasePackVersion: countryCode === "EU" ? undefined : "2026.06.demo",
+  supportedUiLanguages: countryCode === "RO" ? ["en", "ro"] : ["en"],
+  authorityGuidance: [`${displayName} authority guidance remains source-backed for demo use.`],
+  officialSources: [
+    {
+      id: countryCode === "PL" ? "pl-ksc-amendment-overview-2026" : `${countryCode.toLowerCase()}-source`,
+      title: countryCode === "PL" ? "KSC amendment overview" : `${displayName} official source`,
+      url:
+        countryCode === "PL"
+          ? "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa"
+          : "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary"
+    }
+  ],
+  nationalTerminology: {
+    essentialEntity: "Essential entity",
+    importantEntity: "Important entity"
+  },
+  registrationGuidance: ["Use the national route only after source review."],
+  sectorRules: ["food", "manufacturing", "ict_service_management"],
+  sizeThresholds: ["Use national size thresholds after legal review."],
+  specialInclusionRules: ["Critical dependency can change applicability."],
+  dynamicQuestions: [
+    {
+      key: `${countryCode.toLowerCase()}.nis2.sector`,
+      label: "Which sector best matches the customer?",
+      answerType: "choice",
+      choices: ["food", "manufacturing", "ict_service_management"],
+      sourceIds: [countryCode === "PL" ? "pl-ksc-amendment-overview-2026" : `${countryCode.toLowerCase()}-source`]
+    }
+  ],
+  classificationRules: [
+    {
+      id: countryCode === "PL" ? "pl-demo-food-or-manufacturing" : `${countryCode.toLowerCase()}-demo-sector`,
+      version: "2026.06",
+      outcome: "possibly_in_scope",
+      plainLanguage: "Activity should be reviewed against national rules.",
+      confidence: "low",
+      legalReviewRequired: true,
+      sourceIds: [countryCode === "PL" ? "pl-ksc-amendment-overview-2026" : `${countryCode.toLowerCase()}-source`]
+    }
+  ],
+  reportLanguage: {
+    classificationDisclaimer: "This is not a binding legal determination.",
+    readinessDisclaimer: "Readiness output is not legal advice or certification."
+  },
+  disclaimers: [`${displayName} remains demo unless reviewed.`]
+} as const);

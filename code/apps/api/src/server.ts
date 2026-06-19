@@ -12,7 +12,12 @@ import {
   sessionRoute,
   verifyEmailRoute
 } from "./auth/routes";
-import { countryPackStatusRoute } from "./compliance/nis2/routes";
+import {
+  classifyNis2CountryPackRoute,
+  countryPackStatusRoute,
+  getNis2CountryPackRoute,
+  listNis2CountryPacksRoute
+} from "./compliance/nis2/routes";
 import { evaluateComplianceAssessmentRoute } from "./compliance/routes";
 import {
   roNis2ClassificationRoute,
@@ -63,6 +68,7 @@ import {
   buildInternalReadinessCsvExportRoute,
   buildInternalReadinessEvidencePackageRoute,
   buildInternalReadinessReportRoute,
+  buildMicrosoft365VerifiedInternalReadinessReportRoute,
   buildRomaniaNotificationDraftReportRoute,
   downloadGapReportPdfRoute,
   downloadRomaniaNotificationDraftPdfRoute
@@ -98,6 +104,15 @@ import {
   listNotificationLogsRoute,
   sendNotificationChannelTestRoute
 } from "./notifications/routes";
+import {
+  createPartnerCustomerRoute,
+  createPartnerRoute,
+  exitTenantAccessRoute,
+  getCurrentTenantAccessRoute,
+  listPartnerPortfolioRoute,
+  listPartnersRoute,
+  startTenantAccessRoute
+} from "./partners/routes";
 
 type ApiRouteMethod = "DELETE" | "GET" | "POST" | "PUT";
 
@@ -153,7 +168,25 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
     return completeOidcCallbackRoute(params[0] ?? "", callbackInput, request.headers.cookie, context, services);
   }),
+  route("GET", /^\/partners$/, "partner", ({ request, services }) => listPartnersRoute(request.headers.cookie, services)),
+  route("POST", /^\/partners$/, "partner", ({ body, request, context, services }) =>
+    createPartnerRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/partners\/([^/]+)\/portfolio$/, "partner", ({ params, request, services }) =>
+    listPartnerPortfolioRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/partners\/([^/]+)\/customers$/, "partner", ({ params, body, request, context, services }) =>
+    createPartnerCustomerRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/partners\/([^/]+)\/tenant-access-sessions$/, "partner", ({ params, body, request, context, services }) =>
+    startTenantAccessRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/partners\/([^/]+)\/tenant-access-sessions\/current$/, "partner", ({ params, request, services }) =>
+    getCurrentTenantAccessRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/partners\/([^/]+)\/tenant-access-sessions\/([^/]+)\/exit$/, "partner", ({ params, request, context, services }) =>
+    exitTenantAccessRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("GET", /^\/compliance\/nis2\/country-packs\/status$/, "public_read", () => countryPackStatusRoute()),
+  route("GET", /^\/compliance\/nis2\/country-packs$/, "public_read", () => listNis2CountryPacksRoute()),
+  route("GET", /^\/compliance\/nis2\/country-packs\/([^/]+)$/, "public_read", ({ params }) =>
+    getNis2CountryPackRoute(params[0] ?? "")),
+  route("POST", /^\/compliance\/nis2\/country-packs\/([^/]+)\/classification$/, "public_compliance", ({ params, body }) =>
+    classifyNis2CountryPackRoute(params[0] ?? "", body)),
   route("POST", /^\/organizations\/([^/]+)\/compliance\/evaluate$/, "compliance", ({ params, body, request, context, services }) =>
     evaluateComplianceAssessmentRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/onboarding$/, "compliance", ({ params, request, services }) =>
@@ -200,6 +233,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     downloadEvidenceRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness$/, "compliance", ({ params, body, request, context, services }) =>
     buildInternalReadinessReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness\/verified-microsoft365$/, "compliance", ({ params, body, request, context, services }) =>
+    buildMicrosoft365VerifiedInternalReadinessReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness\/csv$/, "compliance", ({ params, body, request, context, services }) =>
     buildInternalReadinessCsvExportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/internal-readiness\/evidence-package$/, "compliance", ({ params, body, request, context, services }) =>

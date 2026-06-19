@@ -93,6 +93,7 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("chainSequence", "Int", "chain_sequence"),
       s("ipAddress", "String", "ip_address", { isOptional: true }),
       s("userAgent", "String", "user_agent", { isOptional: true }),
+      s("contextJson", "Json", "context_json"),
       s("beforeJson", "Json", "before_json", { isOptional: true }),
       s("afterJson", "Json", "after_json", { isOptional: true }),
       s("previousHash", "String", "previous_hash", { isOptional: true }),

@@ -189,12 +189,17 @@ describe("api compliance validation audit hardening", () => {
     );
 
     expect(response.status).toBe(200);
-    const body = await readJson<{ recommendations: Array<{ organizationId: string; controlId: string }> }>(response);
+    const body = await readJson<{
+      recommendations: Array<{ organizationId: string; controlId: string; snapshotId?: string }>;
+      snapshot: { id: string; diagnostics: { unknownMicrosoftSkuPartNumbers: string[] } };
+    }>(response);
     expect(body.recommendations).toHaveLength(1);
     expect(body.recommendations[0]).toMatchObject({
       organizationId: organization.id,
-      controlId: "nis2.risk-policy"
+      controlId: "nis2.risk-policy",
+      snapshotId: body.snapshot.id
     });
+    expect(body.snapshot.diagnostics.unknownMicrosoftSkuPartNumbers).toEqual([]);
 
     const auditRecords = services.auditSink.findByAction("compliance.recommendations.generated");
     expect(auditRecords).toHaveLength(1);
@@ -206,7 +211,9 @@ describe("api compliance validation audit hardening", () => {
       assessmentIds: ["assessment_m2"],
       gapsCount: 1,
       recommendationsCount: 1,
-      controlIds: ["nis2.risk-policy"]
+      controlIds: ["nis2.risk-policy"],
+      snapshotId: body.snapshot.id,
+      unknownMicrosoftSkuPartNumbers: []
     });
   });
 });

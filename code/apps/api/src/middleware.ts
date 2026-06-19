@@ -16,6 +16,7 @@ export type ApiRouteFamily =
   | "regulatory"
   | "provider"
   | "provider_callback"
+  | "partner"
   | "tenant_read"
   | "organization"
   | "compliance"
@@ -178,6 +179,10 @@ export const resolveRoutePolicy = (method: string, pathname: string): RoutePolic
 
   if (pathname.startsWith("/auth/")) {
     return policy("auth", "auth");
+  }
+
+  if (/^\/partners(?:\/|$)/.test(pathname)) {
+    return policy("partner", method === "GET" ? "tenant_read" : "organization");
   }
 
   const organizationMatch = pathname.match(/^\/organizations(?:\/([^/]+))?/);

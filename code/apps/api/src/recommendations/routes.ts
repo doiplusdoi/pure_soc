@@ -2,7 +2,7 @@ import { AuthError } from "@puresoc/auth-core";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
-import { parseComplianceGaps } from "../compliance/validation";
+import { parseComplianceGaps, parseRecommendationContext } from "../compliance/validation";
 
 const readSessionUserId = async (cookieHeader: string | undefined, services: ApiServices): Promise<string> => {
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
@@ -22,7 +22,7 @@ export const generateRecommendationsRoute = async (
     repository: services.rbacRepository,
     userId: actorUserId,
     organizationId,
-    allowedRoles: ["owner", "org_admin", "auditor"]
+    allowedRoles: ["owner", "org_admin", "compliance_manager"]
   });
 
   if (!Array.isArray(body.gaps)) {
@@ -30,9 +30,11 @@ export const generateRecommendationsRoute = async (
   }
 
   const gaps = parseComplianceGaps(body.gaps, organizationId);
+  const recommendationContext = parseRecommendationContext(body.context);
   const recommendationResult = services.recommendations.generate({
     organizationId,
-    gaps
+    gaps,
+    context: recommendationContext
   });
   const assessmentIds = [...new Set(gaps.map((gap) => gap.assessmentId))];
 
@@ -48,7 +50,10 @@ export const generateRecommendationsRoute = async (
       assessmentIds,
       gapsCount: gaps.length,
       recommendationsCount: recommendationResult.recommendations.length,
-      controlIds: [...new Set(gaps.map((gap) => gap.controlId))]
+      controlIds: [...new Set(gaps.map((gap) => gap.controlId))],
+      snapshotId: recommendationResult.snapshot.id,
+      ruleVersions: recommendationResult.snapshot.ruleVersions,
+      unknownMicrosoftSkuPartNumbers: recommendationResult.snapshot.diagnostics.unknownMicrosoftSkuPartNumbers
     }
   });
 

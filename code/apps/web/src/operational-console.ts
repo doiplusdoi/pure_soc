@@ -21,10 +21,14 @@ import {
 } from "@puresoc/ui";
 
 import type {
+  ActiveTenantAccessBannerSurface,
   CountryPackSurface,
   DashboardSnapshotHistoryPoint,
   GapSurface,
   Microsoft365ModuleSurface,
+  Nis2CountryAwareOnboardingModel,
+  Nis2CountryPackDefinitionSurface,
+  Nis2CountryPackQuestionSurface,
   NotificationSettingsScreenModel,
   OnboardingSurface,
   OrganizationInvitationScreenModel,
@@ -33,6 +37,8 @@ import type {
   Microsoft365HealthSurface,
   RomaniaOnboardingRouteModel,
   RomaniaReadinessGapSurface,
+  PartnerConsoleModel,
+  PartnerPortfolioCustomerSurface,
   RecommendationSurface,
   ReportSurface,
   WorkspaceSelectionModel
@@ -77,6 +83,7 @@ export interface RuntimeMessageScreenInput {
 
 export interface Microsoft365ConnectorPageModel {
   actionMessage?: string | null;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   activeOrganizationName?: string | null;
   microsoft365: Microsoft365HealthSurface;
 }
@@ -97,6 +104,16 @@ export interface RenderOrganizationInvitationsOptions {
 }
 
 export interface RenderNotificationSettingsOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
+}
+
+export interface RenderPartnerConsoleOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
+}
+
+export interface RenderNis2CountryAwareOnboardingOptions {
   includeDocumentShell?: boolean;
   locale?: string | null;
 }
@@ -240,6 +257,7 @@ export const renderOperationalConsole = (
     '<main class="ps-main" id="content" tabindex="-1">',
     renderTopbar(model),
     '<div class="ps-content">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     renderDashboardSection(model, copy),
     renderOnboardingSection(model, copy),
     renderMicrosoft365Section(model),
@@ -452,9 +470,10 @@ export const renderMicrosoft365ConnectorPage = (
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content ps-content--connector" id="content" tabindex="-1" data-ui-smoke="microsoft365-connector-page">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     '<section class="ps-connector-shell" aria-labelledby="microsoft365-connector-title">',
     '<aside class="ps-connector-roadmap" aria-label="Roadmap to readiness">',
-    '<div class="ps-connector-roadmap__brand"><span class="ps-brand__mark" aria-hidden="true">PS</span><div><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Compliance Engine</span></div></div>',
+    '<div class="ps-connector-roadmap__brand"><span class="ps-brand__mark" aria-hidden="true">PS</span><div><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Readiness Engine</span></div></div>',
     '<p class="ps-route-hero__eyebrow">The roadmap to readiness</p>',
     '<ol class="ps-connector-roadmap__list">',
     '<li class="ps-connector-step ps-connector-step--complete"><span class="ps-connector-step__dot">1</span><div><strong>Welcome</strong><span>Account created successfully.</span></div></li>',
@@ -465,7 +484,7 @@ export const renderMicrosoft365ConnectorPage = (
     "</aside>",
     '<div class="ps-connector-main">',
     '<span class="ps-connector-icon" aria-hidden="true">M365</span>',
-    `<h1 id="microsoft365-connector-title">Strengthen your compliance posture with Microsoft 365.</h1>`,
+    `<h1 id="microsoft365-connector-title">Strengthen your NIS2 readiness posture with Microsoft 365.</h1>`,
     `<p>${escapeHtml(
       model.activeOrganizationName
         ? `${model.activeOrganizationName} can connect existing security data to identify gaps and collect evidence. PureSOC only reads the configurations required for NIS2.`
@@ -563,6 +582,7 @@ export const renderOrganizationInvitationsScreen = (
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="organization-invitations">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     '<section class="ps-section" aria-labelledby="organization-invitations-title">',
     '<div class="ps-section__header">',
     '<div><h1 class="ps-section__title" id="organization-invitations-title">Organization invitations</h1><p class="ps-muted">Invite verified teammates into the active workspace, or accept an invitation token from a configured delivery path.</p></div>',
@@ -610,6 +630,7 @@ export const renderNotificationSettingsScreen = (
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="notification-settings">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     '<section class="ps-section" aria-labelledby="notification-settings-title">',
     '<div class="ps-section__header">',
     '<div><h1 class="ps-section__title" id="notification-settings-title">Notification settings</h1><p class="ps-muted">Organization-scoped channels for critical gaps, Microsoft 365 drift, deadline windows, evidence expiry, checklist overdue, and verified remediation events.</p></div>',
@@ -652,6 +673,316 @@ export const renderNotificationSettingsScreen = (
   ].join("");
 };
 
+export const renderPartnerConsoleScreen = (
+  model: PartnerConsoleModel,
+  options: RenderPartnerConsoleOptions = {}
+): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
+  const activePartner = activePartnerForConsole(model);
+  const role = activePartner?.membership.role ?? "no partner role";
+  const canCreateCustomer = Boolean(activePartner && ["owner", "admin"].includes(activePartner.membership.role));
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="partner-console">',
+    '<section class="ps-section" aria-labelledby="partner-console-title">',
+    '<div class="ps-section__header">',
+    `<div><h1 class="ps-section__title" id="partner-console-title">Partner portfolio</h1><p class="ps-muted">${escapeHtml(
+      model.session.user.displayName ?? "Signed-in partner user"
+    )}</p></div>`,
+    renderStatusPill({ label: role, tone: canCreateCustomer ? "success" : activePartner ? "info" : "warning" }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-command-row">',
+    '<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>',
+    '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
+    "</div>",
+    model.partners.length === 0 ? renderPartnerCreateOnlyPanel() : renderPartnerPortfolioContent(model, canCreateCustomer),
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>Partner portfolio | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}${renderPartnerConsoleCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+export const renderNis2CountryAwareOnboardingScreen = (
+  model: Nis2CountryAwareOnboardingModel,
+  options: RenderNis2CountryAwareOnboardingOptions = {}
+): string => {
+  const copy = resolveOperationalConsoleCopy(options.locale);
+  const pack = model.selectedCountryPack;
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="nis2-country-aware-onboarding">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
+    '<section class="ps-section" aria-labelledby="nis2-country-onboarding-title">',
+    '<div class="ps-section__header">',
+    `<div><h1 class="ps-section__title" id="nis2-country-onboarding-title">NIS2 country onboarding</h1><p class="ps-muted">${escapeHtml(
+      model.session.user.displayName ?? model.session.user.email
+    )}</p></div>`,
+    renderStatusPill({ label: `${pack.countryCode} ${pack.status}`, tone: toneForStatusText(pack.status) }),
+    "</div>",
+    '<div class="ps-section__body">',
+    model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    '<div class="ps-command-row">',
+    '<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>',
+    '<a class="ps-command" href="/partners" data-ui-action="open-partner-console">Partner portfolio</a>',
+    '<a class="ps-command" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="continue-romania-saved-workflow">Romania saved workflow</a>',
+    "</div>",
+    renderCountryPackSelector(model),
+    '<div class="ps-grid ps-stack-top">',
+    renderSelectedCountryPackPanel(pack),
+    renderCountryPackClassificationForm(model),
+    "</div>",
+    renderCountryAwareWorkflowStepper(pack),
+    renderCountryPackClassificationResult(model),
+    renderCountryPackDynamicQuestions(pack),
+    renderCountryPackSources(pack),
+    "</div>",
+    "</section>",
+    "</main>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${copy.locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    "<title>NIS2 country onboarding | PureSOC</title>",
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+const renderCountryPackSelector = (model: Nis2CountryAwareOnboardingModel): string =>
+  [
+    '<nav class="ps-chip-row" aria-label="NIS2 country packs">',
+    ...model.countryPacks.map((pack) => {
+      const selected = pack.countryCode === model.selectedCountryCode;
+      const label = `${pack.countryCode} ${pack.status}`;
+      return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="/onboarding/nis2?country=${escapeHtml(
+        pack.countryCode
+      )}" data-ui-action="select-country-pack-${escapeHtml(pack.countryCode.toLowerCase())}" aria-current="${selected ? "page" : "false"}">${escapeHtml(
+        label
+      )}</a>`;
+    }),
+    "</nav>"
+  ].join("");
+
+const renderSelectedCountryPackPanel = (pack: Nis2CountryPackDefinitionSurface): string =>
+  [
+    '<article class="ps-panel" aria-labelledby="country-pack-summary-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h2 class="ps-panel__title" id="country-pack-summary-title">${escapeHtml(pack.displayName)}</h2><p class="ps-muted">${escapeHtml(
+      pack.reportLanguage.classificationDisclaimer
+    )}</p></div>`,
+    renderStatusPill({ label: `v${pack.packVersion}`, tone: "info" }),
+    "</div>",
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: pack.status, tone: toneForStatusText(pack.status) }),
+    renderSourceChip({ label: "Effective", detail: pack.effectiveDate }),
+    renderSourceChip({ label: "Sources", detail: String(pack.officialSources.length) }),
+    renderSourceChip({ label: "Languages", detail: pack.supportedUiLanguages.join(", ") }),
+    "</div>",
+    '<ul class="ps-list">',
+    ...pack.authorityGuidance.slice(0, 2).map((item) => `<li>${escapeHtml(item)}</li>`),
+    ...pack.registrationGuidance.slice(0, 2).map((item) => `<li>${escapeHtml(item)}</li>`),
+    "</ul>",
+    pack.countryCode === "RO"
+      ? '<p><a class="ps-command ps-command--primary" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="continue-romania-saved-workflow">Open saved Romania workflow</a></p>'
+      : '<p class="ps-muted">This country pack is available for demo scoping and source review. Persisted onboarding remains Romania-first in this slice.</p>',
+    "</article>"
+  ].join("");
+
+const renderCountryPackClassificationForm = (model: Nis2CountryAwareOnboardingModel): string =>
+  [
+    '<article class="ps-panel" aria-labelledby="country-pack-classification-form-title">',
+    '<h2 class="ps-panel__title" id="country-pack-classification-form-title">Preliminary scope check</h2>',
+    '<p class="ps-muted">Run a source-linked demo classification. This does not create a legal determination or certification.</p>',
+    '<form class="ps-form ps-form--wide" id="classification-form" action="/onboarding/nis2" method="get" data-ui-action="run-country-pack-classification">',
+    '<div class="ps-form-grid">',
+    '<div class="ps-field"><label for="country">Country</label><select id="country" name="country">',
+    ...model.countryPacks.map(
+      (pack) =>
+        `<option value="${escapeHtml(pack.countryCode)}"${pack.countryCode === model.selectedCountryCode ? " selected" : ""}>${escapeHtml(
+          `${pack.countryCode} - ${pack.displayName}`
+        )}</option>`
+    ),
+    "</select></div>",
+    renderSelect(
+      "sector",
+      "Sector",
+      model.classificationInput.sector ?? "",
+      [
+        ["", "Choose sector"],
+        ...model.selectedCountryPack.sectorRules.map((sector) => [sector, formatKeyLabel(sector)] as const)
+      ],
+      "Use the closest actual business activity."
+    ),
+    renderTextInput(
+      "employeeCount",
+      "Employee count",
+      typeof model.classificationInput.employeeCount === "number" ? String(model.classificationInput.employeeCount) : "",
+      false,
+      "number",
+      "Approximate count is enough for demo scoping."
+    ),
+    renderCheckbox("publicAdministration", "Public administration", Boolean(model.classificationInput.publicAdministration)),
+    renderCheckbox("telecomProvider", "Telecommunications provider", Boolean(model.classificationInput.telecomProvider)),
+    "</div>",
+    renderCommandButton({
+      label: "Run scope check",
+      ariaLabel: "Run preliminary NIS2 scope check",
+      tone: "primary",
+      type: "submit"
+    }),
+    "</form>",
+    "</article>"
+  ].join("");
+
+const renderCountryAwareWorkflowStepper = (pack: Nis2CountryPackDefinitionSurface): string => {
+  const steps = [
+    ["Company and contacts", "Legal identity, business contacts, and preferred language."],
+    ["Business profile", "Sector, services, size, group, sites, users, and cross-border activity."],
+    ["NIS2 scope", "Country-pack dynamic questions and preliminary applicability."],
+    ["Operational dependencies", "Microsoft 365, cloud, suppliers, continuity, and response capability."],
+    ["Governance and controls", "Plain-language Article 21 control coverage."],
+    ["Review and assessment", "Assumptions, missing information, pack version, and report trigger."]
+  ] as const;
+
+  return [
+    '<article class="ps-panel ps-stack-top" aria-labelledby="country-aware-stepper-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h2 class="ps-panel__title" id="country-aware-stepper-title">Country-aware workflow</h2><p class="ps-muted">${escapeHtml(
+      pack.displayName
+    )} supplies the dynamic scope questions and source caveats.</p></div>`,
+    renderStatusPill({ label: "six screens", tone: "accent" }),
+    "</div>",
+    '<ol class="ps-step-list">',
+    ...steps.map(
+      ([title, summary], index) =>
+        `<li><span class="ps-step-list__number">${index + 1}</span><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(
+          summary
+        )}</span></div></li>`
+    ),
+    "</ol>",
+    "</article>"
+  ].join("");
+};
+
+const renderCountryPackClassificationResult = (model: Nis2CountryAwareOnboardingModel): string => {
+  if (!model.classification) {
+    return "";
+  }
+
+  const classification = model.classification;
+  return [
+    '<article class="ps-panel ps-stack-top" aria-labelledby="country-pack-classification-result-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h2 class="ps-panel__title" id="country-pack-classification-result-title">Scope result</h2><p class="ps-muted">${escapeHtml(
+      classification.explanation
+    )}</p></div>`,
+    renderStatusPill({ label: classification.result.replaceAll("_", " "), tone: toneForStatusText(classification.result) }),
+    "</div>",
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: `confidence ${classification.confidence}`, tone: toneForStatusText(classification.confidence) }),
+    renderStatusPill({
+      label: classification.legalReviewRequired ? "legal review required" : "reviewed logic",
+      tone: classification.legalReviewRequired ? "warning" : "success"
+    }),
+    ...classification.matchedRules.map((rule) => renderSourceChip({ label: "Matched rule", detail: rule })),
+    "</div>",
+    classification.missingInformation.length > 0
+      ? `<p class="ps-legal-caveat">Missing information: ${escapeHtml(classification.missingInformation.join(", "))}</p>`
+      : "",
+    '<ul class="ps-list">',
+    ...classification.assumptions.map((assumption) => `<li>${escapeHtml(assumption)}</li>`),
+    "</ul>",
+    classification.legalBasisReferences.length > 0
+      ? `<div class="ps-chip-row">${classification.legalBasisReferences
+          .map((source) => renderSourceChip({ label: source.title, detail: source.retrievedAt, href: source.url }))
+          .join("")}</div>`
+      : "",
+    "</article>"
+  ].join("");
+};
+
+const renderCountryPackDynamicQuestions = (pack: Nis2CountryPackDefinitionSurface): string =>
+  renderDataTable<Nis2CountryPackQuestionSurface>(
+    "Country-pack dynamic questions",
+    [
+      {
+        header: "Question",
+        render: (question) => `<strong>${escapeHtml(question.label)}</strong><br><span class="ps-muted">${escapeHtml(question.key)}</span>`
+      },
+      {
+        header: "Answer type",
+        render: (question) => renderStatusPill({ label: question.answerType.replaceAll("_", " "), tone: "info" })
+      },
+      {
+        header: "Choices or sources",
+        render: (question) =>
+          escapeHtml(
+            question.choices && question.choices.length > 0 ? question.choices.join(", ") : question.sourceIds.join(", ")
+          )
+      }
+    ],
+    pack.dynamicQuestions
+  );
+
+const renderCountryPackSources = (pack: Nis2CountryPackDefinitionSurface): string =>
+  renderDataTable<Nis2CountryPackDefinitionSurface["officialSources"][number]>(
+    "Official source references",
+    [
+      {
+        header: "Source",
+        render: (source) =>
+          `<a href="${escapeHtml(source.url)}" rel="noreferrer">${escapeHtml(source.title)}</a><br><span class="ps-muted">${escapeHtml(
+            source.id
+          )}</span>`
+      },
+      {
+        header: "Retrieved",
+        render: (source) => escapeHtml(source.retrievedAt)
+      },
+      {
+        header: "Trust",
+        render: (source) => renderStatusPill({ label: source.trustLevel, tone: source.trustLevel === "primary" ? "success" : "info" })
+      }
+    ],
+    pack.officialSources
+  );
+
 export const renderWorkspaceSelectionScreen = (
   model: WorkspaceSelectionModel,
   options: RenderWorkspaceSelectionOptions = {}
@@ -661,6 +992,7 @@ export const renderWorkspaceSelectionScreen = (
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="workspace-selection">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     '<section class="ps-section" aria-labelledby="workspace-selection-title">',
     '<div class="ps-section__header">',
     `<div><h1 class="ps-section__title" id="workspace-selection-title">Select a workspace</h1><p class="ps-muted">${escapeHtml(
@@ -729,6 +1061,7 @@ export const renderRomaniaOnboardingRoute = (
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<main class="ps-content ps-content--wizard" id="content" tabindex="-1" data-ui-smoke="romania-onboarding-route">',
+    renderActiveTenantAccessBanner(model.activeTenantAccess),
     renderRomaniaRouteHero({
       completedRequiredFieldCount,
       labelFallbackCount,
@@ -1981,6 +2314,7 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
   const items = [
     { icon: "[]", label: copy.dashboard, href: "#dashboard", action: "open-dashboard-anchor" },
     { icon: "/\\", label: "Scoping & Governance", href: "#onboarding", action: "open-onboarding-anchor" },
+    { icon: "EU", label: "Country onboarding", href: "/onboarding/nis2", action: "open-nis2-country-onboarding" },
     { icon: "RO", label: "Romania onboarding", href: "/onboarding/romania/company?locale=ro-RO", action: "open-romania-onboarding" },
     { icon: "M3", label: "Microsoft 365", href: "#microsoft365", action: "open-microsoft365-anchor" },
     { icon: "!!", label: "Control Framework", href: "#gaps", action: "open-gaps-anchor" },
@@ -1992,7 +2326,7 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
     '<aside class="ps-sidebar" aria-label="Primary navigation">',
     '<div class="ps-brand">',
     '<span class="ps-brand__mark" aria-hidden="true">PS</span>',
-    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Compliance</span><br><span class="ps-brand__meta">${escapeHtml(
+    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">NIS2 Readiness</span><br><span class="ps-brand__meta">${escapeHtml(
       model.organization.primaryCountryCode
     )} workspace</span></div>`,
     "</div>",
@@ -2021,13 +2355,15 @@ const renderTopbar = (model: OperationalConsoleModel): string =>
     '<header class="ps-topbar">',
     '<div>',
     '<nav class="ps-topbar__tabs" aria-label="Console views">',
-    '<a class="ps-topbar__tab" href="#dashboard" aria-current="page" data-ui-action="open-dashboard-anchor">Compliance Summary</a>',
+    '<a class="ps-topbar__tab" href="#dashboard" aria-current="page" data-ui-action="open-dashboard-anchor">Readiness Summary</a>',
     '<a class="ps-topbar__tab" href="#evidence" data-ui-action="open-evidence-reports-anchor">Audit Trail</a>',
     "</nav>",
     "</div>",
     '<div class="ps-topbar__actions">',
     '<label class="ps-topbar__search"><span aria-hidden="true">Search</span><input type="search" placeholder="Search evidence..." aria-label="Search evidence and controls"></label>',
     renderStatusPill({ label: `Readiness: ${model.dashboard.readinessScores.overallInternalReadiness}%`, tone: "success" }),
+    '<a class="ps-command" href="/partners" data-ui-action="open-partner-console">Partner portfolio</a>',
+    '<a class="ps-command" href="/onboarding/nis2" data-ui-action="open-nis2-country-onboarding">Country onboarding</a>',
     '<a class="ps-command" href="/settings/notifications" data-ui-action="open-notification-settings">Notifications</a>',
     '<a class="ps-command" href="/invitations" data-ui-action="open-organization-invitations">Invite members</a>',
     '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
@@ -2197,6 +2533,384 @@ const renderNotificationChannelActions = (channelId: string, canManage: boolean)
     "</div>"
   ].join("");
 
+const activePartnerForConsole = (model: PartnerConsoleModel) =>
+  model.partners.find((entry) => entry.partner.id === model.activePartnerId) ?? model.partners[0] ?? null;
+
+const renderActiveTenantAccessBanner = (banner?: ActiveTenantAccessBannerSurface | null): string => {
+  const session = banner?.session;
+  if (!banner || !session || session.status !== "active") {
+    return "";
+  }
+
+  return [
+    '<aside class="ps-tenant-banner" role="status" aria-label="Active customer session">',
+    '<div class="ps-tenant-banner__inner">',
+    `<p><strong>You are accessing ${escapeHtml(banner.customerName)} through ${escapeHtml(
+      banner.partnerName
+    )}.</strong> This is review-only customer access, not impersonation. Actions are logged with your real user and provider writes stay disabled.</p>`,
+    '<div class="ps-chip-row ps-chip-row--compact">',
+    renderStatusPill({ label: "customer session active", tone: "warning" }),
+    banner.grantLevel ? renderSourceChip({ label: "Grant", detail: banner.grantLevel }) : "",
+    renderSourceChip({ label: "Reason", detail: session.reason }),
+    renderSourceChip({ label: "Expires", detail: formatTimestamp(session.expiresAt) }),
+    "</div>",
+    `<form class="ps-inline-form" action="/partners/${escapeHtml(banner.partnerId)}/tenant-sessions/${escapeHtml(
+      session.id
+    )}/exit" method="post" data-ui-action="exit-customer-tenant">`,
+    renderCommandButton({ label: "Exit customer", ariaLabel: "Exit customer session", tone: "danger", type: "submit" }),
+    "</form>",
+    "</div>",
+    "</aside>"
+  ].join("");
+};
+
+const renderPartnerCreateOnlyPanel = (): string =>
+  [
+    '<div class="ps-grid">',
+    renderPartnerCreatePanel(),
+    '<article class="ps-panel ps-panel--quiet" aria-labelledby="partner-empty-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-empty-title">No partner portfolio yet</h2><p class="ps-muted">Create a partner record to add customer companies through explicit grants.</p></div>',
+    renderStatusPill({ label: "setup required", tone: "warning" }),
+    "</div>",
+    "<p>Customer data stays tenant-owned. Creating a partner record does not create Microsoft permissions, billing, or authority submissions.</p>",
+    "</article>",
+    "</div>"
+  ].join("");
+
+const renderPartnerPortfolioContent = (model: PartnerConsoleModel, canCreateCustomer: boolean): string => {
+  const activePartner = activePartnerForConsole(model);
+  if (!activePartner) {
+    return renderPartnerCreateOnlyPanel();
+  }
+
+  return [
+    renderPartnerSelector(model, activePartner.partner.id),
+    '<div class="ps-grid">',
+    renderPartnerMetrics(model),
+    renderPartnerCreateCustomerPanel(activePartner.partner.id, canCreateCustomer),
+    "</div>",
+    renderPartnerOpportunityTable(model),
+    renderPartnerPortfolioTable(model, activePartner.partner.id)
+  ].join("");
+};
+
+const renderPartnerSelector = (model: PartnerConsoleModel, activePartnerId: string): string =>
+  [
+    '<article class="ps-panel ps-panel--quiet" aria-labelledby="partner-selector-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-selector-title">Partner account</h2><p class="ps-muted">Portfolio actions use partner membership plus an explicit customer grant.</p></div>',
+    renderStatusPill({ label: `${model.partners.length} partner${model.partners.length === 1 ? "" : "s"}`, tone: "info" }),
+    "</div>",
+    '<div class="ps-chip-row ps-stack-top">',
+    ...model.partners.map((entry) => {
+      const selected = entry.partner.id === activePartnerId;
+      return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="/partners?partnerId=${escapeHtml(
+        entry.partner.id
+      )}" data-ui-action="select-partner">${escapeHtml(entry.partner.name)} (${escapeHtml(entry.membership.role)})</a>`;
+    }),
+    "</div>",
+    "</article>"
+  ].join("");
+
+const renderPartnerCreatePanel = (): string =>
+  [
+    '<article class="ps-panel" aria-labelledby="partner-create-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-create-title">Create partner</h2><p class="ps-muted">Use the business name customers recognize in audit records.</p></div>',
+    renderStatusPill({ label: "owner role created", tone: "accent" }),
+    "</div>",
+    '<form class="ps-form" action="/partners" method="post" data-ui-action="create-partner">',
+    '<div class="ps-field"><label for="partnerName">Partner name</label><input id="partnerName" name="name" type="text" autocomplete="organization" required></div>',
+    '<div class="ps-field"><label for="partnerSlug">Partner slug</label><input id="partnerSlug" name="slug" type="text" autocomplete="off" spellcheck="false"><span class="ps-help">Optional. Leave blank to derive a stable identifier from the name.</span></div>',
+    renderCommandButton({ label: "Create partner", ariaLabel: "Create partner account", tone: "primary", type: "submit" }),
+    "</form>",
+    "</article>"
+  ].join("");
+
+const renderPartnerCreateCustomerPanel = (partnerId: string, canCreateCustomer: boolean): string =>
+  [
+    '<article class="ps-panel" aria-labelledby="partner-create-customer-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-create-customer-title">Add customer</h2><p class="ps-muted">Creates a tenant and a partner grant. It does not add workspace membership.</p></div>',
+    renderStatusPill({ label: canCreateCustomer ? "owner or admin" : "viewer is read only", tone: canCreateCustomer ? "success" : "warning" }),
+    "</div>",
+    `<form class="ps-form" action="/partners/${escapeHtml(partnerId)}/customers" method="post" data-ui-action="create-partner-customer">`,
+    '<div class="ps-form-grid">',
+    `<div class="ps-field"><label for="customerName">Company name</label><input id="customerName" name="name" type="text" autocomplete="organization" required${canCreateCustomer ? "" : " disabled"}></div>`,
+    `<div class="ps-field"><label for="customerLegalName">Legal name</label><input id="customerLegalName" name="legalName" type="text"${canCreateCustomer ? "" : " disabled"}></div>`,
+    `<div class="ps-field"><label for="customerCountry">Country</label><input id="customerCountry" name="primaryCountryCode" type="text" maxlength="2" pattern="[A-Za-z]{2}" value="RO" autocapitalize="characters" spellcheck="false" required${canCreateCustomer ? "" : " disabled"}></div>`,
+    `<div class="ps-field"><label for="customerGrantLevel">Grant level</label><select id="customerGrantLevel" name="grantLevel"${canCreateCustomer ? "" : " disabled"}><option value="admin">Admin</option><option value="analyst">Analyst</option><option value="viewer">Viewer</option></select></div>`,
+    "</div>",
+    renderCommandButton({
+      label: "Add customer",
+      ariaLabel: "Add customer tenant",
+      disabled: !canCreateCustomer,
+      tone: canCreateCustomer ? "primary" : "secondary",
+      type: "submit"
+    }),
+    "</form>",
+    "</article>"
+  ].join("");
+
+const renderPartnerMetrics = (model: PartnerConsoleModel): string => {
+  const activeGrants = model.portfolio.filter((row) => row.grant.status === "active").length;
+  const metrics = model.metrics ?? {
+    totalCustomerTenants: model.portfolio.length,
+    completedAssessments: 0,
+    customersLikelyOrPossiblyInScope: 0,
+    connectedMicrosoftTenants: 0,
+    highPriorityGaps: 0,
+    opportunities: 0
+  };
+  return [
+    '<article class="ps-panel" aria-labelledby="partner-portfolio-metrics-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-portfolio-metrics-title">Portfolio state</h2><p class="ps-muted">Assessment, Microsoft, and opportunity signals are derived from tenant-owned snapshots.</p></div>',
+    renderStatusPill({ label: `${metrics.totalCustomerTenants} customers`, tone: metrics.totalCustomerTenants > 0 ? "info" : "warning" }),
+    "</div>",
+    '<div class="ps-grid ps-grid--dense">',
+    renderPartnerFact("Active grants", String(activeGrants)),
+    renderPartnerFact("Assessments done", String(metrics.completedAssessments)),
+    renderPartnerFact("Likely in scope", String(metrics.customersLikelyOrPossiblyInScope)),
+    renderPartnerFact("Microsoft tenants", String(metrics.connectedMicrosoftTenants)),
+    renderPartnerFact("High-priority gaps", String(metrics.highPriorityGaps)),
+    renderPartnerFact("Opportunities", String(metrics.opportunities)),
+    renderPartnerFact("Current customer", model.activeTenantAccess?.customerName ?? "None"),
+    "</div>",
+    "</article>"
+  ].join("");
+};
+
+const renderPartnerOpportunityTable = (model: PartnerConsoleModel): string => {
+  const opportunities =
+    model.opportunities ??
+    model.portfolio.flatMap((row) =>
+      (row.snapshot?.opportunities ?? []).map((opportunity) => ({
+        ...opportunity,
+        customerId: row.grant.organizationId,
+        customerName: row.organization?.name ?? row.grant.organizationId
+      }))
+    );
+
+  return [
+    '<article class="ps-panel ps-panel--wide ps-stack-top" aria-labelledby="partner-opportunities-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-opportunities-title">Portfolio opportunities</h2><p class="ps-muted">Readiness opportunities only. No pricing, margin, commission, or ordering action is included.</p></div>',
+    renderStatusPill({ label: `${opportunities.length} opportunity${opportunities.length === 1 ? "" : "ies"}`, tone: opportunities.length > 0 ? "accent" : "neutral" }),
+    "</div>",
+    opportunities.length === 0
+      ? '<div class="ps-empty-state"><p class="ps-muted">No portfolio opportunities have been generated yet.</p></div>'
+      : renderDataTable(
+          "Partner portfolio opportunities",
+          [
+            {
+              header: "Customer",
+              render: (row) => escapeHtml(row.customerName ?? row.customerId ?? "Unknown customer")
+            },
+            {
+              header: "Type",
+              render: (row) => escapeHtml(humanizeKey(row.opportunityType))
+            },
+            {
+              header: "Priority",
+              render: (row) => renderStatusPill({ label: row.priority, tone: toneForPortfolioPriority(row.priority) })
+            },
+            {
+              header: "Capability or plan",
+              render: (row) => escapeHtml(row.relevantMicrosoftCapabilityOrPlan ?? "Partner service")
+            },
+            {
+              header: "Users",
+              render: (row) => escapeHtml(row.affectedUsers === undefined ? "Unknown" : String(row.affectedUsers))
+            },
+            {
+              header: "NIS2 areas",
+              render: (row) => escapeHtml(row.nis2Areas.join(", ") || "Not mapped")
+            },
+            {
+              header: "Evidence source",
+              render: (row) => escapeHtml(row.evidenceSource)
+            },
+            {
+              header: "Next action",
+              render: (row) => escapeHtml(row.nextAction)
+            }
+          ],
+          opportunities
+        ),
+    "</article>"
+  ].join("");
+};
+
+const renderPartnerPortfolioTable = (model: PartnerConsoleModel, partnerId: string): string =>
+  [
+    '<article class="ps-panel ps-panel--wide ps-stack-top" aria-labelledby="partner-customer-table-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="partner-customer-table-title">Customers</h2><p class="ps-muted">Open a customer only after entering a reason. Nested customer sessions are rejected by the API.</p></div>',
+    renderStatusPill({ label: "logged customer sessions", tone: "accent" }),
+    "</div>",
+    model.portfolio.length === 0
+      ? '<div class="ps-empty-state"><p class="ps-muted">No customer grants exist for this partner.</p></div>'
+      : renderDataTable<PartnerPortfolioCustomerSurface>(
+          "Partner customer portfolio",
+          [
+            {
+              header: "Company",
+              render: (row) => escapeHtml(row.organization?.name ?? row.grant.organizationId)
+            },
+            {
+              header: "Country",
+              render: (row) =>
+                [
+                  escapeHtml(row.organization?.primaryCountryCode ?? "EU"),
+                  row.snapshot?.sector ? `<span class="ps-muted">${escapeHtml(row.snapshot.sector)}</span>` : ""
+                ].join("<br>")
+            },
+            {
+              header: "Scope",
+              render: (row) => escapeHtml(row.snapshot?.likelyClassification ?? "Not assessed")
+            },
+            {
+              header: "Readiness",
+              render: (row) =>
+                [
+                  escapeHtml(formatPercent(row.snapshot?.readinessPercent)),
+                  `<span class="ps-muted">Evidence ${escapeHtml(formatPercent(row.snapshot?.evidenceConfidencePercent))}</span>`
+                ].join("<br>")
+            },
+            {
+              header: "Microsoft",
+              render: (row) =>
+                renderStatusPill({
+                  label: row.snapshot?.microsoftConnectionState ?? "disconnected",
+                  tone: toneForMicrosoftConnection(row.snapshot?.microsoftConnectionState)
+                })
+            },
+            {
+              header: "Top opportunity",
+              render: (row) => escapeHtml(row.snapshot?.topRecommendationOrOpportunity ?? "No recommendation yet")
+            },
+            {
+              header: "Activity",
+              render: (row) => escapeHtml(row.snapshot?.lastAssessmentOrSyncAt ? formatTimestamp(row.snapshot.lastAssessmentOrSyncAt) : "No activity yet")
+            },
+            {
+              header: "Enter customer",
+              render: (row) => renderPartnerEnterCustomerForm(partnerId, row)
+            }
+          ],
+          model.portfolio
+        ),
+    "</article>"
+  ].join("");
+
+const renderPartnerEnterCustomerForm = (partnerId: string, row: PartnerPortfolioCustomerSurface): string => {
+  const disabled = row.grant.status !== "active";
+  const customerName = row.organization?.name ?? row.grant.organizationId;
+  return [
+    `<form class="ps-form ps-form--compact" action="/partners/${escapeHtml(
+      partnerId
+    )}/tenant-sessions" method="post" data-ui-action="enter-customer-tenant">`,
+    `<input type="hidden" name="organizationId" value="${escapeHtml(row.grant.organizationId)}">`,
+    `<label class="ps-sr-only" for="reason-${escapeHtml(row.grant.id)}">Reason for ${escapeHtml(customerName)}</label>`,
+    `<input id="reason-${escapeHtml(row.grant.id)}" name="reason" type="text" minlength="8" placeholder="Reason for review" required${disabled ? " disabled" : ""}>`,
+    renderCommandButton({
+      label: "Enter",
+      ariaLabel: `Enter ${customerName}`,
+      disabled,
+      tone: disabled ? "secondary" : "primary",
+      type: "submit"
+    }),
+    "</form>"
+  ].join("");
+};
+
+const renderPartnerFact = (title: string, value: string): string =>
+  `<div class="ps-fact"><h3 class="ps-panel__title">${escapeHtml(title)}</h3><p>${escapeHtml(value)}</p></div>`;
+
+const toneForPartnerGrant = (grantLevel: string): PureSocUiTone => {
+  if (grantLevel === "admin") {
+    return "accent";
+  }
+  if (grantLevel === "analyst") {
+    return "info";
+  }
+  return "neutral";
+};
+
+const toneForPortfolioPriority = (priority: string): PureSocUiTone => {
+  if (priority === "critical") {
+    return "danger";
+  }
+  if (priority === "high") {
+    return "warning";
+  }
+  if (priority === "medium") {
+    return "accent";
+  }
+  return "neutral";
+};
+
+const toneForMicrosoftConnection = (state: string | undefined): PureSocUiTone => {
+  if (state === "connected") {
+    return "success";
+  }
+  if (state === "partial") {
+    return "warning";
+  }
+  if (state === "error") {
+    return "danger";
+  }
+  return "neutral";
+};
+
+const formatPercent = (value: number | undefined): string => (typeof value === "number" ? `${value}%` : "Unknown");
+
+const humanizeKey = (value: string): string =>
+  value
+    .split(/[_-]+/g)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+
+const renderPartnerConsoleCss = (): string => `
+.ps-form--compact {
+  display: grid;
+  grid-template-columns: minmax(12rem, 1fr) auto;
+  gap: 0.5rem;
+  align-items: end;
+}
+
+.ps-form--compact input {
+  min-width: 0;
+}
+
+.ps-grid--dense {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+
+.ps-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 720px) {
+  .ps-form--compact,
+  .ps-grid--dense {
+    grid-template-columns: 1fr;
+  }
+}
+`;
+
 const notificationChannelTypeLabel = (type: string): string => {
   if (type === "slack_webhook") {
     return "Slack webhook";
@@ -2309,7 +3023,7 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     '<section class="ps-section ps-section--dashboard" id="dashboard" data-ui-section="dashboard" aria-labelledby="dashboard-title">',
     '<div class="ps-section__body">',
     '<div class="ps-page-hero">',
-    `<div><h1 class="ps-section__title" id="dashboard-title">Readiness Overview</h1><p>Executive summary of NIS2 compliance posture for ${escapeHtml(
+    `<div><h1 class="ps-section__title" id="dashboard-title">Readiness Overview</h1><p>Executive summary of NIS2 readiness posture for ${escapeHtml(
       model.organization.name
     )}.</p></div>`,
     '<div class="ps-command-row">',
@@ -2317,7 +3031,7 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     renderSourceChip({ label: "Session", detail: `${model.user.displayName} | ${model.user.role}` }),
     model.runtimeSource ? renderSourceChip(model.runtimeSource) : "",
     renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
-    '<a class="ps-command ps-command--primary" href="#approvals" data-ui-action="open-approval-queue-anchor">View Remediation Workflows</a>',
+    '<a class="ps-command ps-command--primary" href="#approvals" data-ui-action="open-approval-queue-anchor">View Action Workflows</a>',
     "</div>",
     "</div>",
     renderDashboardNextAction(model),
@@ -2398,9 +3112,9 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
 const renderDashboardNextAction = (model: OperationalConsoleModel): string => {
   const readiness = model.dashboard.readinessScores.overallInternalReadiness;
   const romaniaCompleteness = model.onboarding.romania.completeness;
-  const label = romaniaCompleteness < 100 ? "Continue wizard" : "Review evidence";
-  const href = romaniaCompleteness < 100 ? "/onboarding/romania/company?locale=ro-RO" : "#evidence";
-  const action = romaniaCompleteness < 100 ? "open-romania-onboarding" : "open-evidence-reports-anchor";
+  const label = romaniaCompleteness < 100 ? "Continue onboarding" : "Review evidence";
+  const href = romaniaCompleteness < 100 ? "/onboarding/nis2" : "#evidence";
+  const action = romaniaCompleteness < 100 ? "open-nis2-country-onboarding" : "open-evidence-reports-anchor";
   const summary =
     readiness >= 75
       ? "Internal readiness is in a reviewable range. Keep the evidence trail current before sharing exports."
@@ -2423,7 +3137,7 @@ const renderScoreTrendPanel = (history: DashboardSnapshotHistoryPoint[]): string
   return [
     '<article class="ps-panel ps-trend-card ps-stack-top" aria-labelledby="score-trend-title" data-score-trend-card>',
     '<div class="ps-section__header ps-section__header--flat ps-trend-card__header">',
-    '<div><h2 class="ps-panel__title" id="score-trend-title">Compliance Score Trend</h2><p class="ps-muted">Daily internal-readiness snapshots from stored assessment outputs.</p></div>',
+    '<div><h2 class="ps-panel__title" id="score-trend-title">Readiness Score Trend</h2><p class="ps-muted">Daily internal-readiness snapshots from stored assessment outputs.</p></div>',
     '<div class="ps-trend-toggle-row" role="group" aria-label="Trend window">',
     ...trendRanges.map(
       (days) =>
@@ -2496,7 +3210,7 @@ const renderTrendSvg = (points: DashboardSnapshotHistoryPoint[]): string => {
   return [
     `<div class="ps-trend-chart ps-trend-chart--${scoreTone}">`,
     '<svg class="ps-trend-svg" viewBox="0 0 760 280" role="img" aria-labelledby="trend-svg-title trend-svg-desc">',
-    '<title id="trend-svg-title">Compliance score trend chart</title>',
+    '<title id="trend-svg-title">Readiness score trend chart</title>',
     `<desc id="trend-svg-desc">Score line from ${first.overall_score} to ${last.overall_score}; critical gaps from ${first.critical_gaps} to ${last.critical_gaps}.</desc>`,
     `<line class="ps-trend-axis" x1="${plot.left}" y1="${plot.top}" x2="${plot.left}" y2="${height - plot.bottom}"></line>`,
     `<line class="ps-trend-axis" x1="${width - plot.right}" y1="${plot.top}" x2="${width - plot.right}" y2="${height - plot.bottom}"></line>`,
@@ -2519,7 +3233,7 @@ const renderTrendSvg = (points: DashboardSnapshotHistoryPoint[]): string => {
     )}</text>`,
     "</svg>",
     '<div class="ps-trend-legend" aria-label="Chart legend">',
-    '<span><i class="ps-trend-legend__swatch ps-trend-legend__swatch--score" aria-hidden="true"></i>Compliance score</span>',
+    '<span><i class="ps-trend-legend__swatch ps-trend-legend__swatch--score" aria-hidden="true"></i>Readiness score</span>',
     '<span><i class="ps-trend-legend__swatch ps-trend-legend__swatch--critical" aria-hidden="true"></i>Critical gaps</span>',
     "</div>",
     "</div>"
@@ -2634,7 +3348,7 @@ const renderCriticalGapCard = (gap: GapSurface): string => {
       label: gap.controlId,
       tone: "neutral"
     })}${renderStatusPill({ label: gap.severity, tone: toneForSeverity(gap.severity) })}</div></div>`,
-    `<a class="ps-command" href="#gaps" data-ui-action="open-gaps-anchor">${gap.severity === "high" ? "Remediate" : "Review"}</a>`,
+    `<a class="ps-command" href="#gaps" data-ui-action="open-gaps-anchor">${gap.severity === "high" ? "Plan Action" : "Review"}</a>`,
     "</article>"
   ].join("");
 };
@@ -2683,6 +3397,7 @@ const renderOnboardingSection = (model: OperationalConsoleModel, copy: Operation
       renderOnboardingPanel(model.onboarding.eu),
       renderOnboardingPanel(model.onboarding.romania),
       "</div>",
+      '<p class="ps-stack-top"><a class="ps-command ps-command--primary" href="/onboarding/nis2" data-ui-action="open-nis2-country-onboarding">Open country onboarding</a> <a class="ps-command" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="open-romania-onboarding">Open Romania saved workflow</a></p>',
       renderDataTable<CountryPackSurface>(
         "Country pack status",
         [

@@ -31,6 +31,7 @@ import {
 } from "./crypto";
 import { MicrosoftGraphClient, type MicrosoftGraphHttpClient } from "./graph-client";
 import {
+  microsoft365CoreDemoReadModules,
   microsoft365DeferredReadModules,
   microsoft365DefaultReadModules,
   microsoft365ModuleRequirements,
@@ -39,6 +40,7 @@ import {
   microsoft365ReadModules,
   microsoft365ReadPermissionBundles,
   microsoft365WritePermissionBundles,
+  assertMicrosoft365NoWritePermissionsGranted,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   missingPermissions,
@@ -48,6 +50,7 @@ import {
 } from "./permissions";
 
 export {
+  microsoft365CoreDemoReadModules,
   microsoft365DeferredReadModules,
   microsoft365DefaultReadModules,
   microsoft365ModuleRequirements,
@@ -56,6 +59,7 @@ export {
   microsoft365ReadModules,
   microsoft365ReadPermissionBundles,
   microsoft365WritePermissionBundles,
+  assertMicrosoft365NoWritePermissionsGranted,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   type Microsoft365CloudEnvironment,
@@ -148,6 +152,7 @@ export interface Microsoft365StoredCredential {
   requestedPermissionBundles: Microsoft365ReadPermissionBundleKey[];
   consentedAt: string;
   cloudEnvironment?: Microsoft365CloudEnvironment;
+  sourceMode?: "fixture" | "live";
 }
 
 export interface Microsoft365CredentialResolverInput {
@@ -163,6 +168,8 @@ export interface CreateMicrosoft365ConnectorOptions {
   clientId: string;
   clientSecret?: string;
   authorityHost?: string;
+  graphBaseUrl?: string;
+  sourceMode?: "fixture" | "live";
   graphClient?: MicrosoftGraphClient;
   graphHttpClient?: MicrosoftGraphHttpClient;
   tokenClient?: Microsoft365TokenClient;
@@ -216,6 +223,7 @@ export const createMicrosoft365Connector = (
   const graphClient =
     options.graphClient ??
     new MicrosoftGraphClient({
+      baseUrl: options.graphBaseUrl,
       httpClient: options.graphHttpClient
     });
 
@@ -284,6 +292,7 @@ export const createMicrosoft365Connector = (
         authorityHost
       });
       const grantedPermissions = [...new Set(token.grantedPermissions ?? decodeJwtRoles(token.accessToken))].sort();
+      assertMicrosoft365NoWritePermissionsGranted(grantedPermissions);
       const tokenTenantId = token.tenantId ?? decodeJwtTenantId(token.accessToken);
 
       if (tokenTenantId && tokenTenantId !== tenantId) {
@@ -301,7 +310,8 @@ export const createMicrosoft365Connector = (
         expiresAt,
         grantedPermissions,
         requestedPermissionBundles: requestedBundles,
-        consentedAt: now().toISOString()
+        consentedAt: now().toISOString(),
+        sourceMode: options.sourceMode ?? "live"
       };
       const tenantProfile = await getTenantProfileFromGraph({
         graphClient,
@@ -319,6 +329,7 @@ export const createMicrosoft365Connector = (
         tenantName: tenantProfile.normalizedJson.displayName,
         requestedBundles,
         grantedPermissions,
+        sourceMode: options.sourceMode ?? "live",
         now
       });
 
@@ -461,6 +472,7 @@ interface ConnectionForInput {
   tenantName: string;
   requestedBundles: Microsoft365ReadPermissionBundleKey[];
   grantedPermissions: string[];
+  sourceMode: "fixture" | "live";
   now: () => Date;
 }
 
@@ -477,6 +489,7 @@ const connectionFor = (input: ConnectionForInput): ProviderConnectionRecord => (
   metadata: {
     requestedPermissionBundles: input.requestedBundles,
     grantedPermissions: input.grantedPermissions,
+    connectorMode: input.sourceMode,
     consentedAt: input.now().toISOString()
   },
   createdAt: input.now().toISOString(),
@@ -564,6 +577,10 @@ const runMicrosoft365Module = async (input: RunModuleInput): Promise<ProviderMod
 
     if (input.moduleKey === "users-groups-roles") {
       return await syncUsersGroupsRoles(input);
+    }
+
+    if (input.moduleKey === "mfa-registration") {
+      return await syncMfaRegistration(input);
     }
 
     if (input.moduleKey === "applications") {
@@ -746,6 +763,55 @@ const syncUsersGroupsRoles = async (input: RunModuleInput): Promise<ProviderModu
     users.pagesRead + groups.pagesRead + roles.pagesRead + roleMemberPages,
     users.retryCount + groups.retryCount + roles.retryCount + roleMemberRetries
   );
+};
+
+const syncMfaRegistration = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
+  const registrations = await input.graphClient.list({
+    path: "/reports/authenticationMethods/userRegistrationDetails",
+    accessToken: input.credential.accessToken,
+    maxRetries: input.maxRetries
+  });
+  const rawResources = registrations.items.map((registration) =>
+    raw(input, "mfaRegistrationDetail", mfaRegistrationExternalId(registration), registration)
+  );
+  const normalizedResources = registrations.items.map((registration) =>
+    normalized(input, "mfaRegistrationDetail", mfaRegistrationExternalId(registration), "cloud_user", {
+      userPrincipalName: stringValue(registration.userPrincipalName),
+      displayName: stringValue(registration.userDisplayName),
+      accountEnabled: true,
+      userType: "member",
+      mfaEnabled: booleanValue(registration.isMfaCapable) || booleanValue(registration.isMfaRegistered),
+      mfaRegistered: booleanValue(registration.isMfaRegistered),
+      mfaCapable: booleanValue(registration.isMfaCapable),
+      ssprRegistered: booleanValue(registration.isSsprRegistered),
+      ssprCapable: booleanValue(registration.isSsprCapable),
+      methodsRegistered: arrayOfStrings(registration.methodsRegistered)
+    })
+  );
+  const unregisteredCount = registrations.items.filter((registration) => !booleanValue(registration.isMfaRegistered)).length;
+  const findings: ProviderFindingInput[] =
+    unregisteredCount > 0
+      ? [
+          {
+            organizationId: input.input.organizationId,
+            providerConnectionId: input.input.providerConnectionId,
+            providerKey: microsoft365ProviderKey,
+            moduleKey: input.moduleKey,
+            findingKey: "mfa_registration_gap",
+            title: "MFA registration is incomplete",
+            summary: `${unregisteredCount} Microsoft 365 user account${unregisteredCount === 1 ? "" : "s"} in the latest registration report are not registered for MFA.`,
+            severity: "medium",
+            status: "open",
+            evidence: {
+              signalKey: "mfa_registration_gap",
+              unregisteredCount,
+              totalUsers: registrations.items.length
+            }
+          }
+        ]
+      : [];
+
+  return succeeded(input, rawResources, normalizedResources, registrations.pagesRead, registrations.retryCount, findings);
 };
 
 const syncApplications = async (input: RunModuleInput): Promise<ProviderModuleSyncResult> => {
@@ -1239,6 +1305,9 @@ const servicePlansFromSku = (sku: Record<string, unknown>): string[] =>
 const skuExternalId = (sku: Record<string, unknown>): string =>
   stringValue(sku.skuId) || stringValue(sku.id) || stringValue(sku.skuPartNumber);
 
+const mfaRegistrationExternalId = (registration: Record<string, unknown>): string =>
+  stringValue(registration.id) || stringValue(registration.userPrincipalName) || stringValue(registration.userDisplayName);
+
 const scoreExternalId = (score: Record<string, unknown>): string => stringValue(score.id) || "current-secure-score";
 
 const isPrivilegedRoleName = (roleName: string): boolean =>
@@ -1269,6 +1338,376 @@ const severityValue = (value: unknown): "informational" | "low" | "medium" | "hi
   return severity === "low" || severity === "medium" || severity === "high" || severity === "critical"
     ? severity
     : "informational";
+};
+
+export const microsoft365FixtureTenantId = "11111111-1111-1111-1111-111111111111" as const;
+export const microsoft365FixtureTenantDisplayName = "PureSOC Fixture Tenant" as const;
+
+export type Microsoft365FixtureSet = "partner_demo" | "partner_demo_partial";
+
+export interface CreateMicrosoft365FixtureGraphHttpClientOptions {
+  fixtureSet?: Microsoft365FixtureSet | string;
+  tenantId?: string;
+  tenantDisplayName?: string;
+}
+
+export interface CreateMicrosoft365FixtureConnectorOptions
+  extends Omit<
+    CreateMicrosoft365ConnectorOptions,
+    "clientId" | "clientSecret" | "graphHttpClient" | "sourceMode" | "tokenClient"
+  > {
+  clientId?: string;
+  fixtureSet?: Microsoft365FixtureSet | string;
+  tenantId?: string;
+  tenantDisplayName?: string;
+}
+
+export const createMicrosoft365FixtureGraphHttpClient = (
+  options: CreateMicrosoft365FixtureGraphHttpClientOptions = {}
+): MicrosoftGraphHttpClient => {
+  const tenantId = options.tenantId ?? microsoft365FixtureTenantId;
+  const tenantDisplayName = options.tenantDisplayName ?? microsoft365FixtureTenantDisplayName;
+  const partial = options.fixtureSet === "partner_demo_partial";
+
+  return async (request) => {
+    if (request.method !== "GET") {
+      throw new ProviderConnectorError("microsoft365_fixture_method_unsupported", "Microsoft 365 fixture supports GET only.");
+    }
+
+    const url = new URL(request.url);
+    const path = `${url.pathname}${url.search}`;
+
+    if (url.pathname.endsWith("/organization")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: tenantId,
+              displayName: tenantDisplayName,
+              verifiedDomains: ["fixture.puresoc.test"]
+            }
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/domains")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            { id: "fixture.puresoc.test", name: "fixture.puresoc.test", isVerified: true },
+            { id: "puresocfixture.onmicrosoft.com", name: "puresocfixture.onmicrosoft.com", isVerified: true }
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/subscribedSkus")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              skuId: partial ? "sku_business_standard" : "sku_business_premium",
+              skuPartNumber: partial ? "O365_BUSINESS_PREMIUM" : "SPB",
+              consumedUnits: partial ? 32 : 48,
+              servicePlans: partial
+                ? [{ servicePlanName: "EXCHANGE_S_STANDARD" }, { servicePlanName: "AAD_PREMIUM" }]
+                : [
+                    { servicePlanName: "EXCHANGE_S_STANDARD" },
+                    { servicePlanName: "AAD_PREMIUM" },
+                    { servicePlanName: "INTUNE_A" },
+                    { servicePlanName: "DEFENDER_XDR" }
+                  ]
+            }
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/users")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            fixtureUser("user_1", "Owner User", true),
+            fixtureUser("user_2", "Operations User", true),
+            fixtureUser("user_3", "Dormant User", false)
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/groups")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "group_security", displayName: "Security Operations", groupTypes: [], securityEnabled: true }]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/directoryRoles")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "role_global_reader", displayName: "Global Reader" }]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/directoryRoles/role_global_reader/members")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "user_1", displayName: "Owner User", userPrincipalName: "owner@fixture.puresoc.test" }]
+        }
+      };
+    }
+
+    if (path.includes("/reports/authenticationMethods/userRegistrationDetails")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            fixtureMfaRegistration("user_1", "owner@fixture.puresoc.test", "Owner User", true),
+            fixtureMfaRegistration("user_2", "operations@fixture.puresoc.test", "Operations User", !partial),
+            fixtureMfaRegistration("user_3", "dormant@fixture.puresoc.test", "Dormant User", false)
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/applications")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "app_erp",
+              appId: "fixture-erp-client",
+              displayName: "Fixture ERP",
+              passwordCredentials: [{ endDateTime: "2026-12-31T00:00:00.000Z" }],
+              requiredResourceAccess: [{ resourceAppId: "00000003-0000-0000-c000-000000000000" }]
+            }
+          ]
+        }
+      };
+    }
+
+    if (url.pathname.endsWith("/servicePrincipals")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "sp_erp", appId: "fixture-erp-client", displayName: "Fixture ERP SP" }]
+        }
+      };
+    }
+
+    if (path.includes("/identity/conditionalAccess/policies")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "ca_admin_mfa",
+              displayName: "Require MFA for admins",
+              state: partial ? "disabled" : "enabled",
+              conditions: { users: { includeRoles: ["global-reader-role"] } },
+              grantControls: { builtInControls: ["mfa"] }
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.includes("/auditLogs/directoryAudits")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "audit_role_1",
+              activityDateTime: "2026-06-19T09:55:00.000Z",
+              activityDisplayName: "Add member to role",
+              category: "RoleManagement",
+              result: "success",
+              initiatedBy: { user: { userPrincipalName: "owner@fixture.puresoc.test" } },
+              targetResources: [{ id: "user_1", type: "User" }]
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.includes("/auditLogs/signIns")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "signin_1",
+              createdDateTime: "2026-06-19T09:50:00.000Z",
+              userPrincipalName: "owner@fixture.puresoc.test",
+              userDisplayName: "Owner User",
+              appDisplayName: "Microsoft 365 admin center",
+              conditionalAccessStatus: partial ? "notApplied" : "success",
+              riskLevelAggregated: "none",
+              status: { errorCode: 0 }
+            }
+          ]
+        }
+      };
+    }
+
+    if (path.includes("/security/secureScores")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "secure_score_current", currentScore: partial ? 42 : 78, maxScore: 100 }]
+        }
+      };
+    }
+
+    if (path.includes("/deviceManagement/managedDevices")) {
+      return {
+        status: 200,
+        body: {
+          value: [{ id: "device_1", deviceName: "Fixture Laptop 1", complianceState: partial ? "unknown" : "compliant" }]
+        }
+      };
+    }
+
+    if (path.includes("/security/incidents")) {
+      return {
+        status: 200,
+        body: {
+          value: partial
+            ? [
+                {
+                  id: "incident_high_1",
+                  displayName: "Fixture endpoint malware incident",
+                  severity: "high",
+                  status: "active",
+                  assignedTo: "security@fixture.puresoc.test",
+                  incidentWebUrl: "https://security.microsoft.com/incidents/fixture",
+                  lastUpdateDateTime: "2026-06-19T09:45:00.000Z"
+                }
+              ]
+            : []
+        }
+      };
+    }
+
+    if (path.includes("/security/alerts_v2")) {
+      return {
+        status: 200,
+        body: {
+          value: partial
+            ? [
+                {
+                  id: "alert_high_1",
+                  incidentId: "incident_high_1",
+                  title: "Fixture suspicious PowerShell execution",
+                  severity: "high",
+                  status: "new",
+                  serviceSource: "microsoftDefenderForEndpoint",
+                  alertWebUrl: "https://security.microsoft.com/alerts/fixture",
+                  lastUpdateDateTime: "2026-06-19T09:42:00.000Z"
+                }
+              ]
+            : []
+        }
+      };
+    }
+
+    throw new ProviderConnectorError("microsoft365_fixture_path_unhandled", "Microsoft 365 fixture path is not implemented.", {
+      path: url.pathname
+    });
+  };
+};
+
+export const createMicrosoft365FixtureConnector = (
+  options: CreateMicrosoft365FixtureConnectorOptions = {}
+): CloudProviderConnector => {
+  const now = options.now ?? (() => new Date());
+  const tenantId = options.tenantId ?? microsoft365FixtureTenantId;
+  const permissions = permissionsForMicrosoft365Bundles([...microsoft365ReadPermissionBundles]);
+  const delegate = createMicrosoft365Connector({
+    ...options,
+    clientId: options.clientId ?? "puresoc-fixture-platform-app",
+    clientSecret: "puresoc-fixture-no-secret",
+    graphHttpClient: createMicrosoft365FixtureGraphHttpClient({
+      fixtureSet: options.fixtureSet,
+      tenantId,
+      tenantDisplayName: options.tenantDisplayName
+    }),
+    sourceMode: "fixture",
+    tokenClient: async () => ({
+      accessToken: fixtureJwt({ tid: tenantId, roles: permissions }),
+      tokenType: "Bearer",
+      expiresIn: 3600,
+      tenantId,
+      grantedPermissions: permissions
+    }),
+    now
+  });
+
+  return {
+    ...delegate,
+    beginConnection: async (input): Promise<ConnectionRedirect> => {
+      normalizeMicrosoft365RequestedBundles(input.requestedPermissionBundles);
+      const url = new URL(input.redirectUri);
+      url.searchParams.set("admin_consent", "True");
+      url.searchParams.set("tenant", tenantId);
+      url.searchParams.set("state", input.state);
+      url.searchParams.set("scope", graphDefaultScope);
+      url.searchParams.set("fixture", "microsoft365");
+
+      return {
+        url: url.toString(),
+        state: input.state,
+        expiresAt: new Date(now().getTime() + 10 * 60_000).toISOString()
+      };
+    }
+  };
+};
+
+const fixtureUser = (id: string, displayName: string, accountEnabled: boolean): Record<string, unknown> => ({
+  id,
+  userPrincipalName: `${id.replace(/^user_1$/, "owner").replace(/^user_2$/, "operations").replace(/^user_3$/, "dormant")}@fixture.puresoc.test`,
+  displayName,
+  accountEnabled,
+  userType: "Member",
+  signInActivity: {
+    lastSignInDateTime: accountEnabled ? "2026-06-19T08:00:00.000Z" : "2026-05-15T08:00:00.000Z"
+  }
+});
+
+const fixtureMfaRegistration = (
+  id: string,
+  userPrincipalName: string,
+  userDisplayName: string,
+  registered: boolean
+): Record<string, unknown> => ({
+  id,
+  userPrincipalName,
+  userDisplayName,
+  isAdmin: id === "user_1",
+  isSsprRegistered: registered,
+  isSsprEnabled: true,
+  isSsprCapable: registered,
+  isMfaRegistered: registered,
+  isMfaCapable: registered,
+  methodsRegistered: registered ? ["microsoftAuthenticatorPush", "mobilePhone"] : []
+});
+
+const fixtureJwt = (input: { tid: string; roles: string[] }): string => {
+  const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
+  const payload = Buffer.from(JSON.stringify({ tid: input.tid, roles: input.roles })).toString("base64url");
+  return `${header}.${payload}.signature`;
 };
 
 export const microsoft365ReadOnlySmokeSchemaVersion = "puresoc.microsoft365.read_only_smoke.v1" as const;
@@ -1481,6 +1920,7 @@ const runLiveMicrosoft365ReadOnlySmoke = async (
       authorityHost: options.config.authorityHost
     });
     const grantedPermissions = [...new Set(token.grantedPermissions ?? decodeJwtRoles(token.accessToken))].sort();
+    assertMicrosoft365NoWritePermissionsGranted(grantedPermissions);
     const tokenTenantId = token.tenantId ?? decodeJwtTenantId(token.accessToken);
     if (tokenTenantId && tokenTenantId !== options.config.tenantId) {
       throw new ProviderConnectorError("microsoft365_smoke_tenant_mismatch", "Microsoft 365 smoke token tenant mismatch.", {
@@ -1873,6 +2313,9 @@ const microsoft365SmokeGraphPathSummary = (requestedModules: string[]): string =
       paths.add("/users");
       paths.add("/groups");
       paths.add("/directoryRoles");
+    }
+    if (moduleKey === "mfa-registration") {
+      paths.add("/reports/authenticationMethods/userRegistrationDetails");
     }
     if (moduleKey === "applications") {
       paths.add("/applications");

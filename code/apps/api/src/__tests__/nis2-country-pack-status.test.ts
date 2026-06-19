@@ -35,13 +35,21 @@ describe("nis2 country-pack status API", () => {
         sourceActivationDefault: string;
       }>;
     }>(response);
-    const plannedFullPack = body.countryPacks.find((status) => status.countryCode === "RO");
+    const plannedFullPackCountries = new Set(["RO", "PL", "DE"]);
 
     expect(body.frameworkKey).toBe("nis2");
     expect(body.memberStateCount).toBe(EU_MEMBER_STATE_COUNT);
     expect(body.countryPacks).toHaveLength(EU_MEMBER_STATE_COUNT);
-    expect(plannedFullPack?.countryPackStatus).toBe("planned_full_pack");
-    expect(body.countryPacks.filter((status) => status.countryCode !== "RO").every((status) => status.countryPackStatus === "baseline_only")).toBe(true);
+    expect(
+      body.countryPacks
+        .filter((status) => plannedFullPackCountries.has(status.countryCode))
+        .every((status) => status.countryPackStatus === "planned_full_pack")
+    ).toBe(true);
+    expect(
+      body.countryPacks
+        .filter((status) => !plannedFullPackCountries.has(status.countryCode))
+        .every((status) => status.countryPackStatus === "baseline_only")
+    ).toBe(true);
     expect(body.countryPacks.every((status) => status.sourceActivationDefault === "review_required")).toBe(true);
   });
 });

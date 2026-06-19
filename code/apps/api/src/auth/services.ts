@@ -10,7 +10,8 @@ import {
   NoneExternalAuditCheckpointProvider,
   createAuditRetentionExportPolicy,
   type AuditCheckpointRepository,
-  type AuditExternalCheckpointProvider
+  type AuditExternalCheckpointProvider,
+  type AuditLogInput
 } from "@puresoc/audit";
 import {
   Argon2idPasswordHasher,
@@ -55,6 +56,7 @@ import {
   PrismaNotificationRepository,
   PrismaOutputRecordRepository,
   PrismaOidcAuthorizationStateStore,
+  PrismaPartnerRepository,
   PrismaProviderConsentStateStore,
   PrismaRoNis2ReadinessRepository,
   PrismaAuditSink,
@@ -85,7 +87,7 @@ import { createInMemoryApiRepositorySet, type InMemoryApiRepositorySet } from ".
 import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
 import { createRoNis2NotificationDraftCompanionBuilder } from "../compliance/nis2/ro/notification-draft-companion";
 import { RoNis2ReadinessApiService } from "../compliance/nis2/ro/service";
-import type { RbacRepository } from "../rbac";
+import { createPartnerAwareRbacRepository, type RbacRepository } from "../rbac";
 import {
   HttpUploadScanner,
   MockUploadScanner,
@@ -110,6 +112,9 @@ import {
   type NotificationTransport
 } from "@puresoc/notifications";
 import { NotificationApiService } from "../notifications/service";
+import { InMemoryPartnerRepository } from "../partners/memory-repository";
+import { RepositoryBackedPartnerPortfolioReader } from "../partners/portfolio";
+import { PartnerService, type PartnerRepository } from "../partners/service";
 
 export interface ApiPersistenceRuntime {
   mode: PureSocConfig["app"]["persistenceMode"];
@@ -231,6 +236,7 @@ export interface ApiServices {
   localAuth: LocalAuthService;
   oidcAuth: OidcSocialLoginService;
   organizations: OrganizationService;
+  partners: PartnerService;
   providerConnections: ProviderConnectionsService;
   microsoft365ProviderConnections: Microsoft365ProviderConnectionService;
   compliance: ComplianceEvaluationService;
@@ -244,6 +250,7 @@ export interface ApiServices {
   notificationDraftRepository: NotificationDraftRepository;
   roNis2Readiness: RoNis2ReadinessApiService;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
+  partnerRepository: PartnerRepository;
   rbacRepository: RbacRepository;
   notificationDrafts: NotificationDraftApiService;
   notifications: NotificationApiService;
@@ -286,7 +293,11 @@ export const createApiServices = (
   });
   const auditWriter = new AuditWriter({
     sink: runtimeRepositories.auditSink,
-    now: options.now
+    now: options.now,
+    contextEnricher: createTenantAccessAuditContextEnricher({
+      partnerRepository: runtimeRepositories.partnerRepository,
+      now: options.now
+    })
   });
   const auditCheckpoints = new AuditCheckpointService({
     repository: runtimeRepositories.auditCheckpointRepository,
@@ -330,6 +341,13 @@ export const createApiServices = (
     now: options.now
   });
   const providerStore = runtimeRepositories.providerResourceStore;
+  const partners = new PartnerService({
+    repository: runtimeRepositories.partnerRepository,
+    organizations,
+    auditWriter,
+    portfolioReader: new RepositoryBackedPartnerPortfolioReader(runtimeRepositories.outputRepository, providerStore),
+    now: options.now
+  });
   const notificationDelivery = new NotificationService({
     repository: runtimeRepositories.notificationRepository,
     transports: options.notificationTransports ?? createNotificationTransports(config),
@@ -349,12 +367,16 @@ export const createApiServices = (
       clientSecret: config.connectors.microsoft365.clientSecret,
       authorityHost: config.connectors.microsoft365.authorityHost
     },
+    connectorMode: config.connectors.microsoft365.mode,
+    fixtureSet: config.connectors.microsoft365.fixtureSet,
+    graphBaseUrl: config.connectors.microsoft365.graphBaseUrl,
+    maxRetries: config.connectors.microsoft365.maxRetries,
     tokenCipherFactory: () =>
       createLocalMicrosoft365TokenCipher({
         keyProvider: createMicrosoft365TokenKeyProviderFromConfig({
           providerKind: config.connectors.providerTokenKeyProvider,
-          activeKeyId: config.connectors.providerTokenEncryptionKeyId,
-          activeKeyMaterial: config.connectors.providerTokenEncryptionKey,
+          activeKeyId: optionalNonEmpty(config.connectors.providerTokenEncryptionKeyId),
+          activeKeyMaterial: optionalNonEmpty(config.connectors.providerTokenEncryptionKey),
           previousKeys: config.connectors.providerTokenEncryptionPreviousKeys.map((key) => ({
             keyId: key.id,
             masterKey: key.key
@@ -382,6 +404,7 @@ export const createApiServices = (
     repository: runtimeRepositories.outputRepository,
     evidence,
     auditWriter,
+    providerStore,
     pdfRenderer: options.reportPdfRenderer ?? createHttpReportPdfRendererClient(config.reports.renderer),
     storeGeneratedReportsAsEvidence: config.reports.storeGeneratedReportsAsEvidence,
     evidencePackageLimits: options.evidencePackageLimits ?? config.reports.evidencePackage,
@@ -429,6 +452,12 @@ export const createApiServices = (
     now: options.now
   });
 
+  const rbacRepository = createPartnerAwareRbacRepository({
+    baseRepository: runtimeRepositories.identityRepository,
+    partnerRepository: runtimeRepositories.partnerRepository,
+    now: options.now
+  });
+
   return {
     config,
     persistence: runtimeRepositories.persistence,
@@ -442,6 +471,7 @@ export const createApiServices = (
     localAuth,
     oidcAuth,
     organizations,
+    partners,
     providerConnections,
     microsoft365ProviderConnections,
     compliance,
@@ -455,7 +485,8 @@ export const createApiServices = (
     notificationDraftRepository: runtimeRepositories.notificationDraftRepository,
     roNis2Readiness,
     identityRepository: runtimeRepositories.identityRepository,
-    rbacRepository: runtimeRepositories.identityRepository,
+    partnerRepository: runtimeRepositories.partnerRepository,
+    rbacRepository,
     notificationDrafts,
     notifications,
     notificationRepository: runtimeRepositories.notificationRepository,
@@ -480,12 +511,69 @@ interface RuntimeRepositorySet {
   roNis2ReadinessRepository: RoNis2ReadinessRepository;
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
+  partnerRepository: PartnerRepository;
   providerResourceStore: InMemoryProviderResourceStore | PrismaProviderResourceStore;
   providerConsentStateStore: ProviderConsentStateStore;
   oidcAuthorizationStateStore: OidcAuthorizationStateStore;
 }
 
 type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
+
+const createTenantAccessAuditContextEnricher = (input: {
+  partnerRepository: PartnerRepository;
+  now?: () => Date;
+}) => {
+  const now = input.now ?? (() => new Date());
+
+  return async (record: AuditLogInput) => {
+    const actorUserId = record.actorUserId ?? null;
+    const organizationId = record.organizationId ?? null;
+    if (!actorUserId || !organizationId) {
+      return null;
+    }
+
+    try {
+      const session = await input.partnerRepository.findActiveTenantAccessSessionForActor(actorUserId);
+      if (
+        !session ||
+        session.status !== "active" ||
+        session.effectiveOrganizationId !== organizationId ||
+        session.expiresAt <= now()
+      ) {
+        return null;
+      }
+
+      const [partner, member, grant] = await Promise.all([
+        input.partnerRepository.findPartnerById(session.partnerId),
+        input.partnerRepository.findPartnerMember(session.partnerId, actorUserId),
+        input.partnerRepository.findActivePartnerTenantGrant(session.partnerId, organizationId)
+      ]);
+
+      if (!partner || partner.status !== "active" || !member || member.status !== "active" || !grant) {
+        return null;
+      }
+
+      return {
+        partnerTenantContext: {
+          schemaVersion: "puresoc.audit.tenant_access_context.v1",
+          partnerId: partner.id,
+          partnerName: partner.name,
+          tenantSessionId: session.id,
+          effectiveOrganizationId: session.effectiveOrganizationId,
+          realActorUserId: session.realActorUserId,
+          reason: session.reason,
+          partnerRole: member.role,
+          grantLevel: grant.accessLevel,
+          requestId: session.requestId ?? null,
+          traceId: session.traceId ?? null,
+          expiresAt: session.expiresAt.toISOString()
+        }
+      };
+    } catch {
+      return null;
+    }
+  };
+};
 
 const createRuntimeRepositories = (input: {
   config: PureSocConfig;
@@ -502,6 +590,7 @@ const createRuntimeRepositories = (input: {
         persistedContexts: [],
         memoryBackedContexts: [
           "identity_sessions_organizations_rbac",
+          "partner_tenant_access",
           "audit_logs",
           "provider_connections_and_telemetry",
           "compliance_results",
@@ -528,6 +617,7 @@ const createRuntimeRepositories = (input: {
       roNis2ReadinessRepository: new InMemoryRoNis2ReadinessRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
       identityRepository: input.memoryRepositories.identityRepository,
+      partnerRepository: new InMemoryPartnerRepository(input.memoryRepositories.identityRepository),
       providerResourceStore: new InMemoryProviderResourceStore({ now: input.now }),
       providerConsentStateStore: new InMemoryProviderConsentStateStore({ now: input.now }),
       oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore()
@@ -544,6 +634,7 @@ const createRuntimeRepositories = (input: {
       persistedContexts: [
         "audit_logs",
         "identity_sessions_organizations_rbac",
+        "partner_tenant_access",
         "compliance_results",
         "evidence_metadata_access_logs",
         "billing",
@@ -571,6 +662,7 @@ const createRuntimeRepositories = (input: {
     roNis2ReadinessRepository: new PrismaRoNis2ReadinessRepository(prismaClient as never),
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
     identityRepository,
+    partnerRepository: new PrismaPartnerRepository(prismaClient as never),
     providerResourceStore: new PrismaProviderResourceStore(prismaClient as never, { now: input.now }),
     providerConsentStateStore: new PrismaProviderConsentStateStore(prismaClient as never, { now: input.now }),
     oidcAuthorizationStateStore: new PrismaOidcAuthorizationStateStore(prismaClient as never, {
@@ -645,6 +737,11 @@ const createUploadScanner = (config: PureSocConfig, now: (() => Date) | undefine
     allowInProduction: config.storage.uploadScanner.allowNoopInProduction,
     now
   });
+};
+
+const optionalNonEmpty = (value?: string | null): string | undefined => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 };
 
 const createNotificationTransports = (

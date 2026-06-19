@@ -558,6 +558,560 @@ export interface Nis2CountryPack {
   getUnsupportedFeatures(): UnsupportedCountryFeature[];
 }
 
+export type Nis2CountryPackLifecycleStatus = "demo" | "reviewed" | "active" | "retired";
+
+export type Nis2StructuredClassificationOutcome =
+  | "likely_essential_entity"
+  | "likely_important_entity"
+  | "possibly_in_scope"
+  | "probably_outside_scope"
+  | "legal_review_required";
+
+export interface Nis2OfficialSourceReference {
+  id: string;
+  title: string;
+  url: string;
+  retrievedAt: string;
+  trustLevel: "primary" | "secondary";
+  notes?: string;
+}
+
+export interface Nis2DynamicQuestion {
+  key: string;
+  label: string;
+  answerType: "boolean" | "choice" | "multi_choice" | "number" | "text";
+  appliesToSectors?: readonly string[];
+  choices?: readonly string[];
+  sourceIds: readonly string[];
+}
+
+export interface Nis2CountryPackClassificationRule {
+  id: string;
+  version: string;
+  outcome: Nis2StructuredClassificationOutcome;
+  plainLanguage: string;
+  confidence: "low" | "medium" | "high";
+  legalReviewRequired: boolean;
+  match: {
+    minEmployees?: number;
+    maxEmployees?: number;
+    sectors?: readonly string[];
+    services?: readonly string[];
+    publicAdministration?: boolean;
+    telecomProvider?: boolean;
+  };
+  sourceIds: readonly string[];
+}
+
+export interface Nis2CountryPackDefinition {
+  countryCode: EuCountryCode | "EU";
+  displayName: string;
+  packVersion: string;
+  effectiveDate: string;
+  status: Nis2CountryPackLifecycleStatus;
+  extendsBasePackVersion?: string;
+  supportedUiLanguages: readonly string[];
+  authorityGuidance: readonly string[];
+  officialSources: readonly Nis2OfficialSourceReference[];
+  nationalTerminology: Record<string, string>;
+  registrationGuidance: readonly string[];
+  sectorRules: readonly string[];
+  sizeThresholds: readonly string[];
+  specialInclusionRules: readonly string[];
+  dynamicQuestions: readonly Nis2DynamicQuestion[];
+  classificationRules: readonly Nis2CountryPackClassificationRule[];
+  reportLanguage: {
+    classificationDisclaimer: string;
+    readinessDisclaimer: string;
+  };
+  disclaimers: readonly string[];
+}
+
+export interface Nis2CountryPackValidationIssue {
+  code: "empty_array" | "invalid_country" | "invalid_status" | "missing_source" | "missing_string";
+  message: string;
+  path: string;
+}
+
+export interface Nis2CountryPackValidationResult {
+  issues: Nis2CountryPackValidationIssue[];
+  valid: boolean;
+}
+
+export interface Nis2CountryPackClassificationInput {
+  employeeCount?: number;
+  publicAdministration?: boolean;
+  sector?: string;
+  services?: readonly string[];
+  telecomProvider?: boolean;
+}
+
+export interface Nis2CountryPackStructuredClassification {
+  result: Nis2StructuredClassificationOutcome;
+  matchedRules: readonly string[];
+  legalBasisReferences: readonly Nis2OfficialSourceReference[];
+  assumptions: readonly string[];
+  missingInformation: readonly string[];
+  explanation: string;
+  confidence: "low" | "medium" | "high";
+  legalReviewRequired: boolean;
+}
+
+export const euNis2BasePack: Nis2CountryPackDefinition = {
+  countryCode: "EU",
+  displayName: "EU NIS2 baseline",
+  packVersion: "2026.06.demo",
+  effectiveDate: "2022-12-27",
+  status: "active",
+  supportedUiLanguages: ["en"],
+  authorityGuidance: ["Directive (EU) 2022/2555 is the shared baseline; Member State rules decide national registration and classification details."],
+  officialSources: [
+    {
+      id: "eu-nis2-directive-2022-2555",
+      title: "Directive (EU) 2022/2555",
+      url: "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Official EU NIS2 directive source. Runtime legal logic remains country-pack owned."
+    }
+  ],
+  nationalTerminology: {
+    essentialEntity: "Essential entity",
+    importantEntity: "Important entity"
+  },
+  registrationGuidance: ["Use the active Member State country pack for national registration paths."],
+  sectorRules: [
+    "energy",
+    "transport",
+    "health",
+    "drinking_water",
+    "waste_water",
+    "digital_infrastructure",
+    "ict_service_management",
+    "public_administration",
+    "space",
+    "postal_services",
+    "waste_management",
+    "chemicals",
+    "food",
+    "manufacturing",
+    "digital_providers",
+    "research"
+  ],
+  sizeThresholds: ["EU baseline size concepts are country-applied; use national transposition and legal review."],
+  specialInclusionRules: ["Public administration, critical dependency, sole-provider, telecom, trust, DNS, cloud, data centre, and managed-service facts can change applicability."],
+  dynamicQuestions: [
+    {
+      key: "eu.nis2.sector",
+      label: "Which NIS2 sector best matches the organization's real activity?",
+      answerType: "choice",
+      choices: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "health", "public_administration", "none_or_unknown"],
+      sourceIds: ["eu-nis2-directive-2022-2555"]
+    },
+    {
+      key: "eu.nis2.critical_dependency",
+      label: "Would disruption create critical societal or economic dependency?",
+      answerType: "boolean",
+      sourceIds: ["eu-nis2-directive-2022-2555"]
+    }
+  ],
+  classificationRules: [
+    {
+      id: "eu-demo-sector-possible-scope",
+      version: "2026.06",
+      outcome: "possibly_in_scope",
+      plainLanguage: "The activity matches a NIS2 sector, but national law and size thresholds decide the likely category.",
+      confidence: "low",
+      legalReviewRequired: true,
+      match: {
+        sectors: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "health", "public_administration"]
+      },
+      sourceIds: ["eu-nis2-directive-2022-2555"]
+    }
+  ],
+  reportLanguage: {
+    classificationDisclaimer: "EU baseline classification is not a binding legal determination.",
+    readinessDisclaimer: "Readiness outputs are internal assessment guidance, not legal advice or certification."
+  },
+  disclaimers: ["Use a reviewed national country pack before making legal or registration decisions."]
+};
+
+export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
+  countryCode: "PL",
+  displayName: "Poland KSC NIS2 demo pack",
+  packVersion: "2026.06.demo",
+  effectiveDate: "2026-04-03",
+  status: "demo",
+  extendsBasePackVersion: euNis2BasePack.packVersion,
+  supportedUiLanguages: ["en", "pl"],
+  authorityGuidance: ["Polish KSC guidance describes key and important entities, self-identification, and S46/Wykaz KSC registration."],
+  officialSources: [
+    {
+      id: "pl-ksc-amendment-overview-2026",
+      title: "KSC amendment overview",
+      url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Gov.pl overview dated 2026-04-14 says the amendment entered into force on 2026-04-03 and describes registration deadlines."
+    },
+    {
+      id: "pl-ksc-covered-entities-2026",
+      title: "KSC covered entities guidance",
+      url: "https://www.gov.pl/web/cyfryzacja/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---kogo-obejmuje",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Gov.pl guidance dated 2026-04-20 describes sectors and 12-month adaptation period."
+    },
+    {
+      id: "pl-ksc-self-identification-2026",
+      title: "KSC self-identification guidance",
+      url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---jak-dokonac-samoidentyfikacji",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Gov.pl guidance dated 2026-04-27 describes activity, PKD, and size as self-identification inputs."
+    },
+    {
+      id: "pl-ksc-self-registration-2026",
+      title: "KSC self-registration guidance",
+      url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---uruchamiamy-samorejestracje-w-wykazie-podmiotow-kluczowych-i-podmiotow-waznych-sprawdz-jak-dokonac-wpisu",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Gov.pl guidance dated 2026-05-07 describes self-registration in Wykaz KSC."
+    }
+  ],
+  nationalTerminology: {
+    essentialEntity: "Podmiot kluczowy",
+    importantEntity: "Podmiot wazny",
+    register: "Wykaz KSC"
+  },
+  registrationGuidance: [
+    "Demo guidance: entities use self-identification and, where applicable, Wykaz KSC/S46 registration.",
+    "Do not treat this pack as legal advice until reviewed and activated."
+  ],
+  sectorRules: ["telecommunications", "food", "manufacturing", "ict_service_management", "digital_infrastructure", "public_administration"],
+  sizeThresholds: ["Use micro, small, medium, and large thresholds from official Polish self-identification guidance; group and partner enterprises may affect size."],
+  specialInclusionRules: ["Telecommunications providers and public entities can require special handling. Legal review is required."],
+  dynamicQuestions: [
+    {
+      key: "pl.ksc.pkd_or_activity",
+      label: "Which PKD code or real activity best describes the customer?",
+      answerType: "text",
+      sourceIds: ["pl-ksc-self-identification-2026"]
+    },
+    {
+      key: "pl.ksc.telecom_provider",
+      label: "Is the customer a telecommunications entrepreneur?",
+      answerType: "boolean",
+      sourceIds: ["pl-ksc-self-identification-2026"]
+    },
+    {
+      key: "pl.ksc.self_registration_path",
+      label: "Is the customer already entered in Wykaz KSC or expected to self-register?",
+      answerType: "choice",
+      choices: ["already_entered", "self_registration_expected", "office_entry_expected", "unknown"],
+      sourceIds: ["pl-ksc-self-registration-2026"]
+    }
+  ],
+  classificationRules: [
+    {
+      id: "pl-demo-telecom-provider",
+      version: "2026.06",
+      outcome: "likely_important_entity",
+      plainLanguage: "Polish guidance calls out telecommunications entrepreneurs as a special group, but size and Art. 5 analysis still need review.",
+      confidence: "medium",
+      legalReviewRequired: true,
+      match: {
+        telecomProvider: true
+      },
+      sourceIds: ["pl-ksc-self-identification-2026"]
+    },
+    {
+      id: "pl-demo-food-or-manufacturing",
+      version: "2026.06",
+      outcome: "possibly_in_scope",
+      plainLanguage: "Food or manufacturing activity appears in the expanded KSC sector discussion, but this demo rule requires source review before activation.",
+      confidence: "low",
+      legalReviewRequired: true,
+      match: {
+        sectors: ["food", "manufacturing"]
+      },
+      sourceIds: ["pl-ksc-amendment-overview-2026", "pl-ksc-covered-entities-2026"]
+    }
+  ],
+  reportLanguage: {
+    classificationDisclaimer: "This is a demo KSC/NIS2 self-identification aid, not a legal classification.",
+    readinessDisclaimer: "Readiness output remains internal guidance and must be reviewed before registration decisions."
+  },
+  disclaimers: ["Poland pack status is demo. All national conclusions require legal review before activation."]
+};
+
+export const germanyNis2DemoCountryPack: Nis2CountryPackDefinition = {
+  countryCode: "DE",
+  displayName: "Germany BSI NIS2 demo pack",
+  packVersion: "2026.06.demo",
+  effectiveDate: "2025-12-06",
+  status: "demo",
+  extendsBasePackVersion: euNis2BasePack.packVersion,
+  supportedUiLanguages: ["en", "de"],
+  authorityGuidance: ["BSI guidance and BSI portal registration/reporting paths are the demo source anchors."],
+  officialSources: [
+    {
+      id: "de-bsi-regulated-companies",
+      title: "BSI NIS-2 regulated companies page",
+      url: "https://www.bsi.bund.de/DE/Themen/Regulierte-Wirtschaft/NIS-2-regulierte-Unternehmen/nis-2-regulierte-unternehmen_node.html",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Official BSI source metadata retained for reviewed implementation."
+    },
+    {
+      id: "de-bsi-portal-nis2-registration",
+      title: "BSI portal NIS-2 registration information",
+      url: "https://mip2.bsi.bund.de/en/info-nis2-registrierung/",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "BSI portal page says registration/reporting requirements apply when the implementation act comes into force and identifies the BSI portal as the registration route."
+    },
+    {
+      id: "de-bsi-registration-instructions",
+      title: "BSI NIS-2 registration instructions",
+      url: "https://www.bsi.bund.de/DE/Themen/Regulierte-Wirtschaft/NIS-2-regulierte-Unternehmen/NIS-2-Anleitung-Registrierung/Anleitung-Registrierung_node.html",
+      retrievedAt: "2026-06-19",
+      trustLevel: "primary",
+      notes: "Official BSI registration-instruction source metadata retained for reviewed implementation."
+    }
+  ],
+  nationalTerminology: {
+    essentialEntity: "Besonders wichtige Einrichtung",
+    importantEntity: "Wichtige Einrichtung",
+    portal: "BSI portal"
+  },
+  registrationGuidance: [
+    "Demo guidance: use BSI portal information for registration and reporting flow discovery.",
+    "This pack does not submit registrations or reports."
+  ],
+  sectorRules: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "public_administration", "health"],
+  sizeThresholds: ["Use German implementation-act size and sector rules after legal review."],
+  specialInclusionRules: ["Public authorities, KRITIS operators, and portal transition rules require separate review."],
+  dynamicQuestions: [
+    {
+      key: "de.bsi.portal_route",
+      label: "Does the customer expect to use the BSI portal for NIS-2 registration or reporting?",
+      answerType: "choice",
+      choices: ["yes", "no", "unknown"],
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      key: "de.bsi.kritis_or_public",
+      label: "Is the customer a KRITIS operator, federal authority, or public authority?",
+      answerType: "boolean",
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      key: "de.bsi.sector",
+      label: "Which regulated sector best matches the customer?",
+      answerType: "choice",
+      choices: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "health", "public_administration", "other_or_unknown"],
+      sourceIds: ["de-bsi-regulated-companies"]
+    }
+  ],
+  classificationRules: [
+    {
+      id: "de-demo-public-administration",
+      version: "2026.06",
+      outcome: "possibly_in_scope",
+      plainLanguage: "Public-sector context may affect German NIS-2 routing, but the demo pack does not make a binding determination.",
+      confidence: "low",
+      legalReviewRequired: true,
+      match: {
+        publicAdministration: true
+      },
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      id: "de-demo-food-manufacturing",
+      version: "2026.06",
+      outcome: "possibly_in_scope",
+      plainLanguage: "Food or manufacturing activity should be reviewed against German NIS-2 sector and size rules.",
+      confidence: "low",
+      legalReviewRequired: true,
+      match: {
+        sectors: ["food", "manufacturing"]
+      },
+      sourceIds: ["de-bsi-regulated-companies"]
+    }
+  ],
+  reportLanguage: {
+    classificationDisclaimer: "This German demo pack is not a binding NIS-2 classification.",
+    readinessDisclaimer: "Readiness output is internal planning guidance and not certification."
+  },
+  disclaimers: ["Germany pack status is demo. Registration guidance is metadata-only until legal review."]
+};
+
+export const demoCountryPackDefinitions = [
+  euNis2BasePack,
+  polandNis2DemoCountryPack,
+  germanyNis2DemoCountryPack
+] as const;
+
+export const validateNis2CountryPackDefinition = (
+  pack: Nis2CountryPackDefinition
+): Nis2CountryPackValidationResult => {
+  const issues: Nis2CountryPackValidationIssue[] = [];
+  if (!pack.countryCode || (!isEuCountryCode(pack.countryCode) && pack.countryCode !== "EU")) {
+    issues.push({
+      code: "invalid_country",
+      message: "countryCode must be EU or an EU Member State country code.",
+      path: "$.countryCode"
+    });
+  }
+  if (!pack.displayName) {
+    issues.push({ code: "missing_string", message: "displayName is required.", path: "$.displayName" });
+  }
+  if (!pack.packVersion) {
+    issues.push({ code: "missing_string", message: "packVersion is required.", path: "$.packVersion" });
+  }
+  if (!["demo", "reviewed", "active", "retired"].includes(pack.status)) {
+    issues.push({ code: "invalid_status", message: "status is not supported.", path: "$.status" });
+  }
+  for (const [key, value] of Object.entries({
+    officialSources: pack.officialSources,
+    dynamicQuestions: pack.dynamicQuestions,
+    classificationRules: pack.classificationRules,
+    disclaimers: pack.disclaimers
+  })) {
+    if (value.length === 0) {
+      issues.push({ code: "empty_array", message: `${key} must not be empty.`, path: `$.${key}` });
+    }
+  }
+  const sourceIds = new Set(pack.officialSources.map((source) => source.id));
+  for (const question of pack.dynamicQuestions) {
+    for (const sourceId of question.sourceIds) {
+      if (!sourceIds.has(sourceId)) {
+        issues.push({
+          code: "missing_source",
+          message: `Question ${question.key} references missing source ${sourceId}.`,
+          path: `$.dynamicQuestions.${question.key}.sourceIds`
+        });
+      }
+    }
+  }
+  for (const rule of pack.classificationRules) {
+    for (const sourceId of rule.sourceIds) {
+      if (!sourceIds.has(sourceId)) {
+        issues.push({
+          code: "missing_source",
+          message: `Rule ${rule.id} references missing source ${sourceId}.`,
+          path: `$.classificationRules.${rule.id}.sourceIds`
+        });
+      }
+    }
+  }
+
+  return {
+    issues,
+    valid: issues.length === 0
+  };
+};
+
+export const classifyWithNis2CountryPack = (
+  pack: Nis2CountryPackDefinition,
+  input: Nis2CountryPackClassificationInput
+): Nis2CountryPackStructuredClassification => {
+  const matchedRules = pack.classificationRules.filter((rule) => matchesCountryPackRule(rule, input));
+  const strongest = matchedRules[0];
+  const missingInformation = [
+    input.sector ? null : "sector",
+    typeof input.employeeCount === "number" ? null : "employee_count"
+  ].filter((value): value is string => Boolean(value));
+
+  if (!strongest) {
+    return {
+      result: missingInformation.length > 0 ? "legal_review_required" : "probably_outside_scope",
+      matchedRules: [],
+      legalBasisReferences: pack.officialSources.slice(0, 1),
+      assumptions: ["No demo country-pack rule matched the provided profile."],
+      missingInformation,
+      explanation:
+        missingInformation.length > 0
+          ? "The country pack needs more business context before it can return a useful preliminary result."
+          : "No demo rule matched. This does not prove the entity is outside scope.",
+      confidence: "low",
+      legalReviewRequired: true
+    };
+  }
+
+  const sourceById = new Map(pack.officialSources.map((source) => [source.id, source]));
+  return {
+    result: strongest.outcome,
+    matchedRules: matchedRules.map((rule) => rule.id),
+    legalBasisReferences: strongest.sourceIds.map((sourceId) => sourceById.get(sourceId)).filter(Boolean) as Nis2OfficialSourceReference[],
+    assumptions: [`Pack status is ${pack.status}.`, "Classification language is preliminary and non-binding."],
+    missingInformation,
+    explanation: strongest.plainLanguage,
+    confidence: strongest.confidence,
+    legalReviewRequired: strongest.legalReviewRequired || pack.status !== "active"
+  };
+};
+
+const matchesCountryPackRule = (
+  rule: Nis2CountryPackClassificationRule,
+  input: Nis2CountryPackClassificationInput
+): boolean => {
+  if (rule.match.publicAdministration !== undefined && rule.match.publicAdministration !== Boolean(input.publicAdministration)) {
+    return false;
+  }
+  if (rule.match.telecomProvider !== undefined && rule.match.telecomProvider !== Boolean(input.telecomProvider)) {
+    return false;
+  }
+  if (rule.match.minEmployees !== undefined && (input.employeeCount ?? -1) < rule.match.minEmployees) {
+    return false;
+  }
+  if (rule.match.maxEmployees !== undefined && (input.employeeCount ?? Number.MAX_SAFE_INTEGER) > rule.match.maxEmployees) {
+    return false;
+  }
+  if (rule.match.sectors && (!input.sector || !rule.match.sectors.includes(input.sector))) {
+    return false;
+  }
+  if (rule.match.services) {
+    const services = new Set(input.services ?? []);
+    if (!rule.match.services.some((service) => services.has(service))) {
+      return false;
+    }
+  }
+  return true;
+};
+
+const isEuCountryCode = (value: string): value is EuCountryCode =>
+  [
+    "AT",
+    "BE",
+    "BG",
+    "HR",
+    "CY",
+    "CZ",
+    "DK",
+    "EE",
+    "FI",
+    "FR",
+    "DE",
+    "GR",
+    "HU",
+    "IE",
+    "IT",
+    "LV",
+    "LT",
+    "LU",
+    "MT",
+    "NL",
+    "PL",
+    "PT",
+    "RO",
+    "SK",
+    "SI",
+    "ES",
+    "SE"
+  ].includes(value);
+
 export interface MemberStateSeedLike {
   countryCode: string;
   countryName?: string;

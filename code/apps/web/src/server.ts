@@ -4,14 +4,20 @@ import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
 import {
   createOperationalConsoleRuntimeModel,
+  type ActiveTenantAccessBannerSurface,
   type DashboardSnapshotHistoryPoint,
   disconnectedMicrosoft365Surface,
   organizationInvitationRoleOptions,
   createRomaniaOnboardingRouteModel,
   type Microsoft365HealthSurface,
   type Microsoft365ModuleSurface,
+  type Nis2CountryAwareOnboardingModel,
+  type Nis2CountryPackDefinitionSurface,
+  type Nis2CountryPackStructuredClassificationSurface,
   type NotificationSettingsScreenModel,
   type OrganizationInvitationScreenModel,
+  type PartnerConsoleModel,
+  type PartnerTenantSessionSurface,
   type OperationalStatus,
   type RomaniaOnboardingRouteInput,
   type RuntimeSessionSurface,
@@ -20,9 +26,11 @@ import {
 import {
   renderLoginScreen as renderBaseLoginScreen,
   renderMicrosoft365ConnectorPage,
+  renderNis2CountryAwareOnboardingScreen,
   renderNotificationSettingsScreen,
   renderEmailVerificationScreen,
   renderOrganizationInvitationsScreen,
+  renderPartnerConsoleScreen,
   renderOperationalConsole,
   renderRegisterScreen as renderBaseRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -140,6 +148,9 @@ interface Microsoft365HealthWebResponse {
     lastSuccessfulSyncAt?: string | null;
   };
   status: string;
+  connectorMode?: string;
+  effectiveConnectorMode?: string;
+  fixtureSet?: string;
   permissionBundles: Array<{
     bundleKey: string;
     enabled: boolean;
@@ -191,6 +202,52 @@ interface NotificationChannelsResponse {
 
 interface NotificationLogsResponse {
   logs: NotificationSettingsScreenModel["logs"];
+}
+
+interface PartnerListWebResponse {
+  partners: PartnerConsoleModel["partners"];
+}
+
+interface PartnerPortfolioWebResponse {
+  metrics: PartnerConsoleModel["metrics"];
+  opportunities: PartnerConsoleModel["opportunities"];
+  grants: Array<{
+    id: string;
+    organizationId: string;
+    grantLevel: string;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    organization: PartnerConsoleModel["portfolio"][number]["organization"];
+    snapshot?: PartnerConsoleModel["portfolio"][number]["snapshot"];
+  }>;
+}
+
+interface PartnerTenantSessionWebResponse {
+  tenantSession: PartnerTenantSessionSurface | null;
+}
+
+interface Nis2CountryPackListWebResponse {
+  countryPacks: Nis2CountryPackDefinitionSurface[];
+  frameworkKey: string;
+}
+
+interface Nis2CountryPackClassificationWebResponse {
+  classification: Nis2CountryPackStructuredClassificationSurface;
+  countryPack: Nis2CountryPackDefinitionSurface;
+}
+
+interface CreatePartnerWebResponse {
+  partner?: {
+    id?: string;
+  };
+}
+
+interface CreatePartnerCustomerWebResponse {
+  organization?: {
+    id?: string;
+    name?: string;
+  };
 }
 
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
@@ -295,6 +352,51 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/partners") {
+      const partnerModel = await loadPartnerConsoleModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        errorMessage: url.searchParams.get("error"),
+        partnerId: url.searchParams.get("partnerId")
+      });
+
+      if (!partnerModel) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to manage a partner portfolio."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderPartnerConsoleScreen(partnerModel));
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/onboarding/nis2") {
+      const nis2Model = await loadNis2CountryAwareOnboardingModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        query: url.searchParams
+      });
+
+      if (!nis2Model) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to open the NIS2 country onboarding entry point."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderNis2CountryAwareOnboardingScreen(nis2Model));
+      return;
+    }
+
     const romaniaOnboardingScreen = resolveRomaniaOnboardingScreen(url.pathname);
     if (request.method === "GET" && romaniaOnboardingScreen) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
@@ -391,6 +493,12 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response,
         renderMicrosoft365ConnectorPage({
           actionMessage: url.searchParams.get("message"),
+          activeTenantAccess: await loadActiveTenantAccessBanner({
+            apiBaseUrl,
+            activeOrganizationId: session.body.session.activeOrganizationId,
+            activeOrganizationName: organization.name,
+            cookie: request.headers.cookie
+          }),
           activeOrganizationName: organization.name,
           microsoft365: await loadMicrosoft365HealthSurface({
             apiBaseUrl,
@@ -408,6 +516,191 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+
+    if (request.method === "POST" && url.pathname === "/partners") {
+      const form = await readFormBody(request);
+      const created = await apiJson<CreatePartnerWebResponse>(apiBaseUrl, "/partners", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          name: form.get("name") ?? "",
+          slug: optionalFormValue(form.get("slug"))
+        }
+      });
+
+      if (created.statusCode !== 201) {
+        const partnerModel = await loadPartnerConsoleModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Partner was not created. Check the name and slug."
+        });
+        sendHtml(
+          response,
+          partnerModel
+            ? renderPartnerConsoleScreen(partnerModel)
+            : renderLoginScreen({ errorMessage: "Sign in to create a partner portfolio." }),
+          created.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/partners?partnerId=${encodeURIComponent(created.body.partner?.id ?? "")}&message=${encodeURIComponent(
+          "Partner created."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    const partnerCustomerCreate = /^\/partners\/([^/]+)\/customers$/.exec(url.pathname);
+    if (request.method === "POST" && partnerCustomerCreate) {
+      const partnerId = partnerCustomerCreate[1] ?? "";
+      const form = await readFormBody(request);
+      const created = await apiJson<CreatePartnerCustomerWebResponse>(
+        apiBaseUrl,
+        `/partners/${encodeURIComponent(partnerId)}/customers`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {
+            name: form.get("name") ?? "",
+            legalName: optionalFormValue(form.get("legalName")),
+            primaryCountryCode: optionalFormValue(form.get("primaryCountryCode")),
+            accessLevel: optionalFormValue(form.get("grantLevel"))
+          }
+        }
+      );
+
+      if (created.statusCode !== 201) {
+        const partnerModel = await loadPartnerConsoleModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Customer tenant was not created. Confirm your partner role and customer country code.",
+          partnerId
+        });
+        sendHtml(
+          response,
+          partnerModel
+            ? renderPartnerConsoleScreen(partnerModel)
+            : renderLoginScreen({ errorMessage: "Sign in to add a partner customer." }),
+          created.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+          `${created.body.organization?.name ?? "Customer"} added to the partner portfolio.`
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    const partnerTenantSessionStart = /^\/partners\/([^/]+)\/tenant-sessions$/.exec(url.pathname);
+    if (request.method === "POST" && partnerTenantSessionStart) {
+      const partnerId = partnerTenantSessionStart[1] ?? "";
+      const form = await readFormBody(request);
+      const started = await apiJson<PartnerTenantSessionWebResponse>(
+        apiBaseUrl,
+        `/partners/${encodeURIComponent(partnerId)}/tenant-access-sessions`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {
+            organizationId: form.get("organizationId") ?? "",
+            reason: form.get("reason") ?? ""
+          }
+        }
+      );
+
+      if (started.statusCode !== 201) {
+        const partnerModel = await loadPartnerConsoleModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Customer session was not started. Check the grant, reason, and any active customer session.",
+          partnerId
+        });
+        sendHtml(
+          response,
+          partnerModel
+            ? renderPartnerConsoleScreen(partnerModel)
+            : renderLoginScreen({ errorMessage: "Sign in to enter a partner customer." }),
+          started.statusCode
+        );
+        return;
+      }
+
+      const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: requestOrigin,
+        body: {
+          organizationId: started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? ""
+        }
+      });
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        selected.statusCode === 200
+          ? `/?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
+          : `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+              "Customer session started, but the customer workspace was not selected."
+            )}`
+      );
+      response.end();
+      return;
+    }
+
+    const partnerTenantSessionExit = /^\/partners\/([^/]+)\/tenant-sessions\/([^/]+)\/exit$/.exec(url.pathname);
+    if (request.method === "POST" && partnerTenantSessionExit) {
+      const partnerId = partnerTenantSessionExit[1] ?? "";
+      const sessionId = partnerTenantSessionExit[2] ?? "";
+      const exited = await apiJson<PartnerTenantSessionWebResponse>(
+        apiBaseUrl,
+        `/partners/${encodeURIComponent(partnerId)}/tenant-access-sessions/${encodeURIComponent(sessionId)}/exit`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: requestOrigin,
+          body: {}
+        }
+      );
+      const cleared =
+        apiSucceeded(exited.statusCode)
+          ? await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+              method: "POST",
+              cookie: request.headers.cookie,
+              origin: requestOrigin,
+              body: {
+                organizationId: null
+              }
+            })
+          : null;
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+          apiSucceeded(exited.statusCode) && apiSucceeded(cleared?.statusCode ?? 500)
+            ? "Customer session exited and customer context cleared."
+            : apiSucceeded(exited.statusCode)
+              ? "Customer session exited, but customer context was not cleared."
+              : "Customer session exit was not completed."
+        )}`
+      );
+      response.end();
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/settings/notifications/channels") {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
@@ -1282,6 +1575,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response,
         renderOperationalConsole(
           createOperationalConsoleRuntimeModel({
+            activeTenantAccess: await loadActiveTenantAccessBanner({
+              apiBaseUrl,
+              activeOrganizationId,
+              cookie: request.headers.cookie
+            }),
             session: session.body,
             dashboard: dashboard.body.snapshot,
             dashboardHistory: dashboardHistory.statusCode === 200 ? dashboardHistory.body.snapshots : [],
@@ -1422,6 +1720,277 @@ const readFormBody = async (request: AsyncIterable<Buffer>): Promise<URLSearchPa
   return new URLSearchParams(body);
 };
 
+const loadPartnerConsoleModel = async (input: {
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  errorMessage?: string | null;
+  partnerId?: string | null;
+}): Promise<PartnerConsoleModel | null> => {
+  const session = await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (session.statusCode !== 200) {
+    return null;
+  }
+
+  const partners = await apiJson<PartnerListWebResponse>(input.apiBaseUrl, "/partners", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (partners.statusCode !== 200) {
+    return {
+      actionMessage: input.actionMessage ?? undefined,
+      activeTenantAccess: null,
+      activePartnerId: null,
+      currentTenantSession: null,
+      errorMessage: input.errorMessage ?? "Partner portfolio could not be loaded for this session.",
+      metrics: undefined,
+      opportunities: [],
+      partners: [],
+      portfolio: [],
+      session: session.body
+    };
+  }
+
+  const activePartnerId =
+    partners.body.partners.find((entry) => entry.partner.id === input.partnerId)?.partner.id ??
+    partners.body.partners[0]?.partner.id ??
+    null;
+  if (!activePartnerId) {
+    return {
+      actionMessage: input.actionMessage ?? undefined,
+      activeTenantAccess: null,
+      activePartnerId,
+      currentTenantSession: null,
+      errorMessage: input.errorMessage ?? undefined,
+      metrics: undefined,
+      opportunities: [],
+      partners: partners.body.partners,
+      portfolio: [],
+      session: session.body
+    };
+  }
+
+  const [portfolio, current] = await Promise.all([
+    apiJson<PartnerPortfolioWebResponse>(
+      input.apiBaseUrl,
+      `/partners/${encodeURIComponent(activePartnerId)}/portfolio`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    ),
+    apiJson<PartnerTenantSessionWebResponse>(
+      input.apiBaseUrl,
+      `/partners/${encodeURIComponent(activePartnerId)}/tenant-access-sessions/current`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    )
+  ]);
+
+  const portfolioRows =
+    portfolio.statusCode === 200
+      ? portfolio.body.grants.map((grant) => ({
+          grant: {
+            id: grant.id,
+            organizationId: grant.organizationId,
+            grantLevel: grant.grantLevel,
+            status: grant.status,
+            createdAt: grant.createdAt,
+            updatedAt: grant.updatedAt
+          },
+          organization: grant.organization,
+          snapshot: grant.snapshot
+        }))
+      : [];
+  const currentTenantSession = current.statusCode === 200 ? current.body.tenantSession : null;
+  const activePartner = partners.body.partners.find((entry) => entry.partner.id === activePartnerId) ?? null;
+
+  return {
+    actionMessage: input.actionMessage ?? undefined,
+    activeTenantAccess: buildActiveTenantAccessBanner({
+      partner: activePartner,
+      portfolio: portfolioRows,
+      session: currentTenantSession
+    }),
+    activePartnerId,
+    currentTenantSession,
+    errorMessage:
+      input.errorMessage ??
+      (portfolio.statusCode === 200 && current.statusCode === 200
+        ? undefined
+        : "Partner portfolio loaded with partial API data."),
+    partners: partners.body.partners,
+    metrics: portfolio.statusCode === 200 ? portfolio.body.metrics : undefined,
+    opportunities: portfolio.statusCode === 200 ? portfolio.body.opportunities ?? [] : [],
+    portfolio: portfolioRows,
+    session: session.body
+  };
+};
+
+const loadActiveTenantAccessBanner = async (input: {
+  activeOrganizationId?: string | null;
+  activeOrganizationName?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+}): Promise<ActiveTenantAccessBannerSurface | null> => {
+  const partners = await apiJson<PartnerListWebResponse>(input.apiBaseUrl, "/partners", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (partners.statusCode !== 200 || partners.body.partners.length === 0) {
+    return null;
+  }
+
+  for (const partner of partners.body.partners) {
+    const current = await apiJson<PartnerTenantSessionWebResponse>(
+      input.apiBaseUrl,
+      `/partners/${encodeURIComponent(partner.partner.id)}/tenant-access-sessions/current`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    );
+    const session = current.statusCode === 200 ? current.body.tenantSession : null;
+    if (
+      !session ||
+      session.status !== "active" ||
+      (input.activeOrganizationId && session.effectiveOrganizationId !== input.activeOrganizationId)
+    ) {
+      continue;
+    }
+
+    const portfolio = await apiJson<PartnerPortfolioWebResponse>(
+      input.apiBaseUrl,
+      `/partners/${encodeURIComponent(partner.partner.id)}/portfolio`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
+    );
+    const customer =
+      portfolio.statusCode === 200
+        ? portfolio.body.grants.find((grant) => grant.organizationId === session.effectiveOrganizationId)
+        : null;
+
+    return {
+      partnerId: partner.partner.id,
+      partnerName: partner.partner.name,
+      customerName: customer?.organization?.name ?? input.activeOrganizationName ?? session.effectiveOrganizationId,
+      grantLevel: customer?.grantLevel ?? null,
+      session
+    };
+  }
+
+  return null;
+};
+
+const buildActiveTenantAccessBanner = (input: {
+  partner: PartnerConsoleModel["partners"][number] | null;
+  portfolio: PartnerConsoleModel["portfolio"];
+  session: PartnerTenantSessionSurface | null;
+}): ActiveTenantAccessBannerSurface | null => {
+  if (!input.partner || !input.session || input.session.status !== "active") {
+    return null;
+  }
+
+  const customer = input.portfolio.find((row) => row.grant.organizationId === input.session?.effectiveOrganizationId);
+
+  return {
+    partnerId: input.partner.partner.id,
+    partnerName: input.partner.partner.name,
+    customerName: customer?.organization?.name ?? input.session.effectiveOrganizationId,
+    grantLevel: customer?.grant.grantLevel ?? null,
+    session: input.session
+  };
+};
+
+const loadNis2CountryAwareOnboardingModel = async (input: {
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  query: URLSearchParams;
+}): Promise<Nis2CountryAwareOnboardingModel | null> => {
+  const session = await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (session.statusCode !== 200) {
+    return null;
+  }
+
+  const countryPacks = await apiJson<Nis2CountryPackListWebResponse>(input.apiBaseUrl, "/compliance/nis2/country-packs", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (countryPacks.statusCode !== 200 || countryPacks.body.countryPacks.length === 0) {
+    return null;
+  }
+
+  const requestedCountryCode = (input.query.get("country") ?? "RO").trim().toUpperCase();
+  const selectedCountryPack =
+    countryPacks.body.countryPacks.find((pack) => pack.countryCode === requestedCountryCode) ??
+    countryPacks.body.countryPacks.find((pack) => pack.countryCode === "RO") ??
+    countryPacks.body.countryPacks[0];
+  const classificationInput = parseNis2CountryClassificationQuery(input.query);
+  const shouldClassify =
+    Boolean(classificationInput.sector) ||
+    typeof classificationInput.employeeCount === "number" ||
+    Boolean(classificationInput.publicAdministration) ||
+    Boolean(classificationInput.telecomProvider);
+  const classification =
+    shouldClassify && selectedCountryPack
+      ? await apiJson<Nis2CountryPackClassificationWebResponse>(
+          input.apiBaseUrl,
+          `/compliance/nis2/country-packs/${encodeURIComponent(selectedCountryPack.countryCode)}/classification`,
+          {
+            method: "POST",
+            cookie: input.cookie,
+            body: classificationInput
+          }
+        )
+      : null;
+
+  return {
+    actionMessage: input.actionMessage ?? undefined,
+    activeTenantAccess: await loadActiveTenantAccessBanner({
+      apiBaseUrl: input.apiBaseUrl,
+      activeOrganizationId: session.body.session.activeOrganizationId ?? null,
+      cookie: input.cookie
+    }),
+    activeOrganizationId: session.body.session.activeOrganizationId ?? null,
+    classification: classification?.statusCode === 200 ? classification.body.classification : null,
+    classificationInput,
+    countryPacks: countryPacks.body.countryPacks,
+    errorMessage:
+      classification && classification.statusCode !== 200
+        ? "Country-pack classification could not be generated for the selected input."
+        : undefined,
+    selectedCountryCode: selectedCountryPack.countryCode,
+    selectedCountryPack,
+    session: session.body
+  };
+};
+
+const parseNis2CountryClassificationQuery = (
+  query: URLSearchParams
+): Nis2CountryAwareOnboardingModel["classificationInput"] => {
+  const employeeCountValue = query.get("employeeCount");
+  const employeeCount =
+    employeeCountValue && employeeCountValue.trim().length > 0 ? Number(employeeCountValue) : undefined;
+
+  return {
+    employeeCount: Number.isFinite(employeeCount) ? employeeCount : undefined,
+    publicAdministration: query.getAll("publicAdministration").includes("true"),
+    sector: optionalFormValue(query.get("sector")) ?? undefined,
+    telecomProvider: query.getAll("telecomProvider").includes("true")
+  };
+};
+
 const loadWorkspaceSelectionModel = async (input: {
   apiBaseUrl: string;
   cookie?: string;
@@ -1446,21 +2015,29 @@ const loadWorkspaceSelectionModel = async (input: {
   if (organizations.statusCode !== 200) {
     return null;
   }
+  const organizationRows = organizations.body.organizations
+    .filter((item) => item.membership.status === "active")
+    .map((item) => ({
+      id: item.organization.id,
+      name: item.organization.name,
+      primaryCountryCode: item.organization.primaryCountryCode ?? null,
+      billingStatus: item.organization.billingStatus,
+      membershipStatus: item.membership.status,
+      roleKeys: item.roleKeys,
+      isActive: item.organization.id === sessionBody.session.activeOrganizationId
+    }));
+  const activeOrganization = organizationRows.find((organization) => organization.isActive) ?? null;
 
   return {
+    activeTenantAccess: await loadActiveTenantAccessBanner({
+      apiBaseUrl: input.apiBaseUrl,
+      activeOrganizationId: sessionBody.session.activeOrganizationId ?? null,
+      activeOrganizationName: activeOrganization?.name ?? null,
+      cookie: input.cookie
+    }),
     errorMessage: input.errorMessage,
     session: sessionBody,
-    organizations: organizations.body.organizations
-      .filter((item) => item.membership.status === "active")
-      .map((item) => ({
-        id: item.organization.id,
-        name: item.organization.name,
-        primaryCountryCode: item.organization.primaryCountryCode ?? null,
-        billingStatus: item.organization.billingStatus,
-        membershipStatus: item.membership.status,
-        roleKeys: item.roleKeys,
-        isActive: item.organization.id === sessionBody.session.activeOrganizationId
-      }))
+    organizations: organizationRows
   };
 };
 
@@ -1487,6 +2064,7 @@ const loadOrganizationInvitationScreenModel = async (input: {
   return {
     acceptOrganizationId: input.acceptOrganizationId,
     actionMessage: input.actionMessage ?? undefined,
+    activeTenantAccess: selection.activeTenantAccess ?? null,
     activeOrganization,
     canCreateInvitations: roleKeys.includes("owner") || roleKeys.includes("org_admin"),
     errorMessage: input.errorMessage,
@@ -1520,6 +2098,7 @@ const loadNotificationSettingsScreenModel = async (input: {
   if (!activeOrganizationId) {
     return {
       actionMessage: input.actionMessage ?? undefined,
+      activeTenantAccess: selection.activeTenantAccess ?? null,
       activeOrganization,
       canManageChannels,
       channels: [],
@@ -1551,6 +2130,7 @@ const loadNotificationSettingsScreenModel = async (input: {
 
   return {
     actionMessage: input.actionMessage ?? undefined,
+    activeTenantAccess: selection.activeTenantAccess ?? null,
     activeOrganization,
     canManageChannels,
     channels: channels.statusCode === 200 ? channels.body.channels : [],
@@ -1650,9 +2230,16 @@ const loadMicrosoft365HealthSurface = async (input: {
         ? health.body.permissionBundles.map((bundle) => `${bundle.bundleKey}${bundle.enabled ? "" : " missing"}`)
         : ["permission bundles pending"],
     writeEnabled: health.body.connection.writeEnabled,
-    connectorMode: "tenant_oauth_provider_connection",
+    connectorMode: microsoft365ConnectorModeLabel(health.body),
     modules: microsoft365ModulesForHealth(health.body)
   };
+};
+
+const microsoft365ConnectorModeLabel = (health: Microsoft365HealthWebResponse): string => {
+  const configured = health.connectorMode ?? "live";
+  const effective = health.effectiveConnectorMode ?? configured;
+  const fixtureSet = health.fixtureSet ? `:${health.fixtureSet}` : "";
+  return configured === effective ? effective : `${configured}->${effective}${fixtureSet}`;
 };
 
 const microsoft365ModulesForHealth = (health: Microsoft365HealthWebResponse): Microsoft365ModuleSurface[] => {
@@ -1696,12 +2283,17 @@ const microsoft365ModuleCoverage = (module: Microsoft365HealthWebResponse["modul
   return "Latest read-only connector module status.";
 };
 
-const microsoft365ModuleLabel = (moduleKey: string): string =>
-  moduleKey
+const microsoft365ModuleLabel = (moduleKey: string): string => {
+  if (moduleKey === "mfa-registration") {
+    return "MFA Registration";
+  }
+
+  return moduleKey
     .split(/[-_.]/)
     .filter(Boolean)
     .map((word) => `${word.slice(0, 1).toUpperCase()}${word.slice(1)}`)
     .join(" ");
+};
 
 const providerStatusToOperationalStatus = (status: string): OperationalStatus => {
   if (status === "connected" || status === "succeeded") {
@@ -1727,7 +2319,7 @@ const loadRomaniaOnboardingRouteModel = async (input: {
   locale?: string | null;
   organizationId: string;
 }) => {
-  const [state, evidence, billing, audit, dashboard] = await Promise.all([
+  const [state, evidence, billing, audit, dashboard, activeTenantAccess] = await Promise.all([
     apiJson<RomaniaOnboardingStateResponse>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/ro/onboarding`,
@@ -1763,7 +2355,12 @@ const loadRomaniaOnboardingRouteModel = async (input: {
         method: "GET",
         cookie: input.cookie
       }
-    )
+    ),
+    loadActiveTenantAccessBanner({
+      apiBaseUrl: input.apiBaseUrl,
+      activeOrganizationId: input.organizationId,
+      cookie: input.cookie
+    })
   ]);
   const microsoft365 = await loadMicrosoft365HealthSurface({
     apiBaseUrl: input.apiBaseUrl,
@@ -1774,6 +2371,7 @@ const loadRomaniaOnboardingRouteModel = async (input: {
 
   return createRomaniaOnboardingRouteModel({
     actionMessage: input.actionMessage,
+    activeTenantAccess,
     auditCheckpointCount: audit.statusCode === 200 ? audit.body.checkpoints.length : 0,
     billingEntitlementCount: billing.statusCode === 200 ? billing.body.entitlements.length : 0,
     billingProviderKey: "none",
@@ -1923,7 +2521,8 @@ const handleRomaniaWorkflowPost = async (input: {
         cookie: input.cookie,
         origin: input.origin,
         body: {
-          assessmentId: state.progress.assessmentId
+          assessmentId: state.progress.assessmentId,
+          ...buildRomaniaInitialReportVersionContext(state)
         }
       }
     );
@@ -1943,7 +2542,8 @@ const handleRomaniaWorkflowPost = async (input: {
         cookie: input.cookie,
         origin: input.origin,
         body: {
-          assessmentId: state.progress.assessmentId
+          assessmentId: state.progress.assessmentId,
+          ...buildRomaniaInitialReportVersionContext(state)
         }
       }
     );
@@ -1963,7 +2563,8 @@ const handleRomaniaWorkflowPost = async (input: {
         cookie: input.cookie,
         origin: input.origin,
         body: {
-          assessmentId: state.progress.assessmentId
+          assessmentId: state.progress.assessmentId,
+          ...buildRomaniaInitialReportVersionContext(state)
         }
       }
     );
@@ -2024,6 +2625,23 @@ const loadRoState = async (input: {
         progress: null
       };
 };
+
+const buildRomaniaInitialReportVersionContext = (state: RomaniaOnboardingStateResponse) => ({
+  classificationResult: state.classificationRun
+    ? {
+        confidence: state.classificationRun.missingRequiredFields.length === 0 ? "medium" : "low",
+        countryCode: "RO",
+        explanation: state.classificationRun.reasons.join(" "),
+        legalReviewRequired: true,
+        missingInformation: state.classificationRun.missingRequiredFields,
+        result: state.classificationRun.result
+      }
+    : undefined,
+  countryPackVersion: "2026.06.demo",
+  onboardingSchemaVersion: state.progress?.sourceVersion,
+  reportVersion: 1,
+  triggerType: "onboarding_completed"
+});
 
 const createDashboardSnapshot = async (
   input: {

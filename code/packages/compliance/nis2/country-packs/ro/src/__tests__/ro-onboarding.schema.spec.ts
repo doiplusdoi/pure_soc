@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
+import { validateNis2CountryPackDefinition } from "@puresoc/country-packs-core";
 import {
   buildRoNis2OnboardingProgress,
+  romaniaNis2CountryPackDefinition,
   roNis2ServiceCatalogGroups,
   roNis2ServiceCatalogOptions,
   roNis2OnboardingSchema,
@@ -10,6 +12,24 @@ import {
 } from "../index";
 
 describe("ro onboarding schema", () => {
+  it("validates the Romania NIS2 country-pack definition", () => {
+    expect(validateNis2CountryPackDefinition(romaniaNis2CountryPackDefinition)).toEqual({
+      valid: true,
+      issues: []
+    });
+    expect(romaniaNis2CountryPackDefinition).toMatchObject({
+      countryCode: "RO",
+      status: "demo",
+      extendsBasePackVersion: "2026.06.demo"
+    });
+    expect(romaniaNis2CountryPackDefinition.officialSources.map((source) => source.url)).toEqual(
+      expect.arrayContaining([
+        "https://www.dnsc.ro/vezi/document/nis2ro-tool-v-2-1",
+        "https://www.dnsc.ro/vezi/document/romanian-nis2-act-oug-155-2024-en-translation-v2025"
+      ])
+    );
+  });
+
   it("keeps the Romania onboarding steps source-mapped", () => {
     expect(roNis2OnboardingSchema.map((step) => step.key)).toEqual([
       "organization_identity",

@@ -9,6 +9,8 @@ import {
 import {
   createLocalMicrosoft365TokenCipher,
   createMicrosoft365Connector,
+  createMicrosoft365FixtureConnector,
+  microsoft365CoreDemoReadModules,
   permissionsForMicrosoft365Bundles,
   type Microsoft365CloudEnvironment,
   type Microsoft365StoredCredential
@@ -151,6 +153,36 @@ const createFixtureGraphHttpClient = (scenario: GraphScenario): MicrosoftGraphHt
         status: 200,
         body: {
           value: [{ id: "admin_1", displayName: "Admin User", userPrincipalName: "admin@contoso.com" }]
+        }
+      };
+    }
+
+    if (path.startsWith("/v1.0/reports/authenticationMethods/userRegistrationDetails")) {
+      return {
+        status: 200,
+        body: {
+          value: [
+            {
+              id: "admin_1",
+              userPrincipalName: "admin@contoso.com",
+              userDisplayName: "Admin User",
+              isMfaRegistered: true,
+              isMfaCapable: true,
+              isSsprRegistered: true,
+              isSsprCapable: true,
+              methodsRegistered: ["microsoftAuthenticatorPush"]
+            },
+            {
+              id: "user_without_mfa",
+              userPrincipalName: "user_without_mfa@contoso.com",
+              userDisplayName: "User Without MFA",
+              isMfaRegistered: false,
+              isMfaCapable: false,
+              isSsprRegistered: false,
+              isSsprCapable: false,
+              methodsRegistered: []
+            }
+          ]
         }
       };
     }
@@ -439,6 +471,41 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     ).rejects.toMatchObject({ code: "microsoft365_tenant_mismatch" });
   });
 
+  it("rejects live consent tokens that include Microsoft Graph write app roles", async () => {
+    const connector = createMicrosoft365Connector({
+      clientId: "client-id",
+      clientSecret: "client-secret",
+      graphHttpClient: createFixtureGraphHttpClient("healthy"),
+      tokenClient: async () => ({
+        accessToken: jwt({ roles: [...baselinePermissions, "User.ReadWrite.All"] }),
+        tokenType: "Bearer",
+        expiresIn: 3600,
+        tenantId,
+        grantedPermissions: [...baselinePermissions, "User.ReadWrite.All"]
+      }),
+      now: fixedNow
+    });
+
+    await expect(
+      connector.completeConnection({
+        organizationId: "org_1",
+        actorUserId: "user_1",
+        redirectUri: "https://app.example.test/m365/callback",
+        state: "state_123",
+        metadata: {
+          tenantId,
+          adminConsent: true,
+          requestedPermissionBundles: ["m365_read_baseline"]
+        }
+      })
+    ).rejects.toMatchObject({
+      code: "microsoft365_write_permission_granted_disabled",
+      details: {
+        writePermissions: ["User.ReadWrite.All"]
+      }
+    });
+  });
+
   it("syncs tenant, license, identity, policy, audit, sign-in, app, and secure score modules through mocked Graph", async () => {
     const credential = createCredential([...baselinePermissions, ...securityPermissions]);
     const { store, connection } = await createConnectedStore({ credential });
@@ -461,8 +528,66 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_user")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_application")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_policy")).toBe(true);
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "mfaRegistrationDetail")).toBe(true);
+    expect(result.findings.some((finding) => finding.findingKey === "mfa_registration_gap")).toBe(true);
     expect(result.rawResources.some((resource) => resource.externalResourceType === "directoryAudit")).toBe(true);
     expect(result.rawResources.some((resource) => resource.externalResourceType === "signIn")).toBe(true);
+    expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_secure_score")).toBe(true);
+  });
+
+  it("runs the five-module partner-demo fixture connector through the same pipeline without Microsoft credentials", async () => {
+    const store = new InMemoryProviderResourceStore({ now: fixedNow });
+    const cipher = createLocalMicrosoft365TokenCipher({ masterKey: "fixture-test-master-key" });
+    const connector = createMicrosoft365FixtureConnector({
+      tokenCipher: cipher,
+      credentialResolver: async (input) => {
+        const credential = (await store.listCredentials(input.organizationId, input.providerConnectionId))[0];
+        return cipher.decrypt<Microsoft365StoredCredential>(credential?.encryptedPayload ?? "");
+      },
+      idFactory: () => "m365_fixture_connection_1",
+      now: fixedNow
+    });
+    const redirect = await connector.beginConnection({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      state: "fixture_state",
+      requestedPermissionBundles: ["m365_read_baseline", "m365_security_read"]
+    });
+    const callbackUrl = new URL(redirect.url);
+    const connectionResult = await connector.completeConnection({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      state: callbackUrl.searchParams.get("state") ?? "",
+      metadata: {
+        tenantId: callbackUrl.searchParams.get("tenant"),
+        adminConsent: callbackUrl.searchParams.get("admin_consent"),
+        requestedPermissionBundles: ["m365_read_baseline", "m365_security_read"]
+      }
+    });
+
+    await store.createConnection(connectionResult.connection);
+    for (const credential of connectionResult.credentials ?? []) {
+      await store.upsertCredential(credential);
+    }
+    for (const bundle of connectionResult.permissionBundles ?? []) {
+      await store.upsertPermissionBundle(bundle);
+    }
+
+    const result = await runProviderConnectorPipeline({
+      connector,
+      store,
+      organizationId: "org_1",
+      providerConnectionId: connectionResult.connection.id,
+      requestedModules: [...microsoft365CoreDemoReadModules]
+    });
+
+    expect(callbackUrl.origin).toBe("https://app.example.test");
+    expect(connectionResult.connection.metadata.connectorMode).toBe("fixture");
+    expect(result.modules.map((module) => module.moduleKey)).toEqual([...microsoft365CoreDemoReadModules]);
+    expect(result.syncRun.status).toBe("succeeded");
+    expect(result.rawResources.some((resource) => resource.externalResourceType === "mfaRegistrationDetail")).toBe(true);
     expect(result.normalizedResources.some((resource) => resource.resourceType === "cloud_secure_score")).toBe(true);
   });
 

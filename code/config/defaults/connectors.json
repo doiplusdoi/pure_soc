@@ -5,10 +5,15 @@
   "providerTokenEncryptionKey": "",
   "providerTokenEncryptionPreviousKeys": [],
   "microsoft365": {
+    "mode": "fixture",
     "writeScopesAllowed": false,
     "clientId": "",
     "clientSecret": "",
     "authorityHost": "https://login.microsoftonline.com",
-    "redirectUri": ""
+    "redirectUri": "",
+    "graphBaseUrl": "https://graph.microsoft.com/v1.0",
+    "fixtureSet": "partner_demo",
+    "requestTimeoutMs": 10000,
+    "maxRetries": 3
   }
 }

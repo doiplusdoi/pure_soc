@@ -2,7 +2,15 @@ import { resolveLegalCaveatMessage, resolvePureSocLocale } from "@puresoc/shared
 
 import type {
   InternalReadinessCsvExport,
+  InternalReadinessContradiction,
+  InternalReadinessReportComparison,
   InternalReadinessReport,
+  InternalReadinessReportClassificationSnapshot,
+  InternalReadinessReportConcepts,
+  InternalReadinessReportTriggerType,
+  InternalReadinessVerifiedEvidence,
+  InternalReadinessVerifiedObservation,
+  InternalReadinessReportVersionMetadata,
   InternalReadinessCsvTableName,
   ReportControlResultSummary,
   ReportEvidenceSummary,
@@ -115,12 +123,31 @@ export interface BuildInternalReadinessReportInput {
   generatedAt?: string;
   locale?: string | null;
   catalogVersion?: string;
+  classificationResult?: InternalReadinessReportClassificationSnapshot;
+  countryPackVersion?: string;
   analysisRecordedAt?: string;
+  methodologyVersion?: string;
+  onboardingSchemaVersion?: string;
+  previousReportId?: string;
+  reportVersion?: 1 | 2;
+  rendererVersion?: string;
+  triggerType?: InternalReadinessReportTriggerType;
+  verifiedEvidence?: BuildInternalReadinessVerifiedEvidenceInput;
+  previousReport?: InternalReadinessReport;
   controlResults: readonly StoredAnalysisControlResult[];
   gaps: readonly StoredAnalysisGap[];
   recommendations?: readonly StoredAnalysisRecommendation[];
   readinessPlan?: StoredAnalysisReadinessPlan;
   evidence?: readonly StoredAnalysisEvidenceArtifact[];
+}
+
+export interface BuildInternalReadinessVerifiedEvidenceInput {
+  providerKey: string;
+  providerConnectionId: string;
+  syncRunId?: string;
+  generatedAt?: string;
+  observations: readonly InternalReadinessVerifiedObservation[];
+  unavailableSignals?: readonly InternalReadinessVerifiedObservation[];
 }
 
 export interface StoredRomaniaNotificationDraftInput {
@@ -152,13 +179,49 @@ export const buildInternalReadinessReport = (
     ...(input.readinessPlan ? [input.readinessPlan, ...input.readinessPlan.items] : [])
   ]);
 
-  const controlResults = input.controlResults.map(toControlResultSummary);
+  const verifiedEvidence = input.verifiedEvidence
+    ? buildVerifiedEvidence(input.verifiedEvidence, input.controlResults, {
+        generatedAt: input.generatedAt,
+        providerKey: input.verifiedEvidence.providerKey,
+        providerConnectionId: input.verifiedEvidence.providerConnectionId,
+        syncRunId: input.verifiedEvidence.syncRunId
+      })
+    : undefined;
+  const effectiveControlResults = applyVerifiedObservations(input.controlResults, verifiedEvidence?.observations ?? []);
+  const controlResults = effectiveControlResults.map(toControlResultSummary);
   const gaps = input.gaps.map(toGapSummary);
-  const recommendations = (input.recommendations ?? []).map(toRecommendationSummary);
+  const recommendations = [
+    ...(input.recommendations ?? []).map(toRecommendationSummary),
+    ...buildVerifiedRecommendations(input, verifiedEvidence?.observations ?? [])
+  ];
   const readinessPlan = input.readinessPlan ? toReadinessPlanSummary(input.readinessPlan) : undefined;
   const evidence = (input.evidence ?? []).map(toEvidenceSummary);
   const locale = resolvePureSocLocale(input.locale).locale;
   const legalCaveat = resolveLegalCaveatMessage(input.locale);
+  const methodologyVersion = input.methodologyVersion ?? "puresoc.readiness.declared.v1";
+  const version = buildInternalReadinessReportVersion(input, {
+    methodologyVersion,
+    recommendationCount: recommendations.length
+  });
+  const concepts = buildInternalReadinessReportConcepts({
+    classificationResult: input.classificationResult,
+    controlResults: effectiveControlResults,
+    gaps,
+    methodologyVersion
+  });
+  const comparison =
+    input.previousReport && input.previousReportId
+      ? buildReportComparison({
+          previousReportId: input.previousReportId,
+          previousReport: input.previousReport,
+          currentConcepts: concepts,
+          currentControlResults: controlResults,
+          previousControlResults: input.previousReport.controlResults,
+          observations: verifiedEvidence?.observations ?? [],
+          contradictions: verifiedEvidence?.contradictions ?? [],
+          recommendations
+        })
+      : undefined;
   const sourceReferences = uniqueSourceReferences([
     ...controlResults.flatMap((result) => result.sourceReferences),
     ...gaps.flatMap((gap) => gap.sourceReferences),
@@ -192,12 +255,16 @@ export const buildInternalReadinessReport = (
     legalCaveatRequestedLocale: legalCaveat.requestedLocale,
     legalCaveatReviewStatus: legalCaveat.reviewStatus,
     locale,
+    version,
+    concepts,
     sourceReferences,
     controlResults,
     gaps,
     recommendations,
     readinessPlan,
     evidence,
+    verifiedEvidence,
+    comparison,
     provenance: stripUndefined({
       source: "stored_analysis",
       catalogVersion: input.catalogVersion,
@@ -205,6 +272,401 @@ export const buildInternalReadinessReport = (
     })
   }) as InternalReadinessReport;
 };
+
+const buildVerifiedEvidence = (
+  input: BuildInternalReadinessVerifiedEvidenceInput,
+  declaredControls: readonly StoredAnalysisControlResult[],
+  context: {
+    generatedAt?: string;
+    providerKey: string;
+    providerConnectionId: string;
+    syncRunId?: string;
+  }
+): InternalReadinessVerifiedEvidence => {
+  const observations = [...input.observations, ...(input.unavailableSignals ?? [])]
+    .map((observation) => normalizeVerifiedObservation(observation, context))
+    .sort((left, right) => left.id.localeCompare(right.id));
+  const declaredByControl = new Map(declaredControls.map((control) => [control.controlId, control]));
+  const contradictions = observations
+    .filter((observation) => observation.status === "verified_gap")
+    .flatMap((observation) => {
+      const declared = declaredByControl.get(observation.controlId);
+      if (!declared || !isPassingStatus(declared.status)) {
+        return [];
+      }
+
+      const effectiveStatus = effectiveStatusForObservation(declared.status, observation);
+      return [
+        stripUndefined({
+          id: `contradiction:${observation.id}`,
+          controlId: observation.controlId,
+          declaredStatus: declared.status,
+          declaredSummary: declared.summary,
+          verifiedStatus: observation.status,
+          verifiedSummary: observation.summary,
+          effectiveStatus,
+          readinessDelta: roundPercentDelta(readinessValueForStatus(effectiveStatus) - readinessValueForStatus(declared.status)),
+          evidenceConfidenceDelta: evidenceConfidenceValueForObservation(observation) - evidenceConfidenceValueForControl(declared),
+          provenance: observation.provenance,
+          providerKey: observation.providerKey,
+          providerConnectionId: observation.providerConnectionId,
+          syncRunId: observation.syncRunId,
+          moduleKey: observation.moduleKey,
+          observedAt: observation.observedAt
+        })
+      ];
+    }) as InternalReadinessContradiction[];
+
+  return {
+    providerKey: input.providerKey,
+    providerConnectionId: input.providerConnectionId,
+    syncRunId: input.syncRunId,
+    generatedAt: input.generatedAt ?? context.generatedAt ?? new Date().toISOString(),
+    observations,
+    contradictions,
+    unavailableSignals: observations.filter((observation) => observation.status === "unavailable")
+  };
+};
+
+const normalizeVerifiedObservation = (
+  observation: InternalReadinessVerifiedObservation,
+  context: {
+    providerKey: string;
+    providerConnectionId: string;
+    syncRunId?: string;
+    generatedAt?: string;
+  }
+): InternalReadinessVerifiedObservation =>
+  stripUndefined({
+    ...observation,
+    providerKey: observation.providerKey ?? context.providerKey,
+    providerConnectionId: observation.providerConnectionId ?? context.providerConnectionId,
+    syncRunId: observation.syncRunId ?? context.syncRunId,
+    observedAt: observation.observedAt || context.generatedAt || new Date().toISOString(),
+    sourceReferenceIds: observation.sourceReferenceIds?.length ? [...observation.sourceReferenceIds].sort() : undefined
+  }) as InternalReadinessVerifiedObservation;
+
+const applyVerifiedObservations = (
+  controls: readonly StoredAnalysisControlResult[],
+  observations: readonly InternalReadinessVerifiedObservation[]
+): StoredAnalysisControlResult[] => {
+  const observationsByControl = new Map<string, InternalReadinessVerifiedObservation[]>();
+  for (const observation of observations) {
+    const existing = observationsByControl.get(observation.controlId) ?? [];
+    existing.push(observation);
+    observationsByControl.set(observation.controlId, existing);
+  }
+
+  return controls.map((control) => {
+    const controlObservations = observationsByControl.get(control.controlId) ?? [];
+    if (controlObservations.length === 0) {
+      return { ...control };
+    }
+
+    const effectiveObservation =
+      controlObservations.find((observation) => observation.status === "verified_gap") ??
+      controlObservations.find((observation) => observation.status === "verified_passing") ??
+      controlObservations.find((observation) => observation.status === "unavailable") ??
+      controlObservations[0];
+    if (!effectiveObservation) {
+      return { ...control };
+    }
+
+    const effectiveStatus = effectiveStatusForObservation(control.status, effectiveObservation);
+    return {
+      ...control,
+      status: effectiveStatus,
+      confidence:
+        effectiveObservation.status === "unavailable"
+          ? control.confidence
+          : effectiveObservation.provenance === "verified_through_microsoft"
+            ? "high"
+            : control.confidence,
+      summary:
+        effectiveObservation.status === "unavailable"
+          ? `${control.summary} Verified observation unavailable: ${effectiveObservation.summary}`
+          : `${control.summary} Verified observation: ${effectiveObservation.summary}`,
+    providerSignalIds: [...new Set([...(control.providerSignalIds ?? []), ...controlObservations.map((observation) => observation.id)])],
+      evidenceCompleteness:
+        effectiveObservation.status === "unavailable"
+          ? control.evidenceCompleteness
+          : {
+              required: Math.max(1, control.evidenceCompleteness?.required ?? 1),
+              present: Math.max(1, control.evidenceCompleteness?.present ?? 1),
+              missing: 0,
+              ratio: 1
+            }
+    };
+  });
+};
+
+const effectiveStatusForObservation = (
+  declaredStatus: string,
+  observation: InternalReadinessVerifiedObservation
+): StoredAnalysisControlResult["status"] => {
+  if (observation.status === "verified_gap") {
+    return "failing";
+  }
+  if (observation.status === "verified_passing") {
+    return "compliant";
+  }
+  return declaredStatus;
+};
+
+const buildVerifiedRecommendations = (
+  input: BuildInternalReadinessReportInput,
+  observations: readonly InternalReadinessVerifiedObservation[]
+): ReportRecommendationSummary[] =>
+  observations
+    .filter((observation) => observation.status === "verified_gap")
+    .map((observation) => ({
+      controlId: observation.controlId,
+      jurisdiction: input.jurisdiction,
+      title: `Resolve verified ${observation.title}`,
+      severity: "high",
+      summary: observation.summary,
+      requiredEvidence: true,
+      provenance: [observation.provenance],
+      sourceReferences: []
+    }));
+
+const buildReportComparison = (input: {
+  previousReportId: string;
+  previousReport: InternalReadinessReport;
+  currentConcepts: InternalReadinessReportConcepts;
+  currentControlResults: readonly ReportControlResultSummary[];
+  previousControlResults: readonly ReportControlResultSummary[];
+  observations: readonly InternalReadinessVerifiedObservation[];
+  contradictions: readonly InternalReadinessContradiction[];
+  recommendations: readonly ReportRecommendationSummary[];
+}): InternalReadinessReportComparison => {
+  const currentByControl = new Map(input.currentControlResults.map((control) => [control.controlId, control]));
+  const previousByControl = new Map(input.previousControlResults.map((control) => [control.controlId, control]));
+  const changedControlAreas = [...currentByControl.values()]
+    .flatMap((current) => {
+      const previous = previousByControl.get(current.controlId);
+      if (!previous || previous.status === current.status) {
+        return [];
+      }
+
+      return [
+        {
+          controlId: current.controlId,
+          previousStatus: previous.status,
+          currentStatus: current.status,
+          readinessDelta: roundPercentDelta(readinessValueForStatus(current.status) - readinessValueForStatus(previous.status)),
+          evidenceConfidenceDelta: evidenceConfidenceValueForControlSummary(current) - evidenceConfidenceValueForControlSummary(previous)
+        }
+      ];
+    })
+    .sort((left, right) => left.controlId.localeCompare(right.controlId));
+  const previousUnknowns = new Set(
+    input.previousControlResults
+      .filter((control) => ["needs_evidence", "not_started", "unsupported"].includes(control.status))
+      .map((control) => control.controlId)
+  );
+
+  return {
+    previousReportId: input.previousReportId,
+    readinessDelta: input.currentConcepts.readiness.value - input.previousReport.concepts.readiness.value,
+    evidenceConfidenceDelta: input.currentConcepts.evidenceConfidence.value - input.previousReport.concepts.evidenceConfidence.value,
+    changedControlAreas,
+    newVerifiedFindings: input.observations
+      .filter((observation) => observation.status === "verified_gap")
+      .map((observation) => observation.id)
+      .sort(),
+    resolvedUnknowns: input.observations
+      .filter((observation) => observation.status === "verified_passing" && previousUnknowns.has(observation.controlId))
+      .map((observation) => observation.controlId)
+      .sort(),
+    contradictions: input.contradictions.map((contradiction) => contradiction.id).sort(),
+    newRecommendations: input.recommendations
+      .filter((recommendation) =>
+        input.observations.some(
+          (observation) => observation.status === "verified_gap" && observation.controlId === recommendation.controlId
+        )
+      )
+      .map((recommendation) => recommendation.title)
+      .sort()
+  };
+};
+
+const buildInternalReadinessReportVersion = (
+  input: BuildInternalReadinessReportInput,
+  context: {
+    methodologyVersion: string;
+    recommendationCount: number;
+  }
+): InternalReadinessReportVersionMetadata =>
+  stripUndefined({
+    countryPackVersion: input.countryPackVersion,
+    immutable: true,
+    inputSnapshot: stripUndefined({
+      assessmentId: input.assessmentId,
+      classificationResult: input.classificationResult,
+      controlResultCount: input.controlResults.length,
+      evidenceArtifactCount: input.evidence?.length ?? 0,
+      gapCount: input.gaps.length,
+      recommendationCount: context.recommendationCount
+    }),
+    methodologyVersion: context.methodologyVersion,
+    onboardingSchemaVersion: input.onboardingSchemaVersion,
+    previousReportId: input.previousReportId,
+    rendererVersion: input.rendererVersion ?? "puresoc-report-renderer-json.v1",
+    reportVersion: input.reportVersion ?? 1,
+    triggerType: input.triggerType ?? "onboarding_completed"
+  }) as InternalReadinessReportVersionMetadata;
+
+const buildInternalReadinessReportConcepts = (input: {
+  classificationResult?: InternalReadinessReportClassificationSnapshot;
+  controlResults: readonly StoredAnalysisControlResult[];
+  gaps: readonly ReportGapSummary[];
+  methodologyVersion: string;
+}): InternalReadinessReportConcepts => {
+  const classification = input.classificationResult;
+  const applicableControls = input.controlResults.filter((result) => result.status !== "not_applicable");
+  const readinessValue = roundPercent(
+    applicableControls.length === 0
+      ? 0
+      : averageNumber(applicableControls.map((result) => readinessValueForStatus(result.status))) * 100
+  );
+  const evidenceConfidence = calculateEvidenceConfidence(applicableControls);
+  const criticalGapCount = input.gaps.filter((gap) => gap.severity === "critical").length;
+  const highGapCount = input.gaps.filter((gap) => gap.severity === "high").length;
+  const priority = highestGapSeverity(input.gaps);
+  const missingInformationCount =
+    applicableControls.filter((result) => ["not_started", "needs_evidence", "unsupported"].includes(result.status)).length +
+    evidenceConfidence.missingEvidenceCount +
+    (classification?.missingInformation?.length ?? 0);
+
+  return {
+    applicability: {
+      confidence: classification?.confidence ?? "low",
+      legalReviewRequired: classification?.legalReviewRequired ?? true,
+      result: classification?.result ?? "not_assessed",
+      summary: classification?.explanation ?? "Applicability has not been classified from country-pack onboarding yet."
+    },
+    readiness: {
+      applicableControlCount: applicableControls.length,
+      methodologyVersion: input.methodologyVersion,
+      missingInformationCount,
+      result: conceptBand(readinessValue),
+      summary: `Declared readiness is ${readinessValue}% across ${applicableControls.length} applicable controls.`,
+      value: readinessValue
+    },
+    evidenceConfidence: {
+      methodologyVersion: input.methodologyVersion,
+      missingEvidenceCount: evidenceConfidence.missingEvidenceCount,
+      result: conceptBand(evidenceConfidence.value),
+      summary: `Evidence confidence is ${evidenceConfidence.value}% from declared evidence coverage.`,
+      value: evidenceConfidence.value
+    },
+    priority: {
+      criticalGapCount,
+      highGapCount,
+      result: priority,
+      summary:
+        priority === "none"
+          ? "No open gaps were present in this report snapshot."
+          : `Highest current priority is ${priority} based on open readiness gaps.`
+    }
+  };
+};
+
+const readinessStatusValues: Record<string, number> = {
+  accepted_risk: 0.5,
+  compliant: 1,
+  failing: 0,
+  needs_evidence: 0,
+  not_started: 0,
+  partial: 0.5,
+  passing: 1,
+  unsupported: 0
+};
+
+const readinessValueForStatus = (status: string): number => readinessStatusValues[status] ?? 0;
+
+const isPassingStatus = (status: string): boolean => readinessValueForStatus(status) >= 1;
+
+const roundPercentDelta = (value: number): number => Math.round(value * 100);
+
+const evidenceConfidenceValueForControl = (control: StoredAnalysisControlResult): number => {
+  if (control.evidenceCompleteness) {
+    return roundPercent(control.evidenceCompleteness.ratio * 100);
+  }
+
+  return (control.evidenceArtifactIds?.length ?? 0) > 0 ? 100 : 0;
+};
+
+const evidenceConfidenceValueForControlSummary = (control: ReportControlResultSummary): number => {
+  if (control.evidenceCompleteness) {
+    return roundPercent(control.evidenceCompleteness.ratio * 100);
+  }
+
+  return control.evidenceArtifactIds.length > 0 ? 100 : 0;
+};
+
+const evidenceConfidenceValueForObservation = (observation: InternalReadinessVerifiedObservation): number =>
+  observation.evidenceConfidenceImpact === "improves" ? 100 : 0;
+
+const calculateEvidenceConfidence = (
+  controls: readonly StoredAnalysisControlResult[]
+): { missingEvidenceCount: number; value: number } => {
+  if (controls.length === 0) {
+    return {
+      missingEvidenceCount: 0,
+      value: 0
+    };
+  }
+
+  const values = controls.map((control) => {
+    if (control.evidenceCompleteness) {
+      return Math.max(0, Math.min(1, control.evidenceCompleteness.ratio));
+    }
+
+    return (control.evidenceArtifactIds?.length ?? 0) > 0 ? 1 : 0;
+  });
+
+  return {
+    missingEvidenceCount: controls.filter((control) => {
+      if (control.evidenceCompleteness) {
+        return control.evidenceCompleteness.missing > 0;
+      }
+
+      return (control.evidenceArtifactIds?.length ?? 0) === 0;
+    }).length,
+    value: roundPercent(averageNumber(values) * 100)
+  };
+};
+
+const highestGapSeverity = (gaps: readonly ReportGapSummary[]): InternalReadinessReportConcepts["priority"]["result"] => {
+  const severityRank: Record<InternalReadinessReportConcepts["priority"]["result"], number> = {
+    none: 0,
+    low: 1,
+    medium: 2,
+    high: 3,
+    critical: 4
+  };
+  return gaps.reduce<InternalReadinessReportConcepts["priority"]["result"]>(
+    (highest, gap) => (severityRank[gap.severity] > severityRank[highest] ? gap.severity : highest),
+    "none"
+  );
+};
+
+const conceptBand = (value: number): "low" | "medium" | "high" => {
+  if (value >= 75) {
+    return "high";
+  }
+  if (value >= 40) {
+    return "medium";
+  }
+  return "low";
+};
+
+const averageNumber = (values: readonly number[]): number =>
+  values.length === 0 ? 0 : values.reduce((sum, value) => sum + value, 0) / values.length;
+
+const roundPercent = (value: number): number => Math.round(Math.max(0, Math.min(100, value)));
 
 export const buildRomaniaNotificationDraftExport = (
   input: StoredRomaniaNotificationDraftInput
@@ -455,6 +917,7 @@ const toControlResultSummary = (result: StoredAnalysisControlResult): ReportCont
     evidenceArtifactIds: [...(result.evidenceArtifactIds ?? [])].sort(),
     providerSignalIds: [...(result.providerSignalIds ?? [])].sort(),
     evidenceCompleteness: result.evidenceCompleteness,
+    provenance: controlResultProvenance(result),
     sourceReferences: uniqueSourceReferences(result.sourceReferences ?? [])
   }) as ReportControlResultSummary;
 
@@ -467,6 +930,7 @@ const toGapSummary = (gap: StoredAnalysisGap): ReportGapSummary =>
     summary: gap.summary,
     missingEvidence: [...(gap.missingEvidence ?? [])].sort(),
     recommendedActions: [...(gap.recommendedActions ?? [])],
+    provenance: ["inferred_by_rule"],
     sourceReferences: uniqueSourceReferences(gap.sourceReferences ?? [])
   }) as ReportGapSummary;
 
@@ -477,8 +941,20 @@ const toRecommendationSummary = (recommendation: StoredAnalysisRecommendation): 
   severity: recommendation.severity,
   summary: recommendation.summary,
   requiredEvidence: recommendation.evidenceRequired,
+  provenance: ["inferred_by_rule"],
   sourceReferences: uniqueSourceReferences(recommendation.sourceReferences ?? [])
 });
+
+const controlResultProvenance = (result: StoredAnalysisControlResult): ReportControlResultSummary["provenance"] => {
+  const provenance = new Set<NonNullable<ReportControlResultSummary["provenance"]>[number]>(["declared_by_customer"]);
+  if ((result.evidenceArtifactIds?.length ?? 0) > 0) {
+    provenance.add("uploaded_evidence");
+  }
+  if ((result.providerSignalIds ?? []).some((signalId) => signalId.startsWith("m365:") || signalId.startsWith("microsoft365:"))) {
+    provenance.add("verified_through_microsoft");
+  }
+  return [...provenance].sort();
+};
 
 const toReadinessPlanSummary = (plan: StoredAnalysisReadinessPlan): ReportReadinessPlanSummary => ({
   id: plan.id,

@@ -55,6 +55,49 @@ describe("report renderer", () => {
         legalCaveatMessageKey: "puresoc.legal_caveat.internal_readiness.v1",
         legalCaveatReviewStatus: "source_approved",
         locale: "en",
+        version: {
+          immutable: true,
+          inputSnapshot: {
+            assessmentId: "assessment_renderer",
+            controlResultCount: 1,
+            evidenceArtifactCount: 0,
+            gapCount: 1,
+            recommendationCount: 0
+          },
+          methodologyVersion: "puresoc.readiness.declared.v1",
+          rendererVersion: "puresoc-report-renderer-json.v1",
+          reportVersion: 1,
+          triggerType: "onboarding_completed"
+        },
+        concepts: {
+          applicability: {
+            confidence: "low",
+            legalReviewRequired: true,
+            result: "not_assessed",
+            summary: "Applicability is pending country-pack review."
+          },
+          readiness: {
+            applicableControlCount: 1,
+            methodologyVersion: "puresoc.readiness.declared.v1",
+            missingInformationCount: 1,
+            result: "low",
+            summary: "Declared readiness is low.",
+            value: 0
+          },
+          evidenceConfidence: {
+            methodologyVersion: "puresoc.readiness.declared.v1",
+            missingEvidenceCount: 1,
+            result: "low",
+            summary: "Evidence confidence is low.",
+            value: 0
+          },
+          priority: {
+            criticalGapCount: 0,
+            highGapCount: 1,
+            result: "high",
+            summary: "Highest current priority is high."
+          }
+        },
         sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", jurisdiction: "EU", article: "21" }],
         controlResults: [
           {
