@@ -753,9 +753,9 @@ export const renderNis2CountryAwareOnboardingScreen = (
     renderCountryPackSelector(model),
     '<div class="ps-grid ps-stack-top">',
     renderSelectedCountryPackPanel(pack),
-    renderCountryPackClassificationForm(model),
+    renderNis2CountryOnboardingForm(model),
     "</div>",
-    renderCountryAwareWorkflowStepper(pack),
+    renderCountryAwareWorkflowStepper(model),
     renderCountryPackClassificationResult(model),
     renderCountryPackDynamicQuestions(pack),
     renderCountryPackSources(pack),
@@ -792,7 +792,7 @@ const renderCountryPackSelector = (model: Nis2CountryAwareOnboardingModel): stri
       const label = `${pack.countryCode} ${pack.status}`;
       return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="/onboarding/nis2?country=${escapeHtml(
         pack.countryCode
-      )}" data-ui-action="select-country-pack-${escapeHtml(pack.countryCode.toLowerCase())}" aria-current="${selected ? "page" : "false"}">${escapeHtml(
+      )}&screen=${escapeHtml(model.selectedScreen)}" data-ui-action="select-country-pack-${escapeHtml(pack.countryCode.toLowerCase())}" aria-current="${selected ? "page" : "false"}">${escapeHtml(
         label
       )}</a>`;
     }),
@@ -820,80 +820,184 @@ const renderSelectedCountryPackPanel = (pack: Nis2CountryPackDefinitionSurface):
     "</ul>",
     pack.countryCode === "RO"
       ? '<p><a class="ps-command ps-command--primary" href="/onboarding/romania/company?locale=ro-RO" data-ui-action="continue-romania-saved-workflow">Open saved Romania workflow</a></p>'
-      : '<p class="ps-muted">This country pack is available for demo scoping and source review. Persisted onboarding remains Romania-first in this slice.</p>',
+      : '<p class="ps-muted">Saved country-aware onboarding and report v1 generation are available for this demo pack. Legal review remains required before external use.</p>',
     "</article>"
   ].join("");
 
-const renderCountryPackClassificationForm = (model: Nis2CountryAwareOnboardingModel): string =>
-  [
+const renderNis2CountryOnboardingForm = (model: Nis2CountryAwareOnboardingModel): string => {
+  const screen = model.onboardingScreens.find((candidate) => candidate.key === model.selectedScreen) ?? model.onboardingScreens[0];
+  const answers = model.progress?.answers ?? {};
+  const completedCount = model.progress?.completedScreens.length ?? 0;
+
+  return [
     '<article class="ps-panel" aria-labelledby="country-pack-classification-form-title">',
-    '<h2 class="ps-panel__title" id="country-pack-classification-form-title">Preliminary scope check</h2>',
-    '<p class="ps-muted">Run a source-linked demo classification. This does not create a legal determination or certification.</p>',
-    '<form class="ps-form ps-form--wide" id="classification-form" action="/onboarding/nis2" method="get" data-ui-action="run-country-pack-classification">',
-    '<div class="ps-form-grid">',
-    '<div class="ps-field"><label for="country">Country</label><select id="country" name="country">',
-    ...model.countryPacks.map(
-      (pack) =>
-        `<option value="${escapeHtml(pack.countryCode)}"${pack.countryCode === model.selectedCountryCode ? " selected" : ""}>${escapeHtml(
-          `${pack.countryCode} - ${pack.displayName}`
-        )}</option>`
-    ),
-    "</select></div>",
-    renderSelect(
-      "sector",
-      "Sector",
-      model.classificationInput.sector ?? "",
-      [
-        ["", "Choose sector"],
-        ...model.selectedCountryPack.sectorRules.map((sector) => [sector, formatKeyLabel(sector)] as const)
-      ],
-      "Use the closest actual business activity."
-    ),
-    renderTextInput(
-      "employeeCount",
-      "Employee count",
-      typeof model.classificationInput.employeeCount === "number" ? String(model.classificationInput.employeeCount) : "",
-      false,
-      "number",
-      "Approximate count is enough for demo scoping."
-    ),
-    renderCheckbox("publicAdministration", "Public administration", Boolean(model.classificationInput.publicAdministration)),
-    renderCheckbox("telecomProvider", "Telecommunications provider", Boolean(model.classificationInput.telecomProvider)),
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h2 class="ps-panel__title" id="country-pack-classification-form-title">${escapeHtml(screen?.label ?? "NIS2 onboarding")}</h2><p class="ps-muted">${escapeHtml(
+      screen?.summary ?? "Save onboarding answers before generating report v1."
+    )}</p></div>`,
+    renderStatusPill({ label: `${completedCount}/${model.onboardingScreens.length} screens saved`, tone: completedCount === model.onboardingScreens.length ? "success" : "info" }),
     "</div>",
-    renderCommandButton({
-      label: "Run scope check",
-      ariaLabel: "Run preliminary NIS2 scope check",
-      tone: "primary",
-      type: "submit"
-    }),
+    model.progress
+      ? `<p class="ps-muted">Saved ${escapeHtml(model.progress.updatedAt)}. Missing required fields: ${escapeHtml(
+          String(model.progress.missingRequiredFields.length)
+        )}.</p>`
+      : '<p class="ps-muted">No saved country-aware onboarding progress yet.</p>',
+    '<form class="ps-form ps-form--wide" id="classification-form" action="/onboarding/nis2" method="post" data-ui-action="save-country-aware-onboarding">',
+    `<input type="hidden" name="country" value="${escapeHtml(model.selectedCountryCode)}">`,
+    `<input type="hidden" name="screen" value="${escapeHtml(screen?.key ?? model.selectedScreen)}">`,
+    model.progress?.id ? `<input type="hidden" name="onboardingProgressId" value="${escapeHtml(model.progress.id)}">` : "",
+    renderNis2CountryScreenFields(model, answers, screen?.key ?? model.selectedScreen),
+    '<div class="ps-command-row">',
+    '<button type="submit" class="ps-command ps-command--primary" name="_action" value="save" aria-label="Save NIS2 country onboarding screen"><span>Save screen</span></button>',
+    '<button type="submit" class="ps-command" name="_action" value="classify" aria-label="Run preliminary NIS2 scope check from saved onboarding"><span>Run scope check</span></button>',
+    '<button type="submit" class="ps-command" name="_action" value="generate_report" aria-label="Generate declared internal readiness report v1"><span>Generate report v1</span></button>',
+    "</div>",
     "</form>",
     "</article>"
   ].join("");
+};
 
-const renderCountryAwareWorkflowStepper = (pack: Nis2CountryPackDefinitionSurface): string => {
-  const steps = [
-    ["Company and contacts", "Legal identity, business contacts, and preferred language."],
-    ["Business profile", "Sector, services, size, group, sites, users, and cross-border activity."],
-    ["NIS2 scope", "Country-pack dynamic questions and preliminary applicability."],
-    ["Operational dependencies", "Microsoft 365, cloud, suppliers, continuity, and response capability."],
-    ["Governance and controls", "Plain-language Article 21 control coverage."],
-    ["Review and assessment", "Assumptions, missing information, pack version, and report trigger."]
-  ] as const;
+const renderNis2CountryScreenFields = (
+  model: Nis2CountryAwareOnboardingModel,
+  answers: Record<string, unknown>,
+  screenKey: string
+): string => {
+  if (screenKey === "company_contacts") {
+    return [
+      '<div class="ps-form-grid">',
+      renderTextInput("company.legalName", "Legal name", countryAnswerText(answers, "company.legalName"), true),
+      renderTextInput("company.countryCode", "Country", model.selectedCountryCode, true),
+      renderTextInput("contacts.primaryName", "Primary contact", countryAnswerText(answers, "contacts.primaryName"), true),
+      renderTextInput("contacts.primaryEmail", "Primary email", countryAnswerText(answers, "contacts.primaryEmail"), true, "email"),
+      renderTextInput("contacts.securityName", "Security owner", countryAnswerText(answers, "contacts.securityName"), true),
+      renderTextInput("contacts.securityEmail", "Security email", countryAnswerText(answers, "contacts.securityEmail"), true, "email"),
+      "</div>"
+    ].join("");
+  }
 
+  if (screenKey === "business_profile") {
+    return [
+      '<div class="ps-form-grid">',
+      renderSelect(
+        "business.sector",
+        "Sector",
+        countryAnswerText(answers, "business.sector"),
+        [
+          ["", "Choose sector"],
+          ...model.selectedCountryPack.sectorRules.map((sector) => [sector, formatKeyLabel(sector)] as const)
+        ],
+        "Use the closest actual business activity.",
+        true
+      ),
+      renderTextInput(
+        "business.employeeCount",
+        "Employee count",
+        countryAnswerText(answers, "business.employeeCount"),
+        true,
+        "number"
+      ),
+      renderTextarea(
+        "business.mainProductsServices",
+        "Main products and services",
+        countryAnswerText(answers, "business.mainProductsServices"),
+        "Describe the actual service delivered to customers."
+      ),
+      renderTextarea(
+        "business.countriesServed",
+        "Countries served",
+        countryAnswerArrayText(answers, "business.countriesServed"),
+        "Comma-separated country names or codes."
+      ),
+      "</div>"
+    ].join("");
+  }
+
+  if (screenKey === "nis2_scope") {
+    return [
+      '<div class="ps-form-grid">',
+      renderTextarea("scope.activities", "NIS2-relevant activities", countryAnswerArrayText(answers, "scope.activities"), "Comma-separated activities are accepted."),
+      renderCheckbox("scope.publicAdministration", "Public administration", countryAnswerBoolean(answers, "scope.publicAdministration")),
+      renderCheckbox("scope.telecomProvider", "Telecommunications provider", countryAnswerBoolean(answers, "scope.telecomProvider")),
+      ...model.selectedCountryPack.dynamicQuestions.map((question) =>
+        renderTextInput(
+          `scope.dynamicAnswers.${question.key}`,
+          question.label,
+          countryAnswerText(answers, `scope.dynamicAnswers.${question.key}`),
+          false,
+          question.answerType === "number" ? "number" : "text",
+          question.sourceIds.join(", ")
+        )
+      ),
+      "</div>"
+    ].join("");
+  }
+
+  if (screenKey === "operational_dependencies") {
+    return [
+      '<div class="ps-form-grid">',
+      renderSelect(
+        "dependencies.microsoft365Usage",
+        "Microsoft 365 usage",
+        countryAnswerText(answers, "dependencies.microsoft365Usage"),
+        [
+          ["", "Choose usage"],
+          ["not_used", "Not used"],
+          ["used_for_email_collaboration", "Email and collaboration"],
+          ["used_for_identity_devices_security", "Identity, devices, and security"]
+        ],
+        "",
+        true
+      ),
+      renderTextarea("dependencies.criticalSuppliers", "Critical suppliers", countryAnswerArrayText(answers, "dependencies.criticalSuppliers"), "Comma-separated supplier categories or vendors."),
+      renderTextarea("dependencies.backupArrangements", "Backup arrangements", countryAnswerText(answers, "dependencies.backupArrangements")),
+      renderTextarea("dependencies.businessContinuity", "Business continuity", countryAnswerText(answers, "dependencies.businessContinuity")),
+      renderTextarea("dependencies.incidentResponse", "Incident response", countryAnswerText(answers, "dependencies.incidentResponse")),
+      "</div>"
+    ].join("");
+  }
+
+  if (screenKey === "governance_controls") {
+    return [
+      '<div class="ps-form-grid">',
+      renderTextarea("governance.riskManagement", "Risk management", countryAnswerText(answers, "governance.riskManagement")),
+      renderTextarea("governance.identityControls", "Access control", countryAnswerText(answers, "governance.identityControls")),
+      renderTextarea("governance.mfa", "MFA status", countryAnswerText(answers, "governance.mfa")),
+      renderTextarea("governance.supplyChainSecurity", "Supply-chain security", countryAnswerText(answers, "governance.supplyChainSecurity")),
+      "</div>"
+    ].join("");
+  }
+
+  return [
+    '<div class="ps-form-grid">',
+    renderTextarea("review.assumptions", "Assumptions", countryAnswerText(answers, "review.assumptions")),
+    renderCheckbox("review.legalCaveatAcknowledged", "Internal readiness caveat reviewed", countryAnswerBoolean(answers, "review.legalCaveatAcknowledged")),
+    "</div>",
+    model.progress?.missingRequiredFields.length
+      ? `<p class="ps-legal-caveat">Complete required fields before report generation: ${escapeHtml(
+          model.progress.missingRequiredFields.join(", ")
+        )}</p>`
+      : '<p class="ps-muted">Ready to generate declared report v1 from saved onboarding answers.</p>'
+  ].join("");
+};
+
+const renderCountryAwareWorkflowStepper = (model: Nis2CountryAwareOnboardingModel): string => {
+  const completedScreens = new Set(model.progress?.completedScreens ?? []);
   return [
     '<article class="ps-panel ps-stack-top" aria-labelledby="country-aware-stepper-title">',
     '<div class="ps-section__header ps-section__header--flat">',
     `<div><h2 class="ps-panel__title" id="country-aware-stepper-title">Country-aware workflow</h2><p class="ps-muted">${escapeHtml(
-      pack.displayName
+      model.selectedCountryPack.displayName
     )} supplies the dynamic scope questions and source caveats.</p></div>`,
     renderStatusPill({ label: "six screens", tone: "accent" }),
     "</div>",
     '<ol class="ps-step-list">',
-    ...steps.map(
-      ([title, summary], index) =>
-        `<li><span class="ps-step-list__number">${index + 1}</span><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(
-          summary
-        )}</span></div></li>`
+    ...model.onboardingScreens.map(
+      (screen, index) =>
+        `<li><span class="ps-step-list__number">${index + 1}</span><div><strong><a href="/onboarding/nis2?country=${escapeHtml(
+          model.selectedCountryCode
+        )}&screen=${escapeHtml(screen.key)}">${escapeHtml(screen.label)}</a></strong><span>${escapeHtml(screen.summary)}</span>${
+          completedScreens.has(screen.key) ? renderStatusPill({ label: "saved", tone: "success" }) : ""
+        }</div></li>`
     ),
     "</ol>",
     "</article>"
@@ -930,11 +1034,32 @@ const renderCountryPackClassificationResult = (model: Nis2CountryAwareOnboarding
     "</ul>",
     classification.legalBasisReferences.length > 0
       ? `<div class="ps-chip-row">${classification.legalBasisReferences
-          .map((source) => renderSourceChip({ label: source.title, detail: source.retrievedAt, href: source.url }))
+          .map(renderCountryClassificationSourceChip)
           .join("")}</div>`
       : "",
     "</article>"
   ].join("");
+};
+
+const renderCountryClassificationSourceChip = (source: unknown): string => {
+  const record = source && typeof source === "object" && !Array.isArray(source) ? (source as Record<string, unknown>) : {};
+  const label =
+    typeof record.title === "string"
+      ? record.title
+      : typeof record.label === "string"
+        ? record.label
+        : typeof record.sourceRecordId === "string"
+          ? record.sourceRecordId
+          : "source";
+  const detail =
+    typeof record.retrievedAt === "string"
+      ? record.retrievedAt
+      : typeof record.sourceVersion === "string"
+        ? record.sourceVersion
+        : undefined;
+  const href = typeof record.url === "string" ? record.url : typeof record.sourceUrl === "string" ? record.sourceUrl : undefined;
+
+  return renderSourceChip({ label, detail, href });
 };
 
 const renderCountryPackDynamicQuestions = (pack: Nis2CountryPackDefinitionSurface): string =>
@@ -2264,6 +2389,25 @@ const renderCheckbox = (name: string, label: string, checked: boolean): string =
     checked ? " checked" : ""
   }> ${escapeHtml(label)}</label>`;
 
+const countryAnswerText = (answers: Record<string, unknown>, path: string): string => {
+  const value = valueAtPath(answers, path);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return typeof value === "string" ? value : "";
+};
+
+const countryAnswerArrayText = (answers: Record<string, unknown>, path: string): string => {
+  const value = valueAtPath(answers, path);
+  if (Array.isArray(value)) {
+    return value.filter((entry): entry is string => typeof entry === "string").join(", ");
+  }
+  return typeof value === "string" ? value : "";
+};
+
+const countryAnswerBoolean = (answers: Record<string, unknown>, path: string): boolean =>
+  valueAtPath(answers, path) === true;
+
 const answerText = (model: RomaniaOnboardingRouteModel, path: string): string => {
   const value = valueAtPath(model.progress.answers, path);
   if (typeof value === "number" || typeof value === "boolean") {
@@ -3094,6 +3238,19 @@ const renderDashboardSection = (model: OperationalConsoleModel, copy: Operationa
     `<div class="ps-evidence-bar"><span class="ps-evidence-bar__label"><span>Evidence Vault</span><span>${escapeHtml(
       scores.evidenceCompleteness
     )}%</span></span>${renderMeter({ label: "Evidence Vault", value: scores.evidenceCompleteness, source: "evidence_artifacts" })}</div>`,
+    "</div>",
+    '<div class="ps-evidence-health__scanner">',
+    '<div class="ps-evidence-health__scanner-header">',
+    `<strong>${escapeHtml(model.evidenceScanner.label)}</strong>`,
+    renderStatusPill({ label: model.evidenceScanner.status, tone: toneForStatus(model.evidenceScanner.status) }),
+    "</div>",
+    `<p class="ps-muted">${escapeHtml(model.evidenceScanner.detail)}</p>`,
+    '<div class="ps-evidence-health__scanner-meta">',
+    renderSourceChip({ label: "Scanner", detail: model.evidenceScanner.engine }),
+    model.evidenceScanner.signatureSource
+      ? renderSourceChip({ label: "Signatures", detail: model.evidenceScanner.signatureSource })
+      : "",
+    "</div>",
     "</div>",
     renderSourceChip({ label: "Dashboard source", detail: model.dashboard.source }),
     "</article>",

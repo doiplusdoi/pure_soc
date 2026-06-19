@@ -44,6 +44,7 @@ import { InMemoryRemediationActionRepository } from "@puresoc/recommendations";
 import {
   InMemoryNotificationDraftRepository,
   InMemoryNotificationRepository,
+  InMemoryNis2OnboardingRepository,
   InMemoryOutputRecordRepository,
   InMemoryProviderConsentStateStore,
   InMemoryRoNis2ReadinessRepository,
@@ -54,6 +55,7 @@ import {
   PrismaEvidenceRepository,
   PrismaNotificationDraftRepository,
   PrismaNotificationRepository,
+  PrismaNis2OnboardingRepository,
   PrismaOutputRecordRepository,
   PrismaOidcAuthorizationStateStore,
   PrismaPartnerRepository,
@@ -64,6 +66,7 @@ import {
   PrismaIdentityOrganizationRbacRepository,
   PrismaRegulatorySourceRepository,
   createPrismaClient,
+  type Nis2OnboardingRepository,
   type NotificationDraftRepository,
   type PrismaNotificationClient,
   type OutputRecordRepository,
@@ -85,6 +88,7 @@ import type { EvidencePackageLimitConfig } from "@puresoc/reports";
 import { BillingApiService } from "../billing/service";
 import { createInMemoryApiRepositorySet, type InMemoryApiRepositorySet } from "./memory-repository";
 import { NotificationDraftApiService } from "../compliance/nis2/notification-drafts/service";
+import { Nis2OnboardingApiService } from "../compliance/nis2/onboarding-service";
 import { createRoNis2NotificationDraftCompanionBuilder } from "../compliance/nis2/ro/notification-draft-companion";
 import { RoNis2ReadinessApiService } from "../compliance/nis2/ro/service";
 import { createPartnerAwareRbacRepository, type RbacRepository } from "../rbac";
@@ -248,6 +252,7 @@ export interface ApiServices {
   billing: BillingApiService;
   outputRepository: OutputRecordRepository;
   notificationDraftRepository: NotificationDraftRepository;
+  nis2Onboarding: Nis2OnboardingApiService;
   roNis2Readiness: RoNis2ReadinessApiService;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
   partnerRepository: PartnerRepository;
@@ -445,6 +450,11 @@ export const createApiServices = (
     repository: runtimeRepositories.roNis2ReadinessRepository,
     now: options.now
   });
+  const nis2Onboarding = new Nis2OnboardingApiService({
+    repository: runtimeRepositories.nis2OnboardingRepository,
+    outputRepository: runtimeRepositories.outputRepository,
+    now: options.now
+  });
   const actions = new ActionApiService({
     repository: runtimeRepositories.actionsRepository,
     auditWriter,
@@ -483,6 +493,7 @@ export const createApiServices = (
     billing,
     outputRepository: runtimeRepositories.outputRepository,
     notificationDraftRepository: runtimeRepositories.notificationDraftRepository,
+    nis2Onboarding,
     roNis2Readiness,
     identityRepository: runtimeRepositories.identityRepository,
     partnerRepository: runtimeRepositories.partnerRepository,
@@ -508,6 +519,7 @@ interface RuntimeRepositorySet {
   billingRepository: BillingRepository;
   notificationDraftRepository: NotificationDraftRepository;
   notificationRepository: NotificationRepository;
+  nis2OnboardingRepository: Nis2OnboardingRepository;
   roNis2ReadinessRepository: RoNis2ReadinessRepository;
   outputRepository: OutputRecordRepository;
   identityRepository: LocalAuthRepository & OidcIdentityRepository & OrganizationRepository & RbacRepository;
@@ -600,6 +612,7 @@ const createRuntimeRepositories = (input: {
           "remediation_actions",
           "notification_drafts",
           "notification_channels_logs_deadlines",
+          "nis2_onboarding_classification",
           "ro_nis2_onboarding_classification",
           "stored_analysis_reports_dashboards",
           "oidc_transient_state"
@@ -614,6 +627,7 @@ const createRuntimeRepositories = (input: {
       billingRepository: input.memoryRepositories.billingRepository,
       notificationDraftRepository: new InMemoryNotificationDraftRepository(),
       notificationRepository: new InMemoryNotificationRepository({ now: input.now }),
+      nis2OnboardingRepository: new InMemoryNis2OnboardingRepository(),
       roNis2ReadinessRepository: new InMemoryRoNis2ReadinessRepository(),
       outputRepository: new InMemoryOutputRecordRepository(),
       identityRepository: input.memoryRepositories.identityRepository,
@@ -642,6 +656,7 @@ const createRuntimeRepositories = (input: {
         "remediation_actions",
         "notification_drafts",
         "notification_channels_logs_deadlines",
+        "nis2_onboarding_classification",
         "ro_nis2_onboarding_classification",
         "provider_connections_and_telemetry",
         "stored_analysis_reports_dashboards",
@@ -659,6 +674,7 @@ const createRuntimeRepositories = (input: {
     billingRepository: new PrismaBillingRepository(prismaClient as never),
     notificationDraftRepository: new PrismaNotificationDraftRepository(prismaClient as never),
     notificationRepository: new PrismaNotificationRepository(prismaClient as unknown as PrismaNotificationClient),
+    nis2OnboardingRepository: new PrismaNis2OnboardingRepository(prismaClient as never),
     roNis2ReadinessRepository: new PrismaRoNis2ReadinessRepository(prismaClient as never),
     outputRepository: new PrismaOutputRecordRepository(prismaClient as never),
     identityRepository,

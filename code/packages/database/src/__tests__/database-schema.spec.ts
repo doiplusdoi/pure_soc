@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(88);
+    expect(requiredTables).toHaveLength(90);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -67,6 +67,14 @@ describe("database schema groups", () => {
       "ro_nis2_notification_drafts"
     ]) {
       expect(modelBlocks.get(table), `${table} should exist for the Romania module`).toContain('@map("organization_id")');
+    }
+  });
+
+  it("adds tenant-scoped country-aware NIS2 onboarding tables", () => {
+    for (const table of ["nis2_onboarding_progress", "nis2_classification_runs"]) {
+      expect(modelBlocks.get(table), `${table} should exist for country-aware NIS2 onboarding`).toContain(
+        '@map("organization_id")'
+      );
     }
   });
 

@@ -1,6 +1,6 @@
 # PureSOC Partner Demo Execution Plan
 
-Status: local hardening complete; external/live proof remains gated.  
+Status: local fixture demo complete; external/live proof remains gated.
 Source prompt: `/Users/solo/Downloads/PURESOC_CODEX_AUTONOMOUS_IMPLEMENTATION_PROMPT.md`.  
 Started: 2026-06-19.
 
@@ -48,16 +48,16 @@ Started: 2026-06-19.
 - [x] Milestone 7: dynamic recommendations and Microsoft opportunities.
 - [x] Milestone 8: complete partner portfolio and seeded demo.
 - [x] Milestone 9: local hardening, self-review, and final local validation.
+- [x] Milestone 10: persisted country-aware demo closure and served fixture smoke.
 
 ## Current Slice
 
-Milestone 9 locally hardened the seeded partner-demo path:
+Milestone 10 closes the local fixture-demo code path:
 
-- Prisma mode creates partner customer organizations and partner grants in one transaction.
-- Customer-session exit clears active organization context.
-- Customer-scoped audit writes are enriched with active partner tenant-session metadata when present.
-- The active customer banner renders across dashboard, connector, workspace, notification, invitation, partner, and Romania onboarding routes.
-- Partner viewer/analyst/admin role plus grant-level intersections are covered by route tests.
+- RO/PL/DE country-aware onboarding is persisted through shared Prisma/memory repositories.
+- `/onboarding/nis2` now saves the six-screen questionnaire, runs source-linked classification, and generates report v1 from stored declared analysis.
+- Deterministic seed data includes country-aware onboarding, classification, and report v1 artifacts for the three synthetic customers.
+- `npm run test:e2e -- --grep @fixture-demo` exercises a served partner/customer flow through web forms, Germany onboarding/report v1, Microsoft partial fixture connect/sync, verified report v2 with deltas, Business Premium recommendation/opportunity verification, CSV/evidence package generation, portfolio verification, and customer tenant exit.
 - Read-only posture is preserved: no provider writes, ordering, remediation execution, DNSC submission, live external calls, or compliance-certification claims were enabled.
 
 ## Assumptions
@@ -67,14 +67,17 @@ Milestone 9 locally hardened the seeded partner-demo path:
 - Partner access does not add customer organization membership by default; authorization inside a customer tenant is checked through partner role plus explicit grant level.
 - Existing customer-member organization flows continue to work unchanged.
 - No Microsoft write executor, live external calls, DNSC submission, or legal certification path is enabled by this milestone.
+- Local deterministic demo seeding runs against a migrated PostgreSQL database. Compose host-port overrides can be used when another local stack already owns the default dependency ports.
 
 ## Validation Plan
 
-- Narrow tests: `npm run test -- partner auth organization audit`.
-- Typecheck: `npm run typecheck`.
-- Prisma validation with explicit local URL.
-- Compose config.
-- `git diff --check`.
+- `npm run lint`.
+- `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:5432/puresoc npm run prisma:validate`.
+- `npm test`.
+- `npm run test:e2e -- --grep @fixture-demo`.
+- `npm run compose:config` and `npm run compose:config:build`.
+- `npm run compose:up`.
+- `demo:reset` -> `demo:seed` -> `demo:verify` against migrated PostgreSQL.
 
 ## Results Log
 
@@ -159,10 +162,21 @@ Milestone 9 locally hardened the seeded partner-demo path:
   - Added web renderer tests for active customer banner persistence.
   - Added root `PRODUCT.md` and `DESIGN.md` registers for product/design boundaries.
   - Full local validation passed: typecheck, lint, Prisma schema validation, Compose config, full Vitest suite, and `git diff --check`.
+- Milestone 10 completed the local fixture-demo path:
+  - Added shared persisted country-aware NIS2 onboarding/classification tables, migration, memory/Prisma repositories, and runtime wiring for RO/PL/DE.
+  - Added API routes for reading/saving onboarding progress, classifying saved answers, and generating report v1 from stored declared analysis.
+  - Updated `/onboarding/nis2` to load/save persisted progress, render all six screens, classify saved answers, and generate report v1 with country-pack version context and legal caveat.
+  - Seeded deterministic country-aware onboarding/classification/report artifacts for MedicaNova SRL, NordFrucht GmbH, and SecureOps Polska Sp. z o.o.
+  - Added `@fixture-demo` served web smoke coverage that creates partner/customer records through web forms, enters the tenant, completes Germany onboarding/report v1, connects/syncs partial Microsoft fixture evidence, generates report v2/CSV/evidence package, verifies v2 deltas plus Business Premium recommendation/opportunity state, and exits the customer tenant.
+  - Added stale-Prisma-client guardrails to demo commands so missing generated model delegates return an actionable `prisma_client_outdated` blocker.
+  - Final local validation passed: `npm run typecheck`, `npm run lint`, explicit-URL `npm run prisma:validate`, `npm test` (91 files, 442 tests), unfiltered `npm run test:e2e`, and `npm run test:e2e -- --grep @fixture-demo`.
+  - `npm run compose:config` and `npm run compose:config:build` passed.
+  - Compose host-port bindings are configurable while preserving defaults; this local run used `PURESOC_POSTGRES_PORT=15432`, `PURESOC_REDIS_PORT=16379`, `PURESOC_OBJECT_STORAGE_PORT=19000`, and `PURESOC_OBJECT_STORAGE_CONSOLE_PORT=19001` because unrelated `radar_*` containers occupied the default dependency ports.
+  - `npm run compose:up` passed with those host-port overrides: local app images built, all 14 migrations applied through the migrator, and API/web health checks passed with provider writes disabled.
+  - `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run prisma:migrate:deploy` passed with no pending migrations.
+  - `demo:reset`, `demo:seed`, and `demo:verify` passed against the migrated PostgreSQL database, and rerunning seed plus verify without a reset proved the deterministic seed path is idempotent.
 
 ## Deferred Work
 
-- Full persisted six-screen onboarding for Poland and Germany remains future product work; PL/DE packs are still demo/source-review metadata.
-- Live seeded-demo verification against a disposable PostgreSQL database remains environment-dependent when Docker/Postgres is unavailable.
 - Independent external/product/legal review remains outside this local code run.
 - Live Microsoft Graph, Stripe, OIDC provider, object storage/scanner, KMS, deployment, DNSC submission, provider-write, and legal/certification proof remain gated by the existing external-smoke and product/legal blockers.

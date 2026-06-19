@@ -487,7 +487,29 @@ describe("api evidence reports dashboards exports", () => {
           evaluatedAt: recordedAt
         }
       ],
-      gaps: [],
+      gaps: [
+        {
+          id: `${assessmentId}:nis2.access-control.mfa:gap`,
+          organizationId: organization.id,
+          assessmentId,
+          jurisdiction: "EU",
+          controlId: "nis2.access-control.mfa",
+          controlCode: "NIS2-EU-MFA-001",
+          status: "needs_evidence",
+          severity: "high",
+          confidence: "medium",
+          summary: "Identity and MFA access controls need supporting evidence before being treated as verified.",
+          findingIds: [],
+          findings: ["MFA coverage needs verification."],
+          missingEvidence: ["MFA coverage export"],
+          recommendedActions: ["Verify Microsoft MFA coverage and attach supporting evidence."],
+          providerSignals: [],
+          manualTaskIds: [],
+          manualTasks: [],
+          countryPackWarnings: [],
+          sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", article: "21" }]
+        }
+      ],
       recommendations: [],
       readinessPlan: {
         id: `${assessmentId}:readiness-plan`,
@@ -530,7 +552,7 @@ describe("api evidence reports dashboards exports", () => {
       stateFactory: () => "verified_report_m365_state",
       tokenCipher: createLocalMicrosoft365TokenCipher({ masterKey: "verified-report-test-master-key" }),
       connectorMode: "fixture",
-      fixtureSet: "partner_demo"
+      fixtureSet: "partner_demo_partial"
     });
     const redirectUri = `${baseUrl}/providers/microsoft365/callback`;
     const begin = await microsoft365.beginConsent({
@@ -574,6 +596,7 @@ describe("api evidence reports dashboards exports", () => {
             newVerifiedFindings: string[];
           };
           controlResults: Array<{ controlId: string; status: string; provenance: string[]; providerSignalIds: string[] }>;
+          recommendations: Array<{ title: string; summary: string }>;
           verifiedEvidence: { contradictions: Array<{ declaredStatus: string; effectiveStatus: string }> };
           version: { previousReportId: string; reportVersion: number; triggerType: string };
         };
@@ -598,9 +621,19 @@ describe("api evidence reports dashboards exports", () => {
     expect(reportV2.report.reportData.comparison).toMatchObject({
       readinessDelta: -100,
       evidenceConfidenceDelta: 100,
-      contradictions: ["contradiction:m365:mfa-registration:coverage"],
-      newVerifiedFindings: ["m365:mfa-registration:coverage"]
+      contradictions: ["contradiction:m365:mfa-registration:coverage"]
     });
+    expect(reportV2.report.reportData.comparison.newVerifiedFindings).toEqual(
+      expect.arrayContaining(["m365:mfa-registration:coverage"])
+    );
+    expect(JSON.stringify(reportV2.report.reportData.recommendations)).toContain("Microsoft 365 Business Premium");
+
+    const enrichedStoredAnalysis = await services.outputRepository.findStoredAnalysis(organization.id, assessmentId);
+    expect(
+      enrichedStoredAnalysis?.recommendations.some(
+        (recommendation) => recommendation.opportunity?.relevantMicrosoftCapabilityOrPlan === "Microsoft 365 Business Premium"
+      )
+    ).toBe(true);
 
     const storedV1 = await services.outputRepository.findGeneratedReport(organization.id, reportV1.report.id);
     expect(storedV1?.reportData.reportType).toBe("internal_readiness");

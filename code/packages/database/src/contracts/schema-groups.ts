@@ -29,6 +29,7 @@ export const schemaGroups = {
     "business_size_assessments",
     "jurisdiction_assessments",
     "ro_nis2_onboarding_progress",
+    "nis2_onboarding_progress",
     "customer_documents"
   ],
   connectorConfigurationAndTelemetry: [
@@ -70,6 +71,7 @@ export const schemaGroups = {
     "control_evidence_requirements",
     "compliance_assessments",
     "ro_nis2_classification_runs",
+    "nis2_classification_runs",
     "compliance_control_results",
     "compliance_result_snapshots",
     "compliance_gaps",
@@ -116,6 +118,7 @@ export const tenantOwnedTables = [
   "business_size_assessments",
   "jurisdiction_assessments",
   "ro_nis2_onboarding_progress",
+  "nis2_onboarding_progress",
   "customer_documents",
   "provider_connections",
   "provider_consent_states",
@@ -132,6 +135,7 @@ export const tenantOwnedTables = [
   "regulatory_answers",
   "compliance_assessments",
   "ro_nis2_classification_runs",
+  "nis2_classification_runs",
   "compliance_control_results",
   "compliance_result_snapshots",
   "compliance_gaps",

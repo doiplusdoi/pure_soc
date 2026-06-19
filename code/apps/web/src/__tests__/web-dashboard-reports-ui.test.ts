@@ -36,6 +36,9 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Romania NIS2 registration workflow");
     expect(html).toContain("Internal readiness report");
     expect(html).toContain("No Microsoft 365 provider connected");
+    expect(html).toContain("Upload scan gate");
+    expect(html).toContain("ClamAV");
+    expect(html).toContain("FreshClam signatures");
     expect(html).toContain("Start Microsoft Entra admin consent from the workspace connector before Microsoft Graph reads can run.");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
@@ -782,8 +785,47 @@ describe("web dashboard reports operational UI", () => {
         buildCountryPackFixture("PL", "Poland KSC NIS2 demo pack"),
         buildCountryPackFixture("DE", "Germany BSI NIS2 demo pack")
       ],
+      onboardingScreens: [
+        {
+          key: "company_contacts",
+          label: "Company and contacts",
+          summary: "Legal identity and security contacts.",
+          requiredFieldPaths: ["company.legalName"]
+        },
+        {
+          key: "business_profile",
+          label: "Business profile",
+          summary: "Sector, services, countries served, and approximate size.",
+          requiredFieldPaths: ["business.sector"]
+        },
+        {
+          key: "nis2_scope",
+          label: "NIS2 scope",
+          summary: "Country-pack scope signals.",
+          requiredFieldPaths: ["scope.activities"]
+        },
+        {
+          key: "operational_dependencies",
+          label: "Operational dependencies",
+          summary: "Microsoft 365, cloud, suppliers, continuity, and incident handling.",
+          requiredFieldPaths: ["dependencies.microsoft365Usage"]
+        },
+        {
+          key: "governance_controls",
+          label: "Governance and controls",
+          summary: "Article 21 control coverage.",
+          requiredFieldPaths: ["governance.identityControls"]
+        },
+        {
+          key: "review_generate",
+          label: "Review and assessment",
+          summary: "Source caveat and report trigger.",
+          requiredFieldPaths: ["review.legalCaveatAcknowledged"]
+        }
+      ],
       selectedCountryCode: "PL",
       selectedCountryPack: buildCountryPackFixture("PL", "Poland KSC NIS2 demo pack"),
+      selectedScreen: "nis2_scope",
       session: {
         user: {
           id: "user_country_pack",

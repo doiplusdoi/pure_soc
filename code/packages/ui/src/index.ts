@@ -819,6 +819,33 @@ a {
   font-weight: 750;
 }
 
+.ps-evidence-health__scanner {
+  margin-top: 1rem;
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-panel-subtle);
+  padding: 0.75rem;
+  text-align: left;
+}
+
+.ps-evidence-health__scanner-header,
+.ps-evidence-health__scanner-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+}
+
+.ps-evidence-health__scanner p {
+  margin: 0.45rem 0 0;
+}
+
+.ps-evidence-health__scanner-meta {
+  margin-top: 0.6rem;
+  justify-content: flex-start;
+}
+
 .ps-trend-card {
   display: grid;
   gap: 0.85rem;

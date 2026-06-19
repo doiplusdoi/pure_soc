@@ -1,6 +1,6 @@
 # PureSOC Deployment Guide
 
-Status: deployment guide for the current repository state as of 2026-06-13.
+Status: deployment guide for the current repository state as of 2026-06-20.
 Scope: local development, in-a-box deployments, and SaaS-like deployment preparation.
 
 PureSOC is Docker-first, TypeScript-first, provider-neutral, and Romania-first for V1. The current runtime is intentionally lighter than the original target stack: `apps/api` and `apps/web` use `node:http`, jobs use the local `@puresoc/jobs` adapter, and the browser smoke path uses deterministic HTTP snapshots plus host Firefox WebDriver BiDi when available. Do not describe the current implementation as NestJS, Next.js, BullMQ-package, or Playwright-backed unless those migrations are actually implemented.
@@ -17,32 +17,45 @@ PureSOC must not be deployed or marketed as legal certification. Reports and wor
 
 Provider writes and remediation execution remain disabled. Microsoft 365 is read-only until a separate approval-gated write path exists with audit logging, preflight, snapshots, verification, and evidence.
 
-## Minimal Installer Secret Surface
+## Compose-First Runtime Surface
 
-The first-run environment is intentionally small. `code/.env.example` leaves Microsoft 365 app credentials, Microsoft Entra sign-in credentials, Stripe, and S3 unset, so another infrastructure installer does not need to ask for connector, OAuth, billing, or storage secrets during local bootstrap. Microsoft Entra user sign-in is enabled by default, but it stays non-operational until the Entra app client ID, client secret, redirect URI, and production OIDC state key are supplied.
+The first-run environment is meant to bring the local/in-a-box stack up with `docker compose up --build`: API, web, worker, scheduler, connector runner, Postgres, Redis, MinIO/S3-compatible storage, report renderer, ClamAV/FreshClam, and the local HTTP upload-scanner adapter.
 
-For a minimal local or in-a-box path, start with:
+The Compose defaults use local email/password auth only. Microsoft Entra, Google, and GitHub user sign-in are opt-in. Microsoft 365 customer tenant connection is a separate managed-provider connector and does not require PureSOC users to sign in with Microsoft.
+
+For the local/in-a-box path, the default shape is:
 
 ```sh
 PURESOC_PERSISTENCE_MODE=prisma
 PURESOC_BILLING_PROVIDER=none
-PURESOC_OBJECT_STORAGE_PROVIDER=memory
+PURESOC_OBJECT_STORAGE_PROVIDER=s3
 PURESOC_JOB_QUEUE_PROVIDER=memory
 PURESOC_API_RATE_LIMIT_STORE_PROVIDER=memory
+PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false
 ```
 
-For durable Prisma mode, the only required first-boot secret-like value is the PostgreSQL `DATABASE_URL`. Add optional secrets only when enabling the matching feature:
+The expected first-boot operator secret is the PostgreSQL password. `DATABASE_URL` is built for the Compose network from the default DB/user/password unless a deployment overrides it for managed Postgres:
+
+```sh
+PURESOC_POSTGRES_DB=puresoc
+PURESOC_POSTGRES_USER=puresoc_admin
+PURESOC_POSTGRES_PASSWORD=...
+DATABASE_URL=postgresql://puresoc_admin:...@puresoc-postgres:5432/puresoc
+```
+
+Add optional secrets only when enabling the matching feature:
 
 | Feature | Enable when needed | Secrets introduced |
 |---|---|---|
 | Microsoft 365 managed provider | configure `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID`, client secret, and redirect URI | PureSOC platform app client secret, provider-token key ID/material |
-| Microsoft Entra user sign-in | enabled by default through `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true` | Entra app client ID/secret, deployed web callback URI, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
+| Microsoft Entra user sign-in | `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true` | Entra app client ID/secret, deployed web callback URI, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` when social login is enabled |
 | Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
 | Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
-| S3/MinIO object storage | `PURESOC_OBJECT_STORAGE_PROVIDER=s3` | object-storage access key and secret key |
+| MinIO/S3 object storage | enabled by default for Compose | object-storage access key and secret key when replacing the bundled MinIO defaults |
+| ClamAV upload scanning | enabled by default for Compose | none for bundled ClamAV; only image/policy overrides |
 | Redis-backed jobs/rate limits | `PURESOC_JOB_QUEUE_PROVIDER=bullmq` or `PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis` | Redis URL if the Redis service requires credentials |
 
-This smaller installer surface is not a claim that production operations are solved. Durable evidence storage, upload scanning, backups, monitoring, and external proof smokes still need operator-owned configuration before launch.
+This Compose-first surface is not a claim that production operations are solved. Backups, monitoring, ingress/TLS, secret rotation, scanner resource sizing, and external proof smokes still need operator-owned configuration before launch.
 
 ## Service Topology
 
@@ -73,12 +86,15 @@ Those tags are local build outputs, not public registry images. The Dockerfiles 
 | `puresoc-scheduler` | Periodic scheduled jobs | Regulatory source monitor is disabled by default |
 | `puresoc-connector-runner` | Provider sync jobs | Read-only; `PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=true` is rejected |
 | `puresoc-regulatory-importer` | One-shot regulatory import task | Compose profile `regulatory` |
-| `puresoc-report-renderer` | Report rendering service | Current deterministic renderer, port `3002` |
+| `puresoc-report-renderer` | Report rendering service | Current internal renderer, port `3002` |
+| `puresoc-clamav` | ClamAV daemon and FreshClam updater | Internal-only `clamd` TCP service, persistent signature database volume |
+| `puresoc-upload-scanner` | HTTP upload-scanner adapter | Accepts `/scan`, validates payload integrity, streams bytes to internal ClamAV |
 | `puresoc-postgres` | PostgreSQL | Local Compose uses Postgres 16 |
 | `puresoc-redis` | Redis | Jobs and optional shared API rate limits |
 | `puresoc-object-storage` | MinIO/S3-compatible object storage | Local evidence/report binary storage path |
+| `puresoc-object-storage-init` | MinIO bucket bootstrap | Creates the configured evidence bucket if missing |
 
-Optional production services such as TLS reverse proxy, auth broker, mailer, upload scanner, monitoring, backups, WORM/archive storage, and external secret custody are deployment-layer responsibilities today.
+Optional production services such as TLS reverse proxy, auth broker, mailer, monitoring, backups, WORM/archive storage, and external secret custody are deployment-layer responsibilities today.
 
 ## Baseline Deployment Process
 
@@ -102,7 +118,7 @@ cd code
 cp .env.example .env
 ```
 
-The template omits optional integration secrets by default. Add Microsoft Entra sign-in credentials when the deployed app should offer Microsoft login; otherwise explicitly set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false` for an internal/local-only account model. Do not add Microsoft 365 connector, Google/GitHub, Stripe, S3, or Redis credentials unless that feature is intentionally enabled.
+The template omits optional integration secrets by default. Add Microsoft Entra sign-in credentials only when the deployed app should offer Microsoft login. Do not add Microsoft 365 connector, Google/GitHub, or Stripe credentials unless that feature is intentionally enabled.
 
 3. Choose persistence:
 
@@ -110,7 +126,10 @@ The Compose and `.env.example` defaults are durable Prisma/Postgres:
 
 ```sh
 PURESOC_PERSISTENCE_MODE=prisma
-DATABASE_URL=postgresql://...
+PURESOC_POSTGRES_DB=puresoc
+PURESOC_POSTGRES_USER=puresoc_admin
+PURESOC_POSTGRES_PASSWORD=...
+DATABASE_URL=postgresql://puresoc_admin:...@puresoc-postgres:5432/puresoc
 ```
 
 Memory mode is only for deterministic local/test runs and must be selected explicitly:
@@ -169,7 +188,7 @@ curl -fsS http://localhost:3000/health
 - save Romania onboarding answers;
 - classify, create the notification draft, evaluate readiness, upload evidence, generate JSON exports, and review dashboard/audit/billing state.
 
-This path must not call Microsoft Graph, Stripe, OIDC providers, object-storage clouds, scanners, KMS/HSM/secret-manager APIs, public regulatory URLs, DNSC, or any national authority unless a later explicitly configured integration path is used.
+This path must not call Microsoft Graph, Stripe, OIDC providers, object-storage clouds, external scanner services, KMS/HSM/secret-manager APIs, public regulatory URLs, DNSC, or any national authority unless a later explicitly configured integration path is used. The bundled Compose ClamAV scanner is local to the deployment network.
 
 ## Production Guardrails
 
@@ -194,7 +213,7 @@ If the deployment is Romania/local readiness only, leave optional integration cr
 PURESOC_BILLING_PROVIDER=none
 ```
 
-With Microsoft Entra sign-in enabled, production Prisma startup requires the Entra app client ID, client secret, web callback URI, and `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY`. If the deployment uses local/internal accounts only, set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false`; then production startup does not require OIDC secrets. Configuring Microsoft 365 connector, Google/GitHub login, Stripe, S3, or Redis-backed services re-enables their own fail-fast startup checks.
+With Microsoft Entra sign-in enabled, Prisma startup requires the Entra app client ID, client secret, web callback URI, and `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production. Local/internal account deployments keep `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false`; then startup does not require OIDC secrets. Configuring Microsoft 365 connector, Google/GitHub login, Stripe, S3, or Redis-backed services re-enables their own fail-fast startup checks.
 
 If a reverse proxy supplies forwarded client IPs, trust them only from explicit proxy IPs:
 
@@ -216,7 +235,8 @@ For production upload handling, do not leave scanning as noop unless there is a 
 
 ```sh
 PURESOC_UPLOAD_SCANNER_MODE=http
-PURESOC_UPLOAD_SCANNER_ENDPOINT=http://scanner:3310/scan
+PURESOC_UPLOAD_SCANNER_ENDPOINT=http://puresoc-upload-scanner:3310/scan
+PURESOC_UPLOAD_SCANNER_ENGINE=clamav
 ```
 
 For jobs, use Redis-backed queues when durable multi-service execution is required:
@@ -237,7 +257,10 @@ Required for durable deployments.
 Variables:
 
 ```sh
-DATABASE_URL=postgresql://...
+PURESOC_POSTGRES_DB=puresoc
+PURESOC_POSTGRES_USER=puresoc_admin
+PURESOC_POSTGRES_PASSWORD=...
+DATABASE_URL=postgresql://puresoc_admin:...@puresoc-postgres:5432/puresoc
 ```
 
 Operator responsibilities:
@@ -250,12 +273,12 @@ Operator responsibilities:
 
 ### Redis
 
-Required only when durable job queues or shared API rate limiting are enabled. The minimal installer keeps jobs and rate limits process-local.
+The Compose service is available by default at `redis://puresoc-redis:6379/0`, but jobs and rate limits stay process-local until explicitly switched to Redis-backed providers.
 
 Variables:
 
 ```sh
-PURESOC_REDIS_URL=redis://...
+PURESOC_REDIS_URL=redis://puresoc-redis:6379/0
 PURESOC_JOB_QUEUE_PROVIDER=bullmq
 PURESOC_API_RATE_LIMIT_STORE_PROVIDER=redis
 ```
@@ -271,34 +294,46 @@ Operator responsibilities:
 
 Evidence binaries, generated reports, provider snapshots, exports, and source snapshots should live in object storage while metadata lives in PostgreSQL.
 
-Local Compose provides MinIO. SaaS/in-a-box deployments can use MinIO or an S3-compatible service.
+Local Compose provides MinIO and creates the configured bucket through `puresoc-object-storage-init`. SaaS/in-a-box deployments can use the bundled MinIO service or an S3-compatible service.
 
-The minimal installer leaves `PURESOC_OBJECT_STORAGE_PROVIDER=memory`, which is suitable only for local/test bootstrap and the current local Romania workflow. Set `s3` before relying on durable evidence binaries.
+The Compose defaults point the app at the internal MinIO service:
 
 Variables:
 
 ```sh
 PURESOC_OBJECT_STORAGE_PROVIDER=s3
-PURESOC_OBJECT_STORAGE_ENDPOINT=https://...
-PURESOC_OBJECT_STORAGE_REGION=eu-central-1
+PURESOC_OBJECT_STORAGE_ENDPOINT=http://puresoc-object-storage:9000
+PURESOC_OBJECT_STORAGE_REGION=us-east-1
 PURESOC_OBJECT_STORAGE_BUCKET=puresoc-evidence
-PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID=...
+PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID=puresoc_minio_admin
 PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY=...
 PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE=true
+PURESOC_MINIO_ROOT_USER=puresoc_minio_admin
+PURESOC_MINIO_ROOT_PASSWORD=...
 ```
 
 Do not expose storage URIs, bucket names, full object keys, or local file paths in API responses, logs, smoke output, or user-visible artifacts.
 
 ### Upload Scanner
 
-Production evidence upload scanning needs an HTTP scanner endpoint or equivalent adapter.
+Evidence uploads go through an upload-scanner hook before object storage. In HTTP mode, the API sends a JSON POST to the scanner endpoint with organization ID, object key, MIME type, byte size, SHA-256 hash, and `bodyBase64`. The scanner returns `clean`, `infected`, or `failed`; anything other than `clean` is rejected before storage.
+
+Compose includes `puresoc-clamav` plus `puresoc-upload-scanner`. `puresoc-clamav` runs the official ClamAV container with `clamd` and `freshclam`; signatures live in the `puresoc-clamav-db` volume so a normal restart does not redownload the full database. `puresoc-upload-scanner` remains the app-facing HTTP adapter, validates base64/integrity metadata and request size, then streams the uploaded bytes to `clamd` with ClamAV's `INSTREAM` protocol before object storage.
+
+Keep ClamAV internal to the Compose network. The ClamAV TCP protocol is not authenticated or encrypted, so do not publish port `3310` through a public ingress or host port. First boot can take longer while signatures download. Size hosts with enough memory for ClamAV signature loading; the official Docker guide recommends at least 3 GiB and prefers 4 GiB for the container.
 
 Variables:
 
 ```sh
 PURESOC_UPLOAD_SCANNER_MODE=http
-PURESOC_UPLOAD_SCANNER_ENDPOINT=http://scanner:3310/scan
+PURESOC_UPLOAD_SCANNER_ENDPOINT=http://puresoc-upload-scanner:3310/scan
+PURESOC_UPLOAD_SCANNER_ENGINE=clamav
 PURESOC_UPLOAD_SCANNER_TIMEOUT_MS=10000
+PURESOC_CLAMAV_IMAGE=clamav/clamav:1.4_base
+PURESOC_CLAMAV_HOST=puresoc-clamav
+PURESOC_CLAMAV_PORT=3310
+PURESOC_CLAMAV_TIMEOUT_MS=10000
+PURESOC_CLAMAV_FRESHCLAM_CHECKS=12
 ```
 
 `noop` is acceptable for local development only. Production startup rejects noop scanning unless `PURESOC_UPLOAD_SCANNER_ALLOW_NOOP_IN_PRODUCTION=true` is explicitly set.
@@ -416,9 +451,9 @@ The smoke must not print client secrets, access tokens, tenant IDs, raw tenant p
 
 ### Microsoft Entra, Google, And GitHub Login
 
-Social login is separate from managed provider consent. Local email/password auth remains available, and Microsoft Entra user sign-in is enabled by default.
+Social login is separate from managed provider consent. Local email/password auth is the default. Microsoft Entra user sign-in is just "let a PureSOC user log into the PureSOC app with Microsoft"; it is not required for customer Microsoft 365 tenant onboarding.
 
-Set `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false` only for deployments where PureSOC users authenticate exclusively with local/internal accounts and connect Microsoft 365 Graph from inside the app.
+Keep `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=false` for deployments where PureSOC users authenticate exclusively with local/internal accounts and connect Microsoft 365 Graph from inside the app.
 
 Shared requirements:
 
@@ -542,6 +577,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 - Origin/Referer protection is strict in production.
 - Trusted proxy IPs are explicit if forwarded headers are trusted.
 - Object storage and scanner are configured before relying on durable production evidence uploads.
+- ClamAV/FreshClam has enough memory, persistent signature storage, and no public `clamd` TCP exposure.
 - Provider token key material is non-default and injected through a deployment secret channel when Microsoft 365 connector credentials are configured.
 - Billing is either explicitly `none` for local/in-a-box or Stripe is configured with approved test/production mappings.
 - Microsoft 365 provider onboarding requests read-only permissions only.
@@ -592,3 +628,5 @@ External vendor docs:
 - GitHub OAuth apps: https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/authorizing-oauth-apps
 - Amazon S3 user guide: https://docs.aws.amazon.com/AmazonS3/latest/userguide/Welcome.html
 - MinIO container docs: https://min.io/docs/minio/container/index.html
+- ClamAV Docker images: https://docs.clamav.net/manual/Installing/Docker.html
+- ClamAV scanning and `clamd`: https://docs.clamav.net/manual/Usage/Scanning.html

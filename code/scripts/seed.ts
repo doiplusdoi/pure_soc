@@ -6,6 +6,7 @@ import {
   type PureSocPrismaClient,
   type StoredAnalysisRecordContract
 } from "@puresoc/database";
+import { ReportApiService } from "@puresoc/api";
 import {
   generateRecommendationSnapshot,
   type RecommendationContextInput,
@@ -47,6 +48,15 @@ interface DemoCustomer {
 
 const demoPassword = "PureSOC-Demo-2026!";
 const generatedAt = "2026-06-19T09:30:00.000Z";
+const nis2CountryOnboardingSchemaVersion = "puresoc.nis2.country_onboarding.v1";
+const nis2CountryOnboardingScreens = [
+  "company_contacts",
+  "business_profile",
+  "nis2_scope",
+  "operational_dependencies",
+  "governance_controls",
+  "review_generate"
+] as const;
 
 const demoIds = {
   distributorPartner: "11111111-1111-4111-8111-000000000001",
@@ -186,6 +196,7 @@ try {
   if (!["seed", "reset", "verify"].includes(command)) {
     throw new Error("Usage: npm run demo:seed | npm run demo:reset | npm run demo:verify");
   }
+  ensureDemoPrismaClientReady(prisma);
 
   if (command === "reset") {
     await resetDemo(prisma);
@@ -206,6 +217,21 @@ try {
 
 function handleDemoCommandError(error: unknown) {
   const message = error instanceof Error ? error.message : String(error);
+  if (message.includes("Prisma generated client is missing required demo model delegates")) {
+    console.error(
+      JSON.stringify(
+        {
+          status: "blocked",
+          reason: "prisma_client_outdated",
+          nextAction: "Run npm run prisma:generate after applying the NIS2 country onboarding migration, then rerun the demo command."
+        },
+        null,
+        2
+      )
+    );
+    return;
+  }
+
   if (message.includes("Can't reach database server")) {
     console.error(
       JSON.stringify(
@@ -224,6 +250,28 @@ function handleDemoCommandError(error: unknown) {
   }
 
   console.error(message);
+}
+
+function ensureDemoPrismaClientReady(client: PureSocPrismaClient) {
+  const requiredDelegates: Array<{ name: string; methods: string[] }> = [
+    { name: "nis2OnboardingProgress", methods: ["count", "create", "deleteMany"] },
+    { name: "nis2ClassificationRun", methods: ["count", "create", "deleteMany"] }
+  ];
+  const generatedClient = client as unknown as Record<string, Record<string, unknown> | undefined>;
+  const missing = requiredDelegates
+    .map((delegate) => {
+      const modelDelegate = generatedClient[delegate.name];
+      if (!modelDelegate) {
+        return delegate.name;
+      }
+      const missingMethods = delegate.methods.filter((method) => typeof modelDelegate[method] !== "function");
+      return missingMethods.length > 0 ? `${delegate.name}.${missingMethods.join(",")}` : null;
+    })
+    .filter((entry): entry is string => Boolean(entry));
+
+  if (missing.length > 0) {
+    throw new Error(`Prisma generated client is missing required demo model delegates: ${missing.join(", ")}`);
+  }
 }
 
 async function resetDemo(client: PureSocPrismaClient) {
@@ -284,6 +332,8 @@ async function resetDemo(client: PureSocPrismaClient) {
   await client.notificationDeadline.deleteMany({ where: { organizationId: { in: organizationIds } } });
   await client.notificationDraft.deleteMany({ where: { organizationId: { in: organizationIds } } });
   await client.roNis2NotificationDraft.deleteMany({ where: { organizationId: { in: organizationIds } } });
+  await client.nis2ClassificationRun.deleteMany({ where: { organizationId: { in: organizationIds } } });
+  await client.nis2OnboardingProgress.deleteMany({ where: { organizationId: { in: organizationIds } } });
   await client.roNis2ClassificationRun.deleteMany({ where: { organizationId: { in: organizationIds } } });
   await client.roNis2OnboardingProgress.deleteMany({ where: { organizationId: { in: organizationIds } } });
   await client.roleBinding.deleteMany({
@@ -326,6 +376,10 @@ async function seedDemo(client: PureSocPrismaClient) {
   const passwordHash = await passwordHasher.hashPassword(demoPassword);
   const now = new Date(generatedAt);
   const outputRepository = new PrismaOutputRecordRepository(client);
+  const reportService = new ReportApiService({
+    repository: outputRepository,
+    now: () => now
+  });
   const providerStore = new PrismaProviderResourceStore(client, {
     now: () => now
   });
@@ -456,6 +510,13 @@ async function seedDemo(client: PureSocPrismaClient) {
     });
 
     await outputRepository.saveStoredAnalysis(storedAnalysisForCustomer(customer));
+    await seedNis2CountryOnboarding(client, customer, now);
+    await reportService.buildInternalReadinessReport({
+      organizationId: customer.id,
+      actorUserId: demoIds.ownerUser,
+      assessmentId: customer.assessmentId,
+      versionContext: countryReportVersionContext(customer)
+    });
 
     if (customer.microsoft.connected && customer.connectionId) {
       const connection = await providerStore.createConnection({
@@ -503,16 +564,31 @@ async function seedDemo(client: PureSocPrismaClient) {
 }
 
 async function verifyDemo(client: PureSocPrismaClient) {
-  const [partner, customerCount, owner, analyst, grantCount] = await Promise.all([
+  const [partner, customerCount, owner, analyst, grantCount, onboardingCount, classificationCount, reportCount] = await Promise.all([
     client.partner.findUnique({ where: { id: demoIds.partner } }),
     client.organization.count({ where: { id: { in: demoCustomers.map((customer) => customer.id) } } }),
     client.user.findUnique({ where: { id: demoIds.ownerUser } }),
     client.user.findUnique({ where: { id: demoIds.analystUser } }),
-    client.partnerTenantGrant.count({ where: { partnerId: demoIds.partner, status: "active" } })
+    client.partnerTenantGrant.count({ where: { partnerId: demoIds.partner, status: "active" } }),
+    client.nis2OnboardingProgress.count({ where: { organizationId: { in: demoCustomers.map((customer) => customer.id) } } }),
+    client.nis2ClassificationRun.count({ where: { organizationId: { in: demoCustomers.map((customer) => customer.id) } } }),
+    client.generatedReport.count({
+      where: {
+        organizationId: { in: demoCustomers.map((customer) => customer.id) },
+        reportType: "internal_readiness"
+      }
+    })
   ]);
 
   if (!partner || customerCount !== demoCustomers.length || !owner || !analyst || grantCount !== demoCustomers.length) {
     throw new Error("PureSOC demo data is incomplete. Run npm run demo:seed.");
+  }
+  if (
+    onboardingCount !== demoCustomers.length ||
+    classificationCount !== demoCustomers.length ||
+    reportCount < demoCustomers.length
+  ) {
+    throw new Error("PureSOC demo country-aware onboarding and report v1 artifacts are incomplete. Run npm run demo:seed.");
   }
 
   const outputRepository = new PrismaOutputRecordRepository(client);
@@ -551,6 +627,7 @@ async function verifyDemo(client: PureSocPrismaClient) {
           name: customer.name,
           countryCode: customer.countryCode,
           sector: customer.sector,
+          onboarding: "persisted_country_aware_v1",
           microsoft: customer.microsoft.connected ? "fixture_connected" : "disconnected"
         }))
       },
@@ -558,6 +635,235 @@ async function verifyDemo(client: PureSocPrismaClient) {
       2
     )
   );
+}
+
+async function seedNis2CountryOnboarding(client: PureSocPrismaClient, customer: DemoCustomer, now: Date) {
+  const sourceReferences = sourceReferencesForCountry(customer.countryCode);
+  await client.nis2OnboardingProgress.create({
+    data: {
+      id: deterministicDemoUuid("66666666", demoCustomers.indexOf(customer) + 1),
+      organizationId: customer.id,
+      assessmentId: customer.assessmentId,
+      countryCode: customer.countryCode,
+      status: "ready_for_report",
+      currentScreen: "review_generate",
+      completedScreens: [...nis2CountryOnboardingScreens],
+      answersJson: countryOnboardingAnswersForCustomer(customer),
+      sourceVersion: countryOnboardingSourceVersion(customer.countryCode),
+      sourceReferencesJson: sourceReferences,
+      missingRequiredFields: [],
+      savedBy: demoIds.ownerUser,
+      createdAt: now,
+      updatedAt: now
+    }
+  });
+  await client.nis2ClassificationRun.create({
+    data: {
+      id: deterministicDemoUuid("77777777", demoCustomers.indexOf(customer) + 1),
+      organizationId: customer.id,
+      assessmentId: customer.assessmentId,
+      onboardingProgressId: deterministicDemoUuid("66666666", demoCustomers.indexOf(customer) + 1),
+      countryCode: customer.countryCode,
+      result: structuredClassificationForCustomer(customer),
+      confidence: customer.countryCode === "RO" ? "medium" : "low",
+      legalReviewRequired: true,
+      inputJson: {
+        employeeCount: customer.employeeCount,
+        publicAdministration: false,
+        sector: countryPackSectorForCustomer(customer),
+        services: [countryPackSectorForCustomer(customer)],
+        telecomProvider: false
+      },
+      explanation: `${customer.name} is seeded as ${customer.classification} for internal readiness demonstration.`,
+      assumptionsJson: [
+        "Demo country pack output is source-linked and legal-review gated.",
+        "Classification uses customer-provided answers only until provider evidence is connected."
+      ],
+      matchedRulesJson: [matchedRuleForCustomer(customer)],
+      missingInformation: [],
+      legalBasisJson: sourceReferences,
+      sourceVersion: countryOnboardingSourceVersion(customer.countryCode),
+      classifiedAt: now
+    }
+  });
+}
+
+function countryReportVersionContext(customer: DemoCustomer) {
+  return {
+    classificationResult: {
+      confidence: customer.countryCode === "RO" ? "medium" : "low",
+      countryCode: customer.countryCode,
+      explanation: `${customer.name} is seeded as ${customer.classification} for internal readiness demonstration.`,
+      legalReviewRequired: true,
+      missingInformation: [],
+      result: structuredClassificationForCustomer(customer)
+    },
+    countryPackVersion: "2026.06.demo",
+    onboardingSchemaVersion: countryOnboardingSourceVersion(customer.countryCode),
+    reportVersion: 1 as const,
+    triggerType: "onboarding_completed" as const
+  };
+}
+
+function countryOnboardingAnswersForCustomer(customer: DemoCustomer) {
+  return {
+    company: {
+      legalName: customer.legalName,
+      countryCode: customer.countryCode
+    },
+    contacts: {
+      primaryName: customer.countryCode === "PL" ? "Kasia Nowak" : customer.countryCode === "DE" ? "Anna Becker" : "Mara Ionescu",
+      primaryEmail: `owner@${customer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.example`,
+      securityName: customer.countryCode === "PL" ? "Jan Security" : customer.countryCode === "DE" ? "Felix Security" : "SOC Lead",
+      securityEmail: `security@${customer.name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.example`
+    },
+    business: {
+      sector: countryPackSectorForCustomer(customer),
+      mainProductsServices: `${customer.sector} services for small-business customers.`,
+      countriesServed: [customer.countryCode, "EU"],
+      employeeCount: customer.employeeCount
+    },
+    scope: {
+      activities: [countryPackSectorForCustomer(customer)],
+      dynamicAnswers: dynamicAnswersForCustomer(customer),
+      publicAdministration: false,
+      telecomProvider: false
+    },
+    dependencies: {
+      microsoft365Usage: customer.microsoft.connected ? "used_for_identity_devices_security" : "not_connected_yet",
+      criticalSuppliers:
+        customer.sector === "managed service provider"
+          ? ["Microsoft 365", "customer privileged access tooling"]
+          : customer.sector === "food distributor"
+            ? ["Microsoft 365", "cold-chain logistics platform"]
+            : ["Microsoft 365", "regulated quality platform"],
+      backupArrangements: customer.controlStatus === "passing" ? "implemented tested backups" : "partial backup evidence",
+      businessContinuity:
+        customer.controlStatus === "needs_evidence" ? "draft continuity plan" : "implemented continuity plan with review cadence",
+      incidentResponse:
+        customer.controlStatus === "needs_evidence" ? "draft incident escalation rota" : "implemented incident response process"
+    },
+    governance: {
+      riskManagement: customer.controlStatus === "needs_evidence" ? "draft cyber risk review" : "implemented cyber risk review",
+      identityControls: customer.controlStatus === "needs_evidence" ? "partial privileged access review" : "implemented least-privilege access reviews",
+      mfa: customer.microsoft.connected ? "implemented MFA evidence from Microsoft fixture" : "planned MFA evidence capture",
+      supplyChainSecurity:
+        customer.controlStatus === "needs_evidence" ? "draft supplier security process" : "implemented supplier security review"
+    },
+    review: {
+      assumptions: "Seeded deterministic demo data for internal readiness only.",
+      legalCaveatAcknowledged: true
+    }
+  };
+}
+
+function dynamicAnswersForCustomer(customer: DemoCustomer) {
+  if (customer.countryCode === "PL") {
+    return {
+      "pl.ksc.pkd_or_activity": "ICT service management and customer security operations",
+      "pl.ksc.self_registration_path": "unknown",
+      "pl.ksc.telecom_provider": "false"
+    };
+  }
+  if (customer.countryCode === "DE") {
+    return {
+      "de.bsi.portal_registration_expected": "unknown",
+      "de.bsi.sector_review": "food distribution"
+    };
+  }
+
+  return {
+    "ro.demo.source_review": "Romania-specific onboarding remains available in the dedicated workflow."
+  };
+}
+
+function sourceReferencesForCountry(countryCode: string) {
+  if (countryCode === "PL") {
+    return [
+      {
+        sourceRecordId: "pl-ksc-amendment-overview-2026",
+        label: "KSC amendment overview",
+        sourceUrl: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa",
+        sourceVersion: "2026-06-19",
+        nationalReference: "primary"
+      },
+      {
+        sourceRecordId: "pl-ksc-covered-entities-2026",
+        label: "KSC covered entities guidance",
+        sourceUrl: "https://www.gov.pl/web/cyfryzacja/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---kogo-obejmuje",
+        sourceVersion: "2026-06-19",
+        nationalReference: "primary"
+      }
+    ];
+  }
+  if (countryCode === "DE") {
+    return [
+      {
+        sourceRecordId: "de-bsi-regulated-companies",
+        label: "BSI NIS-2 regulated companies page",
+        sourceUrl: "https://www.bsi.bund.de/DE/Themen/Regulierte-Wirtschaft/NIS-2-regulierte-Unternehmen/nis-2-regulierte-unternehmen_node.html",
+        sourceVersion: "2026-06-19",
+        nationalReference: "primary"
+      },
+      {
+        sourceRecordId: "de-bsi-portal-nis2-registration",
+        label: "BSI portal NIS-2 registration information",
+        sourceUrl: "https://mip2.bsi.bund.de/en/info-nis2-registrierung/",
+        sourceVersion: "2026-06-19",
+        nationalReference: "primary"
+      }
+    ];
+  }
+
+  return [
+    {
+      sourceRecordId: "ro-nis2-demo-pack",
+      label: "Romania DNSC NIS2 demo pack",
+      sourceVersion: "2026.06.demo",
+      nationalReference: "demo"
+    }
+  ];
+}
+
+function countryOnboardingSourceVersion(countryCode: string) {
+  return `${nis2CountryOnboardingSchemaVersion}; ${countryCode} country pack 2026.06.demo`;
+}
+
+function countryPackSectorForCustomer(customer: DemoCustomer) {
+  if (customer.countryCode === "PL") {
+    return "ict_service_management";
+  }
+  if (customer.countryCode === "DE") {
+    return "food";
+  }
+  if (customer.sector.includes("pharmaceutical")) {
+    return "health";
+  }
+  return "food";
+}
+
+function structuredClassificationForCustomer(customer: DemoCustomer) {
+  if (customer.countryCode === "RO") {
+    return "likely_important_entity";
+  }
+  if (customer.countryCode === "PL") {
+    return "legal_review_required";
+  }
+  return "possibly_in_scope";
+}
+
+function matchedRuleForCustomer(customer: DemoCustomer) {
+  if (customer.countryCode === "PL") {
+    return "pl-demo-ict-service-management";
+  }
+  if (customer.countryCode === "DE") {
+    return "de-demo-food-manufacturing";
+  }
+  return "ro-demo-readiness-review";
+}
+
+function deterministicDemoUuid(prefix: string, index: number) {
+  return `${prefix}-${prefix.slice(0, 4)}-4${prefix.slice(4, 7)}-8${prefix.slice(1, 4)}-${String(index).padStart(12, "0")}`;
 }
 
 function storedAnalysisForCustomer(customer: DemoCustomer): StoredAnalysisRecordContract {

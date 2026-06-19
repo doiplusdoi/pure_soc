@@ -133,12 +133,14 @@ if (smokeMode === "ui") {
   await runServedUiSmoke();
 } else if (smokeMode === "browser") {
   await runBrowserSmoke();
+} else if (smokeMode === "fixture-demo") {
+  await runFixtureDemoSmoke();
 } else {
   console.log(
     JSON.stringify({
       schema: "puresoc.ui_smoke.runner.v1",
       status: "skipped",
-      reason: "run-ui-smoke owns @ui-smoke and @browser-smoke only",
+      reason: "run-ui-smoke owns @ui-smoke, @browser-smoke, and @fixture-demo only",
       requestedGrep: grepPattern
     })
   );
@@ -147,6 +149,10 @@ if (smokeMode === "ui") {
 function resolveSmokeMode(pattern) {
   if (pattern.includes("@browser-smoke")) {
     return "browser";
+  }
+
+  if (pattern.includes("@fixture-demo")) {
+    return "fixture-demo";
   }
 
   if (pattern.includes("@ui-smoke")) {
@@ -733,6 +739,249 @@ async function runBrowserSmoke() {
   }
 }
 
+async function runFixtureDemoSmoke() {
+  initSmokeState("puresoc-fixture-demo-");
+
+  try {
+    const { startWebServer } = await loadRuntimeModules();
+    const webPort = await getFreePort();
+    const webBaseUrl = `http://127.0.0.1:${webPort}`;
+    const apiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: false,
+      microsoft365FixtureSet: "partner_demo_partial",
+      microsoft365Mode: "fixture"
+    });
+    servers.push(apiServer.server);
+    const apiBaseUrl = apiServer.baseUrl;
+    const seeded = await seedApiBackedWebDashboard({
+      apiBaseUrl,
+      webBaseUrl,
+      emailPrefix: "fixture-demo"
+    });
+    const webServer = startWebServer(webPort, {
+      apiBaseUrl,
+      publicBaseUrl: webBaseUrl
+    });
+    servers.push(webServer);
+    await waitForListening(webServer);
+
+    const webLogin = await loginThroughWeb({
+      webBaseUrl,
+      email: seeded.email,
+      password: seeded.password
+    });
+    await selectWorkspaceThroughWeb({
+      webBaseUrl,
+      cookie: webLogin.cookie,
+      organizationId: seeded.organizationId
+    });
+
+    const partnerLocation = await postForm(`${webBaseUrl}/partners`, {
+      name: "Fixture Demo Partner",
+      slug: `fixture-demo-${Date.now()}`
+    }, webLogin.cookie);
+    const partnerId = new URL(partnerLocation, webBaseUrl).searchParams.get("partnerId") ?? "";
+    record("fixture_demo_partner_created_through_web", partnerId.length > 0, partnerLocation);
+
+    await postForm(`${webBaseUrl}/partners/${partnerId}/customers`, {
+      name: "NordFrucht Fixture GmbH",
+      legalName: "NordFrucht Fixture GmbH",
+      primaryCountryCode: "DE",
+      grantLevel: "admin"
+    }, webLogin.cookie);
+    const portfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    const customerGrant = portfolio.grants?.find((grant) => grant.organization?.name === "NordFrucht Fixture GmbH");
+    const customerOrganizationId = customerGrant?.organizationId;
+    record("fixture_demo_customer_added_to_partner_portfolio", typeof customerOrganizationId === "string", JSON.stringify(portfolio.metrics ?? {}));
+
+    await postForm(`${webBaseUrl}/partners/${partnerId}/tenant-sessions`, {
+      organizationId: customerOrganizationId,
+      reason: "Fixture demo customer readiness walkthrough"
+    }, webLogin.cookie);
+
+    const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding/nis2?country=DE`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record("fixture_demo_country_onboarding_opened", htmlText(onboardingHtml).includes("Germany BSI NIS2 demo pack"));
+    record("fixture_demo_partner_customer_banner_visible", htmlText(onboardingHtml).includes("Fixture Demo Partner"));
+    const onboardingAnswers = fixtureDemoCountryOnboardingForm();
+    await postForm(`${webBaseUrl}/onboarding/nis2`, {
+      ...onboardingAnswers,
+      country: "DE",
+      screen: "review_generate",
+      _action: "save"
+    }, webLogin.cookie);
+    await postForm(`${webBaseUrl}/onboarding/nis2`, {
+      ...onboardingAnswers,
+      country: "DE",
+      screen: "nis2_scope",
+      _action: "classify"
+    }, webLogin.cookie);
+    const reportLocation = await postForm(`${webBaseUrl}/onboarding/nis2`, {
+      ...onboardingAnswers,
+      country: "DE",
+      screen: "review_generate",
+      _action: "generate_report"
+    }, webLogin.cookie);
+    const reportMessage = new URL(reportLocation, webBaseUrl).searchParams.get("message") ?? "";
+    const previousReportId = reportMessage.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ?? "";
+    record("fixture_demo_report_v1_generated_through_web", previousReportId.length > 0, reportMessage);
+
+    const connectLocation = await postForm(`${webBaseUrl}/providers/microsoft365/connect`, {}, webLogin.cookie);
+    const callbackResponse = await fetch(connectLocation, {
+      redirect: "manual",
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record("fixture_demo_microsoft_fixture_callback_completed", callbackResponse.status === 303, String(callbackResponse.status));
+    const connections = await fetchJson(`${apiBaseUrl}/organizations/${customerOrganizationId}/provider-connections`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    const microsoftConnection = connections.connections?.find((connection) => connection.providerKey === "microsoft365");
+    record("fixture_demo_microsoft_connection_created", Boolean(microsoftConnection?.id));
+    await postForm(`${webBaseUrl}/providers/microsoft365/sync`, {
+      providerConnectionId: microsoftConnection.id
+    }, webLogin.cookie);
+    const health = await fetchJson(
+      `${apiBaseUrl}/organizations/${customerOrganizationId}/provider-connections/${microsoftConnection.id}/health`,
+      {
+        headers: {
+          cookie: webLogin.cookie
+        }
+      }
+    );
+    record("fixture_demo_microsoft_fixture_sync_succeeded", health.status === "connected" && health.effectiveConnectorMode === "fixture");
+
+    const verifiedReport = await postJson(
+      `${apiBaseUrl}/organizations/${customerOrganizationId}/reports/internal-readiness/verified-microsoft365`,
+      {
+        previousReportId,
+        providerConnectionId: microsoftConnection.id
+      },
+      {
+        cookie: webLogin.cookie,
+        origin: webBaseUrl
+      }
+    );
+    record("fixture_demo_report_v2_generated_after_sync", verifiedReport.status === 201, String(verifiedReport.status));
+    const verifiedReportBody = await verifiedReport.json();
+    const reportData = verifiedReportBody.report?.reportData;
+    record(
+      "fixture_demo_report_v2_version_links_v1",
+      reportData?.version?.reportVersion === 2 && reportData?.version?.previousReportId === previousReportId,
+      JSON.stringify(reportData?.version ?? {})
+    );
+    record(
+      "fixture_demo_report_v2_deltas_present",
+      typeof reportData?.comparison?.readinessDelta === "number" &&
+        typeof reportData?.comparison?.evidenceConfidenceDelta === "number",
+      JSON.stringify(reportData?.comparison ?? {})
+    );
+    record(
+      "fixture_demo_business_premium_recommendation_present",
+      JSON.stringify(reportData?.recommendations ?? []).includes("Microsoft 365 Business Premium")
+    );
+    const csvExport = await postJson(
+      `${apiBaseUrl}/organizations/${customerOrganizationId}/reports/internal-readiness/csv`,
+      {
+        assessmentId: verifiedReportBody.report?.assessmentId
+      },
+      {
+        cookie: webLogin.cookie,
+        origin: webBaseUrl
+      }
+    );
+    record("fixture_demo_csv_export_generated", csvExport.status === 201, String(csvExport.status));
+    const evidencePackage = await postJson(
+      `${apiBaseUrl}/organizations/${customerOrganizationId}/reports/internal-readiness/evidence-package`,
+      {
+        assessmentId: verifiedReportBody.report?.assessmentId
+      },
+      {
+        cookie: webLogin.cookie,
+        origin: webBaseUrl
+      }
+    );
+    record("fixture_demo_evidence_package_generated", evidencePackage.status === 201, String(evidencePackage.status));
+
+    const refreshedPortfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    const refreshedCustomer = refreshedPortfolio.grants?.find((grant) => grant.organizationId === customerOrganizationId);
+    record(
+      "fixture_demo_partner_portfolio_reflects_customer_assessment",
+      Boolean(refreshedCustomer?.snapshot?.assessmentId) &&
+        refreshedCustomer?.snapshot?.microsoftConnectionState === "connected"
+    );
+    record(
+      "fixture_demo_partner_portfolio_shows_business_premium_opportunity",
+      JSON.stringify(refreshedPortfolio.opportunities ?? []).includes("Microsoft 365 Business Premium")
+    );
+    const currentTenantSession = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/tenant-access-sessions/current`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    const tenantSessionId = currentTenantSession.tenantSession?.id;
+    record("fixture_demo_current_tenant_session_loaded_for_exit", typeof tenantSessionId === "string" && tenantSessionId.length > 0);
+    await postForm(`${webBaseUrl}/partners/${partnerId}/tenant-sessions/${tenantSessionId}/exit`, {}, webLogin.cookie);
+    const exitedTenantSession = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/tenant-access-sessions/current`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record("fixture_demo_customer_tenant_exited", exitedTenantSession.tenantSession === null);
+
+    console.log(
+      JSON.stringify(
+        {
+          schema: "puresoc.fixture_demo_smoke.v1",
+          status: "passed",
+          smokeMode: "served_web_fixture_flow",
+          artifacts: {
+            directory: artifactsDir
+          },
+          checks: checkNames(),
+          nonLiveGuarantees: nonLiveGuarantees()
+        },
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify(
+        {
+          schema: "puresoc.fixture_demo_smoke.v1",
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+          checks: checkNames(),
+          artifacts: {
+            directory: artifactsDir
+          }
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+  } finally {
+    await closeAllServers();
+  }
+}
+
 function nonLiveGuarantees() {
   return [
     "no Microsoft Graph calls",
@@ -923,6 +1172,8 @@ async function startApiSmokeServer({
   webBaseUrl,
   secureCookie,
   extraTrustedOrigins = [],
+  microsoft365FixtureSet,
+  microsoft365Mode,
   requireOriginOrReferer = false,
   port = 0
 }) {
@@ -938,7 +1189,9 @@ async function startApiSmokeServer({
       PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: requireOriginOrReferer ? "true" : "false",
       PURESOC_API_RATE_LIMIT_ENABLED: "true",
       PURESOC_API_RATE_LIMIT_MAX_REQUESTS: "500",
-      PURESOC_BILLING_PROVIDER: "none"
+      PURESOC_BILLING_PROVIDER: "none",
+      ...(microsoft365FixtureSet ? { PURESOC_CONNECTOR_MICROSOFT365_FIXTURE_SET: microsoft365FixtureSet } : {}),
+      ...(microsoft365Mode ? { PURESOC_CONNECTOR_MICROSOFT365_MODE: microsoft365Mode } : {})
     }
   });
   const services = createApiServices({
@@ -3568,13 +3821,13 @@ function writeViewportSnapshot({ name, width, height, html }) {
 
 async function fetchText(url, options = {}) {
   const response = await fetch(url, options);
-  record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200);
+  record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200, String(response.status));
   return response.text();
 }
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, options);
-  record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200);
+  record(`fetch_${routeLabel(url)}_status_ok`, response.status === 200, String(response.status));
   return response.json();
 }
 
@@ -3589,6 +3842,24 @@ function postJson(url, body, headers = {}) {
   });
 }
 
+async function postForm(url, body, cookie) {
+  const response = await fetch(url, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      ...(cookie ? { cookie } : {})
+    },
+    body: new URLSearchParams(
+      Object.fromEntries(
+        Object.entries(body).map(([key, value]) => [key, value === undefined || value === null ? "" : String(value)])
+      )
+    )
+  });
+  record(`post_form_${routeLabel(url)}_redirects`, response.status === 303, String(response.status));
+  return response.headers.get("location") ?? "/";
+}
+
 function putJson(url, body, headers = {}) {
   return fetch(url, {
     method: "PUT",
@@ -3598,6 +3869,37 @@ function putJson(url, body, headers = {}) {
     },
     body: JSON.stringify(body)
   });
+}
+
+function fixtureDemoCountryOnboardingForm() {
+  return {
+    "company.legalName": "NordFrucht Fixture GmbH",
+    "company.countryCode": "DE",
+    "contacts.primaryName": "Anna Becker",
+    "contacts.primaryEmail": "anna@nordfrucht-fixture.example",
+    "contacts.securityName": "Felix Security",
+    "contacts.securityEmail": "security@nordfrucht-fixture.example",
+    "business.sector": "food",
+    "business.mainProductsServices": "Food distribution and cold-chain logistics for regional producers.",
+    "business.countriesServed": "DE, PL",
+    "business.employeeCount": "72",
+    "scope.activities": "food",
+    "scope.publicAdministration": "false",
+    "scope.telecomProvider": "false",
+    "scope.dynamicAnswers.de.bsi.portal_registration_expected": "unknown",
+    "scope.dynamicAnswers.de.bsi.sector_review": "food distribution",
+    "dependencies.microsoft365Usage": "used_for_identity_devices_security",
+    "dependencies.criticalSuppliers": "Microsoft 365, cold-chain logistics platform",
+    "dependencies.backupArrangements": "implemented encrypted backups with quarterly restore tests",
+    "dependencies.businessContinuity": "implemented continuity plan reviewed by management",
+    "dependencies.incidentResponse": "implemented incident-response runbook and escalation rota",
+    "governance.riskManagement": "implemented annual cyber risk review",
+    "governance.identityControls": "partial privileged access reviews for seasonal operations users",
+    "governance.mfa": "partial MFA rollout for privileged users",
+    "governance.supplyChainSecurity": "implemented supplier security questionnaire",
+    "review.assumptions": "Fixture demo onboarding for internal readiness only.",
+    "review.legalCaveatAcknowledged": "true"
+  };
 }
 
 function styleBlock(html) {

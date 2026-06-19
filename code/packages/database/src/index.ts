@@ -55,6 +55,14 @@ export {
   type RoNis2ReadinessRepository
 } from "./repositories/ro-nis2-readiness";
 export {
+  InMemoryNis2OnboardingRepository,
+  PrismaNis2OnboardingRepository,
+  type Nis2ClassificationRunRecord,
+  type Nis2OnboardingProgressRecord,
+  type Nis2OnboardingRepository,
+  type PrismaNis2OnboardingClient
+} from "./repositories/nis2-onboarding";
+export {
   PrismaIdentityOrganizationRbacRepository,
   type OrganizationInvitationRecordContract,
   type OrganizationMembershipRecordContract,

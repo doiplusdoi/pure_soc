@@ -100,6 +100,43 @@ model Example {
     );
   });
 
+  it("includes country-aware NIS2 onboarding persistence in schema drift coverage", () => {
+    const coveredModels = defaultPrismaDriftExpectations.map((expectation) => expectation.modelName);
+
+    expect(coveredModels).toEqual(
+      expect.arrayContaining(["Nis2OnboardingProgress", "Nis2ClassificationRun"])
+    );
+
+    expect(defaultPrismaDriftExpectations).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "answersJson", type: "Json" }),
+            expect.objectContaining({ isList: true, name: "completedScreens", type: "String" }),
+            expect.objectContaining({ isList: true, name: "missingRequiredFields", type: "String" })
+          ]),
+          modelAttributes: expect.arrayContaining([
+            '@@index([organizationId, countryCode, status], map: "nis2_onboarding_progress_org_country_status_idx")'
+          ]),
+          modelName: "Nis2OnboardingProgress",
+          tableName: "nis2_onboarding_progress"
+        }),
+        expect.objectContaining({
+          fields: expect.arrayContaining([
+            expect.objectContaining({ name: "inputJson", type: "Json" }),
+            expect.objectContaining({ name: "result", type: "String" }),
+            expect.objectContaining({ name: "legalBasisJson", type: "Json" })
+          ]),
+          modelAttributes: expect.arrayContaining([
+            '@@index([organizationId, countryCode, result, classifiedAt], map: "nis2_classification_runs_org_country_result_idx")'
+          ]),
+          modelName: "Nis2ClassificationRun",
+          tableName: "nis2_classification_runs"
+        })
+      ])
+    );
+  });
+
   it("includes owner-managed invitation persistence in schema drift coverage", () => {
     expect(defaultPrismaDriftExpectations).toEqual(
       expect.arrayContaining([

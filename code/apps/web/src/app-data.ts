@@ -55,6 +55,7 @@ export interface OperationalConsoleModel {
   microsoft365: Microsoft365HealthSurface;
   gaps: GapSurface[];
   recommendations: RecommendationSurface[];
+  evidenceScanner: EvidenceScannerSurface;
   evidence: ReportEvidenceSummary[];
   reports: ReportSurface[];
   actionRuns: ActionRun[];
@@ -81,6 +82,14 @@ export interface RuntimeSessionSurface {
   session: {
     activeOrganizationId?: string | null;
   };
+}
+
+export interface EvidenceScannerSurface {
+  detail: string;
+  engine: string;
+  label: string;
+  signatureSource?: string;
+  status: OperationalStatus;
 }
 
 export interface WorkspaceSelectionOrganizationSurface {
@@ -335,11 +344,52 @@ export interface Nis2CountryPackStructuredClassificationSurface {
   legalReviewRequired: boolean;
 }
 
+export interface Nis2CountryOnboardingScreenSurface {
+  key: string;
+  label: string;
+  summary: string;
+  requiredFieldPaths: readonly string[];
+}
+
+export interface Nis2CountryOnboardingProgressSurface {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  answers: Record<string, unknown>;
+  completedScreens: readonly string[];
+  countryCode: string;
+  currentScreen: string;
+  missingRequiredFields: readonly string[];
+  sourceReferences: readonly Record<string, unknown>[];
+  sourceVersion: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface Nis2CountryOnboardingClassificationRunSurface {
+  id: string;
+  organizationId: string;
+  assessmentId?: string;
+  onboardingProgressId?: string;
+  countryCode: string;
+  result: string;
+  confidence: "low" | "medium" | "high";
+  legalReviewRequired: boolean;
+  explanation: string;
+  assumptions: readonly string[];
+  matchedRules: readonly string[];
+  missingInformation: readonly string[];
+  legalBasisReferences: readonly Record<string, unknown>[];
+  sourceVersion: string;
+  classifiedAt: string;
+}
+
 export interface Nis2CountryAwareOnboardingModel {
   actionMessage?: string;
   activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   activeOrganizationId?: string | null;
-  classification?: Nis2CountryPackStructuredClassificationSurface | null;
+  classification?: Nis2CountryPackStructuredClassificationSurface | Nis2CountryOnboardingClassificationRunSurface | null;
   classificationInput: {
     employeeCount?: number;
     publicAdministration?: boolean;
@@ -348,8 +398,16 @@ export interface Nis2CountryAwareOnboardingModel {
   };
   countryPacks: readonly Nis2CountryPackDefinitionSurface[];
   errorMessage?: string;
+  generatedReport?: {
+    id: string;
+    assessmentId?: string;
+    status: string;
+  };
+  onboardingScreens: readonly Nis2CountryOnboardingScreenSurface[];
+  progress?: Nis2CountryOnboardingProgressSurface | null;
   selectedCountryCode: string;
   selectedCountryPack: Nis2CountryPackDefinitionSurface;
+  selectedScreen: string;
   session: RuntimeSessionSurface;
 }
 
@@ -819,6 +877,13 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         sourceReferences: [euArticle21]
       }
     ],
+    evidenceScanner: {
+      label: "Upload scan gate",
+      engine: "ClamAV",
+      status: "ready",
+      signatureSource: "FreshClam signatures",
+      detail: "Evidence uploads are streamed to the internal ClamAV service before MinIO storage."
+    },
     evidence,
     reports: [
       {

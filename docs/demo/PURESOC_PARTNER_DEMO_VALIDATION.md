@@ -128,13 +128,39 @@ Status: living validation record.
 | `npm test` | Passed | Full suite passed outside the sandbox: 90 files, 438 tests. Required elevated local execution because API tests bind localhost. |
 | `git diff --check` | Passed | No whitespace errors. |
 
+## Final Fixture Demo Closure Commands
+
+Run from `code/` on 2026-06-19 after persisted country-aware onboarding/report changes.
+
+| Command | Result | Notes |
+|---|---:|---|
+| `npm run lint` | Passed | Layout, schema-contract drift, generated Romania regulatory drift, and typecheck passed. Schema drift covered 42 Prisma models and 589 fields. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:5432/puresoc npm run prisma:validate` | Passed | Prisma schema with `nis2_onboarding_progress` and `nis2_classification_runs` is valid. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:5432/puresoc npm run prisma:generate` | Passed | Updated the local generated Prisma client after adding country-aware onboarding models. |
+| `npm test` | Passed | Full suite passed outside the sandbox: 91 files, 442 tests. Required elevated local execution because API integration tests bind localhost. |
+| `npm run test:e2e` | Passed | Unfiltered served web smoke passed with local HTTP browser substitute, API-backed renderer, UI/auth/origin checks, Romania route coverage, and non-live guarantees. |
+| `npm run test:e2e -- --grep @fixture-demo` | Passed | Served web fixture flow created a partner and customer through web forms, entered a tenant session, opened DE onboarding, generated report v1, connected Microsoft partial fixture, synced read-only evidence, generated report v2/CSV/evidence package, verified v2 linked to v1 with comparison deltas, verified the Business Premium recommendation and partner portfolio opportunity, and exited the customer tenant. Non-live guarantees reported no Microsoft Graph, Stripe, OIDC, object-storage/scanner, KMS, public regulatory fetch, or provider-write calls. |
+| `npm run compose:config` | Passed | Default Compose topology renders with fixture-mode Microsoft defaults and configurable host-port bindings. |
+| `npm run compose:config:build` | Passed | Build-enabled Compose topology renders. |
+| `PURESOC_POSTGRES_PORT=15432 PURESOC_REDIS_PORT=16379 PURESOC_OBJECT_STORAGE_PORT=19000 PURESOC_OBJECT_STORAGE_CONSOLE_PORT=19001 npm run compose:up` | Passed | Default host ports `5432`, `6379`, `9000`, and `9001` were occupied by unrelated local `radar_*` containers, so the PureSOC stack was started on alternate host ports without stopping other services. Compose built the local app images, ran the migrator, and started API, web, worker, scheduler, connector-runner, report-renderer, PostgreSQL, Redis, and MinIO. |
+| `curl -fsS http://127.0.0.1:3001/health` | Passed | API reported `status=ok`, `environment=development`, and `providerWrites=disabled`. The sandboxed localhost probe failed, then the approved local probe passed. |
+| `curl -fsS http://127.0.0.1:3000/health` | Passed | Web reported `status=ok`, `runtime=api-backed-renderer`, and `apiBacked=true`. The sandboxed localhost probe failed, then the approved local probe passed. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run prisma:migrate:deploy` | Passed | The Compose migrator had already applied all 14 migrations, including `20260619020000_nis2_country_onboarding`; the explicit deploy command reported no pending migrations. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run demo:reset` | Passed | Reset removed only deterministic demo records. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run demo:seed` | Passed | Seed produced Asterion Cloud Partners plus RO/DE/PL customers with persisted country-aware onboarding and expected Microsoft fixture states. |
+| `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run demo:verify` | Passed | Verification returned `status=ready` for MedicaNova SRL, NordFrucht GmbH, and SecureOps Polska Sp. z o.o. |
+| Second `demo:seed` followed by second `demo:verify` using the same `DATABASE_URL` | Passed | Rerunning seed followed by verify without a reset returned the same ready demo shape, proving the deterministic seed path is idempotent. |
+
+Additional guardrail validation:
+
+- Before `prisma:generate`, `demo:verify` returned structured `prisma_client_outdated` instead of a raw missing-delegate error, so stale generated Prisma clients now fail with an actionable message.
+- The initial sandboxed `npm test` failed only because API tests could not bind `0.0.0.0` (`listen EPERM`). The same suite passed with local-server permission.
+- No `postgres`, `initdb`, `pg_ctl`, or `psql` binary is available on PATH in this environment. Docker Desktop was used for the migrated PostgreSQL traversal. Unrelated `radar_*` containers kept the default database/cache/object-storage ports occupied, so Compose host-port overrides were used instead of stopping those services.
+
 ## External Calls
 
-No Microsoft Graph, Stripe, OIDC provider, object storage, scanner, DNSC, KMS, deployment, or provider-write external call was made for Milestone 0 through Milestone 9. Milestone 3 used public official-source browsing for EU/Poland/Germany source verification only. Milestone 5 used Microsoft Learn browsing to verify current admin-consent and Graph endpoint/permission assumptions. Milestone 7 used Microsoft Learn browsing to verify Business Premium capability/user-limit source metadata before encoding recommendation source references. No application runtime called those services. Milestone 6 through Milestone 9 local tests consumed only fixture/local inputs.
+No Microsoft Graph, Stripe, OIDC provider, object storage, scanner, DNSC, KMS, deployment, or provider-write external call was made for Milestone 0 through final fixture-demo closure. Milestone 3 used public official-source browsing for EU/Poland/Germany source verification only. Milestone 5 used Microsoft Learn browsing to verify current admin-consent and Graph endpoint/permission assumptions. Milestone 7 used Microsoft Learn browsing to verify Business Premium capability/user-limit source metadata before encoding recommendation source references. No application runtime called those services. Milestone 6 through final closure local tests consumed only fixture/local inputs.
 
 ## Pending Milestone Validation
 
-- Served web/UI smoke can still be expanded to traverse the partner portfolio route in a real browser; renderer coverage now verifies active customer banner propagation across operational routes.
-- Migration apply smoke against a disposable PostgreSQL database remains pending when no Docker/PostgreSQL runtime is available.
-- Full `demo:reset` -> `demo:seed` -> `demo:verify` traversal remains pending until a local/disposable PostgreSQL database is available.
 - Independent external/product/legal review remains outside this local validation run.

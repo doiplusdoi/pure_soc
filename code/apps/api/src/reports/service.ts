@@ -5,6 +5,12 @@ import type { AuditWriter } from "@puresoc/audit";
 import type { OutputRecordRepository } from "@puresoc/database";
 import type { ProviderNormalizedResource, ProviderResourceStore, ProviderSyncModuleRecord } from "@puresoc/providers-core";
 import {
+  generateRecommendationSnapshot,
+  type Microsoft365SubscriptionInput,
+  type RecommendationContract,
+  type RecommendationContextInput
+} from "@puresoc/recommendations";
+import {
   buildPdfReportHtml,
   buildInternalReadinessEvidencePackageExport,
   buildInternalReadinessCsvExport,
@@ -31,7 +37,12 @@ import type { GeneratedReportRecord, StoredAnalysisRecord } from "../output-reco
 
 export type ReportRepository = Pick<
   OutputRecordRepository,
-  "findGeneratedReport" | "findLatestStoredAnalysis" | "findStoredAnalysis" | "saveGeneratedReport" | "saveReportExport"
+  | "findGeneratedReport"
+  | "findLatestStoredAnalysis"
+  | "findStoredAnalysis"
+  | "saveGeneratedReport"
+  | "saveReportExport"
+  | "saveStoredAnalysis"
 >;
 
 export type ReportProviderResourceStore = Pick<
@@ -202,6 +213,17 @@ export class ReportApiService {
       syncModules,
       controlResults: analysis.results
     });
+    const recommendations = recommendationsWithMicrosoft365Context({
+      analysis,
+      generatedAt,
+      normalizedResources,
+      organizationId: input.organizationId
+    });
+    await this.repository.saveStoredAnalysis({
+      ...analysis,
+      recordedAt: generatedAt,
+      recommendations
+    });
     const reportData = buildInternalReadinessReport({
       organizationId: input.organizationId,
       assessmentId,
@@ -211,7 +233,7 @@ export class ReportApiService {
       analysisRecordedAt: analysis.recordedAt,
       controlResults: analysis.results,
       gaps: analysis.gaps,
-      recommendations: analysis.recommendations,
+      recommendations,
       readinessPlan: analysis.readinessPlan,
       evidence: analysis.evidenceArtifacts,
       methodologyVersion: "puresoc.readiness.verified-microsoft.v1",
@@ -1013,6 +1035,130 @@ const buildMicrosoft365VerifiedEvidenceSnapshot = (
   };
 };
 
+const recommendationsWithMicrosoft365Context = (input: {
+  analysis: StoredAnalysisRecord;
+  generatedAt: string;
+  normalizedResources: readonly ProviderNormalizedResource[];
+  organizationId: string;
+}): RecommendationContract[] => {
+  const generatedRecommendations = generateRecommendationSnapshot({
+    organizationId: input.organizationId,
+    gaps: input.analysis.gaps,
+    context: microsoft365RecommendationContext({
+      analysis: input.analysis,
+      normalizedResources: input.normalizedResources
+    }),
+    existingRecommendations: input.analysis.recommendations,
+    generatedAt: input.generatedAt
+  }).recommendations;
+
+  return mergeRecommendations(input.analysis.recommendations, generatedRecommendations);
+};
+
+const microsoft365RecommendationContext = (input: {
+  analysis: StoredAnalysisRecord;
+  normalizedResources: readonly ProviderNormalizedResource[];
+}): RecommendationContextInput => {
+  const subscriptions = microsoft365SubscriptionsFromResources(input.normalizedResources);
+  const userCount = microsoft365UserCount(input.normalizedResources);
+  const microsoft365: NonNullable<RecommendationContextInput["microsoft365"]> = {};
+
+  if (subscriptions.length > 0) {
+    microsoft365.subscriptions = subscriptions;
+  }
+  if (userCount !== undefined) {
+    microsoft365.userCount = userCount;
+  }
+
+  return {
+    countryCode: input.analysis.jurisdiction,
+    evidenceConfidence: "medium",
+    ...(Object.keys(microsoft365).length > 0 ? { microsoft365 } : {})
+  };
+};
+
+const microsoft365SubscriptionsFromResources = (
+  normalizedResources: readonly ProviderNormalizedResource[]
+): Microsoft365SubscriptionInput[] => {
+  const subscriptions: Microsoft365SubscriptionInput[] = [];
+
+  for (const resource of normalizedResources) {
+    if (resource.providerKey !== microsoft365ProviderKey || resource.resourceType !== "cloud_license") {
+      continue;
+    }
+    const skuPartNumber = stringValue(resource.normalizedJson.skuPartNumber);
+    if (!skuPartNumber) {
+      continue;
+    }
+    const servicePlans = microsoft365ServicePlans(resource.normalizedJson.servicePlans);
+    const consumedUnits = numberValueOrUndefined(resource.normalizedJson.consumedUnits);
+    subscriptions.push({
+      skuPartNumber,
+      ...(consumedUnits !== undefined ? { consumedUnits } : {}),
+      ...(servicePlans.length > 0 ? { servicePlans } : {})
+    });
+  }
+
+  return subscriptions;
+};
+
+type Microsoft365ServicePlanInput = NonNullable<Microsoft365SubscriptionInput["servicePlans"]>[number];
+
+const microsoft365ServicePlans = (value: unknown): Microsoft365ServicePlanInput[] => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  const servicePlans: Microsoft365ServicePlanInput[] = [];
+  for (const entry of value) {
+    if (typeof entry === "string") {
+      servicePlans.push(entry);
+      continue;
+    }
+    if (!isRecord(entry)) {
+      continue;
+    }
+    const servicePlanName = stringValue(entry.servicePlanName);
+    if (!servicePlanName) {
+      continue;
+    }
+    const provisioningStatus = stringValue(entry.provisioningStatus);
+    servicePlans.push({
+      servicePlanName,
+      ...(provisioningStatus ? { provisioningStatus } : {})
+    });
+  }
+
+  return servicePlans;
+};
+
+const microsoft365UserCount = (normalizedResources: readonly ProviderNormalizedResource[]): number | undefined => {
+  const userKeys = normalizedResources
+    .filter((resource) => resource.providerKey === microsoft365ProviderKey && resource.resourceType === "cloud_user")
+    .map((resource) => stringValue(resource.normalizedJson.userPrincipalName) || resource.externalId || resource.id)
+    .filter(Boolean);
+
+  return userKeys.length > 0 ? new Set(userKeys).size : undefined;
+};
+
+const mergeRecommendations = (
+  existingRecommendations: readonly RecommendationContract[],
+  generatedRecommendations: readonly RecommendationContract[]
+): RecommendationContract[] => {
+  const byId = new Map<string, RecommendationContract>();
+
+  for (const recommendation of existingRecommendations) {
+    byId.set(recommendation.id, recommendation);
+  }
+  for (const recommendation of generatedRecommendations) {
+    if (!byId.has(recommendation.id)) {
+      byId.set(recommendation.id, recommendation);
+    }
+  }
+
+  return [...byId.values()];
+};
+
 const microsoft365MfaObservations = (
   input: Microsoft365VerifiedEvidenceSnapshotInput,
   latestModules: Map<string, ProviderSyncModuleRecord>
@@ -1166,3 +1312,11 @@ const controlIdFor = (
 const booleanValue = (value: unknown): boolean => value === true || value === "true";
 
 const numberValue = (value: unknown): number => (typeof value === "number" && Number.isFinite(value) ? value : 0);
+
+const numberValueOrUndefined = (value: unknown): number | undefined =>
+  typeof value === "number" && Number.isFinite(value) ? value : undefined;
+
+const stringValue = (value: unknown): string => (typeof value === "string" ? value.trim() : "");
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value && typeof value === "object" && !Array.isArray(value));

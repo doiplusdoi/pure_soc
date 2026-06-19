@@ -219,6 +219,31 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
     ]
   },
   {
+    contractName: "Nis2OnboardingProgressRecord",
+    modelName: "Nis2OnboardingProgress",
+    tableName: "nis2_onboarding_progress",
+    modelAttributes: [
+      '@@index([organizationId, countryCode, status], map: "nis2_onboarding_progress_org_country_status_idx")',
+      '@@index([organizationId, countryCode, updatedAt], map: "nis2_onboarding_progress_org_country_updated_idx")'
+    ],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      s("countryCode", "String", "country_code"),
+      f("status", "String"),
+      s("currentScreen", "String", "current_screen"),
+      s("completedScreens", "String", "completed_screens", { isList: true }),
+      s("answersJson", "Json", "answers_json"),
+      s("sourceVersion", "String", "source_version"),
+      s("sourceReferencesJson", "Json", "source_references_json"),
+      s("missingRequiredFields", "String", "missing_required_fields", { isList: true }),
+      s("savedBy", "String", "saved_by", { isOptional: true }),
+      s("createdAt", "DateTime", "created_at"),
+      s("updatedAt", "DateTime", "updated_at")
+    ]
+  },
+  {
     contractName: "ProviderConnectionRecord",
     modelName: "ProviderConnection",
     tableName: "provider_connections",
@@ -473,6 +498,33 @@ export const defaultPrismaDriftExpectations: PrismaModelExpectation[] = [
       s("missingRequiredFields", "String", "missing_required_fields", { isList: true }),
       s("sourceVersion", "String", "source_version"),
       s("sourceReferencesJson", "Json", "source_references_json"),
+      s("classifiedAt", "DateTime", "classified_at")
+    ]
+  },
+  {
+    contractName: "Nis2ClassificationRunRecord",
+    modelName: "Nis2ClassificationRun",
+    tableName: "nis2_classification_runs",
+    modelAttributes: [
+      '@@index([organizationId, countryCode, result, classifiedAt], map: "nis2_classification_runs_org_country_result_idx")',
+      '@@index([organizationId, onboardingProgressId, classifiedAt], map: "nis2_classification_runs_progress_idx")'
+    ],
+    fields: [
+      f("id", "String"),
+      s("organizationId", "String", "organization_id"),
+      s("assessmentId", "String", "assessment_id", { isOptional: true }),
+      s("onboardingProgressId", "String", "onboarding_progress_id", { isOptional: true }),
+      s("countryCode", "String", "country_code"),
+      f("result", "String"),
+      f("confidence", "String"),
+      s("legalReviewRequired", "Boolean", "legal_review_required"),
+      s("inputJson", "Json", "input_json"),
+      f("explanation", "String"),
+      s("assumptionsJson", "Json", "assumptions_json"),
+      s("matchedRulesJson", "Json", "matched_rules_json"),
+      s("missingInformation", "String", "missing_information", { isList: true }),
+      s("legalBasisJson", "Json", "legal_basis_json"),
+      s("sourceVersion", "String", "source_version"),
       s("classifiedAt", "DateTime", "classified_at")
     ]
   },

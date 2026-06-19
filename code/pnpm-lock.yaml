@@ -171,6 +171,8 @@ importers:
         specifier: 1.56.1
         version: 1.56.1
 
+  apps/upload-scanner: {}
+
   apps/scheduler:
     dependencies:
       '@puresoc/config':

@@ -29,6 +29,12 @@ import {
   roNis2OnboardingSchemaRoute,
   saveOrganizationRoNis2OnboardingRoute
 } from "./compliance/nis2/ro";
+import {
+  buildOrganizationNis2OnboardingReportRoute,
+  classifyOrganizationNis2OnboardingRoute,
+  getOrganizationNis2OnboardingRoute,
+  saveOrganizationNis2OnboardingRoute
+} from "./compliance/nis2/onboarding-routes";
 import { createApiServices, type ApiServices } from "./auth/services";
 import { parseJsonBody, parseRawBody, sendApiResult, sendJson, toJsonResultError, type ApiResult } from "./http";
 import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
@@ -197,6 +203,14 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     classifyOrganizationRoNis2OnboardingRoute(params[0] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/ro\/notification-draft\/from-onboarding$/, "compliance", ({ params, body, request, context, services }) =>
     createOrganizationRoNis2NotificationDraftFromOnboardingRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/onboarding\/([^/]+)$/, "compliance", ({ params, request, services }) =>
+    getOrganizationNis2OnboardingRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("PUT", /^\/organizations\/([^/]+)\/compliance\/nis2\/onboarding\/([^/]+)$/, "compliance", ({ params, body, request, context, services }) =>
+    saveOrganizationNis2OnboardingRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/onboarding\/([^/]+)\/classification$/, "compliance", ({ params, request, context, services }) =>
+    classifyOrganizationNis2OnboardingRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/organizations\/([^/]+)\/compliance\/nis2\/onboarding\/([^/]+)\/report$/, "compliance", ({ params, request, context, services }) =>
+    buildOrganizationNis2OnboardingReportRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/recommendations\/generate$/, "compliance", ({ params, body, request, context, services }) =>
     generateRecommendationsRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/compliance\/nis2\/notification-drafts$/, "compliance", ({ params, url, request, services }) =>

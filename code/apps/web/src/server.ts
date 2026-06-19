@@ -237,6 +237,22 @@ interface Nis2CountryPackClassificationWebResponse {
   countryPack: Nis2CountryPackDefinitionSurface;
 }
 
+interface Nis2CountryOnboardingStateWebResponse {
+  classificationRun: Nis2CountryAwareOnboardingModel["classification"];
+  countryPack: Nis2CountryPackDefinitionSurface;
+  progress: Nis2CountryAwareOnboardingModel["progress"];
+  screens: Nis2CountryAwareOnboardingModel["onboardingScreens"];
+}
+
+interface Nis2CountryOnboardingReportWebResponse {
+  assessmentId: string;
+  report: {
+    id: string;
+    assessmentId?: string;
+    status: string;
+  };
+}
+
 interface CreatePartnerWebResponse {
   partner?: {
     id?: string;
@@ -258,7 +274,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.API_BASE_URL ??
       "http://127.0.0.1:3001"
   );
-  const microsoftEntraSignInEnabled = process.env.PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED !== "false";
+  const microsoftEntraSignInEnabled = process.env.PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED === "true";
   const renderLoginScreen = (screenOptions: Parameters<typeof renderBaseLoginScreen>[0] = {}) =>
     typeof screenOptions === "string"
       ? renderBaseLoginScreen(screenOptions)
@@ -1456,6 +1472,37 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "POST" && url.pathname === "/onboarding/nis2") {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const actionResult = await handleNis2CountryOnboardingPost({
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        organizationId,
+        origin: requestOrigin,
+        request
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/onboarding/nis2?country=${encodeURIComponent(actionResult.countryCode)}&screen=${encodeURIComponent(
+          actionResult.screen
+        )}&message=${encodeURIComponent(actionResult.message)}`
+      );
+      response.end();
+      return;
+    }
+
     if (request.method === "POST" && url.pathname.startsWith("/onboarding/romania/")) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
         method: "GET",
@@ -1936,6 +1983,20 @@ const loadNis2CountryAwareOnboardingModel = async (input: {
     countryPacks.body.countryPacks.find((pack) => pack.countryCode === requestedCountryCode) ??
     countryPacks.body.countryPacks.find((pack) => pack.countryCode === "RO") ??
     countryPacks.body.countryPacks[0];
+  const activeOrganizationId = session.body.session.activeOrganizationId ?? null;
+  const onboardingState =
+    activeOrganizationId && selectedCountryPack
+      ? await apiJson<Nis2CountryOnboardingStateWebResponse>(
+          input.apiBaseUrl,
+          `/organizations/${encodeURIComponent(activeOrganizationId)}/compliance/nis2/onboarding/${encodeURIComponent(
+            selectedCountryPack.countryCode
+          )}`,
+          {
+            method: "GET",
+            cookie: input.cookie
+          }
+        )
+      : null;
   const classificationInput = parseNis2CountryClassificationQuery(input.query);
   const shouldClassify =
     Boolean(classificationInput.sector) ||
@@ -1954,27 +2015,95 @@ const loadNis2CountryAwareOnboardingModel = async (input: {
           }
         )
       : null;
+  const screens =
+    onboardingState?.statusCode === 200 && onboardingState.body.screens.length > 0
+      ? onboardingState.body.screens
+      : nis2CountryOnboardingScreenFallback;
+  const requestedScreen = input.query.get("screen")?.trim();
+  const progress = onboardingState?.statusCode === 200 ? onboardingState.body.progress : null;
+  const selectedScreen =
+    (requestedScreen && screens.some((screen) => screen.key === requestedScreen) ? requestedScreen : undefined) ??
+    (progress?.currentScreen && screens.some((screen) => screen.key === progress.currentScreen)
+      ? progress.currentScreen
+      : undefined) ??
+    screens[0]?.key ??
+    "company_contacts";
 
   return {
     actionMessage: input.actionMessage ?? undefined,
     activeTenantAccess: await loadActiveTenantAccessBanner({
       apiBaseUrl: input.apiBaseUrl,
-      activeOrganizationId: session.body.session.activeOrganizationId ?? null,
+      activeOrganizationId,
       cookie: input.cookie
     }),
-    activeOrganizationId: session.body.session.activeOrganizationId ?? null,
-    classification: classification?.statusCode === 200 ? classification.body.classification : null,
+    activeOrganizationId,
+    classification:
+      onboardingState?.statusCode === 200 && onboardingState.body.classificationRun
+        ? onboardingState.body.classificationRun
+        : classification?.statusCode === 200
+          ? classification.body.classification
+          : null,
     classificationInput,
     countryPacks: countryPacks.body.countryPacks,
     errorMessage:
-      classification && classification.statusCode !== 200
+      onboardingState && onboardingState.statusCode !== 200
+        ? "Saved NIS2 onboarding progress could not be loaded for the selected country."
+        : classification && classification.statusCode !== 200
         ? "Country-pack classification could not be generated for the selected input."
         : undefined,
+    onboardingScreens: screens,
+    progress,
     selectedCountryCode: selectedCountryPack.countryCode,
     selectedCountryPack,
+    selectedScreen,
     session: session.body
   };
 };
+
+const nis2CountryOnboardingScreenFallback: Nis2CountryAwareOnboardingModel["onboardingScreens"] = [
+  {
+    key: "company_contacts",
+    label: "Company and contacts",
+    summary: "Legal identity and security contacts.",
+    requiredFieldPaths: ["company.legalName", "company.countryCode", "contacts.primaryName", "contacts.primaryEmail"]
+  },
+  {
+    key: "business_profile",
+    label: "Business profile",
+    summary: "Sector, services, countries served, and approximate size.",
+    requiredFieldPaths: ["business.sector", "business.mainProductsServices", "business.countriesServed", "business.employeeCount"]
+  },
+  {
+    key: "nis2_scope",
+    label: "NIS2 scope",
+    summary: "Country-pack scope signals.",
+    requiredFieldPaths: ["scope.activities", "scope.publicAdministration", "scope.telecomProvider"]
+  },
+  {
+    key: "operational_dependencies",
+    label: "Operational dependencies",
+    summary: "Microsoft 365, cloud, suppliers, continuity, and incident handling.",
+    requiredFieldPaths: [
+      "dependencies.microsoft365Usage",
+      "dependencies.criticalSuppliers",
+      "dependencies.backupArrangements",
+      "dependencies.businessContinuity",
+      "dependencies.incidentResponse"
+    ]
+  },
+  {
+    key: "governance_controls",
+    label: "Governance and controls",
+    summary: "Article 21 control coverage.",
+    requiredFieldPaths: ["governance.riskManagement", "governance.identityControls", "governance.mfa", "governance.supplyChainSecurity"]
+  },
+  {
+    key: "review_generate",
+    label: "Review and assessment",
+    summary: "Source caveat and report trigger.",
+    requiredFieldPaths: ["review.legalCaveatAcknowledged"]
+  }
+];
 
 const parseNis2CountryClassificationQuery = (
   query: URLSearchParams
@@ -2312,6 +2441,90 @@ const microsoft365WebCallbackRedirectUri = (requestOrigin: string): string =>
   process.env.PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI?.trim() ||
   `${requestOrigin}/providers/microsoft365/callback`;
 
+const handleNis2CountryOnboardingPost = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+  organizationId: string;
+  origin: string;
+  request: AsyncIterable<Buffer>;
+}): Promise<{ countryCode: string; message: string; screen: string }> => {
+  const form = await readFormBody(input.request);
+  const countryCode = (optionalFormValue(form.get("country")) ?? "RO").toUpperCase();
+  const screen = optionalFormValue(form.get("screen")) ?? "company_contacts";
+  const action = optionalFormValue(form.get("_action")) ?? "save";
+  const save = await apiJson<{ progress?: Nis2CountryAwareOnboardingModel["progress"] }>(
+    input.apiBaseUrl,
+    `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/onboarding/${encodeURIComponent(countryCode)}`,
+    {
+      method: "PUT",
+      cookie: input.cookie,
+      origin: input.origin,
+      body: {
+        answers: formToNis2CountryAnswers(form),
+        currentScreen: screen,
+        onboardingProgressId: optionalFormValue(form.get("onboardingProgressId"))
+      }
+    }
+  );
+  if (!apiSucceeded(save.statusCode)) {
+    return {
+      countryCode,
+      message: "NIS2 country onboarding progress was not saved. Check the required fields and try again.",
+      screen
+    };
+  }
+
+  if (action === "classify") {
+    const classified = await apiJson<unknown>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/onboarding/${encodeURIComponent(
+        countryCode
+      )}/classification`,
+      {
+        method: "POST",
+        cookie: input.cookie,
+        origin: input.origin,
+        body: {}
+      }
+    );
+    return {
+      countryCode,
+      message: apiSucceeded(classified.statusCode)
+        ? "Country-pack scope check generated from saved onboarding answers."
+        : "Country-pack scope check could not be generated from saved answers.",
+      screen: "nis2_scope"
+    };
+  }
+
+  if (action === "generate_report") {
+    const generated = await apiJson<Nis2CountryOnboardingReportWebResponse>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/onboarding/${encodeURIComponent(
+        countryCode
+      )}/report`,
+      {
+        method: "POST",
+        cookie: input.cookie,
+        origin: input.origin,
+        body: {}
+      }
+    );
+    return {
+      countryCode,
+      message: apiSucceeded(generated.statusCode)
+        ? `Internal readiness report v1 generated (${generated.body.report.id}).`
+        : "Internal readiness report could not be generated. Complete all required fields first.",
+      screen: "review_generate"
+    };
+  }
+
+  return {
+    countryCode,
+    message: "NIS2 country onboarding progress saved.",
+    screen
+  };
+};
+
 const loadRomaniaOnboardingRouteModel = async (input: {
   actionMessage?: string | null;
   apiBaseUrl: string;
@@ -2623,7 +2836,55 @@ const loadRoState = async (input: {
         classificationRun: null,
         latestNotificationDraft: null,
         progress: null
-      };
+  };
+};
+
+const formToNis2CountryAnswers = (form: URLSearchParams): Record<string, unknown> => {
+  const answers: Record<string, unknown> = {};
+  const stringFields = [
+    "company.legalName",
+    "company.countryCode",
+    "contacts.primaryName",
+    "contacts.primaryEmail",
+    "contacts.securityName",
+    "contacts.securityEmail",
+    "business.sector",
+    "business.mainProductsServices",
+    "dependencies.microsoft365Usage",
+    "dependencies.backupArrangements",
+    "dependencies.businessContinuity",
+    "dependencies.incidentResponse",
+    "governance.riskManagement",
+    "governance.identityControls",
+    "governance.mfa",
+    "governance.supplyChainSecurity",
+    "review.assumptions"
+  ];
+  for (const field of stringFields) {
+    setStringIfPresent(answers, form, field, field);
+  }
+
+  const listFields = ["business.countriesServed", "scope.activities", "dependencies.criticalSuppliers"];
+  for (const field of listFields) {
+    setListIfPresent(answers, form, field, field);
+  }
+
+  const employeeCount = Number(form.get("business.employeeCount") ?? "");
+  if (form.has("business.employeeCount")) {
+    setPath(answers, "business.employeeCount", Number.isFinite(employeeCount) && employeeCount > 0 ? employeeCount : undefined);
+  }
+
+  setBooleanIfPresent(answers, form, "scope.publicAdministration", "scope.publicAdministration");
+  setBooleanIfPresent(answers, form, "scope.telecomProvider", "scope.telecomProvider");
+  setBooleanIfPresent(answers, form, "review.legalCaveatAcknowledged", "review.legalCaveatAcknowledged");
+
+  for (const [key, value] of form.entries()) {
+    if (key.startsWith("scope.dynamicAnswers.") && value.trim().length > 0) {
+      setPath(answers, key, value.trim());
+    }
+  }
+
+  return answers;
 };
 
 const buildRomaniaInitialReportVersionContext = (state: RomaniaOnboardingStateResponse) => ({

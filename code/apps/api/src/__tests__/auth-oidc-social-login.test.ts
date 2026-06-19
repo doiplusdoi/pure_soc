@@ -402,7 +402,7 @@ describe("auth oidc social-login callbacks", () => {
 });
 
 describe("default Microsoft Entra social-login availability", () => {
-  it("keeps API startup healthy and returns a not-configured error until Entra app credentials are supplied", async () => {
+  it("keeps API startup healthy and leaves Entra user sign-in disabled until opted in", async () => {
     const defaultServices = createApiServices({
       now: () => now,
       config: loadConfig({
@@ -424,10 +424,10 @@ describe("default Microsoft Entra social-login availability", () => {
         body: "{}"
       });
 
-      expect(response.status).toBe(503);
+      expect(response.status).toBe(404);
       await expect(readJson<{ error: { code: string } }>(response)).resolves.toMatchObject({
         error: {
-          code: "provider_not_configured"
+          code: "provider_disabled"
         }
       });
     } finally {

@@ -802,6 +802,27 @@ model RoNis2OnboardingProgress {
   @@map("ro_nis2_onboarding_progress")
 }
 
+model Nis2OnboardingProgress {
+  id                    String   @id @default(uuid()) @db.Uuid
+  organizationId        String   @map("organization_id") @db.Uuid
+  assessmentId          String?  @map("assessment_id") @db.Uuid
+  countryCode           String   @map("country_code")
+  status                String   @default("draft")
+  currentScreen         String   @map("current_screen")
+  completedScreens      String[] @map("completed_screens")
+  answersJson           Json     @default("{}") @map("answers_json")
+  sourceVersion         String   @map("source_version")
+  sourceReferencesJson  Json     @default("[]") @map("source_references_json")
+  missingRequiredFields String[] @map("missing_required_fields")
+  savedBy               String?  @map("saved_by") @db.Uuid
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([organizationId, countryCode, status], map: "nis2_onboarding_progress_org_country_status_idx")
+  @@index([organizationId, countryCode, updatedAt], map: "nis2_onboarding_progress_org_country_updated_idx")
+  @@map("nis2_onboarding_progress")
+}
+
 model CustomerDocument {
   id             String   @id @default(uuid()) @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
@@ -1419,6 +1440,29 @@ model RoNis2ClassificationRun {
 
   @@index([organizationId, result, classifiedAt], map: "ro_nis2_classification_runs_org_result_idx")
   @@map("ro_nis2_classification_runs")
+}
+
+model Nis2ClassificationRun {
+  id                   String   @id @default(uuid()) @db.Uuid
+  organizationId       String   @map("organization_id") @db.Uuid
+  assessmentId         String?  @map("assessment_id") @db.Uuid
+  onboardingProgressId String?  @map("onboarding_progress_id") @db.Uuid
+  countryCode          String   @map("country_code")
+  result               String
+  confidence           String
+  legalReviewRequired  Boolean  @default(true) @map("legal_review_required")
+  inputJson            Json     @default("{}") @map("input_json")
+  explanation          String
+  assumptionsJson      Json     @default("[]") @map("assumptions_json")
+  matchedRulesJson     Json     @default("[]") @map("matched_rules_json")
+  missingInformation   String[] @map("missing_information")
+  legalBasisJson       Json     @default("[]") @map("legal_basis_json")
+  sourceVersion        String   @map("source_version")
+  classifiedAt         DateTime @default(now()) @map("classified_at")
+
+  @@index([organizationId, countryCode, result, classifiedAt], map: "nis2_classification_runs_org_country_result_idx")
+  @@index([organizationId, onboardingProgressId, classifiedAt], map: "nis2_classification_runs_progress_idx")
+  @@map("nis2_classification_runs")
 }
 
 model ComplianceControlResult {

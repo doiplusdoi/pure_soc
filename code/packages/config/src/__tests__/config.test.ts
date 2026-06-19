@@ -59,7 +59,7 @@ describe("loadConfig", () => {
     expect(config.auth.localEnabled).toBe(true);
     expect(config.auth.requireEmailVerification).toBe(false);
     expect(config.auth.sessionCookieSecure).toBe(false);
-    expect(config.auth.socialLogin.providers.microsoft_entra.enabled).toBe(true);
+    expect(config.auth.socialLogin.providers.microsoft_entra.enabled).toBe(false);
     expect(config.auth.socialLogin.providers.microsoft_entra.redirectUri).toBe(
       "http://localhost:3000/auth/oidc/microsoft_entra/callback"
     );

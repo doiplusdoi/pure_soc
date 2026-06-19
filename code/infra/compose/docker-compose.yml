@@ -10,15 +10,30 @@ x-puresoc-default-environment: &puresoc-default-environment
   PURESOC_API_TRUSTED_ORIGINS: ${PURESOC_API_TRUSTED_ORIGINS:-http://localhost:3000,http://localhost:3001}
   PURESOC_API_ORIGIN_PROTECTION_ENABLED: ${PURESOC_API_ORIGIN_PROTECTION_ENABLED:-true}
   PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: ${PURESOC_API_REQUIRE_ORIGIN_OR_REFERER:-false}
-  DATABASE_URL: ${DATABASE_URL:-postgresql://puresoc:puresoc@puresoc-postgres:5432/puresoc}
+  PURESOC_POSTGRES_DB: ${PURESOC_POSTGRES_DB:-puresoc}
+  PURESOC_POSTGRES_USER: ${PURESOC_POSTGRES_USER:-puresoc_admin}
+  PURESOC_POSTGRES_PASSWORD: ${PURESOC_POSTGRES_PASSWORD:-puresoc-local-postgres-password}
+  DATABASE_URL: ${DATABASE_URL:-postgresql://${PURESOC_POSTGRES_USER:-puresoc_admin}:${PURESOC_POSTGRES_PASSWORD:-puresoc-local-postgres-password}@puresoc-postgres:5432/${PURESOC_POSTGRES_DB:-puresoc}}
   PURESOC_AUTH_LOCAL_ENABLED: ${PURESOC_AUTH_LOCAL_ENABLED:-true}
   PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
   PURESOC_AUTH_BROKER_ENABLED: ${PURESOC_AUTH_BROKER_ENABLED:-false}
   PURESOC_AUTH_COOKIE_SECURE: ${PURESOC_AUTH_COOKIE_SECURE:-false}
   PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES: ${PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES:-false}
   PURESOC_BILLING_PROVIDER: ${PURESOC_BILLING_PROVIDER:-none}
-  PURESOC_OBJECT_STORAGE_PROVIDER: ${PURESOC_OBJECT_STORAGE_PROVIDER:-memory}
-  PURESOC_UPLOAD_SCANNER_MODE: ${PURESOC_UPLOAD_SCANNER_MODE:-noop}
+  PURESOC_OBJECT_STORAGE_PROVIDER: ${PURESOC_OBJECT_STORAGE_PROVIDER:-s3}
+  PURESOC_OBJECT_STORAGE_ENDPOINT: ${PURESOC_OBJECT_STORAGE_ENDPOINT:-http://puresoc-object-storage:9000}
+  PURESOC_OBJECT_STORAGE_REGION: ${PURESOC_OBJECT_STORAGE_REGION:-us-east-1}
+  PURESOC_OBJECT_STORAGE_BUCKET: ${PURESOC_OBJECT_STORAGE_BUCKET:-puresoc-evidence}
+  PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID: ${PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID:-${PURESOC_MINIO_ROOT_USER:-puresoc_minio_admin}}
+  PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY:-${PURESOC_MINIO_ROOT_PASSWORD:-puresoc-local-minio-password}}
+  PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE: ${PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE:-true}
+  PURESOC_MINIO_ROOT_USER: ${PURESOC_MINIO_ROOT_USER:-puresoc_minio_admin}
+  PURESOC_MINIO_ROOT_PASSWORD: ${PURESOC_MINIO_ROOT_PASSWORD:-puresoc-local-minio-password}
+  PURESOC_UPLOAD_SCANNER_MODE: ${PURESOC_UPLOAD_SCANNER_MODE:-http}
+  PURESOC_UPLOAD_SCANNER_ENDPOINT: ${PURESOC_UPLOAD_SCANNER_ENDPOINT:-http://puresoc-upload-scanner:3310/scan}
+  PURESOC_UPLOAD_SCANNER_ENGINE: ${PURESOC_UPLOAD_SCANNER_ENGINE:-clamav}
+  PURESOC_CLAMAV_HOST: ${PURESOC_CLAMAV_HOST:-puresoc-clamav}
+  PURESOC_CLAMAV_PORT: ${PURESOC_CLAMAV_PORT:-3310}
   REGULATORY_SOURCE_MONITOR_ENABLED: ${REGULATORY_SOURCE_MONITOR_ENABLED:-false}
   PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE: ${PURESOC_REPORT_STORE_GENERATED_AS_EVIDENCE:-true}
   PURESOC_REPORT_RENDERER: ${PURESOC_REPORT_RENDERER:-http://puresoc-report-renderer:3002}
@@ -33,6 +48,7 @@ x-puresoc-default-environment: &puresoc-default-environment
   PURESOC_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS: ${PURESOC_NOTIFICATIONS_WEBHOOK_TIMEOUT_MS:-5000}
   PURESOC_NOTIFICATIONS_DEADLINE_SCAN_INTERVAL_MS: ${PURESOC_NOTIFICATIONS_DEADLINE_SCAN_INTERVAL_MS:-1800000}
   PURESOC_JOB_QUEUE_PROVIDER: ${PURESOC_JOB_QUEUE_PROVIDER:-memory}
+  PURESOC_REDIS_URL: ${PURESOC_REDIS_URL:-redis://puresoc-redis:6379/0}
   PURESOC_API_RATE_LIMIT_STORE_PROVIDER: ${PURESOC_API_RATE_LIMIT_STORE_PROVIDER:-memory}
   PURESOC_EXTERNAL_SMOKE_MODE: ${PURESOC_EXTERNAL_SMOKE_MODE:-dry_run}
   PURESOC_EXTERNAL_SMOKE_TARGET_KIND: ${PURESOC_EXTERNAL_SMOKE_TARGET_KIND:-}
@@ -64,8 +80,8 @@ x-puresoc-default-environment: &puresoc-default-environment
   PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED: ${PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED:-false}
   PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED: ${PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED:-false}
   PURESOC_MICROSOFT365_SMOKE_TENANT_ID: ${PURESOC_MICROSOFT365_SMOKE_TENANT_ID:-}
-  PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: ${PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY:-}
-  PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: ${PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED:-true}
+  PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: ${PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY:-local-dev-oidc-transient-state-key-change-me}
+  PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: ${PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED:-false}
   PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID:-}
   PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET:-}
   PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI: ${PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI:-http://localhost:3000/auth/oidc/microsoft_entra/callback}
@@ -87,15 +103,15 @@ services:
   puresoc-postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_DB: puresoc
-      POSTGRES_USER: puresoc
-      POSTGRES_PASSWORD: puresoc
+      POSTGRES_DB: ${PURESOC_POSTGRES_DB:-puresoc}
+      POSTGRES_USER: ${PURESOC_POSTGRES_USER:-puresoc_admin}
+      POSTGRES_PASSWORD: ${PURESOC_POSTGRES_PASSWORD:-puresoc-local-postgres-password}
     ports:
-      - "5432:5432"
+      - "${PURESOC_POSTGRES_PORT:-5432}:5432"
     volumes:
       - puresoc-postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U puresoc -d puresoc"]
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -103,7 +119,7 @@ services:
   puresoc-redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "${PURESOC_REDIS_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -114,13 +130,74 @@ services:
     image: minio/minio:RELEASE.2025-01-20T14-49-07Z
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: puresoc
-      MINIO_ROOT_PASSWORD: puresoc-local-minio
+      MINIO_ROOT_USER: ${PURESOC_MINIO_ROOT_USER:-puresoc_minio_admin}
+      MINIO_ROOT_PASSWORD: ${PURESOC_MINIO_ROOT_PASSWORD:-puresoc-local-minio-password}
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "${PURESOC_OBJECT_STORAGE_PORT:-9000}:9000"
+      - "${PURESOC_OBJECT_STORAGE_CONSOLE_PORT:-9001}:9001"
     volumes:
       - puresoc-object-storage-data:/data
+
+  puresoc-object-storage-init:
+    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+    environment:
+      MINIO_ROOT_USER: ${PURESOC_MINIO_ROOT_USER:-puresoc_minio_admin}
+      MINIO_ROOT_PASSWORD: ${PURESOC_MINIO_ROOT_PASSWORD:-puresoc-local-minio-password}
+      PURESOC_OBJECT_STORAGE_BUCKET: ${PURESOC_OBJECT_STORAGE_BUCKET:-puresoc-evidence}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until mc alias set puresoc http://puresoc-object-storage:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do
+          sleep 2
+        done
+        mc mb --ignore-existing "puresoc/$${PURESOC_OBJECT_STORAGE_BUCKET}"
+        mc anonymous set none "puresoc/$${PURESOC_OBJECT_STORAGE_BUCKET}"
+    depends_on:
+      puresoc-object-storage:
+        condition: service_started
+    restart: "no"
+
+  puresoc-clamav:
+    image: ${PURESOC_CLAMAV_IMAGE:-clamav/clamav:1.4_base}
+    environment:
+      FRESHCLAM_CHECKS: ${PURESOC_CLAMAV_FRESHCLAM_CHECKS:-12}
+    expose:
+      - "3310"
+    volumes:
+      - puresoc-clamav-db:/var/lib/clamav
+
+  puresoc-upload-scanner:
+    image: puresoc-upload-scanner:local
+    pull_policy: build
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.upload-scanner
+    environment:
+      PORT: "3310"
+      PURESOC_UPLOAD_SCANNER_ENGINE: ${PURESOC_UPLOAD_SCANNER_ENGINE:-clamav}
+      PURESOC_UPLOAD_SCANNER_MAX_BODY_BYTES: ${PURESOC_UPLOAD_SCANNER_MAX_BODY_BYTES:-10485760}
+      PURESOC_UPLOAD_SCANNER_TIMEOUT_MS: ${PURESOC_UPLOAD_SCANNER_TIMEOUT_MS:-10000}
+      PURESOC_CLAMAV_HOST: ${PURESOC_CLAMAV_HOST:-puresoc-clamav}
+      PURESOC_CLAMAV_PORT: ${PURESOC_CLAMAV_PORT:-3310}
+      PURESOC_CLAMAV_TIMEOUT_MS: ${PURESOC_CLAMAV_TIMEOUT_MS:-10000}
+    expose:
+      - "3310"
+    depends_on:
+      puresoc-clamav:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3310/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
 
   puresoc-migrator:
     image: puresoc-migrator:local
@@ -147,7 +224,7 @@ services:
       PORT: "3000"
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
     ports:
-      - "3000:3000"
+      - "${PURESOC_WEB_PORT:-3000}:3000"
     depends_on:
       puresoc-api:
         condition: service_started
@@ -162,7 +239,7 @@ services:
       <<: *puresoc-default-environment
       PORT: "3001"
     ports:
-      - "3001:3001"
+      - "${PURESOC_API_PORT:-3001}:3001"
     depends_on:
       puresoc-migrator:
         condition: service_completed_successfully
@@ -170,6 +247,10 @@ services:
         condition: service_healthy
       puresoc-object-storage:
         condition: service_started
+      puresoc-object-storage-init:
+        condition: service_completed_successfully
+      puresoc-upload-scanner:
+        condition: service_healthy
 
   puresoc-worker:
     image: puresoc-worker:local
@@ -239,3 +320,4 @@ services:
 volumes:
   puresoc-postgres-data:
   puresoc-object-storage-data:
+  puresoc-clamav-db:

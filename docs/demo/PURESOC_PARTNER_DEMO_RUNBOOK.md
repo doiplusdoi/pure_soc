@@ -25,6 +25,21 @@ env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run dem
 
 Use `npm run demo:reset` with the same `DATABASE_URL` to remove only the deterministic demo records.
 
+If another local stack already owns the default dependency ports, keep the same Compose command and override only the host bindings:
+
+```sh
+PURESOC_POSTGRES_PORT=15432 \
+PURESOC_REDIS_PORT=16379 \
+PURESOC_OBJECT_STORAGE_PORT=19000 \
+PURESOC_OBJECT_STORAGE_CONSOLE_PORT=19001 \
+npm run compose:up
+
+env DATABASE_URL=postgresql://puresoc:puresoc@localhost:15432/puresoc npm run prisma:migrate:deploy
+env DATABASE_URL=postgresql://puresoc:puresoc@localhost:15432/puresoc npm run demo:reset
+env DATABASE_URL=postgresql://puresoc:puresoc@localhost:15432/puresoc npm run demo:seed
+env DATABASE_URL=postgresql://puresoc:puresoc@localhost:15432/puresoc npm run demo:verify
+```
+
 ## Demo Mode
 
 Microsoft 365 fixture mode is the default target for the partner demo:
@@ -75,7 +90,18 @@ GET /compliance/nis2/country-packs/:countryCode
 POST /compliance/nis2/country-packs/:countryCode/classification
 ```
 
-Use `/onboarding/nis2` after signing in to select EU, Romania, Poland, or Germany, review official source metadata, inspect dynamic country-pack questions, and run a preliminary demo scope check. Use `/onboarding/romania/company?locale=ro-RO` for the persisted Romania saved-answer workflow.
+Use `/onboarding/nis2` after signing in to select Romania, Poland, or Germany, save the six-screen country-aware questionnaire, run a preliminary source-linked scope check, and generate internal readiness report v1 from stored declared analysis. EU remains a source-metadata baseline, not a national onboarding pack. Use `/onboarding/romania/company?locale=ro-RO` only for the Romania-specific legacy workflow and notification-draft path.
+
+Persisted country-aware onboarding API routes:
+
+```txt
+GET /organizations/:orgId/compliance/nis2/onboarding/:countryCode
+PUT /organizations/:orgId/compliance/nis2/onboarding/:countryCode
+POST /organizations/:orgId/compliance/nis2/onboarding/:countryCode/classification
+POST /organizations/:orgId/compliance/nis2/onboarding/:countryCode/report
+```
+
+Saved answers are organization-scoped, carry source-version/source-reference metadata, and are blocked from report generation until required fields across all six screens are present. Report output keeps the legal caveat and version context; it is an internal readiness artifact, not a legal opinion.
 
 ## Initial Report Version 1
 
@@ -192,12 +218,23 @@ SecureOps Polska Sp. z o.o., Poland, managed service provider, partial assessmen
 
 The partner portfolio derives metrics and opportunity rows from tenant-owned stored analysis snapshots and Microsoft provider connection/module state. Rows show company, country, sector, classification, readiness, evidence confidence, Microsoft connection state, top opportunity, last assessment/sync activity, and the reason-gated enter-customer action. The opportunities table is readiness-only and intentionally excludes pricing, margin, commission, and Partner Center ordering actions.
 
+## Fixture Demo Smoke
+
+Run the local non-live served web fixture smoke from `code/`:
+
+```sh
+npm run test:e2e -- --grep @fixture-demo
+```
+
+The smoke starts in-memory API/web servers, creates a partner and customer through served web forms, enters the customer tenant, opens Germany onboarding, saves and classifies the country-aware questionnaire, generates report v1, connects and syncs the partial Microsoft 365 fixture, generates verified report v2 plus CSV/evidence package artifacts, verifies v2 deltas and the Business Premium recommendation/opportunity in the partner portfolio, then exits the customer tenant. The smoke reports explicit non-live guarantees for Microsoft Graph, Stripe, OIDC providers, object storage/scanner, KMS, public regulatory fetches, and provider-write execution.
+
 ## Current Limitations
 
-- The active customer-session banner now appears across the main operational routes when a partner tenant session is active. Browser-level route traversal can still be expanded beyond renderer tests.
+- The active customer-session banner now appears across the main operational routes when a partner tenant session is active, and the fixture smoke traverses the served partner/customer/onboarding/connector path.
 - Partner customer creation is transactional in Prisma mode across organization and grant creation.
 - Active partner tenant-session context is attached centrally to customer-scoped audit writes when an active session matches the audited organization.
-- Poland and Germany are present as source-backed demo country packs, but they do not yet have persisted six-screen onboarding storage or report generation.
-- `demo:seed` requires a migrated local/disposable PostgreSQL database. If PostgreSQL is unavailable, `demo:verify` reports `database_unreachable`.
+- Romania, Poland, and Germany share persisted country-aware onboarding storage and report v1 generation. Legal review remains required for country-pack interpretation.
+- `demo:seed` requires a migrated local/disposable PostgreSQL database. If PostgreSQL is unavailable, `demo:reset`, `demo:seed`, and `demo:verify` report `database_unreachable`.
+- `npm run compose:up` requires Docker Desktop or another reachable Docker daemon. Default host ports are still `3000`, `3001`, `5432`, `6379`, `9000`, and `9001`; override the `PURESOC_*_PORT` variables above when those ports are occupied.
 - Independent external/product/legal review remains outside the local run.
 - No production credentials or external live services are required or used by the current implementation slice.
