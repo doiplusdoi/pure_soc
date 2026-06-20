@@ -4,9 +4,8 @@ x-puresoc-database-url: &puresoc-database-url postgresql://puresoc_app:5da87b6fb
 
 x-puresoc-backend-base-environment: &puresoc-backend-base-environment
   PURESOC_APP_ENV: production
-  PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin, for example https://app.example.com}
   PURESOC_API_BASE_URL: http://puresoc-api:3001
-  PURESOC_API_TRUSTED_ORIGINS: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin}
+  PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000
   PURESOC_AUTH_COOKIE_SECURE: "true"
   PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
   PURESOC_API_ORIGIN_PROTECTION_ENABLED: "true"
@@ -31,7 +30,6 @@ x-puresoc-microsoft365-connector-environment: &puresoc-microsoft365-connector-en
   PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID:?Set the PureSOC Microsoft 365 connector app client ID}
   PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET:?Set the PureSOC Microsoft 365 connector app client secret}
   PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: https://login.microsoftonline.com
-  PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin}/providers/microsoft365/callback
   PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: https://graph.microsoft.com/v1.0
   PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false"
   PURESOC_PROVIDER_TOKEN_KEY_ID: live-current
@@ -164,11 +162,8 @@ services:
       dockerfile: infra/docker/Dockerfile.web
     environment:
       PURESOC_APP_ENV: production
-      PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin}
-      PURESOC_WEB_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin}
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
       PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false"
-      PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: ${PURESOC_PUBLIC_BASE_URL:?Set PURESOC_PUBLIC_BASE_URL to the public HTTPS origin}/providers/microsoft365/callback
     ports:
       - "3000:3000"
     depends_on:

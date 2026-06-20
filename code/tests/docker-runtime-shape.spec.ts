@@ -82,13 +82,15 @@ describe("Docker runtime command shape", () => {
     const compose = readWorkspaceFile("compose.yml");
     const composeInterpolation = compose.replaceAll("$${", "").match(/\$\{/g) ?? [];
     const expectedInputs = [
-      "PURESOC_PUBLIC_BASE_URL",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
       "PURESOC_PROVIDER_TOKEN_KEY"
     ];
     const removedInputs = [
       "DATABASE_URL",
+      "PURESOC_PUBLIC_BASE_URL",
+      "PURESOC_WEB_PUBLIC_BASE_URL",
+      "PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI",
       "PURESOC_POSTGRES_PASSWORD",
       "PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID",
       "PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY",
@@ -110,7 +112,10 @@ describe("Docker runtime command shape", () => {
     }
     expect(compose).toContain("DATABASE_URL: *puresoc-database-url");
     expect(compose).toContain("POSTGRES_DB: puresoc_live");
+    expect(compose).toContain("PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
+    expect(compose).toContain("expose:");
+    expect(compose).not.toContain("3001:3001");
   });
 
   it("keeps backend secrets out of the web service and customer tenant secrets out of Compose", () => {
@@ -118,7 +123,8 @@ describe("Docker runtime command shape", () => {
     const webService = readComposeServiceBlock(compose, "puresoc-web");
 
     expect(webService).toContain("PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED");
-    expect(webService).toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
+    expect(webService).toContain("PURESOC_WEB_API_BASE_URL");
+    expect(webService).not.toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
     expect(webService).not.toContain("CLIENT_SECRET");
     expect(webService).not.toContain("PURESOC_PROVIDER_TOKEN_KEY");
     expect(webService).not.toContain("STRIPE_SECRET_KEY");

@@ -532,7 +532,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
-    const apiRequestOrigin = shouldForwardBrowserOriginToApi(apiBaseUrl) ? requestOrigin : undefined;
+    const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin);
 
     if (request.method === "POST" && url.pathname === "/partners") {
       const form = await readFormBody(request);
@@ -1703,13 +1703,26 @@ export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeade
   const forwardedHost = firstCommaSeparatedHeaderValue(singleHeader(request.headers["x-forwarded-host"]));
   const forwardedProto = firstCommaSeparatedHeaderValue(singleHeader(request.headers["x-forwarded-proto"]));
   const host = forwardedHost ?? forwarded.host ?? singleHeader(request.headers.host) ?? `127.0.0.1:${port}`;
-  const protocol = normalizePublicProtocol(forwardedProto ?? forwarded.proto);
+  const protocol = normalizePublicProtocol(forwardedProto ?? forwarded.proto, host);
 
   return `${protocol}://${host}`;
 };
 
+export const resolveApiRequestOrigin = (apiBaseUrl: string, publicRequestOrigin: string): string | undefined => {
+  const hostname = hostnameForUrl(apiBaseUrl);
+  if (!hostname) {
+    return undefined;
+  }
+
+  if (hostname === "puresoc-api") {
+    return "http://puresoc-web:3000";
+  }
+
+  return publicRequestOrigin;
+};
+
 export const shouldForwardBrowserOriginToApi = (apiBaseUrl: string): boolean => {
-  return Boolean(hostnameForUrl(apiBaseUrl));
+  return resolveApiRequestOrigin(apiBaseUrl, "http://localhost:3000") !== undefined;
 };
 
 const singleHeader = (value: string | string[] | undefined): string | null =>
@@ -1743,8 +1756,27 @@ const parseForwardedHeader = (value: string | null): { host?: string; proto?: st
   return result;
 };
 
-const normalizePublicProtocol = (value: string | null | undefined): "http" | "https" =>
-  value?.toLowerCase() === "https" ? "https" : "http";
+const normalizePublicProtocol = (value: string | null | undefined, host: string): "http" | "https" => {
+  const normalized = value?.toLowerCase();
+  if (normalized === "https") {
+    return "https";
+  }
+  if (normalized === "http") {
+    return "http";
+  }
+
+  return process.env.PURESOC_APP_ENV === "production" && !isLocalPublicHost(host) ? "https" : "http";
+};
+
+const isLocalPublicHost = (host: string): boolean => {
+  const normalized = host.toLowerCase();
+  return (
+    normalized.startsWith("localhost") ||
+    normalized.startsWith("127.") ||
+    normalized.startsWith("[::1]") ||
+    normalized.startsWith("::1")
+  );
+};
 
 const hostnameForUrl = (value: string): string | null => {
   try {
