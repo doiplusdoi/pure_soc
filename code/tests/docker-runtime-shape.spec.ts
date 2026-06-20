@@ -75,6 +75,40 @@ describe("Docker runtime command shape", () => {
     }
   });
 
+  it("keeps first-run Compose free of user-supplied source interpolation", () => {
+    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+    const composeInterpolation = compose.replaceAll("$${", "").match(/\$\{/g) ?? [];
+
+    expect(composeInterpolation).toHaveLength(0);
+    expect(compose).toContain(
+      "DATABASE_URL: postgresql://puresoc_admin:puresoc-local-postgres-password@puresoc-postgres:5432/puresoc"
+    );
+    expect(compose).not.toContain("${DATABASE_URL");
+    expect(compose).not.toContain("${PURESOC_POSTGRES_PASSWORD");
+    expect(compose).not.toContain("${PURESOC_MINIO_ROOT_PASSWORD");
+  });
+
+  it("does not expose disabled optional integrations as first-run Compose runtime keys", () => {
+    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+
+    expect(compose).not.toContain("PURESOC_AUTH_GITHUB_CLIENT_SECRET");
+    expect(compose).not.toContain("PURESOC_AUTH_GOOGLE_CLIENT_SECRET");
+    expect(compose).not.toContain("PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET");
+    expect(compose).not.toContain("PURESOC_NOTIFICATIONS_SMTP_PASSWORD");
+    expect(compose).not.toContain("PURESOC_PROVIDER_TOKEN_KEY");
+    expect(compose).not.toContain("STRIPE_SECRET_KEY");
+    expect(compose).not.toContain("STRIPE_WEBHOOK_SECRET");
+  });
+
+  it("keeps first-run Compose runtime environment small and role-specific", () => {
+    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+    const environmentKeyCount = countComposeEnvironmentKeys(compose);
+
+    expect(environmentKeyCount).toBeLessThanOrEqual(35);
+    expect(compose).not.toContain("x-puresoc-default-environment");
+    expect(compose).not.toContain("x-puresoc-database-environment");
+  });
+
   it("points job service scripts at runtime loops instead of contract-status reporters", () => {
     const manifest = JSON.parse(readWorkspaceFile("package.json")) as {
       scripts: Record<string, string>;
@@ -89,3 +123,33 @@ describe("Docker runtime command shape", () => {
 
 const readWorkspaceFile = (...pathSegments: string[]): string =>
   readFileSync(join(process.cwd(), ...pathSegments), "utf8");
+
+const countComposeEnvironmentKeys = (compose: string): number => {
+  let count = 0;
+  let environmentIndent: number | null = null;
+
+  for (const line of compose.split(/\r?\n/)) {
+    const environmentMatch = /^(\s*)environment:\s*$/.exec(line);
+    if (environmentMatch) {
+      environmentIndent = environmentMatch[1].length;
+      continue;
+    }
+
+    if (environmentIndent === null || line.trim().length === 0 || line.trim().startsWith("#")) {
+      continue;
+    }
+
+    const indent = line.length - line.trimStart().length;
+    if (indent <= environmentIndent) {
+      environmentIndent = null;
+      continue;
+    }
+
+    const trimmed = line.trim();
+    if (/^[A-Z0-9_]+:/.test(trimmed)) {
+      count += 1;
+    }
+  }
+
+  return count;
+};

@@ -55,7 +55,7 @@ pnpm prisma:smoke:postgres
 
 ## Runtime Modes
 
-`PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs. The Compose catalog and `.env.example` default to `PURESOC_PERSISTENCE_MODE=prisma` so browser-created users, workspaces, provider connections, and readiness records survive container restarts and rebuilds.
+`PURESOC_PERSISTENCE_MODE=memory` is the deterministic default used by tests and local contract runs. The Compose catalog sets only the role-specific runtime values needed for the bundled stack, including `PURESOC_PERSISTENCE_MODE=prisma` and an internal `DATABASE_URL` for API, scheduler, and migrator containers. The `.env.example` file is intentionally documentation-first and does not declare blank first-run secrets.
 
 Memory mode mirrors Prisma mode's per-context repository shape. API services expose separate in-memory adapters under `services.memoryRepositories` for identity/session/organization/RBAC, evidence metadata/access logs, and billing records/events/entitlements. The old shared `services.repository` test harness has been removed so changes in one bounded context do not implicitly own another.
 
