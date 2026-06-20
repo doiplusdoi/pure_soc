@@ -343,6 +343,7 @@ puresoc/
         si/README.md
         es/README.md
         se/README.md
+  compose.yml
   infra/
     docker/
       Dockerfile.web
@@ -354,7 +355,6 @@ puresoc/
       Dockerfile.keycloak
       Dockerfile.ms-ps-bridge
     compose/
-      docker-compose.yml
       docker-compose.dev.yml
       docker-compose.observability.yml
     keycloak/

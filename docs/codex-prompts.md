@@ -13,7 +13,7 @@ Examples:
 ```txt
 apps/api -> code/apps/api
 packages/config -> code/packages/config
-infra/compose/docker-compose.yml -> code/infra/compose/docker-compose.yml
+compose.yml -> code/compose.yml
 data/regulatory -> code/data/regulatory
 ```
 
@@ -282,7 +282,7 @@ For Path A, run from `code/`:
 npm run lint
 npm run test -- ro regulatory-import web notification dashboards reports
 npm run test:e2e -- --grep @ui-smoke
-docker compose -f infra/compose/docker-compose.yml config
+docker compose config
 git diff --check
 ```
 
@@ -431,7 +431,7 @@ Validation:
 - `npm run test -- apps/api/src/__tests__/evidence-reports-dashboards-exports.test.ts` passed outside the sandbox after the local HTTP listener path previously hit `listen EPERM`, 1 file / 7 tests.
 - `npm run test -- reports evidence dashboards` passed outside the sandbox after the local HTTP listener path previously hit `listen EPERM`, 9 files / 50 tests.
 - `npm run lint` passed.
-- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `docker compose config` passed.
 - `npx prisma migrate dev --schema packages/database/prisma/schema.prisma --name generated_report_content_hash` was blocked because `DATABASE_URL` was not set; the Compose-equivalent localhost retry was blocked because no local PostgreSQL server was listening at `localhost:5432`.
 
 No live MinIO/S3, scanner, Microsoft Graph, Stripe, OIDC provider, public regulatory, DNSC submission, provider write, legal activation, approved Romanian regulatory copy, or certification path was added. GAP-029 narrowed; deployed/live storage-scanner-renderer smoke, bucket permissions, production-size/streaming exports, and broader browser PDF fidelity proof remain open.
@@ -452,7 +452,7 @@ Validation:
 - `npm run test -- ro regulatory-import web notification dashboards reports` passed, 32 files / 153 tests.
 - `npm run test:e2e -- --grep @ui-smoke` passed and wrote deterministic served UI artifacts.
 - `npm run lint` passed, including layout, TypeScript, selected Prisma schema drift at 39 models / 547 fields, and Romania generated-data drift at 3 artifacts.
-- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `docker compose config` passed.
 - `git diff --check` passed.
 
 No live Microsoft Graph calls, external provider calls, provider writes, DNSC submission, legal activation, approved Romanian regulatory copy, certification claims, real email delivery, invite-only policy, platform-admin flow, or public abuse controls were added. GAP-031 and GAP-046 narrowed; GAP-006, GAP-021, GAP-042, GAP-044, and the remaining launch hardening blockers remain open.
@@ -649,7 +649,7 @@ Validation:
 - `npm run test -- ro regulatory-import web notification dashboards reports` passed, 32 files / 144 tests.
 - `npm run test -- ro notification web-dashboard-reports-ui` passed, 26 files / 128 tests.
 - `npm run test:e2e -- --grep @ui-smoke` passed.
-- `docker compose -f infra/compose/docker-compose.yml config` passed.
+- `docker compose config` passed.
 - `git diff --check` passed.
 
 No external calls, DNSC submission, provider writes, legal activation, or certification claims were added. GAP-031 and GAP-042 narrowed; GAP-006, GAP-021, GAP-029, GAP-030, and GAP-044 remain open.
@@ -669,7 +669,7 @@ Validation:
 - `flatpak-spawn --host npm run test -- ro onboarding notification compliance evidence reports dashboards audit billing auth organization` passed, 55 files / 229 tests.
 - `flatpak-spawn --host npm run test:e2e -- --grep @ui-smoke` passed.
 - `flatpak-spawn --host npm run test:e2e -- --grep @browser-smoke` passed with Firefox WebDriver BiDi.
-- `flatpak-spawn --host docker compose -f infra/compose/docker-compose.yml config` passed.
+- `flatpak-spawn --host docker compose config` passed.
 - `git diff --check` passed.
 - `flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate` passed.
 - `flatpak-spawn --host env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:generate` passed.
@@ -841,7 +841,7 @@ Validated with host npm equivalents because sandbox-local `node`, `npm`, and `pn
 - `npm run test -- web ui-smoke browser organization selection dashboard session`
 - `npm run test:e2e -- --grep @ui-smoke`
 - `npm run test:e2e -- --grep @browser-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M64 acceptance command results are recorded in `docs/PLAN_M64.md`.
 
@@ -863,7 +863,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` and `npm` were 
 - `npm run test -- web ui-smoke browser navigation pointer romania onboarding`
 - `npm run test:e2e -- --grep @ui-smoke`
 - `npm run test:e2e -- --grep @browser-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M63 acceptance command results are recorded in `docs/PLAN_M63.md`.
 
@@ -885,7 +885,7 @@ Validated with host npm equivalents because sandbox-local `pnpm`/`npm` were unav
 - `npm run test -- web ui-smoke browser navigation romania onboarding`
 - `npm run test:e2e -- --grep @ui-smoke`
 - `npm run test:e2e -- --grep @browser-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M62 acceptance command results are recorded in `docs/PLAN_M62.md`.
 
@@ -908,7 +908,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` and `npm` were 
 - `npm run test -- web ui-smoke browser romania onboarding`
 - `npm run test:e2e -- --grep @ui-smoke`
 - `npm run test:e2e -- --grep @browser-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M61 acceptance command results are recorded in `docs/PLAN_M61.md`.
 
@@ -930,7 +930,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` was unavailable
 - `npm run lint`
 - `npm run test -- web ui-smoke romania onboarding`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M60 acceptance command results are recorded in `docs/PLAN_M60.md`.
 
@@ -952,7 +952,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` was unavailable
 - `npm run lint`
 - `npm run test -- web ro onboarding i18n`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M59 acceptance command results are recorded in `docs/PLAN_M59.md`.
 
@@ -974,7 +974,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` was unavailable
 - `npm run lint`
 - `npm run test -- i18n ro notification reports web`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M58 acceptance command results are recorded in `docs/PLAN_M58.md`.
 
@@ -996,7 +996,7 @@ Validated with host npm equivalents because sandbox-local `pnpm` was unavailable
 - `npm run lint`
 - `npm run test -- api auth evidence billing`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M57 acceptance command results are recorded in `docs/PLAN_M57.md`.
 
@@ -1016,7 +1016,7 @@ Summary:
 Validated with host npm equivalents because sandbox-local `pnpm`/`npm` were unavailable:
 - `npm run lint`
 - `npm run test -- audit database api`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M56 acceptance command results are recorded in `docs/PLAN_M56.md`.
 
@@ -1036,7 +1036,7 @@ Summary:
 Validated with host npm equivalents because sandbox-local `pnpm` was unavailable:
 - `npm run lint`
 - `npm run test -- actions remediation api database audit`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Additional M55 acceptance command results are recorded in `docs/PLAN_M55.md`.
 
@@ -1096,7 +1096,7 @@ Validated with host-node/npm equivalents because sandbox-local `pnpm`/`npm` were
 - `npm run test -- jobs rate limit redis config`
 - `npm run test -- config rate limit redis`
 - `npm run external-smoke:readiness`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Full acceptance results are recorded in `docs/PLAN_M52.md`.
 
@@ -1271,7 +1271,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run test -- config provider microsoft365 billing oidc evidence api health`
 - `npm run external-smoke:readiness`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-007, GAP-028, GAP-029, and GAP-032 are narrowed for readiness metadata, blocker reporting, and opt-in/disposable guardrails without live external calls. GAP-030, GAP-035, GAP-039, GAP-040, and GAP-043 remain preserved.
@@ -1291,7 +1291,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- audit api rbac evidence health`
 - `npm run test:e2e -- --grep @ui-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-039 is narrowed for explicit audit export handoff states, failed-anchor checkpoint preservation, and operator-owned immutable/export/signing responsibility metadata without claiming WORM storage, external notarization, legal certification, or database-admin-proof auditability. GAP-007, GAP-028, GAP-029, GAP-030, GAP-032, GAP-040, and GAP-043 remain preserved.
@@ -1313,7 +1313,7 @@ Validated with host-node equivalents because sandbox-local `pnpm` was unavailabl
 - `npm run test -- web ui api middleware auth health`
 - `npm run test:e2e -- --grep @ui-smoke`
 - `npm run test:e2e -- --grep @browser-smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-031 is narrowed for Firefox browser PNG screenshots and browser DOM layout assertions. GAP-035 is narrowed for Firefox browser cookie-jar/session/logout coverage with local HTTP fallback for untrusted-Origin and callback-exemption checks. GAP-007, GAP-028, GAP-029, GAP-030, GAP-032, GAP-039, GAP-040, and GAP-043 remain preserved.
@@ -1351,7 +1351,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- config provider microsoft365 encryption api audit worker actions`
 - `npm run provider-token:smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-040 is narrowed for custody contracts, deterministic fake secret-manager behavior, rotation/backfill runbook metadata, API/runtime config selection, and expanded provider-token smoke without claiming real KMS/secret-manager custody, deployed rotation, ciphertext backfill execution, key retirement, access logging, or production readiness. GAP-030, GAP-039, and GAP-043 remain preserved.
@@ -1371,7 +1371,7 @@ Summary:
 Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
 - `npm run lint`
 - `npm run test -- audit api database config evidence reports exports rbac`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-039 is narrowed for retention/export policy metadata and deterministic none/fake external-anchor contracts without claiming WORM storage, external notarization, legal certification, or database-admin-proof auditability. GAP-030, GAP-040, and GAP-043 remain preserved.
@@ -1391,7 +1391,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- jobs worker scheduler connector-runner provider actions queue redis api database audit`
 - `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` against a disposable `redis:7-alpine` container
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-043 is narrowed for claim-lock contention safety, bounded command retry, explicit recovery/retention hooks, queue redaction, and disposable Redis smoke coverage without claiming deployed production orchestration readiness. GAP-030, GAP-039, and GAP-040 remain preserved.
@@ -1410,7 +1410,7 @@ Summary:
 Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
 - `npm run lint`
 - `npm run test -- actions worker jobs provider remediation api database audit`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-030 is narrowed for fake/mock provider action execution contracts and worker-side safety/idempotency/failure/verification/audit coverage. GAP-039, GAP-040, and GAP-043 remain preserved.
@@ -1430,7 +1430,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- config provider microsoft365 encryption api audit`
 - `npm run provider-token:smoke`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 GAP-040 is narrowed for explicit local key-provider custody, deterministic local/disposable rotation smoke, and stricter key-ring validation. GAP-030, GAP-039, and GAP-043 remain preserved.
@@ -1450,7 +1450,7 @@ Summary:
 Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were unavailable:
 - `npm run lint`
 - `npm run test -- audit database api auth organization rbac evidence reports`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 31 / PLAN_M32: Live Redis/BullMQ Job Durability Smoke Slice
@@ -1468,7 +1468,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- jobs worker scheduler connector-runner provider regulatory actions`
 - `REDIS_URL=redis://127.0.0.1:<ephemeral>/0 npm run jobs:smoke:redis` against a disposable `redis:7-alpine` container
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 30 / PLAN_M31: Live PostgreSQL Migration And Prisma Runtime Smoke Slice
@@ -1487,7 +1487,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` and host
 - `npm run test -- database prisma persistence auth organization rbac audit oidc provider compliance evidence billing regulatory actions outputs notification`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
 - `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:<ephemeral>/puresoc_smoke npm run prisma:smoke:postgres` against a disposable `postgres:16-alpine` container
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 29 / PLAN_M30: OIDC Transient Authorization State Persistence Adapter Slice
@@ -1506,7 +1506,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- auth oidc social login database prisma persistence api organization rbac audit`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 28 / PLAN_M29: Provider Connection And Telemetry Persistence Adapter Slice
@@ -1525,7 +1525,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- provider microsoft365 connector database prisma persistence api auth organization rbac audit compliance recommendations`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 27 / PLAN_M28: Audit Log Persistence Sink Slice
@@ -1544,7 +1544,7 @@ Validated with host-node equivalents because sandbox-local `npm` and `pnpm` were
 - `npm run lint`
 - `npm run test -- audit database prisma persistence api auth organization rbac evidence billing regulatory actions`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 26 / PLAN_M27: Identity, Session, Organization, And RBAC Persistence Adapter Slice
@@ -1579,7 +1579,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- outputs reports dashboards database prisma persistence api`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 24 / PLAN_M25: Notification Draft Runtime Persistence And Backfill Contract
@@ -1597,7 +1597,7 @@ Validated with host-node equivalents because sandbox-local `npm`/`pnpm` were una
 - `npm run lint`
 - `npm run test -- notification database ro api persistence i18n`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 23 / PLAN_M24: Generic Notification Draft Envelope Persistence
@@ -1616,7 +1616,7 @@ Validated with host-node equivalents because `pnpm`/sandbox-local `npm` were una
 - `npm run lint`
 - `npm run test -- reports compliance ro notification i18n database prisma`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 - Full M24 acceptance command results are recorded in `docs/PLAN_M24.md`.
 
@@ -1636,7 +1636,7 @@ Validated with host-node equivalents because `pnpm` and sandbox-local `npm` were
 - `npm run lint`
 - `npm run test -- reports compliance ro notification i18n`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 21 / PLAN_M22: Schema And Generated Data Drift Detection
@@ -1654,7 +1654,7 @@ Validated with host-node equivalents because `pnpm`/`npm` were not available ins
 - `npm run lint`
 - `npm run test -- database schema drift regulatory-import ro`
 - `DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run prisma:validate`
-- `docker compose -f infra/compose/docker-compose.yml config`
+- `docker compose config`
 - `git diff --check`
 
 ## Completed Prompt 20 / PLAN_M21: Audit Log Integrity And Provider Key Handling

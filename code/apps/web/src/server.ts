@@ -532,13 +532,14 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
+    const apiRequestOrigin = shouldForwardBrowserOriginToApi(apiBaseUrl) ? requestOrigin : undefined;
 
     if (request.method === "POST" && url.pathname === "/partners") {
       const form = await readFormBody(request);
       const created = await apiJson<CreatePartnerWebResponse>(apiBaseUrl, "/partners", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           name: form.get("name") ?? "",
           slug: optionalFormValue(form.get("slug"))
@@ -582,7 +583,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {
             name: form.get("name") ?? "",
             legalName: optionalFormValue(form.get("legalName")),
@@ -630,7 +631,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {
             organizationId: form.get("organizationId") ?? "",
             reason: form.get("reason") ?? ""
@@ -658,7 +659,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           organizationId: started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? ""
         }
@@ -687,7 +688,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {}
         }
       );
@@ -696,7 +697,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           ? await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
               method: "POST",
               cookie: request.headers.cookie,
-              origin: requestOrigin,
+              origin: apiRequestOrigin,
               body: {
                 organizationId: null
               }
@@ -738,7 +739,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {
             type: form.get("type") ?? "",
             destination: form.get("destination") ?? ""
@@ -797,7 +798,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
               {
                 method: "POST",
                 cookie: request.headers.cookie,
-                origin: requestOrigin,
+                origin: apiRequestOrigin,
                 body: {}
               }
             )
@@ -807,7 +808,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
               {
                 method: "DELETE",
                 cookie: request.headers.cookie,
-                origin: requestOrigin
+                origin: apiRequestOrigin
               }
             );
 
@@ -845,7 +846,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const begin = await apiJson<OidcBeginWebResponse>(apiBaseUrl, "/auth/oidc/microsoft_entra/begin", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {}
       });
 
@@ -893,7 +894,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const completed = await apiJson<OidcBeginWebResponse>(apiBaseUrl, "/auth/oidc/microsoft_entra/callback", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: callbackInput
       });
 
@@ -940,7 +941,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {
             redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
             requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
@@ -1004,7 +1005,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {
             ...callbackInput,
             redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin)
@@ -1065,7 +1066,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         {
           method: "POST",
           cookie: request.headers.cookie,
-          origin: requestOrigin,
+          origin: apiRequestOrigin,
           body: {}
         }
       );
@@ -1083,7 +1084,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const form = await readFormBody(request);
       const verification = await apiJson<unknown>(apiBaseUrl, "/auth/email/verify", {
         method: "POST",
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           token: form.get("token") ?? ""
         }
@@ -1118,7 +1119,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const form = await readFormBody(request);
       const login = await apiJson<unknown>(apiBaseUrl, "/auth/login", {
         method: "POST",
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           email: form.get("email") ?? "",
           password: form.get("password") ?? "",
@@ -1151,7 +1152,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const form = await readFormBody(request);
       const registration = await apiJson<{ emailVerificationRequired?: boolean }>(apiBaseUrl, "/auth/register", {
         method: "POST",
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           displayName: form.get("displayName") ?? "",
           email: form.get("email") ?? "",
@@ -1163,7 +1164,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           renderRegisterScreen({
-            errorMessage: "Registration failed. Use a valid email and a strong local password."
+            errorMessage: registrationErrorMessageForApiResponse(registration.statusCode, registration.body)
           }),
           registration.statusCode
         );
@@ -1172,7 +1173,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
       const login = await apiJson<unknown>(apiBaseUrl, "/auth/login", {
         method: "POST",
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           email: form.get("email") ?? "",
           password: form.get("password") ?? ""
@@ -1204,7 +1205,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const logout = await apiJson<unknown>(apiBaseUrl, "/auth/logout", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {}
       });
       if (logout.setCookie) {
@@ -1242,7 +1243,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const invitation = await apiJson<unknown>(apiBaseUrl, `/organizations/${encodeURIComponent(organizationId)}/invitations`, {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           email: form.get("email") ?? "",
           roleKey: optionalFormValue(form.get("roleKey")) ?? "auditor"
@@ -1296,7 +1297,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const accepted = await apiJson<unknown>(apiBaseUrl, `/organizations/${encodeURIComponent(organizationId)}/invitations/accept`, {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           token: form.get("token") ?? ""
         }
@@ -1322,7 +1323,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           organizationId
         }
@@ -1363,7 +1364,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           organizationId
         }
@@ -1396,7 +1397,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const created = await apiJson<CreateOrganizationWebResponse>(apiBaseUrl, "/organizations", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           name: form.get("name") ?? "",
           legalName: optionalFormValue(form.get("legalName")),
@@ -1440,7 +1441,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const selected = await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
         method: "POST",
         cookie: request.headers.cookie,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         body: {
           organizationId: createdOrganizationId
         }
@@ -1489,7 +1490,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         apiBaseUrl,
         cookie: request.headers.cookie,
         organizationId,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         request
       });
       response.statusCode = 303;
@@ -1520,7 +1521,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         apiBaseUrl,
         cookie: request.headers.cookie,
         organizationId,
-        origin: requestOrigin,
+        origin: apiRequestOrigin,
         path: url.pathname,
         request
       });
@@ -1707,6 +1708,19 @@ export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeade
   return `${protocol}://${host}`;
 };
 
+export const shouldForwardBrowserOriginToApi = (apiBaseUrl: string): boolean => {
+  const hostname = hostnameForUrl(apiBaseUrl);
+  if (!hostname) {
+    return false;
+  }
+
+  if (["localhost", "puresoc-api", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname)) {
+    return false;
+  }
+
+  return hostname.includes(".");
+};
+
 const singleHeader = (value: string | string[] | undefined): string | null =>
   Array.isArray(value) ? value[0] ?? null : value ?? null;
 
@@ -1741,10 +1755,18 @@ const parseForwardedHeader = (value: string | null): { host?: string; proto?: st
 const normalizePublicProtocol = (value: string | null | undefined): "http" | "https" =>
   value?.toLowerCase() === "https" ? "https" : "http";
 
+const hostnameForUrl = (value: string): string | null => {
+  try {
+    return new URL(value).hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  } catch {
+    return null;
+  }
+};
+
 const webRequestErrorMessage = (error: unknown): string =>
   error instanceof Error && error.message === "Form body is too large."
     ? "The submitted form is too large for the current public web runtime."
-    : "The web runtime could not complete this request against the API. Check the API health and public origin configuration.";
+    : "The web runtime could not complete this request against the API. Check API health and internal Compose routing.";
 
 const optionalFormValue = (value: string | null): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;
@@ -2445,7 +2467,7 @@ const handleNis2CountryOnboardingPost = async (input: {
   apiBaseUrl: string;
   cookie?: string;
   organizationId: string;
-  origin: string;
+  origin?: string;
   request: AsyncIterable<Buffer>;
 }): Promise<{ countryCode: string; message: string; screen: string }> => {
   const form = await readFormBody(input.request);
@@ -2602,7 +2624,7 @@ const handleRomaniaWorkflowPost = async (input: {
   apiBaseUrl: string;
   cookie?: string;
   organizationId: string;
-  origin: string;
+  origin?: string;
   path: string;
   request: AsyncIterable<Buffer>;
 }): Promise<{ message: string; screen?: RomaniaOnboardingScreen }> => {
@@ -2909,7 +2931,7 @@ const createDashboardSnapshot = async (
     apiBaseUrl: string;
     cookie?: string;
     organizationId: string;
-    origin: string;
+    origin?: string;
   },
   assessmentId: string
 ) => {
@@ -3102,6 +3124,44 @@ const apiSucceeded = (statusCode: number): boolean => statusCode >= 200 && statu
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   Boolean(value && typeof value === "object" && !Array.isArray(value));
+
+export const registrationErrorMessageForApiResponse = (statusCode: number, body: unknown): string => {
+  const errorCode = apiErrorCode(body);
+
+  if (errorCode === "email_already_registered") {
+    return "An account already exists for that email. Sign in instead.";
+  }
+
+  if (errorCode === "origin_required" || errorCode === "origin_not_allowed") {
+    return "The API rejected this registration request origin. Keep web-to-API calls on the internal Compose URL, or configure trusted origins if the API is public.";
+  }
+
+  if (errorCode === "payload_too_large") {
+    return "Registration data is too large. Use a shorter display name.";
+  }
+
+  if (errorCode === "rate_limited") {
+    return "Too many registration attempts. Wait a minute and try again.";
+  }
+
+  if (statusCode >= 500 || errorCode === "internal_error") {
+    return "Registration is temporarily unavailable. The operator should check API logs and database migrations.";
+  }
+
+  if (errorCode === "invalid_request") {
+    return "Enter a display name, a valid email, and a password with at least 12 characters.";
+  }
+
+  return "Registration failed. Use a valid email and a password with at least 12 characters.";
+};
+
+const apiErrorCode = (body: unknown): string | null => {
+  if (!isRecord(body) || !isRecord(body.error)) {
+    return null;
+  }
+
+  return typeof body.error.code === "string" ? body.error.code : null;
+};
 
 const apiJson = async <T>(
   apiBaseUrl: string,

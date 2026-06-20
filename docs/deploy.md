@@ -59,7 +59,7 @@ This Compose-first surface is not a claim that production operations are solved.
 
 ## Service Topology
 
-The main service catalog is `code/infra/compose/docker-compose.yml`. It includes application `build:` entries and `pull_policy: build` for PureSOC application services, so Compose builds service images from the checked-out repository using public base images from the Dockerfiles instead of pulling prepublished PureSOC images. `code/infra/compose/docker-compose.build.yml` is kept only as a compatibility override for older local scripts; single-file deployments should not need it.
+The main service catalog is `code/compose.yml`. It includes application `build:` entries and `pull_policy: build` for PureSOC application services, so Compose builds service images from the checked-out `code/` workspace using public base images from the Dockerfiles instead of pulling prepublished PureSOC images. `code/infra/compose/docker-compose.build.yml` is kept only as a compatibility override for older local scripts; single-file deployments should not need it.
 
 Non-secret runtime defaults are embedded in the Compose file through `x-puresoc-default-environment` with `${VAR:-default}` interpolation. When using Docker Compose directly, `code/.env` or shell variables override those defaults; when using a deployment app, configure the same variables through that platform's environment/secret settings.
 
@@ -79,8 +79,8 @@ Those tags are local build outputs, not public registry images. The Dockerfiles 
 
 | Service | Purpose | Notes |
 |---|---|---|
-| `puresoc-web` | Served web UI | Current `node:http` renderer, port `3000` |
-| `puresoc-api` | API, auth, orgs, compliance, billing, evidence, provider routes | Current `node:http` API, port `3001` |
+| `puresoc-web` | Served web UI | Current `node:http` renderer, public port `3000` |
+| `puresoc-api` | API, auth, orgs, compliance, billing, evidence, provider routes | Current `node:http` API, internal Compose port `3001` |
 | `puresoc-migrator` | One-shot Prisma migration deployment | Runs checked-in migrations with `prisma migrate deploy`; does not reset data |
 | `puresoc-worker` | Async job runtime | Uses configured job queue provider |
 | `puresoc-scheduler` | Periodic scheduled jobs | Regulatory source monitor is disabled by default |
@@ -108,7 +108,7 @@ pnpm install
 pnpm lint
 pnpm test
 pnpm test:e2e -- --grep "@ui-smoke"
-docker compose -f infra/compose/docker-compose.yml config
+docker compose config
 ```
 
 2. Create a deployment environment file:
@@ -159,24 +159,20 @@ The Compose catalog includes `puresoc-migrator`, which runs this deploy command 
 5. Build application images from the repository:
 
 ```sh
-COMPOSE_BAKE=false docker compose \
-  -f infra/compose/docker-compose.yml \
-  build
+COMPOSE_BAKE=false docker compose build
 ```
 
 6. Start the Compose catalog and rebuild application images when needed:
 
 ```sh
-docker compose \
-  -f infra/compose/docker-compose.yml \
-  up --build -d
+docker compose up --build -d
 ```
 
 7. Verify health:
 
 ```sh
-curl -fsS http://localhost:3001/health
 curl -fsS http://localhost:3000/health
+docker compose exec puresoc-api node -e "fetch('http://127.0.0.1:3001/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 ```
 
 8. Exercise the local product path:
@@ -190,22 +186,19 @@ curl -fsS http://localhost:3000/health
 
 This path must not call Microsoft Graph, Stripe, OIDC providers, object-storage clouds, external scanner services, KMS/HSM/secret-manager APIs, public regulatory URLs, DNSC, or any national authority unless a later explicitly configured integration path is used. The bundled Compose ClamAV scanner is local to the deployment network.
 
-## Production Guardrails
+## Deployment Guardrails
 
-For production-like deployment, set at least:
+For a Compose deployment behind Traefik where only `puresoc-web` is public, set at least:
 
 ```sh
-PURESOC_APP_ENV=production
 PURESOC_PERSISTENCE_MODE=prisma
 PURESOC_AUTH_COOKIE_SECURE=true
 PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION=true
-PURESOC_API_ORIGIN_PROTECTION_ENABLED=true
-PURESOC_API_REQUIRE_ORIGIN_OR_REFERER=true
 PURESOC_PUBLIC_BASE_URL=https://app.example.com
-PURESOC_API_BASE_URL=https://api.example.com
-PURESOC_WEB_PUBLIC_BASE_URL=https://app.example.com
-PURESOC_API_TRUSTED_ORIGINS=https://app.example.com,https://api.example.com
+PURESOC_API_BASE_URL=http://puresoc-api:3001
 ```
+
+`puresoc-web` calls `puresoc-api` on the Compose network through `PURESOC_WEB_API_BASE_URL=http://puresoc-api:3001` from the service catalog. `PURESOC_WEB_PUBLIC_BASE_URL` is only an optional web override when the proxy does not send usable forwarded host/proto headers. Use `PURESOC_API_TRUSTED_ORIGINS` only if DevOps deliberately exposes the API to browser traffic.
 
 If the deployment is Romania/local readiness only, leave optional integration credentials unset:
 
@@ -569,7 +562,7 @@ Do not run live external smokes against production, staging, customer, or long-l
 - `pnpm lint` passes.
 - `pnpm test` passes.
 - `pnpm test:e2e -- --grep "@ui-smoke"` passes.
-- `docker compose -f infra/compose/docker-compose.yml config` passes.
+- `docker compose config` passes.
 - The deployment platform supports Compose `build:` and `pull_policy: build`, has the repository build context, and can pull public base images. If it tries to pull `puresoc-*:local`, it is not using the build-capable catalog correctly.
 - Prisma migrations have been applied to the target database.
 - `GET /health` passes for API and web.

@@ -1,0 +1,308 @@
+name: puresoc
+
+x-puresoc-database-url: &puresoc-database-url ${DATABASE_URL:-postgresql://${PURESOC_POSTGRES_USER:-puresoc_admin}:${PURESOC_POSTGRES_PASSWORD:-puresoc-local-postgres-password}@puresoc-postgres:5432/${PURESOC_POSTGRES_DB:-puresoc}}
+
+x-puresoc-backend-base-environment: &puresoc-backend-base-environment
+  PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
+  PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:-http://localhost:3000}
+  PURESOC_API_BASE_URL: ${PURESOC_API_BASE_URL:-http://localhost:3001}
+  PURESOC_API_TRUSTED_ORIGINS: ${PURESOC_API_TRUSTED_ORIGINS:-http://localhost:3000,http://localhost:3001}
+  PURESOC_AUTH_COOKIE_SECURE: ${PURESOC_AUTH_COOKIE_SECURE:-false}
+  PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
+  PURESOC_API_ORIGIN_PROTECTION_ENABLED: ${PURESOC_API_ORIGIN_PROTECTION_ENABLED:-true}
+  PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: ${PURESOC_API_REQUIRE_ORIGIN_OR_REFERER:-false}
+  PURESOC_REDIS_URL: ${PURESOC_REDIS_URL:-redis://puresoc-redis:6379/0}
+  PURESOC_JOB_QUEUE_PROVIDER: ${PURESOC_JOB_QUEUE_PROVIDER:-memory}
+  PURESOC_API_RATE_LIMIT_STORE_PROVIDER: ${PURESOC_API_RATE_LIMIT_STORE_PROVIDER:-memory}
+
+x-puresoc-object-storage-environment: &puresoc-object-storage-environment
+  PURESOC_OBJECT_STORAGE_PROVIDER: ${PURESOC_OBJECT_STORAGE_PROVIDER:-s3}
+  PURESOC_OBJECT_STORAGE_ENDPOINT: ${PURESOC_OBJECT_STORAGE_ENDPOINT:-http://puresoc-object-storage:9000}
+  PURESOC_OBJECT_STORAGE_REGION: ${PURESOC_OBJECT_STORAGE_REGION:-us-east-1}
+  PURESOC_OBJECT_STORAGE_BUCKET: ${PURESOC_OBJECT_STORAGE_BUCKET:-puresoc-evidence}
+  PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID: ${PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID:-puresoc_minio_admin}
+  PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY:-puresoc-local-minio-password}
+  PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE: ${PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE:-true}
+
+x-puresoc-microsoft365-connector-environment: &puresoc-microsoft365-connector-environment
+  PURESOC_CONNECTOR_MICROSOFT365_MODE: ${PURESOC_CONNECTOR_MICROSOFT365_MODE:-fixture}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID:-}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET:-}
+  PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: ${PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST:-https://login.microsoftonline.com}
+  PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: ${PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI:-http://localhost:3000/providers/microsoft365/callback}
+  PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: ${PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL:-https://graph.microsoft.com/v1.0}
+  PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: ${PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED:-false}
+  PURESOC_PROVIDER_TOKEN_KEY_PROVIDER: ${PURESOC_PROVIDER_TOKEN_KEY_PROVIDER:-local-env-key-ring}
+  PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND: ${PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND:-local}
+  PURESOC_PROVIDER_TOKEN_KEY_ID: ${PURESOC_PROVIDER_TOKEN_KEY_ID:-}
+  PURESOC_PROVIDER_TOKEN_KEY: ${PURESOC_PROVIDER_TOKEN_KEY:-}
+  PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS: ${PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS:-}
+  PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED: ${PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED:-false}
+  PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED: ${PURESOC_PROVIDER_TOKEN_BACKFILL_PLAN_CONFIRMED:-false}
+  PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED: ${PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED:-false}
+
+x-puresoc-social-login-environment: &puresoc-social-login-environment
+  PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY: ${PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: ${PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED:-false}
+  PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_ID:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET: ${PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET:-}
+  PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI: ${PURESOC_AUTH_MICROSOFT_ENTRA_REDIRECT_URI:-http://localhost:3000/auth/oidc/microsoft_entra/callback}
+  PURESOC_AUTH_GOOGLE_ENABLED: ${PURESOC_AUTH_GOOGLE_ENABLED:-false}
+  PURESOC_AUTH_GOOGLE_CLIENT_ID: ${PURESOC_AUTH_GOOGLE_CLIENT_ID:-}
+  PURESOC_AUTH_GOOGLE_CLIENT_SECRET: ${PURESOC_AUTH_GOOGLE_CLIENT_SECRET:-}
+  PURESOC_AUTH_GOOGLE_REDIRECT_URI: ${PURESOC_AUTH_GOOGLE_REDIRECT_URI:-http://localhost:3000/auth/oidc/google/callback}
+  PURESOC_AUTH_GITHUB_ENABLED: ${PURESOC_AUTH_GITHUB_ENABLED:-false}
+  PURESOC_AUTH_GITHUB_CLIENT_ID: ${PURESOC_AUTH_GITHUB_CLIENT_ID:-}
+  PURESOC_AUTH_GITHUB_CLIENT_SECRET: ${PURESOC_AUTH_GITHUB_CLIENT_SECRET:-}
+  PURESOC_AUTH_GITHUB_REDIRECT_URI: ${PURESOC_AUTH_GITHUB_REDIRECT_URI:-http://localhost:3000/auth/oidc/github/callback}
+
+x-puresoc-billing-environment: &puresoc-billing-environment
+  PURESOC_BILLING_PROVIDER: ${PURESOC_BILLING_PROVIDER:-none}
+  STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+  STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+  STRIPE_PRICE_ID_BASE: ${STRIPE_PRICE_ID_BASE:-}
+  STRIPE_PRICE_ID_PRO: ${STRIPE_PRICE_ID_PRO:-}
+  STRIPE_PRICE_ID_MSP: ${STRIPE_PRICE_ID_MSP:-}
+
+x-puresoc-notification-environment: &puresoc-notification-environment
+  PURESOC_NOTIFICATIONS_SMTP_ENABLED: ${PURESOC_NOTIFICATIONS_SMTP_ENABLED:-false}
+  PURESOC_NOTIFICATIONS_SMTP_HOST: ${PURESOC_NOTIFICATIONS_SMTP_HOST:-}
+  PURESOC_NOTIFICATIONS_SMTP_PORT: ${PURESOC_NOTIFICATIONS_SMTP_PORT:-587}
+  PURESOC_NOTIFICATIONS_SMTP_SECURE: ${PURESOC_NOTIFICATIONS_SMTP_SECURE:-false}
+  PURESOC_NOTIFICATIONS_SMTP_STARTTLS: ${PURESOC_NOTIFICATIONS_SMTP_STARTTLS:-true}
+  PURESOC_NOTIFICATIONS_SMTP_USERNAME: ${PURESOC_NOTIFICATIONS_SMTP_USERNAME:-}
+  PURESOC_NOTIFICATIONS_SMTP_PASSWORD: ${PURESOC_NOTIFICATIONS_SMTP_PASSWORD:-}
+  PURESOC_NOTIFICATIONS_SMTP_FROM: ${PURESOC_NOTIFICATIONS_SMTP_FROM:-}
+
+services:
+  puresoc-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${PURESOC_POSTGRES_DB:-puresoc}
+      POSTGRES_USER: ${PURESOC_POSTGRES_USER:-puresoc_admin}
+      POSTGRES_PASSWORD: ${PURESOC_POSTGRES_PASSWORD:-puresoc-local-postgres-password}
+    expose:
+      - "5432"
+    volumes:
+      - puresoc-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  puresoc-redis:
+    image: redis:7-alpine
+    expose:
+      - "6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  puresoc-object-storage:
+    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID:-puresoc_minio_admin}
+      MINIO_ROOT_PASSWORD: ${PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY:-puresoc-local-minio-password}
+    expose:
+      - "9000"
+      - "9001"
+    volumes:
+      - puresoc-object-storage-data:/data
+
+  puresoc-object-storage-init:
+    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+    environment:
+      MINIO_ROOT_USER: ${PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID:-puresoc_minio_admin}
+      MINIO_ROOT_PASSWORD: ${PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY:-puresoc-local-minio-password}
+      PURESOC_OBJECT_STORAGE_BUCKET: ${PURESOC_OBJECT_STORAGE_BUCKET:-puresoc-evidence}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until mc alias set puresoc http://puresoc-object-storage:9000 "$${MINIO_ROOT_USER}" "$${MINIO_ROOT_PASSWORD}"; do
+          sleep 2
+        done
+        mc mb --ignore-existing "puresoc/$${PURESOC_OBJECT_STORAGE_BUCKET}"
+        mc anonymous set none "puresoc/$${PURESOC_OBJECT_STORAGE_BUCKET}"
+    depends_on:
+      puresoc-object-storage:
+        condition: service_started
+    restart: "no"
+
+  puresoc-clamav:
+    image: clamav/clamav:1.4_base
+    platform: linux/amd64
+    environment:
+      FRESHCLAM_CHECKS: "12"
+    expose:
+      - "3310"
+    volumes:
+      - puresoc-clamav-db:/var/lib/clamav
+
+  puresoc-upload-scanner:
+    image: puresoc-upload-scanner:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.upload-scanner
+    environment:
+      PURESOC_UPLOAD_SCANNER_ENGINE: clamav
+      PURESOC_CLAMAV_HOST: puresoc-clamav
+    expose:
+      - "3310"
+    depends_on:
+      puresoc-clamav:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3310/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 180s
+
+  puresoc-migrator:
+    image: puresoc-migrator:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    command: ["pnpm", "prisma:migrate:deploy"]
+    environment:
+      PURESOC_PERSISTENCE_MODE: prisma
+      DATABASE_URL: *puresoc-database-url
+    depends_on:
+      puresoc-postgres:
+        condition: service_healthy
+    restart: "no"
+
+  puresoc-web:
+    image: puresoc-web:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.web
+    environment:
+      PURESOC_PUBLIC_BASE_URL: ${PURESOC_PUBLIC_BASE_URL:-http://localhost:3000}
+      PURESOC_WEB_PUBLIC_BASE_URL: ${PURESOC_WEB_PUBLIC_BASE_URL:-http://localhost:3000}
+      PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
+      PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: ${PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED:-false}
+      PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI: ${PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI:-http://localhost:3000/providers/microsoft365/callback}
+    ports:
+      - "3000:3000"
+    depends_on:
+      puresoc-api:
+        condition: service_started
+
+  puresoc-api:
+    image: puresoc-api:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.api
+    environment:
+      <<:
+        - *puresoc-backend-base-environment
+        - *puresoc-object-storage-environment
+        - *puresoc-microsoft365-connector-environment
+        - *puresoc-social-login-environment
+        - *puresoc-billing-environment
+        - *puresoc-notification-environment
+      PURESOC_PERSISTENCE_MODE: prisma
+      DATABASE_URL: *puresoc-database-url
+      PURESOC_UPLOAD_SCANNER_MODE: http
+      PURESOC_UPLOAD_SCANNER_ENDPOINT: http://puresoc-upload-scanner:3310/scan
+      PURESOC_REPORT_RENDERER: http://puresoc-report-renderer:3002
+    expose:
+      - "3001"
+    depends_on:
+      puresoc-migrator:
+        condition: service_completed_successfully
+      puresoc-redis:
+        condition: service_healthy
+      puresoc-object-storage:
+        condition: service_started
+      puresoc-object-storage-init:
+        condition: service_completed_successfully
+      puresoc-upload-scanner:
+        condition: service_healthy
+
+  puresoc-worker:
+    image: puresoc-worker:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.worker
+    environment:
+      <<: *puresoc-backend-base-environment
+    depends_on:
+      puresoc-api:
+        condition: service_started
+      puresoc-redis:
+        condition: service_healthy
+
+  puresoc-scheduler:
+    image: puresoc-scheduler:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.scheduler
+    environment:
+      <<:
+        - *puresoc-backend-base-environment
+        - *puresoc-notification-environment
+      PURESOC_PERSISTENCE_MODE: prisma
+      DATABASE_URL: *puresoc-database-url
+    depends_on:
+      puresoc-api:
+        condition: service_started
+      puresoc-redis:
+        condition: service_healthy
+
+  puresoc-connector-runner:
+    image: puresoc-connector-runner:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.connector-runner
+    environment:
+      <<:
+        - *puresoc-backend-base-environment
+        - *puresoc-microsoft365-connector-environment
+    depends_on:
+      puresoc-api:
+        condition: service_started
+      puresoc-redis:
+        condition: service_healthy
+
+  puresoc-regulatory-importer:
+    image: puresoc-regulatory-importer:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.regulatory-importer
+    profiles:
+      - regulatory
+
+  puresoc-report-renderer:
+    image: puresoc-report-renderer:local
+    pull_policy: build
+    build:
+      context: .
+      dockerfile: infra/docker/Dockerfile.report-renderer
+    expose:
+      - "3002"
+
+volumes:
+  puresoc-postgres-data:
+  puresoc-object-storage-data:
+  puresoc-clamav-db:

@@ -15,7 +15,7 @@ const dockerfiles = [
 
 const deployableComposeBuildExpectations = [
   [
-    "docker-compose.yml",
+    "compose.yml",
     [
       "Dockerfile.web",
       "Dockerfile.api",
@@ -54,11 +54,14 @@ describe("Docker runtime command shape", () => {
 
   it("keeps deployable compose catalogs source-buildable", () => {
     for (const [composeFile, expectedDockerfiles] of deployableComposeBuildExpectations) {
-      const compose = readWorkspaceFile("infra/compose", composeFile);
+      const compose =
+        composeFile === "compose.yml"
+          ? readWorkspaceFile(composeFile)
+          : readWorkspaceFile("infra/compose", composeFile);
 
       expect(compose, composeFile).toContain("build:");
       expect(compose, composeFile).toContain("pull_policy: build");
-      expect(compose, composeFile).toContain("context: ../..");
+      expect(compose, composeFile).toContain(composeFile === "compose.yml" ? "context: ." : "context: ../..");
       for (const dockerfile of expectedDockerfiles) {
         expect(compose, composeFile).toContain(`dockerfile: infra/docker/${dockerfile}`);
       }
@@ -66,7 +69,7 @@ describe("Docker runtime command shape", () => {
   });
 
   it("keeps the optional build override wired to the service Dockerfiles", () => {
-    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+    const compose = readWorkspaceFile("compose.yml");
     const buildCompose = readWorkspaceFile("infra/compose", "docker-compose.build.yml");
 
     for (const [dockerfile] of dockerfiles) {
@@ -75,38 +78,61 @@ describe("Docker runtime command shape", () => {
     }
   });
 
-  it("keeps first-run Compose free of user-supplied source interpolation", () => {
-    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+  it("exposes deployment secrets through Compose source interpolation", () => {
+    const compose = readWorkspaceFile("compose.yml");
     const composeInterpolation = compose.replaceAll("$${", "").match(/\$\{/g) ?? [];
+    const expectedInputs = [
+      "DATABASE_URL",
+      "PURESOC_POSTGRES_PASSWORD",
+      "PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID",
+      "PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY",
+      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
+      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
+      "PURESOC_PROVIDER_TOKEN_KEY_ID",
+      "PURESOC_PROVIDER_TOKEN_KEY",
+      "PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY",
+      "STRIPE_SECRET_KEY",
+      "STRIPE_WEBHOOK_SECRET",
+      "PURESOC_NOTIFICATIONS_SMTP_PASSWORD",
+      "PURESOC_REDIS_URL"
+    ];
 
-    expect(composeInterpolation).toHaveLength(0);
-    expect(compose).toContain(
-      "DATABASE_URL: postgresql://puresoc_admin:puresoc-local-postgres-password@puresoc-postgres:5432/puresoc"
-    );
-    expect(compose).not.toContain("${DATABASE_URL");
-    expect(compose).not.toContain("${PURESOC_POSTGRES_PASSWORD");
-    expect(compose).not.toContain("${PURESOC_MINIO_ROOT_PASSWORD");
+    expect(composeInterpolation.length).toBeGreaterThanOrEqual(expectedInputs.length);
+    for (const inputName of expectedInputs) {
+      expect(compose).toContain(`\${${inputName}`);
+    }
+    expect(compose).toContain("DATABASE_URL: *puresoc-database-url");
+    expect(compose).toContain("POSTGRES_PASSWORD: ${PURESOC_POSTGRES_PASSWORD:-");
+    expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: ${PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED:-false}");
   });
 
-  it("does not expose disabled optional integrations as first-run Compose runtime keys", () => {
-    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+  it("keeps backend secrets out of the web service and customer tenant secrets out of Compose", () => {
+    const compose = readWorkspaceFile("compose.yml");
+    const webService = readComposeServiceBlock(compose, "puresoc-web");
 
-    expect(compose).not.toContain("PURESOC_AUTH_GITHUB_CLIENT_SECRET");
-    expect(compose).not.toContain("PURESOC_AUTH_GOOGLE_CLIENT_SECRET");
-    expect(compose).not.toContain("PURESOC_AUTH_MICROSOFT_ENTRA_CLIENT_SECRET");
-    expect(compose).not.toContain("PURESOC_NOTIFICATIONS_SMTP_PASSWORD");
-    expect(compose).not.toContain("PURESOC_PROVIDER_TOKEN_KEY");
-    expect(compose).not.toContain("STRIPE_SECRET_KEY");
-    expect(compose).not.toContain("STRIPE_WEBHOOK_SECRET");
+    expect(webService).toContain("PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED");
+    expect(webService).toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
+    expect(webService).not.toContain("CLIENT_SECRET");
+    expect(webService).not.toContain("PURESOC_PROVIDER_TOKEN_KEY");
+    expect(webService).not.toContain("STRIPE_SECRET_KEY");
+    expect(webService).not.toContain("PURESOC_NOTIFICATIONS_SMTP_PASSWORD");
+    expect(compose).not.toContain("MICROSOFT365_TENANT_ID");
+    expect(compose).not.toContain("GLOBAL_ADMIN");
   });
 
-  it("keeps first-run Compose runtime environment small and role-specific", () => {
-    const compose = readWorkspaceFile("infra/compose", "docker-compose.yml");
+  it("keeps deployment Compose runtime environment role-specific", () => {
+    const compose = readWorkspaceFile("compose.yml");
     const environmentKeyCount = countComposeEnvironmentKeys(compose);
+    const apiService = readComposeServiceBlock(compose, "puresoc-api");
+    const workerService = readComposeServiceBlock(compose, "puresoc-worker");
 
-    expect(environmentKeyCount).toBeLessThanOrEqual(35);
-    expect(compose).not.toContain("x-puresoc-default-environment");
-    expect(compose).not.toContain("x-puresoc-database-environment");
+    expect(environmentKeyCount).toBeLessThanOrEqual(120);
+    expect(compose).toContain("x-puresoc-backend-base-environment");
+    expect(compose).toContain("x-puresoc-microsoft365-connector-environment");
+    expect(apiService).toContain("*puresoc-microsoft365-connector-environment");
+    expect(apiService).toContain("*puresoc-object-storage-environment");
+    expect(workerService).not.toContain("*puresoc-microsoft365-connector-environment");
+    expect(workerService).not.toContain("*puresoc-object-storage-environment");
   });
 
   it("points job service scripts at runtime loops instead of contract-status reporters", () => {
@@ -123,6 +149,20 @@ describe("Docker runtime command shape", () => {
 
 const readWorkspaceFile = (...pathSegments: string[]): string =>
   readFileSync(join(process.cwd(), ...pathSegments), "utf8");
+
+const readComposeServiceBlock = (compose: string, serviceName: string): string => {
+  const lines = compose.split(/\r?\n/);
+  const start = lines.findIndex((line) => line === `  ${serviceName}:`);
+  if (start === -1) {
+    throw new Error(`Service not found in Compose file: ${serviceName}`);
+  }
+
+  const end = lines.findIndex(
+    (line, index) => index > start && (/^  [a-z0-9-]+:/.test(line) || /^[a-z][a-z0-9_-]*:/.test(line))
+  );
+
+  return lines.slice(start, end === -1 ? undefined : end).join("\n");
+};
 
 const countComposeEnvironmentKeys = (compose: string): number => {
   let count = 0;

@@ -35,7 +35,7 @@ const requiredPaths = [
   "packages/ui",
   "packages/billing/core",
   "packages/billing/stripe",
-  "infra/compose/docker-compose.yml",
+  "compose.yml",
   "data/regulatory/countries/member-states.seed.json",
   "data/regulatory/countries/ro/nis2ro-tool-v-2-1.xlsx"
 ];

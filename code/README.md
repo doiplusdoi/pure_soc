@@ -9,10 +9,10 @@ pnpm install
 pnpm lint
 pnpm test
 pnpm test:e2e -- --grep "@ui-smoke"
-docker compose -f infra/compose/docker-compose.yml config
+docker compose config
 ```
 
-Repository-level docs remain in `../docs/`. App code, packages, tests, runtime config, Compose files, Dockerfiles, scripts, and regulatory seed data belong here.
+Repository-level docs remain in `../docs/`. App code, packages, tests, runtime config, the root `compose.yml`, Dockerfiles, scripts, and regulatory seed data belong here.
 
 ## Drift Checks
 
@@ -83,7 +83,7 @@ The current web runtime is the lightweight `node:http` server documented in ADR-
 PURESOC_WEB_API_BASE_URL=http://127.0.0.1:3001 pnpm start:web
 ```
 
-If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. For proxied browser state-changing API calls, the web server sends an Origin derived from `PURESOC_WEB_PUBLIC_BASE_URL`, then `PURESOC_PUBLIC_BASE_URL`, then forwarded proxy headers (`X-Forwarded-Proto`/`X-Forwarded-Host` or `Forwarded`), and finally the request `Host`. Public deployments should set `PURESOC_WEB_PUBLIC_BASE_URL` to the same HTTPS origin configured in `PURESOC_API_TRUSTED_ORIGINS`.
+If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. In the default Compose path, `puresoc-web` calls `http://puresoc-api:3001` on the internal network and does not forward the browser Origin to the API. The public origin derived from `PURESOC_WEB_PUBLIC_BASE_URL`, `PURESOC_PUBLIC_BASE_URL`, forwarded proxy headers, or request `Host` is still used for public callback URL construction.
 
 Implemented web paths:
 

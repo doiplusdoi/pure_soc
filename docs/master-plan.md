@@ -350,7 +350,7 @@ This repository only needs to describe the application images, default service c
 Compose files should be organized by product role:
 
 ```txt
-infra/compose/docker-compose.yml              // shared service catalog
+compose.yml                                  // shared service catalog
 infra/compose/docker-compose.data.yml         // postgres, redis
 infra/compose/docker-compose.storage.yml      // object storage adapter default
 infra/compose/docker-compose.webservices.yml  // web, api
@@ -400,7 +400,7 @@ Compose acceptance is limited to proving that image definitions, service names, 
 
 ```txt
 cd code
-docker compose -f infra/compose/docker-compose.yml config
+docker compose config
 ```
 
 ## 9. Connector Architecture
@@ -657,7 +657,7 @@ Phase A service-catalog gate:
 cd code
 pnpm lint
 pnpm test
-docker compose -f infra/compose/docker-compose.yml config
+docker compose config
 ```
 
 Must prove:

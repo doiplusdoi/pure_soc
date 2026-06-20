@@ -19,7 +19,11 @@ import {
   renderRomaniaOnboardingRoute,
   renderWorkspaceSelectionScreen
 } from "../index";
-import { resolvePublicRequestOrigin } from "../server";
+import {
+  registrationErrorMessageForApiResponse,
+  resolvePublicRequestOrigin,
+  shouldForwardBrowserOriginToApi
+} from "../server";
 
 describe("web dashboard reports operational UI", () => {
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
@@ -1016,6 +1020,35 @@ describe("web dashboard reports operational UI", () => {
         3000
       )
     ).toBe("https://puresoc.example.test");
+  });
+
+  it("maps registration API failures to safe deployment-aware messages", () => {
+    expect(
+      registrationErrorMessageForApiResponse(403, {
+        error: { code: "origin_not_allowed" }
+      })
+    ).toContain("internal Compose URL");
+    expect(
+      registrationErrorMessageForApiResponse(409, {
+        error: { code: "email_already_registered" }
+      })
+    ).toContain("already exists");
+    expect(
+      registrationErrorMessageForApiResponse(500, {
+        error: { code: "internal_error" }
+      })
+    ).toContain("database migrations");
+    expect(
+      registrationErrorMessageForApiResponse(400, {
+        error: { code: "invalid_request" }
+      })
+    ).toContain("at least 12 characters");
+  });
+
+  it("does not forward browser origins to the internal Compose API", () => {
+    expect(shouldForwardBrowserOriginToApi("http://puresoc-api:3001")).toBe(false);
+    expect(shouldForwardBrowserOriginToApi("http://localhost:3001")).toBe(false);
+    expect(shouldForwardBrowserOriginToApi("https://api.example.test")).toBe(true);
   });
 
   it("renders the NIS2 wizard as short logical screens with connector and gap exports", () => {
