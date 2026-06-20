@@ -1709,16 +1709,7 @@ export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeade
 };
 
 export const shouldForwardBrowserOriginToApi = (apiBaseUrl: string): boolean => {
-  const hostname = hostnameForUrl(apiBaseUrl);
-  if (!hostname) {
-    return false;
-  }
-
-  if (["localhost", "puresoc-api", "127.0.0.1", "0.0.0.0", "::1"].includes(hostname)) {
-    return false;
-  }
-
-  return hostname.includes(".");
+  return Boolean(hostnameForUrl(apiBaseUrl));
 };
 
 const singleHeader = (value: string | string[] | undefined): string | null =>

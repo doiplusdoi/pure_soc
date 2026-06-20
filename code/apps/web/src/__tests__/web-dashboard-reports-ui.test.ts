@@ -1045,9 +1045,9 @@ describe("web dashboard reports operational UI", () => {
     ).toContain("at least 12 characters");
   });
 
-  it("does not forward browser origins to the internal Compose API", () => {
-    expect(shouldForwardBrowserOriginToApi("http://puresoc-api:3001")).toBe(false);
-    expect(shouldForwardBrowserOriginToApi("http://localhost:3001")).toBe(false);
+  it("forwards browser origins to API calls so production origin checks can stay strict", () => {
+    expect(shouldForwardBrowserOriginToApi("http://puresoc-api:3001")).toBe(true);
+    expect(shouldForwardBrowserOriginToApi("http://localhost:3001")).toBe(true);
     expect(shouldForwardBrowserOriginToApi("https://api.example.test")).toBe(true);
   });
 

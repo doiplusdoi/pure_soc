@@ -78,18 +78,22 @@ describe("Docker runtime command shape", () => {
     }
   });
 
-  it("exposes deployment secrets through Compose source interpolation", () => {
+  it("keeps live Compose interpolation limited to must-have operator inputs", () => {
     const compose = readWorkspaceFile("compose.yml");
     const composeInterpolation = compose.replaceAll("$${", "").match(/\$\{/g) ?? [];
     const expectedInputs = [
+      "PURESOC_PUBLIC_BASE_URL",
+      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
+      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
+      "PURESOC_PROVIDER_TOKEN_KEY"
+    ];
+    const removedInputs = [
       "DATABASE_URL",
       "PURESOC_POSTGRES_PASSWORD",
       "PURESOC_OBJECT_STORAGE_ACCESS_KEY_ID",
       "PURESOC_OBJECT_STORAGE_SECRET_ACCESS_KEY",
-      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
-      "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
-      "PURESOC_PROVIDER_TOKEN_KEY_ID",
-      "PURESOC_PROVIDER_TOKEN_KEY",
+      "PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS",
+      "PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND",
       "PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY",
       "STRIPE_SECRET_KEY",
       "STRIPE_WEBHOOK_SECRET",
@@ -101,9 +105,12 @@ describe("Docker runtime command shape", () => {
     for (const inputName of expectedInputs) {
       expect(compose).toContain(`\${${inputName}`);
     }
+    for (const inputName of removedInputs) {
+      expect(compose).not.toContain(`\${${inputName}`);
+    }
     expect(compose).toContain("DATABASE_URL: *puresoc-database-url");
-    expect(compose).toContain("POSTGRES_PASSWORD: ${PURESOC_POSTGRES_PASSWORD:-");
-    expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: ${PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED:-false}");
+    expect(compose).toContain("POSTGRES_DB: puresoc_live");
+    expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
   });
 
   it("keeps backend secrets out of the web service and customer tenant secrets out of Compose", () => {
