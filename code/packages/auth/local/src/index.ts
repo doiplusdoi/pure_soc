@@ -351,7 +351,7 @@ export class LocalAuthService {
 
     const now = this.now();
     const userId = randomUUID();
-    const passwordHash = await this.passwordHasher.hashPassword(input.password);
+    const passwordHash = await this.hashPasswordSafely(input.password);
     const emailVerifiedAt = this.requireEmailVerification ? null : now;
     const verificationToken = createExpiringSecretToken({
       now,
@@ -668,7 +668,7 @@ export class LocalAuthService {
     }
 
     await this.repository.updateLocalCredential(credential.id, {
-      passwordHash: await this.passwordHasher.hashPassword(input.newPassword),
+      passwordHash: await this.hashPasswordSafely(input.newPassword),
       passwordUpdatedAt: now,
       failedLoginCount: 0,
       lockedUntil: null
@@ -738,6 +738,18 @@ export class LocalAuthService {
       return await this.passwordHasher.verifyPassword(passwordHash, password);
     } catch {
       return false;
+    }
+  }
+
+  private async hashPasswordSafely(password: string): Promise<string> {
+    try {
+      return await this.passwordHasher.hashPassword(password);
+    } catch {
+      throw new AuthError(
+        "auth_service_unavailable",
+        "Authentication service is temporarily unavailable.",
+        503
+      );
     }
   }
 

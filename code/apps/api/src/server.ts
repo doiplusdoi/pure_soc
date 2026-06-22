@@ -1,5 +1,6 @@
 import { createServer, type IncomingMessage } from "node:http";
 
+import { AuthError } from "@puresoc/auth-core";
 import { validateConfigForStartup } from "@puresoc/config";
 import { getApiHealth } from "./health";
 import {
@@ -544,7 +545,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       response.end("not found");
     } catch (error) {
       const result = toJsonResultError(error);
-      if (result.statusCode >= 500) {
+      if (result.statusCode >= 500 && !(error instanceof AuthError)) {
         logUnhandledApiError(error, requestContext, request);
       }
       sendJson(response, result);

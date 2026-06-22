@@ -102,6 +102,7 @@ export type AuthErrorCode =
   | "email_not_verified"
   | "account_locked"
   | "rate_limited"
+  | "auth_service_unavailable"
   | "session_invalid"
   | "forbidden"
   | "provider_disabled"

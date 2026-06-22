@@ -11,6 +11,7 @@ import {
   InMemoryEmailVerificationDelivery,
   InMemoryOrganizationInvitationDelivery
 } from "../auth/services";
+import type { PasswordHasher } from "@puresoc/auth-local";
 import { startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
@@ -24,29 +25,41 @@ describe("auth organization rbac audit session integration", () => {
   let emailDelivery: InMemoryEmailVerificationDelivery;
   let invitationDelivery: InMemoryOrganizationInvitationDelivery;
 
-  beforeEach(() => {
-    emailDelivery = new InMemoryEmailVerificationDelivery();
-    invitationDelivery = new InMemoryOrganizationInvitationDelivery();
-    services = createApiServices({
-      config: loadConfig({
-        env: {
-          PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
-        }
-      }),
-      emailVerificationDelivery: emailDelivery,
-      organizationInvitationDelivery: invitationDelivery,
-      now: () => new Date("2026-04-28T12:00:00.000Z")
-    });
+  const startWithServices = (nextServices: ReturnType<typeof createApiServices>) => {
+    services = nextServices;
     server = startApiServer(0, services);
     const address = server.address() as AddressInfo;
     baseUrl = `http://127.0.0.1:${address.port}`;
-  });
+  };
 
-  afterEach(async () => {
+  const closeServer = async () => {
+    if (!server.listening) {
+      return;
+    }
+
     await new Promise<void>((resolve, reject) => {
       server.close((error) => (error ? reject(error) : resolve()));
     });
+  };
+
+  beforeEach(() => {
+    emailDelivery = new InMemoryEmailVerificationDelivery();
+    invitationDelivery = new InMemoryOrganizationInvitationDelivery();
+    startWithServices(
+      createApiServices({
+        config: loadConfig({
+          env: {
+            PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+          }
+        }),
+        emailVerificationDelivery: emailDelivery,
+        organizationInvitationDelivery: invitationDelivery,
+        now: () => new Date("2026-04-28T12:00:00.000Z")
+      })
+    );
   });
+
+  afterEach(closeServer);
 
   const postJson = (path: string, body: unknown, cookie?: string) =>
     fetch(`${baseUrl}${path}`, {
@@ -538,6 +551,109 @@ describe("auth organization rbac audit session integration", () => {
     });
     expect(loginResponse.headers.get("set-cookie")).toBeNull();
     expect(services.auditSink.findByAction("failed_login")).toHaveLength(1);
+  });
+
+  it("returns a controlled auth error when password hashing is unavailable during registration", async () => {
+    await closeServer();
+    const failingHasher: PasswordHasher = {
+      async hashPassword() {
+        throw new Error("argon2 backend unavailable");
+      },
+      async verifyPassword() {
+        return false;
+      }
+    };
+    startWithServices(
+      createApiServices({
+        config: loadConfig({
+          env: {
+            PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+          }
+        }),
+        emailVerificationDelivery: emailDelivery,
+        organizationInvitationDelivery: invitationDelivery,
+        passwordHasher: failingHasher,
+        now: () => new Date("2026-04-28T12:00:00.000Z")
+      })
+    );
+
+    const registrationResponse = await postJson("/auth/register", {
+      email: "hash-unavailable@example.test",
+      password,
+      displayName: "Hash Unavailable"
+    });
+
+    expect(registrationResponse.status).toBe(503);
+    await expect(readJson<{ error: { code: string; message: string } }>(registrationResponse)).resolves.toEqual({
+      error: {
+        code: "auth_service_unavailable",
+        message: "Authentication service is temporarily unavailable."
+      }
+    });
+    expect(services.memoryRepositories.identityRepository.localCredentials.size).toBe(0);
+  });
+
+  it("does not update credentials when password hashing is unavailable during reset", async () => {
+    let hashUnavailable = false;
+    const passwordHasher: PasswordHasher = {
+      async hashPassword(nextPassword) {
+        if (hashUnavailable) {
+          throw new Error("argon2 backend unavailable");
+        }
+
+        return `test-hash:${nextPassword}`;
+      },
+      async verifyPassword(passwordHash, nextPassword) {
+        return passwordHash === `test-hash:${nextPassword}`;
+      }
+    };
+    await closeServer();
+    startWithServices(
+      createApiServices({
+        config: loadConfig({
+          env: {
+            PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+          }
+        }),
+        emailVerificationDelivery: emailDelivery,
+        organizationInvitationDelivery: invitationDelivery,
+        passwordHasher,
+        now: () => new Date("2026-04-28T12:00:00.000Z")
+      })
+    );
+
+    await services.localAuth.register({
+      email: "reset-hash-unavailable@example.test",
+      password,
+      displayName: "Reset Hash Unavailable"
+    });
+    const credential = [...services.memoryRepositories.identityRepository.localCredentials.values()].find(
+      (candidate) => candidate.email === "reset-hash-unavailable@example.test"
+    );
+    if (!credential) {
+      throw new Error("Expected local credential to exist.");
+    }
+    let resetToken = "";
+    await services.localAuth.requestPasswordReset({
+      email: "reset-hash-unavailable@example.test",
+      deliverPasswordResetToken: (delivery) => {
+        resetToken = delivery.plaintextToken;
+      }
+    });
+    hashUnavailable = true;
+
+    await expect(
+      services.localAuth.resetPassword({
+        plaintextToken: resetToken,
+        newPassword: "AnotherCorrectHorse42!"
+      })
+    ).rejects.toMatchObject({
+      code: "auth_service_unavailable",
+      statusCode: 503
+    });
+    expect(services.memoryRepositories.identityRepository.localCredentials.get(credential.id)?.passwordHash).toBe(
+      credential.passwordHash
+    );
   });
 
   it("verifies local account email through a secret-free API route", async () => {

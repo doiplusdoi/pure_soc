@@ -17,6 +17,7 @@ import {
   Argon2idPasswordHasher,
   FailedLoginRateLimiter,
   LocalAuthService,
+  type PasswordHasher,
   type LocalAuthRepository
 } from "@puresoc/auth-local";
 import {
@@ -277,6 +278,7 @@ export const createApiServices = (
     evidencePackageLimits?: EvidencePackageLimitConfig;
     reportPdfRenderer?: ReportPdfRendererClient;
     notificationTransports?: Partial<Record<NotificationChannelType, NotificationTransport>>;
+    passwordHasher?: PasswordHasher;
     prismaClient?: PureSocPrismaClient;
     oidcTokenClient?: OidcTokenClient;
     oidcTokenVerifier?: OidcTokenVerifier;
@@ -324,7 +326,7 @@ export const createApiServices = (
   const localAuth = new LocalAuthService({
     repository: runtimeRepositories.identityRepository,
     auditWriter,
-    passwordHasher: new Argon2idPasswordHasher(),
+    passwordHasher: options.passwordHasher ?? new Argon2idPasswordHasher(),
     rateLimiter,
     requireEmailVerification: config.auth.requireEmailVerification,
     now: options.now
