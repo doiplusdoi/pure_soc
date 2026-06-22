@@ -102,10 +102,14 @@ describe("Docker runtime command shape", () => {
     }
   });
 
-  it("keeps live Compose interpolation limited to must-have operator inputs", () => {
+  it("keeps deployment Compose self-contained while making live Microsoft optional", () => {
     const compose = readWorkspaceFile("compose.yml");
-    const composeInterpolation = compose.replaceAll("$${", "").match(/\$\{/g) ?? [];
-    const expectedInputs = [
+    const requiredInterpolation = compose.replaceAll("$${", "").match(/\$\{[^}:]+:\?/g) ?? [];
+    const optionalInputs = [
+      "PURESOC_APP_ENV",
+      "PURESOC_AUTH_COOKIE_SECURE",
+      "PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION",
+      "PURESOC_CONNECTOR_MICROSOFT365_MODE",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
       "PURESOC_PROVIDER_TOKEN_KEY"
@@ -127,16 +131,29 @@ describe("Docker runtime command shape", () => {
       "PURESOC_REDIS_URL"
     ];
 
-    expect(composeInterpolation.length).toBeGreaterThanOrEqual(expectedInputs.length);
-    for (const inputName of expectedInputs) {
-      expect(compose).toContain(`\${${inputName}`);
+    expect(requiredInterpolation).toEqual([]);
+    for (const inputName of optionalInputs) {
+      expect(compose).toContain(`\${${inputName}:-`);
     }
     for (const inputName of removedInputs) {
       expect(compose).not.toContain(`\${${inputName}`);
     }
     expect(compose).toContain("DATABASE_URL: *puresoc-database-url");
-    expect(compose).toContain("POSTGRES_DB: puresoc_live");
+    expect(compose).toContain("PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}");
+    expect(compose).toContain("PURESOC_AUTH_COOKIE_SECURE: ${PURESOC_AUTH_COOKIE_SECURE:-false}");
+    expect(compose).toContain(
+      "PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}"
+    );
+    expect(compose).toContain("POSTGRES_DB: puresoc");
+    expect(compose).toContain("puresoc-postgres-bootstrap");
+    expect(compose).toContain("CREATE DATABASE puresoc OWNER puresoc_admin");
+    expect(compose).toContain("ALTER SCHEMA public OWNER TO puresoc_admin");
+    expect(compose).toContain("ensure_canonical_database 'puresoc' puresoc");
+    expect(compose.indexOf("ensure_canonical_database 'puresoc' puresoc")).toBeLessThan(
+      compose.indexOf("ensure_canonical_database 'puresoc-local-postgres-password' puresoc_admin")
+    );
     expect(compose).toContain("PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000");
+    expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_MODE: ${PURESOC_CONNECTOR_MICROSOFT365_MODE:-auto}");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
     expect(readComposeServiceBlock(compose, "puresoc-api")).toContain("pnpm prisma:migrate:deploy && exec pnpm start:api");
     expect(compose).toContain("expose:");

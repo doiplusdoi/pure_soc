@@ -47,7 +47,7 @@ Add optional secrets only when enabling the matching feature:
 
 | Feature | Enable when needed | Secrets introduced |
 |---|---|---|
-| Microsoft 365 managed provider | configure `PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID`, client secret, and redirect URI | PureSOC platform app client secret, provider-token key ID/material |
+| Microsoft 365 managed provider | set `PURESOC_CONNECTOR_MICROSOFT365_MODE=live` or keep `auto` with connector client ID/secret configured | PureSOC platform app client secret and provider-token key material |
 | Microsoft Entra user sign-in | `PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED=true` | Entra app client ID/secret, deployed web callback URI, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` when social login is enabled |
 | Google/GitHub social login | `PURESOC_AUTH_*_ENABLED=true` | provider client secret, `PURESOC_AUTH_OIDC_TRANSIENT_STATE_KEY` in production Prisma mode |
 | Stripe billing | `PURESOC_BILLING_PROVIDER=stripe` | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET` |
@@ -191,6 +191,7 @@ This path must not call Microsoft Graph, Stripe, OIDC providers, object-storage 
 For a Compose deployment behind Traefik where only `puresoc-web` is public, set at least:
 
 ```sh
+PURESOC_APP_ENV=production
 PURESOC_PERSISTENCE_MODE=prisma
 PURESOC_AUTH_COOKIE_SECURE=true
 PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION=true
@@ -389,7 +390,7 @@ External setup needed:
 - disposable/test Microsoft Entra tenant for smoke;
 - PureSOC app registration for Microsoft 365 provider consent;
 - supported account type selected for the deployment model: multitenant for SaaS/customer onboarding, single tenant only for a customer-owned in-a-box app;
-- Web redirect URI exactly matching the deployed `PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI`;
+- Web redirect URI exactly matching the deployed `/providers/microsoft365/callback` URL derived from the public host/proxy headers;
 - Microsoft Graph application permissions matching the read-only V1 bundles;
 - client ID and client secret;
 - each customer workspace connects its own Microsoft tenant through the provider-connection OAuth/admin-consent flow;
@@ -405,11 +406,11 @@ Environment:
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=<entra-application-client-id>
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=<entra-client-secret-value>
 PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST=https://login.microsoftonline.com
-PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI=https://app.example.com/providers/microsoft365/callback
 PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED=false
 PURESOC_PROVIDER_TOKEN_KEY_PROVIDER=local-env-key-ring
 PURESOC_PROVIDER_TOKEN_CUSTODY_TARGET_KIND=in_a_box
-PURESOC_PROVIDER_TOKEN_KEY_ID=<active-provider-token-key-id>
+# Optional; defaults to live-current when PURESOC_PROVIDER_TOKEN_KEY is set.
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
 PURESOC_PROVIDER_TOKEN_KEY=<strong-provider-token-key-material>
 PURESOC_PROVIDER_TOKEN_PREVIOUS_KEYS=
 PURESOC_PROVIDER_TOKEN_PREVIOUS_KEY_WINDOW_CONFIRMED=false

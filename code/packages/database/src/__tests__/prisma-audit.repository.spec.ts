@@ -142,8 +142,8 @@ describe("PrismaAuditSink", () => {
       violations: []
     });
     expect(client.auditLockQueries).toEqual([
-      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
-      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)"
+      "WITH lock AS (SELECT pg_advisory_xact_lock($1::integer, $2::integer)) SELECT 1 AS locked FROM lock",
+      "WITH lock AS (SELECT pg_advisory_xact_lock($1::integer, $2::integer)) SELECT 1 AS locked FROM lock"
     ]);
     expect(client.auditLockKeys).toEqual([
       auditScopeLockKeyString(organizationId),

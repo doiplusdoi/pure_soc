@@ -492,6 +492,7 @@ export const loadConfig = (options: LoadConfigOptions = {}): PureSocConfig => {
         config.connectors.providerTokenKeyProvider,
       providerTokenEncryptionKeyId:
         env.PURESOC_PROVIDER_TOKEN_KEY_ID ??
+        ((env.PURESOC_PROVIDER_TOKEN_KEY ?? env.PROVIDER_TOKEN_KEY) ? "live-current" : undefined) ??
         config.connectors.providerTokenEncryptionKeyId,
       providerTokenEncryptionKey:
         env.PURESOC_PROVIDER_TOKEN_KEY ??

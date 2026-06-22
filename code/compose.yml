@@ -1,13 +1,13 @@
 name: puresoc
 
-x-puresoc-database-url: &puresoc-database-url postgresql://puresoc_app:5da87b6fbfb87b8c13b2c47498f611baf59c469075f2515db0e1bddb5e9c5d6f@puresoc-postgres:5432/puresoc_live
+x-puresoc-database-url: &puresoc-database-url postgresql://puresoc_admin:puresoc-local-postgres-password@puresoc-postgres:5432/puresoc
 
 x-puresoc-backend-base-environment: &puresoc-backend-base-environment
-  PURESOC_APP_ENV: production
+  PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
   PURESOC_API_BASE_URL: http://puresoc-api:3001
   PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000
-  PURESOC_AUTH_COOKIE_SECURE: "true"
-  PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: "true"
+  PURESOC_AUTH_COOKIE_SECURE: ${PURESOC_AUTH_COOKIE_SECURE:-false}
+  PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}
   PURESOC_API_ORIGIN_PROTECTION_ENABLED: "true"
   PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true"
   PURESOC_REDIS_URL: redis://puresoc-redis:6379/0
@@ -26,14 +26,13 @@ x-puresoc-object-storage-environment: &puresoc-object-storage-environment
   PURESOC_OBJECT_STORAGE_FORCE_PATH_STYLE: "true"
 
 x-puresoc-microsoft365-connector-environment: &puresoc-microsoft365-connector-environment
-  PURESOC_CONNECTOR_MICROSOFT365_MODE: live
-  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID:?Set the PureSOC Microsoft 365 connector app client ID}
-  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET:?Set the PureSOC Microsoft 365 connector app client secret}
+  PURESOC_CONNECTOR_MICROSOFT365_MODE: ${PURESOC_CONNECTOR_MICROSOFT365_MODE:-auto}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID:-}
+  PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: ${PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET:-}
   PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: https://login.microsoftonline.com
   PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: https://graph.microsoft.com/v1.0
   PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false"
-  PURESOC_PROVIDER_TOKEN_KEY_ID: live-current
-  PURESOC_PROVIDER_TOKEN_KEY: ${PURESOC_PROVIDER_TOKEN_KEY:?Set a long random key used to encrypt stored Microsoft OAuth tokens}
+  PURESOC_PROVIDER_TOKEN_KEY: ${PURESOC_PROVIDER_TOKEN_KEY:-}
 
 x-puresoc-social-login-environment: &puresoc-social-login-environment
   PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false"
@@ -47,9 +46,9 @@ services:
   puresoc-postgres:
     image: public.ecr.aws/docker/library/postgres:16-alpine
     environment:
-      POSTGRES_DB: puresoc_live
-      POSTGRES_USER: puresoc_app
-      POSTGRES_PASSWORD: 5da87b6fbfb87b8c13b2c47498f611baf59c469075f2515db0e1bddb5e9c5d6f
+      POSTGRES_DB: puresoc
+      POSTGRES_USER: puresoc_admin
+      POSTGRES_PASSWORD: puresoc-local-postgres-password
     expose:
       - "5432"
     volumes:
@@ -59,6 +58,98 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  puresoc-postgres-bootstrap:
+    image: public.ecr.aws/docker/library/postgres:16-alpine
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+
+        ensure_canonical_database() {
+          if [ "$2" != "puresoc_admin" ]; then
+            PGPASSWORD="$1" psql -v ON_ERROR_STOP=1 -h puresoc-postgres -U "$2" -d postgres <<'SQL'
+        DO 'BEGIN
+          IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = ''puresoc_admin'') THEN
+            CREATE ROLE puresoc_admin LOGIN PASSWORD ''puresoc-local-postgres-password'';
+          ELSE
+            ALTER ROLE puresoc_admin WITH LOGIN PASSWORD ''puresoc-local-postgres-password'';
+          END IF;
+        END';
+        SQL
+          fi
+
+          PGPASSWORD="$1" psql -v ON_ERROR_STOP=1 -h puresoc-postgres -U "$2" -d postgres <<'SQL'
+        SELECT 'CREATE DATABASE puresoc OWNER puresoc_admin'
+        WHERE NOT EXISTS (SELECT 1 FROM pg_database WHERE datname = 'puresoc')\gexec
+        ALTER DATABASE puresoc OWNER TO puresoc_admin;
+        GRANT ALL PRIVILEGES ON DATABASE puresoc TO puresoc_admin;
+        SQL
+
+          PGPASSWORD="$1" psql -v ON_ERROR_STOP=1 -h puresoc-postgres -U "$2" -d puresoc <<'SQL'
+        ALTER SCHEMA public OWNER TO puresoc_admin;
+        GRANT ALL ON SCHEMA public TO puresoc_admin;
+
+        DO 'DECLARE
+          item record;
+        BEGIN
+          FOR item IN
+            SELECT
+              CASE c.relkind
+                WHEN ''S'' THEN ''SEQUENCE''
+                WHEN ''v'' THEN ''VIEW''
+                WHEN ''m'' THEN ''MATERIALIZED VIEW''
+                WHEN ''f'' THEN ''FOREIGN TABLE''
+                ELSE ''TABLE''
+              END AS object_kind,
+              n.nspname,
+              c.relname
+            FROM pg_class c
+            JOIN pg_namespace n ON n.oid = c.relnamespace
+            WHERE n.nspname = ''public''
+              AND c.relkind IN (''f'', ''m'', ''p'', ''r'', ''S'', ''v'')
+          LOOP
+            EXECUTE format(''ALTER %s %I.%I OWNER TO puresoc_admin'', item.object_kind, item.nspname, item.relname);
+          END LOOP;
+
+          FOR item IN
+            SELECT n.nspname, t.typname
+            FROM pg_type t
+            JOIN pg_namespace n ON n.oid = t.typnamespace
+            WHERE n.nspname = ''public''
+              AND t.typtype = ''e''
+          LOOP
+            EXECUTE format(''ALTER TYPE %I.%I OWNER TO puresoc_admin'', item.nspname, item.typname);
+          END LOOP;
+        END';
+
+        GRANT ALL PRIVILEGES ON ALL TABLES IN SCHEMA public TO puresoc_admin;
+        GRANT ALL PRIVILEGES ON ALL SEQUENCES IN SCHEMA public TO puresoc_admin;
+        GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA public TO puresoc_admin;
+        SQL
+        }
+
+        if PGPASSWORD='puresoc' psql -h puresoc-postgres -U puresoc -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+          ensure_canonical_database 'puresoc' puresoc
+          exit 0
+        fi
+
+        if PGPASSWORD='5da87b6fbfb87b8c13b2c47498f611baf59c469075f2515db0e1bddb5e9c5d6f' psql -h puresoc-postgres -U puresoc_app -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+          ensure_canonical_database '5da87b6fbfb87b8c13b2c47498f611baf59c469075f2515db0e1bddb5e9c5d6f' puresoc_app
+          exit 0
+        fi
+
+        if PGPASSWORD='puresoc-local-postgres-password' psql -h puresoc-postgres -U puresoc_admin -d postgres -tAc 'select 1' >/dev/null 2>&1; then
+          ensure_canonical_database 'puresoc-local-postgres-password' puresoc_admin
+          exit 0
+        fi
+
+        echo "Could not authenticate to bundled Postgres with a known PureSOC Compose credential set." >&2
+        exit 1
+    depends_on:
+      puresoc-postgres:
+        condition: service_healthy
+    restart: "no"
 
   puresoc-redis:
     image: public.ecr.aws/docker/library/redis:7-alpine
@@ -150,8 +241,8 @@ services:
       PURESOC_PERSISTENCE_MODE: prisma
       DATABASE_URL: *puresoc-database-url
     depends_on:
-      puresoc-postgres:
-        condition: service_healthy
+      puresoc-postgres-bootstrap:
+        condition: service_completed_successfully
     restart: "no"
 
   puresoc-web:
@@ -161,7 +252,7 @@ services:
       context: .
       dockerfile: infra/docker/Dockerfile.web
     environment:
-      PURESOC_APP_ENV: production
+      PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
       PURESOC_WEB_API_REQUEST_ORIGIN: "http://puresoc-web:3000"
       PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false"
@@ -170,6 +261,18 @@ services:
     depends_on:
       puresoc-api:
         condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
   puresoc-api:
     image: puresoc-api:local
@@ -190,6 +293,18 @@ services:
       PURESOC_REPORT_RENDERER: http://puresoc-report-renderer:3002
     expose:
       - "3001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3001/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
     depends_on:
       puresoc-migrator:
         condition: service_completed_successfully
@@ -265,6 +380,18 @@ services:
       dockerfile: infra/docker/Dockerfile.report-renderer
     expose:
       - "3002"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3002/health').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
 
 volumes:
   puresoc-postgres-data:

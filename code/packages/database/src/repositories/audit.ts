@@ -443,7 +443,7 @@ const acquireAuditScopeAdvisoryLock = async (
 
   const lockKey = auditScopeAdvisoryLockKey(scopeKey);
   await client.$queryRawUnsafe(
-    "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+    "WITH lock AS (SELECT pg_advisory_xact_lock($1::integer, $2::integer)) SELECT 1 AS locked FROM lock",
     lockKey.namespace,
     lockKey.scope
   );
