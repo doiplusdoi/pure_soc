@@ -141,6 +141,10 @@ describe("PrismaAuditSink", () => {
       checkedRecords: 2,
       violations: []
     });
+    expect(client.auditLockQueries).toEqual([
+      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+      "SELECT pg_advisory_xact_lock($1::integer, $2::integer)"
+    ]);
     expect(client.auditLockKeys).toEqual([
       auditScopeLockKeyString(organizationId),
       auditScopeLockKeyString(organizationId)
@@ -374,6 +378,7 @@ type FakeAuditLogDelegate = {
 
 type FakeAuditClient = PrismaAuditClient & {
   auditLockKeys: string[];
+  auditLockQueries: string[];
   auditLog: FakeAuditLogDelegate;
 };
 
@@ -381,12 +386,14 @@ const createFakeAuditClient = (): FakeAuditClient => {
   const client: FakeAuditClient = {
     auditLog: createAuditLogDelegate(),
     auditLockKeys: [],
+    auditLockQueries: [],
     async $transaction<T>(callback: (tx: PrismaAuditClient) => Promise<T>): Promise<T> {
       const releases: Array<() => void> = [];
       const tx = {
         auditLog: client.auditLog,
-        $queryRawUnsafe: async <TQuery = unknown>(_query: string, ...values: unknown[]): Promise<TQuery> => {
+        $queryRawUnsafe: async <TQuery = unknown>(query: string, ...values: unknown[]): Promise<TQuery> => {
           const key = values.join(":");
+          client.auditLockQueries.push(query);
           client.auditLockKeys.push(key);
           releases.push(await fakeAuditLockManager.acquire(key));
           return [] as TQuery;

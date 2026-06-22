@@ -442,7 +442,11 @@ const acquireAuditScopeAdvisoryLock = async (
   }
 
   const lockKey = auditScopeAdvisoryLockKey(scopeKey);
-  await client.$queryRawUnsafe("SELECT pg_advisory_xact_lock($1, $2)", lockKey.namespace, lockKey.scope);
+  await client.$queryRawUnsafe(
+    "SELECT pg_advisory_xact_lock($1::integer, $2::integer)",
+    lockKey.namespace,
+    lockKey.scope
+  );
 };
 
 const nextAuditChainSequence = (anchor: Pick<PrismaAuditLogIntegrityAnchor, "chainSequence"> | null): number =>

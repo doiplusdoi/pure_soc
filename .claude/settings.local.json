@@ -1,7 +1,9 @@
 {
   "permissions": {
     "allow": [
-      "Bash(xargs -I{} sh -c 'echo \"{}\"; grep -c \"it\\(\\\\|test\\(\" \"{}\"')"
+      "Bash(xargs -I{} sh -c 'echo \"{}\"; grep -c \"it\\(\\\\|test\\(\" \"{}\"')",
+      "Read(//Users/solo/SoloCode/**)",
+      "WebFetch(domain:pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro)"
     ]
   }
 }
