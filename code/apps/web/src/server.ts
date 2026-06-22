@@ -321,8 +321,22 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/auth/login") {
+      response.statusCode = 303;
+      response.setHeader("location", `/login${url.search}`);
+      response.end();
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/register") {
       sendHtml(response, renderRegisterScreen());
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/auth/register") {
+      response.statusCode = 303;
+      response.setHeader("location", `/register${url.search}`);
+      response.end();
       return;
     }
 

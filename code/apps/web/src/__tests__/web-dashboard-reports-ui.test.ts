@@ -1,4 +1,5 @@
 import { readFileSync } from "node:fs";
+import type { AddressInfo } from "node:net";
 import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -24,7 +25,8 @@ import {
   registrationErrorMessageForApiResponse,
   resolveApiRequestOrigin,
   resolvePublicRequestOrigin,
-  shouldForwardBrowserOriginToApi
+  shouldForwardBrowserOriginToApi,
+  startWebServer
 } from "../server";
 
 describe("web dashboard reports operational UI", () => {
@@ -61,6 +63,32 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('class="ps-fact"');
     expect(html).not.toContain(">Apply<");
     expect(html).not.toContain('<div class="ps-panel"><h4');
+  });
+
+  it("redirects browser GET requests for form action URLs to the real auth pages", async () => {
+    const server = startWebServer(0, {
+      apiBaseUrl: "http://127.0.0.1:9"
+    });
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const login = await fetch(`${baseUrl}/auth/login?organizationId=org_123`, {
+        redirect: "manual"
+      });
+      expect(login.status).toBe(303);
+      expect(login.headers.get("location")).toBe("/login?organizationId=org_123");
+
+      const register = await fetch(`${baseUrl}/auth/register?source=invite`, {
+        redirect: "manual"
+      });
+      expect(register.status).toBe(303);
+      expect(register.headers.get("location")).toBe("/register?source=invite");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it("@ui-smoke renders responsive desktop and mobile affordances without hiding keyboard focus", () => {
