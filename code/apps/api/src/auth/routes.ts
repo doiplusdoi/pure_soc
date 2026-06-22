@@ -60,24 +60,39 @@ export const loginRoute = async (
   context: RequestContext,
   services: ApiServices
 ): Promise<JsonResult> => {
+  const activeOrganizationId = optionalString(body, "activeOrganizationId");
   const login = await services.localAuth.login(
     {
       email: requireString(body, "email"),
-      password: requireString(body, "password"),
-      activeOrganizationId: optionalString(body, "activeOrganizationId")
+      password: requireString(body, "password")
     },
     context
   );
-  const { sessionToken, ...safeBody } = login;
+
+  let session = login.session;
+  if (activeOrganizationId) {
+    const membership = await services.rbacRepository.findMembership(activeOrganizationId, login.user.id);
+
+    if (!membership || membership.status !== "active") {
+      await services.localAuth.logout(login.sessionToken, context);
+      throw new AuthError("forbidden", "The selected workspace is not available for this account.", 403);
+    }
+
+    const selected = await services.localAuth.selectActiveOrganization(login.sessionToken, activeOrganizationId, context);
+    session = selected.session;
+  }
 
   return {
     statusCode: 200,
     headers: {
-      "set-cookie": createSessionCookie(sessionToken, login.session.expiresAt, {
+      "set-cookie": createSessionCookie(login.sessionToken, session.expiresAt, {
         secure: services.config.auth.sessionCookieSecure
       })
     },
-    body: safeBody
+    body: {
+      user: login.user,
+      session
+    }
   };
 };
 

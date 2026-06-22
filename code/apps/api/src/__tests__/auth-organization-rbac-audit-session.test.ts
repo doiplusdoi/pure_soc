@@ -167,6 +167,60 @@ describe("auth organization rbac audit session integration", () => {
     expect(services.auditSink.findByAction("logout")).toHaveLength(1);
   });
 
+  it("only attaches a selected workspace during login when the user is an active member", async () => {
+    const owner = await registerAndLogin("workspace-owner@example.test");
+    const outsider = await registerAndLogin("workspace-outsider@example.test");
+
+    const organizationResponse = await postJson(
+      "/organizations",
+      {
+        name: "Selected Workspace",
+        primaryCountryCode: "RO"
+      },
+      owner.cookie
+    );
+    expect(organizationResponse.status).toBe(201);
+    const organizationBody = await readJson<{ organization: { id: string } }>(organizationResponse);
+
+    const selectedLoginResponse = await postJson("/auth/login", {
+      email: "workspace-owner@example.test",
+      password,
+      activeOrganizationId: organizationBody.organization.id
+    });
+    expect(selectedLoginResponse.status).toBe(200);
+    await expect(readJson<{ session: { activeOrganizationId: string } }>(selectedLoginResponse)).resolves.toMatchObject({
+      session: {
+        activeOrganizationId: organizationBody.organization.id
+      }
+    });
+
+    const rejectedLoginResponse = await postJson("/auth/login", {
+      email: "workspace-outsider@example.test",
+      password,
+      activeOrganizationId: organizationBody.organization.id
+    });
+    expect(rejectedLoginResponse.status).toBe(403);
+    await expect(readJson<{ error: { code: string } }>(rejectedLoginResponse)).resolves.toEqual({
+      error: {
+        code: "forbidden",
+        message: "The selected workspace is not available for this account."
+      }
+    });
+    expect(rejectedLoginResponse.headers.get("set-cookie")).toBeNull();
+
+    const outsiderSessionResponse = await fetch(`${baseUrl}/auth/session`, {
+      headers: { cookie: outsider.cookie }
+    });
+    expect(outsiderSessionResponse.status).toBe(200);
+    await expect(
+      readJson<{ session: { activeOrganizationId: string | null } }>(outsiderSessionResponse)
+    ).resolves.toMatchObject({
+      session: {
+        activeOrganizationId: null
+      }
+    });
+  });
+
   it("normalizes public workspace creation fields and rejects invalid organization input", async () => {
     const owner = await registerAndLogin("public-workspace@example.test");
 

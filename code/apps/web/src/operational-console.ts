@@ -51,6 +51,7 @@ export interface RenderOperationalConsoleOptions {
 
 export interface RenderLoginScreenOptions {
   activeOrganizationId?: string | null;
+  emailValue?: string | null;
   errorMessage?: string;
   locale?: string | null;
   microsoftEntraEnabled?: boolean;
@@ -319,7 +320,9 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
       ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(normalized.errorMessage)}</p>`
       : "",
     '<form class="ps-form" action="/auth/login" method="post">',
-    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email" required></div>`,
+    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email"${
+      normalized.emailValue ? ` value="${escapeHtml(normalized.emailValue)}"` : ""
+    } required></div>`,
     `<div class="ps-field"><label for="password">${escapeHtml(copy.password)}</label><input id="password" name="password" type="password" autocomplete="current-password" required></div>`,
     normalized.activeOrganizationId
       ? `<input type="hidden" name="activeOrganizationId" value="${escapeHtml(normalized.activeOrganizationId)}">`

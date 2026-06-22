@@ -20,6 +20,7 @@ import {
   renderWorkspaceSelectionScreen
 } from "../index";
 import {
+  loginErrorMessageForApiResponse,
   registrationErrorMessageForApiResponse,
   resolveApiRequestOrigin,
   resolvePublicRequestOrigin,
@@ -1067,6 +1068,44 @@ describe("web dashboard reports operational UI", () => {
         error: { code: "invalid_request" }
       })
     ).toContain("at least 12 characters");
+  });
+
+  it("maps login API failures to actionable messages and preserves the submitted email", () => {
+    expect(
+      loginErrorMessageForApiResponse(423, {
+        error: { code: "account_locked" }
+      })
+    ).toContain("temporarily locked");
+    expect(
+      loginErrorMessageForApiResponse(429, {
+        error: { code: "rate_limited" }
+      })
+    ).toContain("Too many failed sign-in attempts");
+    expect(
+      loginErrorMessageForApiResponse(403, {
+        error: { code: "forbidden" }
+      })
+    ).toContain("selected workspace");
+    expect(
+      loginErrorMessageForApiResponse(500, {
+        error: { code: "internal_error" }
+      })
+    ).toContain("database migrations");
+    expect(
+      loginErrorMessageForApiResponse(401, {
+        error: { code: "invalid_credentials" }
+      })
+    ).toBe("Sign-in failed. Check the email and password.");
+
+    const login = renderLoginScreen({
+      emailValue: "operator@example.test",
+      errorMessage: loginErrorMessageForApiResponse(423, {
+        error: { code: "account_locked" }
+      })
+    });
+    expect(login).toContain('value="operator@example.test"');
+    expect(login).toContain("temporarily locked");
+    expect(login).toContain('autocomplete="current-password" required>');
   });
 
   it("forwards browser origins to API calls so production origin checks can stay strict", () => {

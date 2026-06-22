@@ -1195,7 +1195,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           renderLoginScreen({
-            errorMessage: "Sign-in failed. Check the email, password, and selected workspace.",
+            emailValue: optionalFormValue(form.get("email")),
+            errorMessage: loginErrorMessageForApiResponse(login.statusCode, login.body),
             activeOrganizationId: optionalFormValue(form.get("activeOrganizationId"))
           }),
           login.statusCode
@@ -1247,7 +1248,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           renderLoginScreen({
-            errorMessage: "Account created, but automatic sign-in failed. Sign in with the same email and password."
+            emailValue: optionalFormValue(form.get("email")),
+            errorMessage: `Account created, but automatic sign-in failed. ${loginErrorMessageForApiResponse(
+              login.statusCode,
+              login.body
+            )}`
           }),
           login.statusCode === 200 ? 502 : login.statusCode
         );
@@ -3293,6 +3298,40 @@ export const registrationErrorMessageForApiResponse = (statusCode: number, body:
   }
 
   return "Registration failed. Use a valid email and a password with at least 12 characters.";
+};
+
+export const loginErrorMessageForApiResponse = (statusCode: number, body: unknown): string => {
+  const errorCode = apiErrorCode(body);
+
+  if (errorCode === "account_locked") {
+    return "This account is temporarily locked after repeated failed sign-in attempts. Wait 15 minutes, then try again or reset the password.";
+  }
+
+  if (errorCode === "rate_limited") {
+    return "Too many failed sign-in attempts. Wait a minute before trying again.";
+  }
+
+  if (errorCode === "forbidden") {
+    return "The selected workspace is not available for this account. Sign in without a workspace, then choose one from the workspace screen.";
+  }
+
+  if (errorCode === "origin_required" || errorCode === "origin_not_allowed") {
+    return "The API rejected this sign-in request origin. Keep web-to-API calls on the internal Compose URL, or configure trusted origins if the API is public.";
+  }
+
+  if (errorCode === "payload_too_large") {
+    return "Sign-in data is too large. Use a shorter email value.";
+  }
+
+  if (statusCode >= 500 || errorCode === "internal_error") {
+    return "Sign-in is temporarily unavailable. The operator should check API logs and database migrations.";
+  }
+
+  if (errorCode === "invalid_request") {
+    return "Enter a valid email and password.";
+  }
+
+  return "Sign-in failed. Check the email and password.";
 };
 
 const apiErrorCode = (body: unknown): string | null => {
