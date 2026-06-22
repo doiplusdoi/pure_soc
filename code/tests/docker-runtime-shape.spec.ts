@@ -124,6 +124,7 @@ describe("Docker runtime command shape", () => {
 
     expect(webService).toContain("PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED");
     expect(webService).toContain("PURESOC_WEB_API_BASE_URL");
+    expect(webService).toContain("PURESOC_WEB_API_REQUEST_ORIGIN");
     expect(webService).not.toContain("PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI");
     expect(webService).not.toContain("CLIENT_SECRET");
     expect(webService).not.toContain("PURESOC_PROVIDER_TOKEN_KEY");

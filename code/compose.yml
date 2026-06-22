@@ -163,6 +163,7 @@ services:
     environment:
       PURESOC_APP_ENV: production
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
+      PURESOC_WEB_API_REQUEST_ORIGIN: "http://puresoc-web:3000"
       PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false"
     ports:
       - "3000:3000"

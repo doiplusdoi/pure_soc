@@ -294,7 +294,7 @@ const validateOrigin = (input: {
     return originError("origin_required", input.routeFamily);
   }
 
-  if (!input.config.security.trustedOrigins.includes(sourceOrigin)) {
+  if (!input.config.security.trustedOrigins.includes(sourceOrigin) && !isRequestHostOrigin(sourceOrigin, input.headers)) {
     return originError("origin_not_allowed", input.routeFamily);
   }
 
@@ -325,6 +325,24 @@ const toOrigin = (value: string): string | null => {
   } catch {
     return null;
   }
+};
+
+const isRequestHostOrigin = (sourceOrigin: string, headers: IncomingHttpHeaders): boolean => {
+  const host = normalizeHost(singleHeader(headers.host));
+  if (!host) {
+    return false;
+  }
+
+  try {
+    return normalizeHost(new URL(sourceOrigin).host) === host;
+  } catch {
+    return false;
+  }
+};
+
+const normalizeHost = (value: string | null): string | null => {
+  const normalized = value?.trim().replace(/^"|"$/g, "").toLowerCase();
+  return normalized && normalized.length > 0 ? normalized : null;
 };
 
 const originError = (code: "origin_required" | "origin_not_allowed", routeFamily: ApiRouteFamily): JsonResult => ({

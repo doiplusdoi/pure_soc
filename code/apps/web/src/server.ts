@@ -41,6 +41,7 @@ import {
 
 export interface WebServerOptions {
   apiBaseUrl?: string;
+  apiRequestOrigin?: string;
   publicBaseUrl?: string;
 }
 
@@ -73,6 +74,7 @@ const isRomaniaOnboardingScreen = (value: unknown): value is RomaniaOnboardingSc
 
 const romaniaOnboardingPath = (screen: RomaniaOnboardingScreen): string => `/onboarding/romania/${screen}`;
 const microsoft365ReadOnlyConnectionBundles = ["m365_read_baseline", "m365_security_read", "m365_intune_read"] as const;
+const internalComposeWebOrigin = "http://puresoc-web:3000";
 
 interface LatestDashboardSnapshotResponse {
   snapshot: DashboardSnapshotContract;
@@ -275,6 +277,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       "http://127.0.0.1:3001"
   );
   const microsoftEntraSignInEnabled = process.env.PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED === "true";
+  const configuredApiRequestOrigin =
+    options.apiRequestOrigin ??
+    process.env.PURESOC_WEB_API_REQUEST_ORIGIN ??
+    process.env.PURESOC_API_REQUEST_ORIGIN;
   const renderLoginScreen = (screenOptions: Parameters<typeof renderBaseLoginScreen>[0] = {}) =>
     typeof screenOptions === "string"
       ? renderBaseLoginScreen(screenOptions)
@@ -590,7 +596,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
-    const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin);
+    const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
 
     if (request.method === "POST" && url.pathname === "/partners") {
       const form = await readFormBody(request);
@@ -1772,14 +1778,23 @@ export const resolvePublicRequestOrigin = (request: { headers: IncomingHttpHeade
   return `${protocol}://${host}`;
 };
 
-export const resolveApiRequestOrigin = (apiBaseUrl: string, publicRequestOrigin: string): string | undefined => {
+export const resolveApiRequestOrigin = (
+  apiBaseUrl: string,
+  publicRequestOrigin: string,
+  configuredOrigin?: string
+): string | undefined => {
+  const configured = configuredOrigin ? originForUrl(configuredOrigin) : null;
+  if (configured) {
+    return configured;
+  }
+
   const hostname = hostnameForUrl(apiBaseUrl);
   if (!hostname) {
     return undefined;
   }
 
-  if (hostname === "puresoc-api") {
-    return "http://puresoc-web:3000";
+  if (isInternalApiHost(hostname)) {
+    return internalComposeWebOrigin;
   }
 
   return publicRequestOrigin;
@@ -1848,6 +1863,22 @@ const hostnameForUrl = (value: string): string | null => {
   } catch {
     return null;
   }
+};
+
+const originForUrl = (value: string): string | null => {
+  try {
+    return new URL(value).origin;
+  } catch {
+    return null;
+  }
+};
+
+const isInternalApiHost = (hostname: string): boolean => {
+  if (isLocalPublicHost(hostname)) {
+    return false;
+  }
+
+  return hostname === "puresoc-api" || !hostname.includes(".");
 };
 
 const webRequestErrorMessage = (error: unknown): string =>

@@ -99,7 +99,7 @@ The current web runtime is the lightweight `node:http` server documented in ADR-
 PURESOC_WEB_API_BASE_URL=http://127.0.0.1:3001 pnpm start:web
 ```
 
-If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. In the live Compose path, `puresoc-web` calls `http://puresoc-api:3001` on the internal network and sends the fixed internal origin `http://puresoc-web:3000` to API state-changing requests so production Origin/Referer enforcement can stay enabled while the API remains Docker-internal. Public callback URLs are derived from `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto`, or request `Host`; production non-local hosts default to `https` when the proxy does not send a protocol header.
+If `PURESOC_WEB_API_BASE_URL` is unset, the web server falls back to `PURESOC_API_BASE_URL`, `API_BASE_URL`, and then `http://127.0.0.1:3001`. In the live Compose path, `puresoc-web` calls `http://puresoc-api:3001` on the internal network and sends the fixed internal origin `http://puresoc-web:3000` to API state-changing requests so production Origin/Referer enforcement can stay enabled while the API remains Docker-internal. `PURESOC_WEB_API_REQUEST_ORIGIN` can pin that request Origin when a deployment runner rewrites the internal API hostname; single-label API hostnames such as `api` are also treated as internal service names. Public callback URLs are derived from `Forwarded`, `X-Forwarded-Host`, `X-Forwarded-Proto`, or request `Host`; production non-local hosts default to `https` when the proxy does not send a protocol header.
 
 Implemented web paths:
 
@@ -165,7 +165,7 @@ Romanian demo-safe product labels such as dashboard, sign-in, evidence/report, a
 
 ## API Middleware Security
 
-The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions.
+The API middleware keeps route-family rate limits, browser Origin/Referer checks, and request context extraction ahead of JSON body parsing. Stripe webhooks still use the raw-body path before signature verification, and webhook/OIDC/provider callbacks remain explicit Origin exemptions. For same-host reverse-proxy deployments where the public hostname is assigned at deploy time, the API accepts a state-changing request Origin whose host matches the request `Host`; cross-host Origins are still rejected unless explicitly listed in `PURESOC_API_TRUSTED_ORIGINS`.
 
 The API server still uses the focused `node:http` runtime from ADR-017, but route dispatch now goes through `apiRouteTable` entries with method, path pattern, route family metadata, and a handler. The dispatcher matches the route before body parsing only to preserve raw-body routes such as Stripe webhooks; normal POST requests still pass through the configured JSON body limit before handler execution, including unknown POST routes.
 

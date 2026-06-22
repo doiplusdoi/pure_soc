@@ -1,6 +1,6 @@
 import { createHmac } from "node:crypto";
 import { Readable } from "node:stream";
-import type { IncomingMessage } from "node:http";
+import { request as httpRequest, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -54,6 +54,7 @@ const readJson = async <T>(response: Response): Promise<T> => (await response.js
 describe("api middleware rate limits and origin protection", () => {
   let server: ReturnType<typeof startApiServer> | undefined;
   let baseUrl = "";
+  let basePort = 0;
   let services: ReturnType<typeof createApiServices>;
 
   afterEach(async () => {
@@ -405,6 +406,55 @@ describe("api middleware rate limits and origin protection", () => {
     expect(response.status).toBe(201);
   });
 
+  it("allows same-host deployment origins without a static public trusted-origin value", async () => {
+    boot({
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_API_TRUSTED_ORIGINS: "http://puresoc-web:3000"
+    });
+
+    const response = await postJsonWithHost(
+      "/auth/register",
+      {
+        email: "same-host-deployment-origin@example.test",
+        password,
+        displayName: "Same Host Deployment Origin"
+      },
+      {
+        host: "pure-soc-tenant-dev.apps.example.test",
+        origin: "https://pure-soc-tenant-dev.apps.example.test"
+      }
+    );
+
+    expect(response.statusCode).toBe(201);
+  });
+
+  it("rejects cross-host deployment origins even when request Host is public", async () => {
+    boot({
+      PURESOC_API_REQUIRE_ORIGIN_OR_REFERER: "true",
+      PURESOC_API_TRUSTED_ORIGINS: "http://puresoc-web:3000"
+    });
+
+    const response = await postJsonWithHost(
+      "/auth/register",
+      {
+        email: "cross-host-deployment-origin@example.test",
+        password,
+        displayName: "Cross Host Deployment Origin"
+      },
+      {
+        host: "pure-soc-tenant-dev.apps.example.test",
+        origin: "https://evil.example.invalid"
+      }
+    );
+
+    expect(response.statusCode).toBe(403);
+    const body = JSON.parse(response.body) as { error: { code: string; routeFamily: string } };
+    expect(body.error).toMatchObject({
+      code: "origin_not_allowed",
+      routeFamily: "auth"
+    });
+  });
+
   it("rate-limits configured route families before route handling", async () => {
     boot({
       PURESOC_API_RATE_LIMIT_AUTH_MAX_REQUESTS: "1"
@@ -575,6 +625,7 @@ describe("api middleware rate limits and origin protection", () => {
     });
     server = startApiServer(0, services);
     const address = server.address() as AddressInfo;
+    basePort = address.port;
     baseUrl = `http://127.0.0.1:${address.port}`;
   };
 
@@ -587,6 +638,45 @@ describe("api middleware rate limits and origin protection", () => {
       },
       body: JSON.stringify(body)
     });
+
+  const postJsonWithHost = (
+    path: string,
+    body: unknown,
+    headers: Record<string, string>
+  ): Promise<{ statusCode: number; body: string }> => {
+    const payload = JSON.stringify(body);
+    return new Promise((resolve, reject) => {
+      const request = httpRequest(
+        {
+          hostname: "127.0.0.1",
+          port: basePort,
+          path,
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            "content-length": Buffer.byteLength(payload),
+            ...headers
+          }
+        },
+        (response) => {
+          let responseBody = "";
+          response.setEncoding("utf8");
+          response.on("data", (chunk) => {
+            responseBody += chunk;
+          });
+          response.on("end", () => {
+            resolve({
+              statusCode: response.statusCode ?? 0,
+              body: responseBody
+            });
+          });
+        }
+      );
+      request.on("error", reject);
+      request.write(payload);
+      request.end();
+    });
+  };
 
   const registerAndLogin = async (email: string) => {
     const registerResponse = await postJson("/auth/register", {
