@@ -9,6 +9,7 @@ Keep entries short, specific, and actionable.
 - PureSOC path references in implementation prompts are app-relative unless they explicitly start with `docs/` or another root-level path. For example, `apps/api` means `code/apps/api`.
 - The default Compose catalog is build oriented: PureSOC app services include `build:` and `pull_policy: build`, then tag local outputs as `puresoc-*:local`; deployment apps must support Compose builds rather than relying on prepublished PureSOC registry images.
 - Do not make `code/compose.yml` image-only while keeping `puresoc-*:local` tags; single-file deploy runners will try to pull those local tags from a registry and fail before containers start.
+- Avoid Docker Hub for app Dockerfile base images and bundled data-service defaults where practical; some deployment builders fail with anonymous-token fetch errors. Use public ECR Docker Library images for Node/Postgres/Redis and Quay for MinIO. Keep `PURESOC_CLAMAV_IMAGE` overridable because the ClamAV upstream image is Docker Hub-hosted.
 - The compliance engine must remain provider-neutral. Microsoft 365 details belong under `code/packages/providers/microsoft365`.
 - EU NIS2 baseline logic and Romania country-pack logic must stay separate. Romania-specific code belongs under `code/packages/compliance/nis2/country-packs/ro`.
 - Regulatory workbook/source mappings are application data under `code/data/regulatory`; do not hardcode workbook-derived rules in UI code.

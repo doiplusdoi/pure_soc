@@ -68,6 +68,30 @@ describe("Docker runtime command shape", () => {
     }
   });
 
+  it("avoids Docker Hub defaults for app build bases and bundled data services", () => {
+    for (const [dockerfile] of dockerfiles) {
+      const source = readWorkspaceFile("infra/docker", dockerfile);
+
+      if (dockerfile === "Dockerfile.report-renderer") {
+        expect(source, dockerfile).toContain("FROM mcr.microsoft.com/playwright:");
+      } else {
+        expect(source, dockerfile).toContain("FROM public.ecr.aws/docker/library/node:22-alpine");
+        expect(source, dockerfile).not.toContain("FROM node:22-alpine");
+      }
+    }
+
+    const compose = readWorkspaceFile("compose.yml");
+    expect(compose).toContain("image: public.ecr.aws/docker/library/postgres:16-alpine");
+    expect(compose).toContain("image: public.ecr.aws/docker/library/redis:7-alpine");
+    expect(compose).toContain("image: quay.io/minio/minio:RELEASE.2025-01-20T14-49-07Z");
+    expect(compose).toContain("image: quay.io/minio/mc:RELEASE.2025-01-17T23-25-50Z");
+    expect(compose).toContain("image: ${PURESOC_CLAMAV_IMAGE:-clamav/clamav:1.4_base}");
+    expect(compose).not.toContain("image: postgres:16-alpine");
+    expect(compose).not.toContain("image: redis:7-alpine");
+    expect(compose).not.toContain("image: minio/minio:");
+    expect(compose).not.toContain("image: minio/mc:");
+  });
+
   it("keeps the optional build override wired to the service Dockerfiles", () => {
     const compose = readWorkspaceFile("compose.yml");
     const buildCompose = readWorkspaceFile("infra/compose", "docker-compose.build.yml");

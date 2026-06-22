@@ -75,7 +75,7 @@ puresoc-regulatory-importer:local
 puresoc-report-renderer:local
 ```
 
-Those tags are local build outputs, not public registry images. The Dockerfiles currently use public `node:22-alpine` base images; the data services use public Postgres, Redis, and MinIO images directly. A Compose-reading deployment app must support `build:` and `pull_policy: build`, and must have access to the repository build context plus the public base-image registry.
+Those tags are local build outputs, not public registry images. The Dockerfiles use the public ECR Docker Library Node image to avoid Docker Hub anonymous-token failures during app builds; bundled Postgres and Redis also use public ECR, and MinIO uses Quay. A Compose-reading deployment app must support `build:` and `pull_policy: build`, and must have access to the repository build context plus those public base-image registries.
 
 | Service | Purpose | Notes |
 |---|---|---|
@@ -328,6 +328,8 @@ PURESOC_CLAMAV_PORT=3310
 PURESOC_CLAMAV_TIMEOUT_MS=10000
 PURESOC_CLAMAV_FRESHCLAM_CHECKS=12
 ```
+
+`PURESOC_CLAMAV_IMAGE` is intentionally overridable because the upstream ClamAV image is still Docker Hub-hosted. If the deployment platform cannot pull Docker Hub images, point it at an operator-managed mirror of the same image tag.
 
 `noop` is acceptable for local development only. Production startup rejects noop scanning unless `PURESOC_UPLOAD_SCANNER_ALLOW_NOOP_IN_PRODUCTION=true` is explicitly set.
 

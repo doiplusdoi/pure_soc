@@ -2,6 +2,6 @@ name: puresoc-data
 
 services:
   puresoc-postgres:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine
   puresoc-redis:
-    image: redis:7-alpine
+    image: public.ecr.aws/docker/library/redis:7-alpine

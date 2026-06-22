@@ -45,7 +45,7 @@ x-puresoc-billing-environment: &puresoc-billing-environment
 
 services:
   puresoc-postgres:
-    image: postgres:16-alpine
+    image: public.ecr.aws/docker/library/postgres:16-alpine
     environment:
       POSTGRES_DB: puresoc_live
       POSTGRES_USER: puresoc_app
@@ -61,7 +61,7 @@ services:
       retries: 5
 
   puresoc-redis:
-    image: redis:7-alpine
+    image: public.ecr.aws/docker/library/redis:7-alpine
     expose:
       - "6379"
     healthcheck:
@@ -71,7 +71,7 @@ services:
       retries: 5
 
   puresoc-object-storage:
-    image: minio/minio:RELEASE.2025-01-20T14-49-07Z
+    image: quay.io/minio/minio:RELEASE.2025-01-20T14-49-07Z
     command: server /data --console-address ":9001"
     environment:
       MINIO_ROOT_USER: puresoc_minio_e1fe7284
@@ -83,7 +83,7 @@ services:
       - puresoc-object-storage-data:/data
 
   puresoc-object-storage-init:
-    image: minio/mc:RELEASE.2025-01-17T23-25-50Z
+    image: quay.io/minio/mc:RELEASE.2025-01-17T23-25-50Z
     environment:
       MINIO_ROOT_USER: puresoc_minio_e1fe7284
       MINIO_ROOT_PASSWORD: 0616c13d283497b115518203da3a334c1afd7eeed77e653e3d78c955db64ba10
@@ -103,7 +103,7 @@ services:
     restart: "no"
 
   puresoc-clamav:
-    image: clamav/clamav:1.4_base
+    image: ${PURESOC_CLAMAV_IMAGE:-clamav/clamav:1.4_base}
     platform: linux/amd64
     environment:
       FRESHCLAM_CHECKS: "12"
