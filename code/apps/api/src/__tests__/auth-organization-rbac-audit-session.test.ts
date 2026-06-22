@@ -506,6 +506,40 @@ describe("auth organization rbac audit session integration", () => {
     expect(serializedAudit).not.toContain("puresoc_session=");
   });
 
+  it("treats malformed stored password hashes as invalid credentials instead of API errors", async () => {
+    const registrationResponse = await postJson("/auth/register", {
+      email: "corrupt-hash@example.test",
+      password,
+      displayName: "Corrupt Hash"
+    });
+    expect(registrationResponse.status).toBe(201);
+
+    const credential = [...services.memoryRepositories.identityRepository.localCredentials.values()].find(
+      (candidate) => candidate.email === "corrupt-hash@example.test"
+    );
+    if (!credential) {
+      throw new Error("Expected local credential to exist.");
+    }
+    services.memoryRepositories.identityRepository.localCredentials.set(credential.id, {
+      ...credential,
+      passwordHash: "argon2id:legacy-placeholder"
+    });
+
+    const loginResponse = await postJson("/auth/login", {
+      email: "corrupt-hash@example.test",
+      password
+    });
+    expect(loginResponse.status).toBe(401);
+    await expect(readJson<{ error: { code: string; message: string } }>(loginResponse)).resolves.toEqual({
+      error: {
+        code: "invalid_credentials",
+        message: "Invalid email or password."
+      }
+    });
+    expect(loginResponse.headers.get("set-cookie")).toBeNull();
+    expect(services.auditSink.findByAction("failed_login")).toHaveLength(1);
+  });
+
   it("verifies local account email through a secret-free API route", async () => {
     const registrationResponse = await postJson("/auth/register", {
       email: "verify-me@example.test",

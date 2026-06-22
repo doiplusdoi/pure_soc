@@ -461,7 +461,7 @@ export class LocalAuthService {
       throw new AuthError("account_locked", "Account is temporarily locked.", 423);
     }
 
-    const passwordMatches = await this.passwordHasher.verifyPassword(credential.passwordHash, input.password);
+    const passwordMatches = await this.verifyPasswordSafely(credential.passwordHash, input.password);
     if (!passwordMatches) {
       const failedLoginCount = credential.failedLoginCount + 1;
       const lockedUntil =
@@ -730,6 +730,14 @@ export class LocalAuthService {
         `Password must be at least ${this.passwordPolicy.minLength} characters long.`,
         400
       );
+    }
+  }
+
+  private async verifyPasswordSafely(passwordHash: string, password: string): Promise<boolean> {
+    try {
+      return await this.passwordHasher.verifyPassword(passwordHash, password);
+    } catch {
+      return false;
     }
   }
 
