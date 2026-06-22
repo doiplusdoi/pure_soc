@@ -59,6 +59,8 @@ export interface RenderLoginScreenOptions {
 }
 
 export interface RenderRegisterScreenOptions {
+  displayNameValue?: string | null;
+  emailValue?: string | null;
   errorMessage?: string;
   locale?: string | null;
   microsoftEntraEnabled?: boolean;
@@ -362,8 +364,12 @@ export const renderRegisterScreen = (options: RenderRegisterScreenOptions = {}):
     '<div class="ps-section__body">',
     options.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(options.errorMessage)}</p>` : "",
     '<form class="ps-form" action="/auth/register" method="post">',
-    '<div class="ps-field"><label for="displayName">Display name</label><input id="displayName" name="displayName" type="text" autocomplete="name" required><span class="ps-help">Use the name your teammates will recognize in audit history.</span></div>',
-    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email" required></div>`,
+    `<div class="ps-field"><label for="displayName">Display name</label><input id="displayName" name="displayName" type="text" autocomplete="name"${
+      options.displayNameValue ? ` value="${escapeHtml(options.displayNameValue)}"` : ""
+    } required><span class="ps-help">Use the name your teammates will recognize in audit history.</span></div>`,
+    `<div class="ps-field"><label for="email">${escapeHtml(copy.email)}</label><input id="email" name="email" type="email" autocomplete="email"${
+      options.emailValue ? ` value="${escapeHtml(options.emailValue)}"` : ""
+    } required></div>`,
     `<div class="ps-field"><label for="password">${escapeHtml(
       copy.password
     )}</label><input id="password" name="password" type="password" autocomplete="new-password" minlength="12" required><span class="ps-help">Minimum 12 characters for local development accounts.</span></div>`,

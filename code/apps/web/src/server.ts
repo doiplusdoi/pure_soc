@@ -1226,10 +1226,27 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       });
 
       if (registration.statusCode !== 201) {
+        const errorMessage = registrationErrorMessageForApiResponse(registration.statusCode, registration.body);
+        const emailValue = optionalFormValue(form.get("email"));
+
+        if (apiErrorCode(registration.body) === "email_already_registered") {
+          sendHtml(
+            response,
+            renderLoginScreen({
+              emailValue,
+              errorMessage
+            }),
+            registration.statusCode
+          );
+          return;
+        }
+
         sendHtml(
           response,
           renderRegisterScreen({
-            errorMessage: registrationErrorMessageForApiResponse(registration.statusCode, registration.body)
+            displayNameValue: optionalFormValue(form.get("displayName")),
+            emailValue,
+            errorMessage
           }),
           registration.statusCode
         );

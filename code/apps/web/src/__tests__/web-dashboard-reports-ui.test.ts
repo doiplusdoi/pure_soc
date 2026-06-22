@@ -975,6 +975,11 @@ describe("web dashboard reports operational UI", () => {
     const register = renderRegisterScreen({
       locale: "ro-RO"
     });
+    const failedRegister = renderRegisterScreen({
+      displayNameValue: "Operator One",
+      emailValue: "operator@example.test",
+      errorMessage: "Registration failed."
+    });
     const verification = renderEmailVerificationScreen({
       locale: "ro-RO"
     });
@@ -996,6 +1001,9 @@ describe("web dashboard reports operational UI", () => {
     expect(register).toContain('action="/auth/oidc/microsoft_entra/begin"');
     expect(register).toContain("continue to workspace setup");
     expect(register).toContain('minlength="12"');
+    expect(failedRegister).toContain('value="Operator One"');
+    expect(failedRegister).toContain('value="operator@example.test"');
+    expect(failedRegister).not.toContain('value="CorrectHorseBatteryStaple42!"');
     expect(verification).toContain('data-ui-smoke="email-verification-screen"');
     expect(verification).toContain('action="/auth/email/verify"');
     expect(verification).toContain('autocomplete="one-time-code"');
