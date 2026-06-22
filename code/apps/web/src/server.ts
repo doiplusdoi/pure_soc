@@ -413,6 +413,64 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    const generatedReportPdf = /^\/reports\/generated\/([^/]+)\/pdf$/.exec(url.pathname);
+    if (request.method === "GET" && generatedReportPdf) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in and select a workspace before downloading report PDFs."
+          }),
+          401
+        );
+        return;
+      }
+
+      const reportId = generatedReportPdf[1] ?? "";
+      const upstream = await fetch(
+        `${apiBaseUrl}/organizations/${encodeURIComponent(organizationId)}/reports/generated/${encodeURIComponent(
+          reportId
+        )}/pdf?format=pdf`,
+        {
+          method: "GET",
+          headers: {
+            ...(request.headers.cookie ? { cookie: request.headers.cookie } : {})
+          }
+        }
+      );
+
+      if (upstream.status !== 200) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Report PDF Not Available",
+            summary: "The generated report could not be rendered or the active workspace cannot access it.",
+            statusLabel: String(upstream.status),
+            statusTone: "warning",
+            actionHref: "/onboarding/nis2",
+            actionLabel: "Return to NIS2 onboarding"
+          }),
+          upstream.status
+        );
+        return;
+      }
+
+      response.statusCode = upstream.status;
+      for (const headerName of ["content-type", "content-disposition", "x-puresoc-content-sha256"]) {
+        const headerValue = upstream.headers.get(headerName);
+        if (headerValue) {
+          response.setHeader(headerName, headerValue);
+        }
+      }
+      response.end(Buffer.from(await upstream.arrayBuffer()));
+      return;
+    }
+
     const romaniaOnboardingScreen = resolveRomaniaOnboardingScreen(url.pathname);
     if (request.method === "GET" && romaniaOnboardingScreen) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
@@ -1493,13 +1551,19 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         origin: apiRequestOrigin,
         request
       });
+      const redirectParams = new URLSearchParams({
+        country: actionResult.countryCode,
+        screen: actionResult.screen,
+        message: actionResult.message
+      });
+      if (actionResult.firstReportId) {
+        redirectParams.set("firstReportId", actionResult.firstReportId);
+      }
+      if (actionResult.improvedReportId) {
+        redirectParams.set("improvedReportId", actionResult.improvedReportId);
+      }
       response.statusCode = 303;
-      response.setHeader(
-        "location",
-        `/onboarding/nis2?country=${encodeURIComponent(actionResult.countryCode)}&screen=${encodeURIComponent(
-          actionResult.screen
-        )}&message=${encodeURIComponent(actionResult.message)}`
-      );
+      response.setHeader("location", `/onboarding/nis2?${redirectParams.toString()}`);
       response.end();
       return;
     }
@@ -2065,6 +2129,8 @@ const loadNis2CountryAwareOnboardingModel = async (input: {
       ? onboardingState.body.screens
       : nis2CountryOnboardingScreenFallback;
   const requestedScreen = input.query.get("screen")?.trim();
+  const firstReportId = optionalFormValue(input.query.get("firstReportId")) ?? undefined;
+  const improvedReportId = optionalFormValue(input.query.get("improvedReportId")) ?? undefined;
   const progress = onboardingState?.statusCode === 200 ? onboardingState.body.progress : null;
   const selectedScreen =
     (requestedScreen && screens.some((screen) => screen.key === requestedScreen) ? requestedScreen : undefined) ??
@@ -2096,6 +2162,15 @@ const loadNis2CountryAwareOnboardingModel = async (input: {
         : classification && classification.statusCode !== 200
         ? "Country-pack classification could not be generated for the selected input."
         : undefined,
+    firstReportId,
+    generatedReport: firstReportId
+      ? {
+          id: firstReportId,
+          assessmentId: progress?.assessmentId,
+          status: "ready"
+        }
+      : undefined,
+    improvedReportId,
     onboardingScreens: screens,
     progress,
     selectedCountryCode: selectedCountryPack.countryCode,
@@ -2492,11 +2567,13 @@ const handleNis2CountryOnboardingPost = async (input: {
   organizationId: string;
   origin?: string;
   request: AsyncIterable<Buffer>;
-}): Promise<{ countryCode: string; message: string; screen: string }> => {
+}): Promise<{ countryCode: string; firstReportId?: string; improvedReportId?: string; message: string; screen: string }> => {
   const form = await readFormBody(input.request);
   const countryCode = (optionalFormValue(form.get("country")) ?? "RO").toUpperCase();
   const screen = optionalFormValue(form.get("screen")) ?? "company_contacts";
   const action = optionalFormValue(form.get("_action")) ?? "save";
+  const existingFirstReportId = optionalFormValue(form.get("firstReportId")) ?? undefined;
+  const existingImprovedReportId = optionalFormValue(form.get("improvedReportId")) ?? undefined;
   const save = await apiJson<{ progress?: Nis2CountryAwareOnboardingModel["progress"] }>(
     input.apiBaseUrl,
     `/organizations/${encodeURIComponent(input.organizationId)}/compliance/nis2/onboarding/${encodeURIComponent(countryCode)}`,
@@ -2514,6 +2591,8 @@ const handleNis2CountryOnboardingPost = async (input: {
   if (!apiSucceeded(save.statusCode)) {
     return {
       countryCode,
+      firstReportId: existingFirstReportId,
+      improvedReportId: existingImprovedReportId,
       message: "NIS2 country onboarding progress was not saved. Check the required fields and try again.",
       screen
     };
@@ -2534,6 +2613,8 @@ const handleNis2CountryOnboardingPost = async (input: {
     );
     return {
       countryCode,
+      firstReportId: existingFirstReportId,
+      improvedReportId: existingImprovedReportId,
       message: apiSucceeded(classified.statusCode)
         ? "Country-pack scope check generated from saved onboarding answers."
         : "Country-pack scope check could not be generated from saved answers.",
@@ -2554,8 +2635,11 @@ const handleNis2CountryOnboardingPost = async (input: {
         body: {}
       }
     );
+    const generatedReportId = apiSucceeded(generated.statusCode) ? generated.body.report.id : undefined;
     return {
       countryCode,
+      firstReportId: generatedReportId ?? existingFirstReportId,
+      improvedReportId: existingImprovedReportId,
       message: apiSucceeded(generated.statusCode)
         ? `Internal readiness report v1 generated (${generated.body.report.id}).`
         : "Internal readiness report could not be generated. Complete all required fields first.",
@@ -2565,6 +2649,8 @@ const handleNis2CountryOnboardingPost = async (input: {
 
   return {
     countryCode,
+    firstReportId: existingFirstReportId,
+    improvedReportId: existingImprovedReportId,
     message: "NIS2 country onboarding progress saved.",
     screen
   };

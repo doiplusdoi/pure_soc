@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildPdfReportHtml } from "@puresoc/reports";
+import { buildPdfReportHtml, loadNis2ReadinessCalibrationMetadata } from "@puresoc/reports";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import { createFooterTemplate, extractLegalCaveat, renderReport } from "../index";
 
@@ -98,6 +98,7 @@ describe("report renderer", () => {
             summary: "Highest current priority is high."
           }
         },
+        calibration: loadNis2ReadinessCalibrationMetadata(),
         sourceReferences: [{ sourceRecordId: "eu-nis2-art-21", jurisdiction: "EU", article: "21" }],
         controlResults: [
           {

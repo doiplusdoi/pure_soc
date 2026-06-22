@@ -30,6 +30,7 @@ import {
   type InternalReadinessReport,
   type InternalReadinessVerifiedObservation,
   type RomaniaNotificationDraftExport,
+  type PdfReportTemplate,
   type StoredRomaniaNotificationDraftInput
 } from "@puresoc/reports";
 import type { EvidenceApiService } from "../evidence/service";
@@ -95,6 +96,29 @@ export interface InternalReadinessReportVersionContext {
   reportVersion?: 1 | 2;
   triggerType?: InternalReadinessReportTriggerType;
 }
+
+const generatedReportPdfConfig = (
+  report: GeneratedReportRecord
+): { filename: string; template: PdfReportTemplate; title: string } => {
+  if (report.reportData.reportType === "internal_readiness") {
+    const version = report.reportData.version.reportVersion;
+    return {
+      filename: `puresoc-internal-readiness-v${version}-${report.id}.pdf`,
+      template: "gap_report",
+      title: `NIS2 Internal Readiness Report v${version}`
+    };
+  }
+
+  if (report.reportData.reportType === "romania_notification_draft") {
+    return {
+      filename: `puresoc-romania-notification-draft-${report.id}.pdf`,
+      template: "romania_notification_draft",
+      title: "Romanian NIS2 Notification Draft"
+    };
+  }
+
+  throw new AuthError("invalid_request", "Generated report type does not support PDF rendering by ID.", 400);
+};
 
 export class ReportApiService {
   private readonly repository: ReportRepository;
@@ -537,6 +561,84 @@ export class ReportApiService {
       ipAddress: input.ipAddress,
       userAgent: input.userAgent
     });
+  }
+
+  async downloadGeneratedReportPdf(input: {
+    organizationId: string;
+    reportId: string;
+    actorUserId: string;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    pdf: {
+      filename: string;
+      mimeType: string;
+      contentHashSha256: string;
+      body: Uint8Array;
+    };
+    pdfArtifactId?: string;
+  }> {
+    if (!this.pdfRenderer) {
+      throw new ReportExportError("pdf_renderer_not_configured", "PDF renderer is not configured.", 503);
+    }
+
+    const report = await this.repository.findGeneratedReport(input.organizationId, input.reportId);
+    if (!report) {
+      throw new AuthError("invalid_request", "Generated report was not found for this organization.", 404);
+    }
+    const pdfConfig = generatedReportPdfConfig(report);
+    const html = buildPdfReportHtml({
+      template: pdfConfig.template,
+      reportData: report.reportData,
+      title: pdfConfig.title,
+      reportHash: report.contentHashSha256
+    });
+    const rendered = await this.pdfRenderer.renderPdf({
+      html,
+      filename: pdfConfig.filename,
+      renderedAt: report.reportData.generatedAt
+    });
+    const pdfArtifactId = await this.storeReportEvidence({
+      reportId: report.id,
+      organizationId: input.organizationId,
+      assessmentId: report.assessmentId,
+      reportType: report.reportType,
+      jurisdiction: report.jurisdiction,
+      reportData: report.reportData,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      rendered
+    });
+    await this.repository.saveReportExport({
+      id: randomUUID(),
+      organizationId: input.organizationId,
+      generatedReportId: report.id,
+      exportFormat: "pdf",
+      status: "ready",
+      contentHashSha256: rendered.contentHashSha256,
+      createdAt: this.now().toISOString()
+    });
+    const downloaded = await this.downloadStoredPdfForResponse({
+      organizationId: input.organizationId,
+      actorUserId: input.actorUserId,
+      pdfArtifactId,
+      rendered,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+
+    return {
+      report,
+      pdf: {
+        filename: pdfConfig.filename,
+        mimeType: downloaded.mimeType,
+        contentHashSha256: downloaded.contentHashSha256,
+        body: downloaded.body
+      },
+      pdfArtifactId
+    };
   }
 
   private async requireStoredAnalysis(organizationId: string, assessmentId: string): Promise<StoredAnalysisRecord> {

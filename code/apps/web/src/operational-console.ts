@@ -755,6 +755,7 @@ export const renderNis2CountryAwareOnboardingScreen = (
     renderSelectedCountryPackPanel(pack),
     renderNis2CountryOnboardingForm(model),
     "</div>",
+    renderGeneratedReportDownloadsPanel(model),
     renderCountryAwareWorkflowStepper(model),
     renderCountryPackClassificationResult(model),
     renderCountryPackDynamicQuestions(pack),
@@ -846,6 +847,8 @@ const renderNis2CountryOnboardingForm = (model: Nis2CountryAwareOnboardingModel)
     `<input type="hidden" name="country" value="${escapeHtml(model.selectedCountryCode)}">`,
     `<input type="hidden" name="screen" value="${escapeHtml(screen?.key ?? model.selectedScreen)}">`,
     model.progress?.id ? `<input type="hidden" name="onboardingProgressId" value="${escapeHtml(model.progress.id)}">` : "",
+    model.firstReportId ? `<input type="hidden" name="firstReportId" value="${escapeHtml(model.firstReportId)}">` : "",
+    model.improvedReportId ? `<input type="hidden" name="improvedReportId" value="${escapeHtml(model.improvedReportId)}">` : "",
     renderNis2CountryScreenFields(model, answers, screen?.key ?? model.selectedScreen),
     '<div class="ps-command-row">',
     '<button type="submit" class="ps-command ps-command--primary" name="_action" value="save" aria-label="Save NIS2 country onboarding screen"><span>Save screen</span></button>',
@@ -853,6 +856,33 @@ const renderNis2CountryOnboardingForm = (model: Nis2CountryAwareOnboardingModel)
     '<button type="submit" class="ps-command" name="_action" value="generate_report" aria-label="Generate declared internal readiness report v1"><span>Generate report v1</span></button>',
     "</div>",
     "</form>",
+    "</article>"
+  ].join("");
+};
+
+const renderGeneratedReportDownloadsPanel = (model: Nis2CountryAwareOnboardingModel): string => {
+  if (!model.firstReportId && !model.improvedReportId) {
+    return "";
+  }
+
+  return [
+    '<article class="ps-panel ps-stack-top" aria-labelledby="nis2-report-downloads-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="nis2-report-downloads-title">Report downloads</h2><p class="ps-muted">PDF exports render the stored generated report ID.</p></div>',
+    renderStatusPill({ label: "immutable snapshots", tone: "success" }),
+    "</div>",
+    '<div class="ps-command-row">',
+    model.firstReportId
+      ? `<a class="ps-command ps-command--primary" href="/reports/generated/${encodeURIComponent(
+          model.firstReportId
+        )}/pdf?format=pdf" data-ui-action="download-first-pdf">Download first PDF</a>`
+      : "",
+    model.improvedReportId
+      ? `<a class="ps-command ps-command--primary" href="/reports/generated/${encodeURIComponent(
+          model.improvedReportId
+        )}/pdf?format=pdf" data-ui-action="download-improved-pdf">Download improved PDF</a>`
+      : "",
+    "</div>",
     "</article>"
   ].join("");
 };

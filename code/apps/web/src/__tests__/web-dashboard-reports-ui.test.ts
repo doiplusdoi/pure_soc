@@ -766,6 +766,8 @@ describe("web dashboard reports operational UI", () => {
         employeeCount: 42,
         sector: "food"
       },
+      firstReportId: "11111111-1111-4111-8111-111111111111",
+      improvedReportId: "22222222-2222-4222-8222-222222222222",
       classification: {
         result: "possibly_in_scope",
         matchedRules: ["pl-demo-food-or-manufacturing"],
@@ -863,6 +865,10 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("pl-demo-food-or-manufacturing");
     expect(html).toContain("Official source references");
     expect(html).toContain("KSC amendment overview");
+    expect(html).toContain("Download first PDF");
+    expect(html).toContain("/reports/generated/11111111-1111-4111-8111-111111111111/pdf?format=pdf");
+    expect(html).toContain("Download improved PDF");
+    expect(html).toContain("/reports/generated/22222222-2222-4222-8222-222222222222/pdf?format=pdf");
     expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
     expect(html).not.toContain("country-pack@example.test");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);

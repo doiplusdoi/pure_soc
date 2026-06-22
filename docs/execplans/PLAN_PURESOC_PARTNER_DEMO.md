@@ -175,8 +175,16 @@ Milestone 10 closes the local fixture-demo code path:
   - `npm run compose:up` passed with those host-port overrides: local app images built, all 14 migrations applied through the migrator, and API/web health checks passed with provider writes disabled.
   - `DATABASE_URL=postgresql://puresoc:puresoc@127.0.0.1:15432/puresoc npm run prisma:migrate:deploy` passed with no pending migrations.
   - `demo:reset`, `demo:seed`, and `demo:verify` passed against the migrated PostgreSQL database, and rerunning seed plus verify without a reset proved the deterministic seed path is idempotent.
+- Milestone 11 completed the seed-independent live-local partner demo path:
+  - Added stable PDF export by generated report ID through `GET /organizations/:orgId/reports/generated/:reportId/pdf?format=pdf`, preserving the original generated report while storing the PDF export as evidence with content hash, report export metadata, authorization, and audited evidence download.
+  - Added served web proxy/download buttons for first and improved report PDFs on `/onboarding/nis2` when report IDs are present.
+  - Added a primary-source-backed neutral calibration artifact at `code/data/regulatory/scoring/nis2-readiness-calibration.v1.json`, report-package validation that rejects unsourced numeric weights, and report/PDF metadata for calibration version, sources, and review status.
+  - Confirmed no installed score-calibration skill was available; the run used regulatory/evidence skills and primary-source references instead of inventing score weights.
+  - Added `@live-demo-local` served web smoke coverage that registers a user, creates a reseller, creates RO/PL/DE managed companies through web forms, enters/exits partner customer tenant sessions, completes country-aware onboarding/report v1/PDF for each, connects fixture-mode Microsoft 365 through the same consent/sync path, records a guided Business Premium implementation approval plus manual evidence through the action lifecycle, re-syncs, generates immutable v2 and improved PDF, and verifies the partner portfolio opportunity.
+  - Preserved `demo:seed`, `demo:verify`, and `@fixture-demo` as fallback paths; provider writes, billing, live external calls, DNSC submission, and legal/certification claims remain disabled.
+  - Final local validation passed: `npm run typecheck`, `npm run lint`, `npm test`, `npm run test:e2e -- --grep @fixture-demo`, `npm run test:e2e -- --grep @live-demo-local`, and Compose config/build config with local dummy Microsoft connector env values for interpolation only.
 
 ## Deferred Work
 
 - Independent external/product/legal review remains outside this local code run.
-- Live Microsoft Graph, Stripe, OIDC provider, object storage/scanner, KMS, deployment, DNSC submission, provider-write, and legal/certification proof remain gated by the existing external-smoke and product/legal blockers.
+- Real Microsoft Graph tenant proof remains open until guarded external-smoke execution is approved against a disposable/test tenant with live connector env vars. Stripe, OIDC provider, object storage/scanner, KMS, deployment, DNSC submission, provider-write, and legal/certification proof remain gated by the existing external-smoke and product/legal blockers.

@@ -1,0 +1,170 @@
+{
+  "schemaVersion": "puresoc.nis2_readiness_calibration.v1",
+  "calibrationVersion": "nis2-readiness-calibration.v1",
+  "frameworkKey": "nis2",
+  "status": "requires_product_legal_review",
+  "reviewStatus": "requires_product_legal_review",
+  "lastReviewedAt": null,
+  "sourceReferences": [
+    {
+      "sourceRecordId": "eu-nis2-directive-2022-2555",
+      "title": "Directive (EU) 2022/2555",
+      "jurisdiction": "EU",
+      "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+      "sourceVersion": "OJ L 333, 27.12.2022"
+    },
+    {
+      "sourceRecordId": "eu-implementing-regulation-2024-2690",
+      "title": "Commission Implementing Regulation (EU) 2024/2690",
+      "jurisdiction": "EU",
+      "sourceUrl": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+      "sourceVersion": "2024/2690"
+    }
+  ],
+  "scoreSeparationPolicy": {
+    "readinessScore": "Readiness summarizes the current internal control status and does not decide legal applicability.",
+    "evidenceConfidence": "Evidence confidence summarizes whether claims are backed by uploaded or provider-verified evidence.",
+    "legalApplicability": "Legal applicability remains a separate country-pack classification output that requires legal review.",
+    "sourceReferenceIds": ["eu-nis2-directive-2022-2555"],
+    "rationale": "The NIS2 source model separates risk-management measures, entity classification, and evidence review; PureSOC must keep these outputs distinct."
+  },
+  "factors": [
+    {
+      "key": "proportionality",
+      "dimension": "proportionality",
+      "label": "Proportionality",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-nis2-directive-2022-2555"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "title": "Directive (EU) 2022/2555",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022",
+          "article": "21",
+          "paragraph": "1"
+        }
+      ],
+      "rationale": "Article 21 risk-management measures are source-linked, but no approved product/legal decision has assigned a numeric multiplier for proportionality."
+    },
+    {
+      "key": "entity_criticality",
+      "dimension": "entityCriticality",
+      "label": "Entity criticality",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-nis2-directive-2022-2555"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "title": "Directive (EU) 2022/2555",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022",
+          "article": "3"
+        }
+      ],
+      "rationale": "Essential/important entity classification affects legal interpretation, but the current internal readiness score must not assign extra weight without product/legal approval."
+    },
+    {
+      "key": "size_structure",
+      "dimension": "sizeStructure",
+      "label": "Size and structure",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-nis2-directive-2022-2555"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "title": "Directive (EU) 2022/2555",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022",
+          "article": "2"
+        }
+      ],
+      "rationale": "Entity size and structure are captured for classification context, but no approved numeric readiness weight is applied."
+    },
+    {
+      "key": "likelihood",
+      "dimension": "likelihood",
+      "label": "Likelihood",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-implementing-regulation-2024-2690"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-implementing-regulation-2024-2690",
+          "title": "Commission Implementing Regulation (EU) 2024/2690",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+          "sourceVersion": "2024/2690",
+          "annex": "Annex"
+        }
+      ],
+      "rationale": "The implementing regulation provides technical and methodological risk context for relevant digital entities; PureSOC records the dimension but applies no numeric likelihood weight yet."
+    },
+    {
+      "key": "severity",
+      "dimension": "severity",
+      "label": "Severity",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-nis2-directive-2022-2555", "eu-implementing-regulation-2024-2690"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "title": "Directive (EU) 2022/2555",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022",
+          "article": "23"
+        },
+        {
+          "sourceRecordId": "eu-implementing-regulation-2024-2690",
+          "title": "Commission Implementing Regulation (EU) 2024/2690",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+          "sourceVersion": "2024/2690",
+          "annex": "Annex"
+        }
+      ],
+      "rationale": "Severity is already represented in gap priority; no extra readiness multiplier is applied until reviewed."
+    },
+    {
+      "key": "societal_economic_impact",
+      "dimension": "societalEconomicImpact",
+      "label": "Societal and economic impact",
+      "weight": null,
+      "treatment": "neutral_default",
+      "reviewStatus": "requires_product_legal_review",
+      "sourceReferenceIds": ["eu-nis2-directive-2022-2555", "eu-implementing-regulation-2024-2690"],
+      "sourceReferences": [
+        {
+          "sourceRecordId": "eu-nis2-directive-2022-2555",
+          "title": "Directive (EU) 2022/2555",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+          "sourceVersion": "OJ L 333, 27.12.2022",
+          "annex": "I-II"
+        },
+        {
+          "sourceRecordId": "eu-implementing-regulation-2024-2690",
+          "title": "Commission Implementing Regulation (EU) 2024/2690",
+          "jurisdiction": "EU",
+          "sourceUrl": "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+          "sourceVersion": "2024/2690",
+          "annex": "Annex"
+        }
+      ],
+      "rationale": "Societal and economic impact affects classification and prioritization context, but PureSOC keeps it neutral until a reviewed calibration decision exists."
+    }
+  ]
+}

@@ -76,6 +76,7 @@ import {
   buildInternalReadinessReportRoute,
   buildMicrosoft365VerifiedInternalReadinessReportRoute,
   buildRomaniaNotificationDraftReportRoute,
+  downloadGeneratedReportPdfRoute,
   downloadGapReportPdfRoute,
   downloadRomaniaNotificationDraftPdfRoute
 } from "./reports/routes";
@@ -255,6 +256,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     buildInternalReadinessEvidencePackageRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/reports\/romania-notification-draft$/, "compliance", ({ params, body, request, context, services }) =>
     buildRomaniaNotificationDraftReportRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/organizations\/([^/]+)\/reports\/generated\/([^/]+)\/pdf$/, "compliance", ({ params, url, request, context, services }) =>
+    downloadGeneratedReportPdfRoute(params[0] ?? "", params[1] ?? "", url.searchParams, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/compliance\/reports\/gap-report$/, "compliance", ({ params, url, request, context, services }) =>
     downloadGapReportPdfRoute(params[0] ?? "", url.searchParams, request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/onboarding\/romania\/reports\/notification-draft$/, "compliance", ({ params, url, request, context, services }) =>

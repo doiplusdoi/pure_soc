@@ -135,12 +135,14 @@ if (smokeMode === "ui") {
   await runBrowserSmoke();
 } else if (smokeMode === "fixture-demo") {
   await runFixtureDemoSmoke();
+} else if (smokeMode === "live-demo-local") {
+  await runLiveDemoLocalSmoke();
 } else {
   console.log(
     JSON.stringify({
       schema: "puresoc.ui_smoke.runner.v1",
       status: "skipped",
-      reason: "run-ui-smoke owns @ui-smoke, @browser-smoke, and @fixture-demo only",
+      reason: "run-ui-smoke owns @ui-smoke, @browser-smoke, @fixture-demo, and @live-demo-local only",
       requestedGrep: grepPattern
     })
   );
@@ -153,6 +155,10 @@ function resolveSmokeMode(pattern) {
 
   if (pattern.includes("@fixture-demo")) {
     return "fixture-demo";
+  }
+
+  if (pattern.includes("@live-demo-local")) {
+    return "live-demo-local";
   }
 
   if (pattern.includes("@ui-smoke")) {
@@ -982,6 +988,197 @@ async function runFixtureDemoSmoke() {
   }
 }
 
+async function runLiveDemoLocalSmoke() {
+  initSmokeState("puresoc-live-demo-local-");
+
+  try {
+    const { startWebServer } = await loadRuntimeModules();
+    const webPort = await getFreePort();
+    const webBaseUrl = `http://127.0.0.1:${webPort}`;
+    const apiServer = await startApiSmokeServer({
+      webBaseUrl,
+      secureCookie: false,
+      microsoft365FixtureSet: "partner_demo_partial",
+      microsoft365Mode: "fixture"
+    });
+    servers.push(apiServer.server);
+    const apiBaseUrl = apiServer.baseUrl;
+    const webServer = startWebServer(webPort, {
+      apiBaseUrl,
+      publicBaseUrl: webBaseUrl
+    });
+    servers.push(webServer);
+    await waitForListening(webServer);
+
+    const registered = await registerThroughWeb({
+      webBaseUrl,
+      email: `live-demo-local-${Date.now()}@example.test`,
+      password: "CorrectHorseBatteryStaple42!",
+      displayName: "Live Demo Local Partner"
+    });
+    record("live_demo_local_registered_without_seed_workspace", registered.cookie.includes("puresoc_session"), registered.location);
+
+    const partnerLocation = await postForm(`${webBaseUrl}/partners`, {
+      name: "Live Demo Local Reseller",
+      slug: `live-demo-local-${Date.now()}`
+    }, registered.cookie);
+    const partnerId = new URL(partnerLocation, webBaseUrl).searchParams.get("partnerId") ?? "";
+    record("live_demo_local_partner_created_through_web", partnerId.length > 0, partnerLocation);
+
+    const customers = [
+      { countryCode: "RO", name: "Dacia Foods Live SRL" },
+      { countryCode: "PL", name: "Mazovia Foods Live Sp z o.o." },
+      { countryCode: "DE", name: "NordFrucht Live GmbH" }
+    ];
+    const customerOrganizations = new Map();
+    for (const customer of customers) {
+      await postForm(`${webBaseUrl}/partners/${partnerId}/customers`, {
+        name: customer.name,
+        legalName: customer.name,
+        primaryCountryCode: customer.countryCode,
+        grantLevel: "admin"
+      }, registered.cookie);
+      const portfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
+        headers: {
+          cookie: registered.cookie
+        }
+      });
+      const grant = portfolio.grants?.find((candidate) => candidate.organization?.name === customer.name);
+      customerOrganizations.set(customer.countryCode, grant?.organizationId ?? "");
+    }
+    record(
+      "live_demo_local_ro_pl_de_customers_created",
+      customers.every((customer) => (customerOrganizations.get(customer.countryCode) ?? "").length > 0),
+      JSON.stringify(Object.fromEntries(customerOrganizations))
+    );
+
+    const reportIdsByCountry = new Map();
+    const assessmentIdsByCountry = new Map();
+    for (const customer of customers) {
+      const customerOrganizationId = customerOrganizations.get(customer.countryCode);
+      await postForm(`${webBaseUrl}/partners/${partnerId}/tenant-sessions`, {
+        organizationId: customerOrganizationId,
+        reason: `Live local demo ${customer.countryCode} readiness walkthrough`
+      }, registered.cookie);
+
+      const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding/nis2?country=${customer.countryCode}`, {
+        headers: {
+          cookie: registered.cookie
+        }
+      });
+      record(
+        `live_demo_local_${customer.countryCode.toLowerCase()}_country_onboarding_opened`,
+        htmlText(onboardingHtml).includes("NIS2 country onboarding") && htmlText(onboardingHtml).includes(customer.countryCode)
+      );
+
+      const onboardingAnswers = liveDemoCountryOnboardingForm(customer);
+      await postForm(`${webBaseUrl}/onboarding/nis2`, {
+        ...onboardingAnswers,
+        country: customer.countryCode,
+        screen: "review_generate",
+        _action: "save"
+      }, registered.cookie);
+      await postForm(`${webBaseUrl}/onboarding/nis2`, {
+        ...onboardingAnswers,
+        country: customer.countryCode,
+        screen: "nis2_scope",
+        _action: "classify"
+      }, registered.cookie);
+      const reportLocation = await postForm(`${webBaseUrl}/onboarding/nis2`, {
+        ...onboardingAnswers,
+        country: customer.countryCode,
+        screen: "review_generate",
+        _action: "generate_report"
+      }, registered.cookie);
+      const reportUrl = new URL(reportLocation, webBaseUrl);
+      const firstReportId =
+        reportUrl.searchParams.get("firstReportId") ??
+        reportUrl.searchParams.get("message")?.match(/[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}/i)?.[0] ??
+        "";
+      reportIdsByCountry.set(customer.countryCode, firstReportId);
+      record(`live_demo_local_${customer.countryCode.toLowerCase()}_first_report_id_returned`, firstReportId.length > 0, reportLocation);
+
+      const firstPdf = await fetch(`${webBaseUrl}/reports/generated/${firstReportId}/pdf?format=pdf`, {
+        headers: {
+          cookie: registered.cookie
+        }
+      });
+      record(`live_demo_local_${customer.countryCode.toLowerCase()}_first_pdf_downloaded`, firstPdf.status === 200, String(firstPdf.status));
+      record(
+        `live_demo_local_${customer.countryCode.toLowerCase()}_first_pdf_hash_header_present`,
+        /^[0-9a-f]{64}$/.test(firstPdf.headers.get("x-puresoc-content-sha256") ?? "")
+      );
+      record(
+        `live_demo_local_${customer.countryCode.toLowerCase()}_first_pdf_is_pdf`,
+        (firstPdf.headers.get("content-type") ?? "").includes("application/pdf") &&
+          Buffer.from(await firstPdf.arrayBuffer()).toString("utf8").includes("%PDF-1.4")
+      );
+
+      const refreshedPortfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
+        headers: {
+          cookie: registered.cookie
+        }
+      });
+      const refreshedGrant = refreshedPortfolio.grants?.find((grant) => grant.organizationId === customerOrganizationId);
+      assessmentIdsByCountry.set(customer.countryCode, refreshedGrant?.snapshot?.assessmentId ?? "");
+
+      if (customer.countryCode === "DE") {
+        await runLiveDemoLocalMicrosoftAndActionPath({
+          apiBaseUrl,
+          assessmentId: assessmentIdsByCountry.get("DE") ?? "",
+          customerOrganizationId,
+          firstReportId,
+          partnerId,
+          webBaseUrl,
+          webCookie: registered.cookie
+        });
+      }
+
+      await exitCurrentTenantSession({
+        apiBaseUrl,
+        partnerId,
+        webBaseUrl,
+        webCookie: registered.cookie
+      });
+    }
+
+    console.log(
+      JSON.stringify(
+        {
+          schema: "puresoc.live_demo_local_smoke.v1",
+          status: "passed",
+          smokeMode: "served_web_user_created_records_fixture_m365",
+          artifacts: {
+            directory: artifactsDir
+          },
+          checks: checkNames(),
+          reportIdsByCountry: Object.fromEntries(reportIdsByCountry),
+          assessmentIdsByCountry: Object.fromEntries(assessmentIdsByCountry),
+          nonLiveGuarantees: nonLiveGuarantees()
+        },
+        null,
+        2
+      )
+    );
+  } catch (error) {
+    console.error(
+      JSON.stringify(
+        {
+          schema: "puresoc.live_demo_local_smoke.v1",
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+          checks
+        },
+        null,
+        2
+      )
+    );
+    process.exitCode = 1;
+  } finally {
+    await closeAllServers();
+  }
+}
+
 function nonLiveGuarantees() {
   return [
     "no Microsoft Graph calls",
@@ -1151,6 +1348,344 @@ function summarizeServedUiAuthCheck(check) {
   };
 }
 
+async function runLiveDemoLocalMicrosoftAndActionPath({
+  apiBaseUrl,
+  assessmentId,
+  customerOrganizationId,
+  firstReportId,
+  partnerId,
+  webBaseUrl,
+  webCookie
+}) {
+  record("live_demo_local_de_assessment_id_available_for_m365_path", assessmentId.length > 0, assessmentId);
+
+  const connectorHtml = await fetchText(`${webBaseUrl}/providers/microsoft365`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  const connectorText = htmlText(connectorHtml);
+  record("live_demo_local_m365_connector_shows_read_only_bundles", /read-only/i.test(connectorText) && /no write scopes/i.test(connectorText));
+
+  const connectLocation = await postForm(`${webBaseUrl}/providers/microsoft365/connect`, {}, webCookie);
+  const consentUrl = new URL(connectLocation, webBaseUrl);
+  record(
+    "live_demo_local_m365_consent_uses_default_scope",
+    consentUrl.searchParams.get("scope") === "https://graph.microsoft.com/.default",
+    connectLocation
+  );
+  const callbackResponse = await fetch(connectLocation, {
+    redirect: "manual",
+    headers: {
+      cookie: webCookie
+    }
+  });
+  record("live_demo_local_m365_fixture_callback_completed", callbackResponse.status === 303, String(callbackResponse.status));
+
+  const connections = await fetchJson(`${apiBaseUrl}/organizations/${customerOrganizationId}/provider-connections`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  const microsoftConnection = connections.connections?.find((connection) => connection.providerKey === "microsoft365");
+  record("live_demo_local_m365_connection_created", Boolean(microsoftConnection?.id));
+  record("live_demo_local_m365_write_disabled", microsoftConnection?.writeEnabled === false);
+
+  await postForm(`${webBaseUrl}/providers/microsoft365/sync`, {
+    providerConnectionId: microsoftConnection.id
+  }, webCookie);
+  const health = await fetchJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/provider-connections/${microsoftConnection.id}/health`,
+    {
+      headers: {
+        cookie: webCookie
+      }
+    }
+  );
+  record("live_demo_local_m365_fixture_sync_succeeded", health.status === "connected" && health.effectiveConnectorMode === "fixture");
+  record("live_demo_local_m365_module_statuses_recorded", Array.isArray(health.moduleStatuses) && health.moduleStatuses.length > 0);
+
+  const actionRun = await createLiveDemoLocalGuidedActionRun({
+    apiBaseUrl,
+    assessmentId,
+    customerOrganizationId,
+    providerConnectionId: microsoftConnection.id,
+    webBaseUrl,
+    webCookie
+  });
+  record("live_demo_local_guided_implementation_approved", actionRun.approval?.status === "approved", JSON.stringify(actionRun.approval ?? {}));
+  record("live_demo_local_guided_implementation_evidence_attached", actionRun.evidenceArtifactIds?.length > 0, JSON.stringify(actionRun.evidenceArtifactIds ?? []));
+
+  const evaluation = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/compliance/evaluate`,
+    {
+      assessmentId,
+      providerConnectionId: microsoftConnection.id,
+      jurisdiction: "EU",
+      countryPack: {
+        countryCode: "DE",
+        completeness: "planned_full_pack"
+      }
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_post_implementation_analysis_saved", evaluation.status === 200, String(evaluation.status));
+
+  await postForm(`${webBaseUrl}/providers/microsoft365/sync`, {
+    providerConnectionId: microsoftConnection.id
+  }, webCookie);
+  const verifiedReport = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/reports/internal-readiness/verified-microsoft365`,
+    {
+      assessmentId,
+      previousReportId: firstReportId,
+      providerConnectionId: microsoftConnection.id
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_improved_report_generated_after_m365_resync", verifiedReport.status === 201, String(verifiedReport.status));
+  const verifiedReportBody = await verifiedReport.json();
+  const improvedReportId = verifiedReportBody.report?.id ?? "";
+  const reportData = verifiedReportBody.report?.reportData;
+  record(
+    "live_demo_local_improved_report_links_first_report",
+    reportData?.version?.reportVersion === 2 && reportData?.version?.previousReportId === firstReportId,
+    JSON.stringify(reportData?.version ?? {})
+  );
+  record("live_demo_local_improved_report_has_m365_verified_evidence", reportData?.verifiedEvidence?.providerKey === "microsoft365");
+  record(
+    "live_demo_local_business_premium_opportunity_from_m365_context",
+    JSON.stringify(reportData?.recommendations ?? []).includes("Microsoft 365 Business Premium")
+  );
+  record(
+    "live_demo_local_score_delta_is_evidence_backed",
+    Boolean(reportData?.verifiedEvidence) && typeof reportData?.comparison?.evidenceConfidenceDelta === "number",
+    JSON.stringify(reportData?.comparison ?? {})
+  );
+
+  const improvedPdf = await fetch(`${webBaseUrl}/reports/generated/${improvedReportId}/pdf?format=pdf`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  record("live_demo_local_improved_pdf_downloaded", improvedPdf.status === 200, String(improvedPdf.status));
+  record("live_demo_local_improved_pdf_hash_header_present", /^[0-9a-f]{64}$/.test(improvedPdf.headers.get("x-puresoc-content-sha256") ?? ""));
+  const improvedPdfText = Buffer.from(await improvedPdf.arrayBuffer()).toString("utf8");
+  record("live_demo_local_improved_pdf_is_pdf", improvedPdfText.includes("%PDF-1.4"));
+
+  const onboardingWithDownloads = await fetchText(
+    `${webBaseUrl}/onboarding/nis2?country=DE&firstReportId=${encodeURIComponent(firstReportId)}&improvedReportId=${encodeURIComponent(improvedReportId)}`,
+    {
+      headers: {
+        cookie: webCookie
+      }
+    }
+  );
+  const downloadsText = htmlText(onboardingWithDownloads);
+  record(
+    "live_demo_local_onboarding_shows_first_and_improved_pdf_buttons",
+    downloadsText.includes("Download first PDF") && downloadsText.includes("Download improved PDF")
+  );
+
+  const refreshedPortfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  record(
+    "live_demo_local_partner_portfolio_shows_business_premium_opportunity",
+    JSON.stringify(refreshedPortfolio.opportunities ?? []).includes("Microsoft 365 Business Premium")
+  );
+}
+
+async function createLiveDemoLocalGuidedActionRun({
+  apiBaseUrl,
+  assessmentId,
+  customerOrganizationId,
+  providerConnectionId,
+  webBaseUrl,
+  webCookie
+}) {
+  const actionResponse = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs`,
+    {
+      providerConnectionId,
+      recommendation: {
+        id: `live-demo-business-premium-${Date.now()}`,
+        sourceFindingIds: ["m365:subscribed-skus", "m365:mfa-registration:coverage"],
+        manualTaskIds: [],
+        controlId: "nis2.access-control.mfa",
+        jurisdiction: "EU",
+        title: "Approve Microsoft 365 Business Premium implementation plan",
+        summary: "Plan a guided external implementation based on Microsoft 365 license and security posture evidence.",
+        severity: "high",
+        recommendationType: "guided",
+        automationMode: "guided",
+        requiredPermissions: [],
+        requiredLicense: ["Microsoft 365 Business Premium"],
+        expectedChange: "Partner executes the agreed external changes and attaches implementation evidence.",
+        blastRadius: "PureSOC does not change the tenant because provider write execution is disabled.",
+        manualFallback: "Record implementation notes and re-sync Microsoft 365 after the tenant changes.",
+        evidenceRequired: true
+      },
+      actionTemplate: {
+        providerKey: "microsoft365",
+        moduleKey: "licensing",
+        actionKey: "business_premium_guided_implementation_plan",
+        actionType: "guided",
+        automationMode: "guided",
+        title: "Business Premium guided implementation plan",
+        description: "Create partner implementation tasks and evidence requirements without Microsoft write scopes.",
+        riskLevel: "high",
+        licenseRequired: ["Microsoft 365 Business Premium"],
+        permissionsRequired: [],
+        preconditions: {
+          providerWriteExecution: false,
+          billingOutOfScope: true
+        },
+        expectedChange: "Manual implementation tasks and evidence requirements are recorded.",
+        blastRadius: "No tenant configuration change is made by PureSOC.",
+        rollbackStrategy: "Close or supersede the guided tasks and attach corrected evidence.",
+        manualFallback: "Partner performs changes externally and attaches evidence.",
+        evidenceRequired: true,
+        enabledByDefault: true,
+        highRiskForbiddenInV1: false
+      }
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_run_created", actionResponse.status === 201, String(actionResponse.status));
+  const actionBody = await actionResponse.json();
+  const actionRunId = actionBody.actionRun?.id ?? "";
+
+  const preflight = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs/${actionRunId}/preflight`,
+    {
+      status: "passed",
+      checks: [
+        {
+          code: "provider_write_execution_disabled",
+          status: "passed",
+          message: "PureSOC will not execute Microsoft write actions in this demo path."
+        }
+      ],
+      diff: {
+        summary: "Guided tasks and evidence requirements only; no provider-side write diff."
+      },
+      requiredPermissions: [],
+      requiredLicense: ["Microsoft 365 Business Premium"],
+      canRequestApproval: true
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_preflight_passed", preflight.status === 200, String(preflight.status));
+  const approvalRequested = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs/${actionRunId}/request-approval`,
+    {},
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_approval_requested", approvalRequested.status === 200, String(approvalRequested.status));
+  const approved = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs/${actionRunId}/approve`,
+    {},
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_approved", approved.status === 200, String(approved.status));
+
+  const evidenceContent = Buffer.from("Live local demo guided implementation evidence; external work recorded, no provider write executed.", "utf8");
+  const evidence = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/evidence/upload`,
+    {
+      title: "Business Premium guided implementation evidence",
+      content: evidenceContent.toString("base64"),
+      contentEncoding: "base64",
+      mimeType: "text/plain",
+      sourceType: "manual_upload",
+      controlId: "nis2.access-control.mfa",
+      jurisdiction: "EU",
+      requirementKey: "business-premium-guided-implementation",
+      linkedAssessmentId: assessmentId,
+      linkedSourceRecordId: "eu-nis2-art-21"
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_manual_evidence_uploaded", evidence.status === 201, String(evidence.status));
+  const evidenceBody = await evidence.json();
+  const evidenceArtifactId = evidenceBody.artifact?.id ?? "";
+  const contentHashSha256 = evidenceBody.artifact?.contentHashSha256 ?? createHash("sha256").update(evidenceContent).digest("hex");
+
+  const snapshot = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs/${actionRunId}/snapshot`,
+    {
+      evidenceArtifactId,
+      sourceType: "action_post_state",
+      contentHashSha256,
+      providerConnectionId,
+      resourceRefs: [`evidence:${evidenceArtifactId}`, "manual:external-implementation-note"],
+      description: "Partner-attached implementation evidence; PureSOC provider writes remain disabled."
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_snapshot_attached", snapshot.status === 200, String(snapshot.status));
+  const verified = await postJson(
+    `${apiBaseUrl}/organizations/${customerOrganizationId}/actions/runs/${actionRunId}/verify`,
+    {
+      status: "manual_required",
+      evidenceArtifactIds: [evidenceArtifactId]
+    },
+    {
+      cookie: webCookie,
+      origin: webBaseUrl
+    }
+  );
+  record("live_demo_local_guided_action_verification_recorded", verified.status === 200, String(verified.status));
+  const verifiedBody = await verified.json();
+  return verifiedBody.actionRun ?? {};
+}
+
+async function exitCurrentTenantSession({ apiBaseUrl, partnerId, webBaseUrl, webCookie }) {
+  const currentTenantSession = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/tenant-access-sessions/current`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  const tenantSessionId = currentTenantSession.tenantSession?.id;
+  record("live_demo_local_current_tenant_session_loaded_for_exit", typeof tenantSessionId === "string" && tenantSessionId.length > 0);
+  if (tenantSessionId) {
+    await postForm(`${webBaseUrl}/partners/${partnerId}/tenant-sessions/${tenantSessionId}/exit`, {}, webCookie);
+  }
+  const exitedTenantSession = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/tenant-access-sessions/current`, {
+    headers: {
+      cookie: webCookie
+    }
+  });
+  record("live_demo_local_customer_tenant_exited", exitedTenantSession.tenantSession === null);
+}
+
 function isServedUiArtifactIndexSecretFree(serialized) {
   const forbiddenPatterns = [
     /puresoc_session=/i,
@@ -1196,7 +1731,23 @@ async function startApiSmokeServer({
   });
   const services = createApiServices({
     config,
-    now: () => new Date()
+    now: () => new Date(),
+    reportPdfRenderer: {
+      renderPdf(input) {
+        const body = Buffer.from(
+          `%PDF-1.4\n% PureSOC smoke PDF\n${input.filename}\n${input.html.includes("Score calibration")}\n%%EOF\n`,
+          "utf8"
+        );
+        return {
+          format: "pdf",
+          mimeType: "application/pdf",
+          body,
+          contentHashSha256: createHash("sha256").update(body).digest("hex"),
+          renderer: "puresoc-smoke-pdf-renderer",
+          renderedAt: input.renderedAt ?? new Date().toISOString()
+        };
+      }
+    }
   });
   const server = startApiServer(port, services);
   await waitForListening(server);
@@ -1508,6 +2059,28 @@ async function loginThroughWeb({ webBaseUrl, email, password, organizationId }) 
   record("web_login_proxy_sets_api_session_cookie", cookie.includes("puresoc_session"));
   return {
     cookie
+  };
+}
+
+async function registerThroughWeb({ webBaseUrl, email, password, displayName }) {
+  const response = await fetch(`${webBaseUrl}/auth/register`, {
+    method: "POST",
+    redirect: "manual",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded"
+    },
+    body: new URLSearchParams({
+      displayName,
+      email,
+      password
+    })
+  });
+  record("web_register_proxy_redirects_after_account_create", response.status === 303, String(response.status));
+  const cookie = response.headers.get("set-cookie") ?? "";
+  record("web_register_proxy_sets_api_session_cookie", cookie.includes("puresoc_session"));
+  return {
+    cookie,
+    location: response.headers.get("location") ?? "/"
   };
 }
 
@@ -3898,6 +4471,50 @@ function fixtureDemoCountryOnboardingForm() {
     "governance.mfa": "partial MFA rollout for privileged users",
     "governance.supplyChainSecurity": "implemented supplier security questionnaire",
     "review.assumptions": "Fixture demo onboarding for internal readiness only.",
+    "review.legalCaveatAcknowledged": "true"
+  };
+}
+
+function liveDemoCountryOnboardingForm(customer) {
+  const dynamicAnswersByCountry = {
+    DE: {
+      "scope.dynamicAnswers.de.bsi.portal_registration_expected": "unknown",
+      "scope.dynamicAnswers.de.bsi.sector_review": "food distribution"
+    },
+    PL: {
+      "scope.dynamicAnswers.pl.ksc.registration_expected": "unknown",
+      "scope.dynamicAnswers.pl.ksc.sector_review": "food distribution"
+    },
+    RO: {
+      "scope.dynamicAnswers.ro.dnsc.registration_expected": "unknown",
+      "scope.dynamicAnswers.ro.dnsc.article9_review": "food distribution"
+    }
+  };
+  return {
+    "company.legalName": customer.name,
+    "company.countryCode": customer.countryCode,
+    "contacts.primaryName": "Mara Partner",
+    "contacts.primaryEmail": `mara.${customer.countryCode.toLowerCase()}@live-demo-local.example`,
+    "contacts.securityName": "Security Owner",
+    "contacts.securityEmail": `security.${customer.countryCode.toLowerCase()}@live-demo-local.example`,
+    "business.sector": "food",
+    "business.mainProductsServices": "Food distribution and cold-chain logistics for regional customers.",
+    "business.countriesServed": customer.countryCode === "DE" ? "DE, PL, RO" : `${customer.countryCode}, DE`,
+    "business.employeeCount": customer.countryCode === "RO" ? "64" : "72",
+    "scope.activities": "food, logistics",
+    "scope.publicAdministration": "false",
+    "scope.telecomProvider": "false",
+    ...(dynamicAnswersByCountry[customer.countryCode] ?? {}),
+    "dependencies.microsoft365Usage": "used_for_identity_devices_security",
+    "dependencies.criticalSuppliers": "Microsoft 365, cold-chain logistics platform",
+    "dependencies.backupArrangements": "implemented encrypted backups with quarterly restore tests",
+    "dependencies.businessContinuity": "implemented continuity plan reviewed by management",
+    "dependencies.incidentResponse": "implemented incident-response runbook and escalation rota",
+    "governance.riskManagement": "implemented annual cyber risk review",
+    "governance.identityControls": "partial privileged access reviews for seasonal operations users",
+    "governance.mfa": "partial MFA rollout for privileged users",
+    "governance.supplyChainSecurity": "implemented supplier security questionnaire",
+    "review.assumptions": "Live local demo onboarding for internal readiness only.",
     "review.legalCaveatAcknowledged": "true"
   };
 }

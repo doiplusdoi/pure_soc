@@ -124,6 +124,8 @@ export interface InternalReadinessReportClassificationSnapshot {
 }
 
 export interface InternalReadinessReportVersionMetadata {
+  calibrationReviewStatus?: string;
+  calibrationVersion?: string;
   countryPackVersion?: string;
   inputSnapshot: {
     assessmentId: string;
@@ -170,6 +172,30 @@ export interface InternalReadinessReportConcepts {
     summary: string;
     value: number;
   };
+}
+
+export interface InternalReadinessCalibrationMetadata {
+  calibrationVersion: string;
+  reviewStatus: string;
+  status: string;
+  sourceReferences: ReportSourceReference[];
+  scoreSeparationPolicy: {
+    readinessScore: string;
+    evidenceConfidence: string;
+    legalApplicability: string;
+    sourceReferenceIds: string[];
+    rationale: string;
+  };
+  factors: Array<{
+    key: string;
+    dimension: string;
+    label: string;
+    weight: number | null;
+    treatment: string;
+    reviewStatus: string;
+    sourceReferenceIds: string[];
+    rationale: string;
+  }>;
 }
 
 export type InternalReadinessFindingProvenance =
@@ -259,6 +285,7 @@ export interface InternalReadinessReport {
   locale: PureSocLocale;
   version: InternalReadinessReportVersionMetadata;
   concepts: InternalReadinessReportConcepts;
+  calibration: InternalReadinessCalibrationMetadata;
   sourceReferences: ReportSourceReference[];
   controlResults: ReportControlResultSummary[];
   gaps: ReportGapSummary[];
@@ -385,6 +412,38 @@ export interface InternalReadinessEvidencePackageExport {
   bundle: Uint8Array;
 }
 
+const shellCalibrationSources: ReportSourceReference[] = [
+  {
+    sourceRecordId: "eu-nis2-directive-2022-2555",
+    title: "Directive (EU) 2022/2555",
+    jurisdiction: "EU",
+    sourceUrl: "https://eur-lex.europa.eu/eli/dir/2022/2555/oj/eng",
+    sourceVersion: "OJ L 333, 27.12.2022"
+  },
+  {
+    sourceRecordId: "eu-implementing-regulation-2024-2690",
+    title: "Commission Implementing Regulation (EU) 2024/2690",
+    jurisdiction: "EU",
+    sourceUrl: "https://eur-lex.europa.eu/eli/reg_impl/2024/2690/oj/eng",
+    sourceVersion: "2024/2690"
+  }
+];
+
+const shellCalibration: InternalReadinessCalibrationMetadata = {
+  calibrationVersion: "nis2-readiness-calibration.v1",
+  reviewStatus: "requires_product_legal_review",
+  status: "requires_product_legal_review",
+  sourceReferences: shellCalibrationSources,
+  scoreSeparationPolicy: {
+    readinessScore: "Readiness summarizes the current internal control status and does not decide legal applicability.",
+    evidenceConfidence: "Evidence confidence summarizes whether claims are backed by uploaded or provider-verified evidence.",
+    legalApplicability: "Legal applicability remains a separate country-pack classification output that requires legal review.",
+    sourceReferenceIds: ["eu-nis2-directive-2022-2555"],
+    rationale: "The NIS2 source model separates readiness, evidence confidence, and applicability."
+  },
+  factors: []
+};
+
 export const createReportShell = (organizationId: string, jurisdiction = "eu"): InternalReadinessReport => ({
   schemaVersion: "puresoc.report.internal_readiness.v1",
   organizationId,
@@ -412,6 +471,7 @@ export const createReportShell = (organizationId: string, jurisdiction = "eu"): 
     reportVersion: 1,
     triggerType: "manual_regenerate"
   },
+  calibration: shellCalibration,
   concepts: {
     applicability: {
       confidence: "low",
@@ -443,7 +503,7 @@ export const createReportShell = (organizationId: string, jurisdiction = "eu"): 
   },
   controlResults: [],
   gaps: [],
-  sourceReferences: [],
+  sourceReferences: shellCalibrationSources,
   recommendations: [],
   evidence: [],
   provenance: {

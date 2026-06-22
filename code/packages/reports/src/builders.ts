@@ -1,6 +1,7 @@
 import { resolveLegalCaveatMessage, resolvePureSocLocale } from "@puresoc/shared";
 
 import type {
+  InternalReadinessCalibrationMetadata,
   InternalReadinessCsvExport,
   InternalReadinessContradiction,
   InternalReadinessReportComparison,
@@ -20,6 +21,7 @@ import type {
   ReportSourceReference,
   RomaniaNotificationDraftExport
 } from "./report.types";
+import { loadNis2ReadinessCalibrationMetadata } from "./scoring-calibration";
 
 export interface StoredAnalysisControlResult {
   organizationId: string;
@@ -132,6 +134,7 @@ export interface BuildInternalReadinessReportInput {
   reportVersion?: 1 | 2;
   rendererVersion?: string;
   triggerType?: InternalReadinessReportTriggerType;
+  calibration?: InternalReadinessCalibrationMetadata;
   verifiedEvidence?: BuildInternalReadinessVerifiedEvidenceInput;
   previousReport?: InternalReadinessReport;
   controlResults: readonly StoredAnalysisControlResult[];
@@ -198,8 +201,10 @@ export const buildInternalReadinessReport = (
   const evidence = (input.evidence ?? []).map(toEvidenceSummary);
   const locale = resolvePureSocLocale(input.locale).locale;
   const legalCaveat = resolveLegalCaveatMessage(input.locale);
+  const calibration = input.calibration ?? loadNis2ReadinessCalibrationMetadata();
   const methodologyVersion = input.methodologyVersion ?? "puresoc.readiness.declared.v1";
   const version = buildInternalReadinessReportVersion(input, {
+    calibration,
     methodologyVersion,
     recommendationCount: recommendations.length
   });
@@ -227,6 +232,7 @@ export const buildInternalReadinessReport = (
     ...gaps.flatMap((gap) => gap.sourceReferences),
     ...recommendations.flatMap((recommendation) => recommendation.sourceReferences ?? []),
     ...(readinessPlan?.items.flatMap((item) => item.sourceReferences) ?? []),
+    ...calibration.sourceReferences,
     ...evidence.flatMap((artifact) =>
       artifact.linkedSourceRecordId
         ? [
@@ -257,6 +263,7 @@ export const buildInternalReadinessReport = (
     locale,
     version,
     concepts,
+    calibration,
     sourceReferences,
     controlResults,
     gaps,
@@ -494,11 +501,14 @@ const buildReportComparison = (input: {
 const buildInternalReadinessReportVersion = (
   input: BuildInternalReadinessReportInput,
   context: {
+    calibration: InternalReadinessCalibrationMetadata;
     methodologyVersion: string;
     recommendationCount: number;
   }
 ): InternalReadinessReportVersionMetadata =>
   stripUndefined({
+    calibrationReviewStatus: context.calibration.reviewStatus,
+    calibrationVersion: context.calibration.calibrationVersion,
     countryPackVersion: input.countryPackVersion,
     immutable: true,
     inputSnapshot: stripUndefined({

@@ -315,6 +315,46 @@ describe("api evidence reports dashboards exports", () => {
     );
     expect(rejectedReport.status).toBe(403);
 
+    const rejectedGeneratedPdf = await fetch(
+      `${baseUrl}/organizations/${organization.id}/reports/generated/${reportBody.report.id}/pdf?format=pdf`,
+      {
+        headers: {
+          cookie: other.cookie
+        }
+      }
+    );
+    expect(rejectedGeneratedPdf.status).toBe(403);
+
+    const generatedPdf = await fetch(
+      `${baseUrl}/organizations/${organization.id}/reports/generated/${reportBody.report.id}/pdf?format=pdf`,
+      {
+        headers: {
+          cookie: owner.cookie
+        }
+      }
+    );
+    expect(generatedPdf.status).toBe(200);
+    expect(generatedPdf.headers.get("content-type")).toBe("application/pdf");
+    expect(generatedPdf.headers.get("content-disposition")).toContain(
+      `puresoc-internal-readiness-v1-${reportBody.report.id}.pdf`
+    );
+    expect(generatedPdf.headers.get("x-puresoc-content-sha256")).toMatch(/^[0-9a-f]{64}$/);
+    const generatedPdfText = Buffer.from(await generatedPdf.arrayBuffer()).toString("utf8");
+    expect(generatedPdfText).toContain("%PDF-1.4");
+    expect(renderedPdfRequests.at(-1)?.html).toContain("Score calibration");
+    expect(renderedPdfRequests.at(-1)?.html).toContain("nis2-readiness-calibration.v1");
+    await expect(services.outputRepository.listReportExportsForReport(organization.id, reportBody.report.id)).resolves.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          exportFormat: "json"
+        }),
+        expect.objectContaining({
+          exportFormat: "pdf",
+          contentHashSha256: generatedPdf.headers.get("x-puresoc-content-sha256")
+        })
+      ])
+    );
+
     const dashboardResponse = await postJson(
       `/organizations/${organization.id}/dashboards/snapshots`,
       {

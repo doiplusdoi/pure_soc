@@ -184,6 +184,38 @@ export const downloadGapReportPdfRoute = async (
   return toPdfResult(result.pdf);
 };
 
+export const downloadGeneratedReportPdfRoute = async (
+  organizationId: string,
+  reportId: string,
+  searchParams: URLSearchParams,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<BinaryResult | JsonResult> => {
+  const format = searchParams.get("format") ?? "json";
+  if (format !== "pdf") {
+    throw new AuthError("invalid_request", "Only format=pdf is supported on this download route.", 400);
+  }
+
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
+  });
+
+  const result = await services.reports.downloadGeneratedReportPdf({
+    organizationId,
+    reportId,
+    actorUserId,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
+  return toPdfResult(result.pdf);
+};
+
 export const downloadRomaniaNotificationDraftPdfRoute = async (
   organizationId: string,
   searchParams: URLSearchParams,

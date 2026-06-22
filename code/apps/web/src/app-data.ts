@@ -16,7 +16,12 @@ import {
   type RoNis2SourceMapLink
 } from "@puresoc/country-pack-ro";
 import type { ActionRun } from "@puresoc/recommendations";
-import type { InternalReadinessReport, ReportEvidenceSummary, ReportSourceReference } from "@puresoc/reports";
+import {
+  loadNis2ReadinessCalibrationMetadata,
+  type InternalReadinessReport,
+  type ReportEvidenceSummary,
+  type ReportSourceReference
+} from "@puresoc/reports";
 import {
   LEGAL_CAVEAT_MESSAGE_KEY,
   PURESOC_LEGAL_CAVEAT,
@@ -398,11 +403,13 @@ export interface Nis2CountryAwareOnboardingModel {
   };
   countryPacks: readonly Nis2CountryPackDefinitionSurface[];
   errorMessage?: string;
+  firstReportId?: string;
   generatedReport?: {
     id: string;
     assessmentId?: string;
     status: string;
   };
+  improvedReportId?: string;
   onboardingScreens: readonly Nis2CountryOnboardingScreenSurface[];
   progress?: Nis2CountryOnboardingProgressSurface | null;
   selectedCountryCode: string;
@@ -749,6 +756,7 @@ export const createOperationalConsoleDemoModel = (): OperationalConsoleModel => 
         summary: "Demo dashboard contains critical readiness gaps."
       }
     },
+    calibration: loadNis2ReadinessCalibrationMetadata(),
     sourceReferences: [euArticle21, roRegistrationSource],
     controlResults: [],
     gaps: [],

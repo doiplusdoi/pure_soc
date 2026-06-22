@@ -149,6 +149,7 @@ const renderGapReport = (report: InternalReadinessReport): string => {
     renderStat("Evidence artifacts", report.evidence.length),
     "</section>",
     renderConceptSummary(report),
+    renderCalibrationSummary(report),
     renderVerifiedEvidenceComparison(report),
     '<section><h2>Top 3 gaps</h2>',
     report.gaps.length > 0
@@ -179,6 +180,21 @@ const renderConceptSummary = (report: InternalReadinessReport): string =>
     renderStat("Readiness", `${report.concepts.readiness.value}%`),
     renderStat("Evidence confidence", `${report.concepts.evidenceConfidence.value}%`),
     renderStat("Priority", report.concepts.priority.result),
+    "</section>"
+  ].join("\n");
+
+const renderCalibrationSummary = (report: InternalReadinessReport): string =>
+  [
+    '<section class="calibration-box">',
+    "<h2>Score calibration</h2>",
+    '<div class="summary-band">',
+    renderStat("Calibration", report.calibration.calibrationVersion),
+    renderStat("Review status", report.calibration.reviewStatus.replaceAll("_", " ")),
+    renderStat("Factors", report.calibration.factors.length),
+    "</div>",
+    `<p>${escapeHtml(report.calibration.scoreSeparationPolicy.readinessScore)}</p>`,
+    `<p>${escapeHtml(report.calibration.scoreSeparationPolicy.evidenceConfidence)}</p>`,
+    `<p>${escapeHtml(report.calibration.scoreSeparationPolicy.legalApplicability)}</p>`,
     "</section>"
   ].join("\n");
 
@@ -466,8 +482,8 @@ code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; over
 .empty { color: #5d6975; font-style: italic; }
 .fine-box { background: #eef6ff; border-color: #9fc5ef; margin: 18px 0; }
 .fine-box h2 { margin-top: 0; }
-.verified-box { border: 1px solid #b7c7d5; border-radius: 8px; margin: 18px 0; padding: 14px; }
-.verified-box h2:first-child { margin-top: 0; }
+.calibration-box, .verified-box { border: 1px solid #b7c7d5; border-radius: 8px; margin: 18px 0; padding: 14px; }
+.calibration-box h2:first-child, .verified-box h2:first-child { margin-top: 0; }
 .report-footer { border-top: 1px solid #cdd5dd; color: #5d6975; display: grid; gap: 6px; grid-template-columns: 1fr auto auto; margin-top: 26px; padding-top: 10px; }
 @page { margin: 18mm 13mm 20mm; }
 `;
