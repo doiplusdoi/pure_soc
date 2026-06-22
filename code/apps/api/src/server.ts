@@ -479,6 +479,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 
   const server = createServer(async (request, response) => {
     const url = new URL(request.url ?? "/", "http://localhost");
+    let requestContext: ApiRequestContext | null = null;
 
     if (request.method === "GET" && url.pathname === "/health") {
       response.setHeader("content-type", "application/json");
@@ -489,6 +490,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
     try {
       const middlewareDecision = await middleware.apply(request, url);
       const context = middlewareDecision.context;
+      requestContext = context;
       if (middlewareDecision.rejection) {
         sendJson(response, middlewareDecision.rejection);
         return;
@@ -541,13 +543,55 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       response.statusCode = 404;
       response.end("not found");
     } catch (error) {
-      sendJson(response, toJsonResultError(error));
+      const result = toJsonResultError(error);
+      if (result.statusCode >= 500) {
+        logUnhandledApiError(error, requestContext, request);
+      }
+      sendJson(response, result);
     }
   });
 
   server.listen(port);
   return server;
 };
+
+const logUnhandledApiError = (
+  error: unknown,
+  context: ApiRequestContext | null,
+  request: IncomingMessage
+): void => {
+  const errorRecord = error instanceof Error ? error : null;
+  console.error(
+    JSON.stringify({
+      service: "puresoc-api",
+      level: "error",
+      event: "api_unhandled_error",
+      requestId: context?.requestId ?? null,
+      method: context?.method ?? request.method ?? null,
+      pathname: context?.pathname ?? request.url ?? null,
+      routeFamily: context?.routeFamily ?? null,
+      errorName: errorRecord?.name ?? typeof error,
+      errorCode: safeErrorCode(error),
+      errorMessage: redactErrorMessage(errorRecord?.message ?? String(error))
+    })
+  );
+};
+
+const safeErrorCode = (error: unknown): string | null => {
+  if (!error || typeof error !== "object" || !("code" in error)) {
+    return null;
+  }
+
+  const code = (error as { code?: unknown }).code;
+  return typeof code === "string" && /^[a-zA-Z0-9_.-]{1,80}$/.test(code) ? code : null;
+};
+
+const redactErrorMessage = (message: string): string =>
+  message
+    .replaceAll(/(postgres(?:ql)?:\/\/)([^:@\s]+):([^@\s]+)@/gi, "$1[redacted]:[redacted]@")
+    .replaceAll(/(redis:\/\/)([^:@\s]*):([^@\s]+)@/gi, "$1[redacted]:[redacted]@")
+    .replaceAll(/(password|secret|token|authorization)=([^&\s]+)/gi, "$1=[redacted]")
+    .slice(0, 500);
 
 if (process.argv[1]?.endsWith("server.ts")) {
   startApiServer();

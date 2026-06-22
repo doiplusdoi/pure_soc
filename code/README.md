@@ -77,7 +77,7 @@ Memory mode mirrors Prisma mode's per-context repository shape. API services exp
 
 `PURESOC_PERSISTENCE_MODE=prisma` selects the existing Prisma adapters for audit logs, identity/session/organization/RBAC data, OIDC transient authorization state, provider connections and read-only telemetry, compliance results, stored analysis/report/dashboard output records, evidence metadata/access logs, billing, regulatory sources, remediation action metadata, and notification drafts through one shared Prisma client boundary.
 
-The Compose `puresoc-migrator` service runs `pnpm prisma:migrate:deploy` before the API starts. It applies checked-in migrations idempotently and does not reset the database or remove the named `puresoc-postgres-data` volume.
+The Compose `puresoc-migrator` service runs `pnpm prisma:migrate:deploy` before the API starts. The live `puresoc-api` service also runs the same idempotent deploy command before `pnpm start:api` so deployment runners that skip one-shot services or ignore `depends_on: service_completed_successfully` still apply checked-in migrations before serving registration and other Prisma-backed routes. Neither path resets the database or removes the named `puresoc-postgres-data` volume.
 
 Startup validation fails fast for production-sensitive combinations such as insecure session cookies in production, missing Origin/Referer enforcement, Stripe billing without secrets, S3 storage without required connection settings, HTTP scanners without endpoints, production noop upload scanning, and missing provider-token encryption key material when the Microsoft 365 connector is live.
 
@@ -475,7 +475,7 @@ M41 adds an explicit audit export handoff contract to exported segments and chec
 
 The current application does not write audit exports to object storage, WORM storage, timestamping services, signing services, KMS/HSMs, or external notarization providers. Handoff metadata always reports `storagePointerReturnedToClient=false`, `publicUrlReturnedToClient=false`, `wormStorage=false`, `externalNotarization=false`, and `legalCertification=false` unless a future implementation genuinely changes those guarantees and tests it. If an external checkpoint provider fails, the failure metadata is intentionally generic and secret-free; provider error strings are not returned to browser clients.
 
-Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops. The Compose migrator reuses the API image to run `pnpm prisma:migrate:deploy` before API startup.
+Dockerfiles under `infra/docker/` run workspace entrypoint scripts. API, web, and report-renderer start implemented HTTP processes. Worker, scheduler, and connector-runner start typed job-runtime loops. The Compose migrator reuses the API image to run `pnpm prisma:migrate:deploy`, and the live Compose API service defensively runs that same idempotent migration command before `pnpm start:api`.
 
 ## API Middleware
 

@@ -2,7 +2,7 @@ import { createHmac } from "node:crypto";
 import { Readable } from "node:stream";
 import { request as httpRequest, type IncomingMessage } from "node:http";
 import type { AddressInfo } from "node:net";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { BillingRuntimeConfig } from "@puresoc/billing-core";
 import { loadConfig } from "@puresoc/config";
@@ -453,6 +453,41 @@ describe("api middleware rate limits and origin protection", () => {
       code: "origin_not_allowed",
       routeFamily: "auth"
     });
+  });
+
+  it("logs unexpected API errors with route context and redacted messages", async () => {
+    boot({
+      PURESOC_API_TRUSTED_ORIGINS: "https://app.example.test"
+    });
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(services.localAuth, "register").mockRejectedValue(
+      new Error("postgresql://api:super-secret@db:5432/puresoc failed password=hidden")
+    );
+
+    try {
+      const response = await postJson(
+        "/auth/register",
+        {
+          email: "logged-internal-error@example.test",
+          password,
+          displayName: "Logged Internal Error"
+        },
+        {
+          origin: "https://app.example.test"
+        }
+      );
+
+      expect(response.status).toBe(500);
+      const body = await readJson<{ error: { code: string } }>(response);
+      expect(body.error.code).toBe("internal_error");
+      const logged = String(errorSpy.mock.calls[0]?.[0] ?? "");
+      expect(logged).toContain("api_unhandled_error");
+      expect(logged).toContain('"routeFamily":"auth"');
+      expect(logged).not.toContain("super-secret");
+      expect(logged).not.toContain("password=hidden");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("rate-limits configured route families before route handling", async () => {

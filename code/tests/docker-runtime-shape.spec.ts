@@ -114,6 +114,7 @@ describe("Docker runtime command shape", () => {
     expect(compose).toContain("POSTGRES_DB: puresoc_live");
     expect(compose).toContain("PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
+    expect(readComposeServiceBlock(compose, "puresoc-api")).toContain("pnpm prisma:migrate:deploy && exec pnpm start:api");
     expect(compose).toContain("expose:");
     expect(compose).not.toContain("3001:3001");
   });

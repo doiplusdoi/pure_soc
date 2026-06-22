@@ -177,6 +177,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.api
+    command: ["sh", "-c", "pnpm prisma:migrate:deploy && exec pnpm start:api"]
     environment:
       <<:
         - *puresoc-backend-base-environment
