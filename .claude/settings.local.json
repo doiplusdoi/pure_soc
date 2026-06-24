@@ -3,7 +3,10 @@
     "allow": [
       "Bash(xargs -I{} sh -c 'echo \"{}\"; grep -c \"it\\(\\\\|test\\(\" \"{}\"')",
       "Read(//Users/solo/SoloCode/**)",
-      "WebFetch(domain:pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro)"
+      "WebFetch(domain:pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro)",
+      "Bash(curl -s -i -X POST \"https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/login\" -H \"Content-Type: application/x-www-form-urlencoded\" --data \"email=test@test.com&password=wrongpass123\" --max-time 25)",
+      "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' --data 'email=newuser__CMDSUB_OUTPUT__@example.com&password=SuperSecret123!&organizationName=TestOrg&displayName=Test+User' --max-time 25)",
+      "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro' -H 'Referer: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/register' --data 'email=newuser__CMDSUB_OUTPUT__b@example.com&password=SuperSecret123!&displayName=Test+User' --max-time 25)"
     ]
   }
 }
