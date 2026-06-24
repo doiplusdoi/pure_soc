@@ -132,6 +132,8 @@ Keep entries short, specific, and actionable.
 - Generated-report PDF downloads should render the stored generated report by ID, not recompute latest analysis. Use `/organizations/:orgId/reports/generated/:reportId/pdf?format=pdf` and the served `/reports/generated/:reportId/pdf?format=pdf` proxy for immutable first/improved demo PDFs; these exports must still be stored as evidence, content-hashed, authorization-checked, and audited on download.
 - `@live-demo-local` is seed-independent for partner/customer/onboarding records but still uses fixture-mode Microsoft 365 by design. It proves the served path and no-write action lifecycle locally; it is not live Microsoft Graph tenant proof.
 - Recursive gap work should use `docs/recursive-gap-codex-prompt.md`: pick one unblocked local slice, create/update the current `docs/PLAN_Mx.md`, implement and validate, update gap/status docs, then stage the next `PLAN_M{x+1}.md` instead of trying to finish every open gap in one run.
+- The canonical product MVP shell is route-based: `/dashboard`, `/onboarding`, `/gap-analyzer`, `/microsoft365`, `/connectors`, `/connectors/microsoft365`, `/remediation`, `/evidence`, `/reports`, `/settings`, and partner-visible `/customers` should use the product facade DTOs under `/api/*` instead of exposing legacy implementation route names or provider/OAuth internals.
+- The `/api/*` product facade is a business-facing compatibility layer over existing services. Keep unsupported destructive/update aliases explicit until real repository semantics, authorization, retention/revocation policy, audit, and tests exist; do not make UI-only fake success paths for disconnect, evidence deletion, gap updates, or remediation execution.
 
 ## How To Add Learnings
 

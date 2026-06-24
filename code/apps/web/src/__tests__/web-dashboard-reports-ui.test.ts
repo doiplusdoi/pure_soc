@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import type { AddressInfo } from "node:net";
+import type { Server } from "node:http";
 import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -15,6 +16,7 @@ import {
   renderNotificationSettingsScreen,
   renderOrganizationInvitationsScreen,
   renderPartnerConsoleScreen,
+  renderProductMvpShell,
   renderOperationalConsole,
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -29,7 +31,142 @@ import {
   startWebServer
 } from "../server";
 
+const waitForListening = async (server: Server): Promise<void> => {
+  if (server.address()) {
+    return;
+  }
+  await new Promise<void>((resolve, reject) => {
+    server.once("listening", resolve);
+    server.once("error", reject);
+  });
+};
+
 describe("web dashboard reports operational UI", () => {
+  const productShellModel = () => ({
+    activeRoute: "dashboard" as const,
+    customers: [],
+    dashboard: {
+      workspace: {
+        id: "org_demo",
+        name: "Asterion Tools",
+        legalName: "Asterion Tools SRL",
+        countryCode: "RO",
+        billingStatus: "none"
+      },
+      countryPack: {
+        selected: "RO",
+        available: ["RO", "PL", "DE"],
+        status: "review_required"
+      },
+      readiness: {
+        score: 42,
+        label: "PureSOC internal readiness",
+        assessmentId: "org_demo:nis2:assessment",
+        baselineState: "draft"
+      },
+      microsoft365: {
+        status: "not_connected",
+        connectionId: null,
+        tenantName: "Microsoft 365 is not connected yet",
+        lastSyncAt: null,
+        writeEnabled: false
+      },
+      gaps: {
+        critical: 1,
+        open: 3,
+        recent: [
+          {
+            id: "gap_1",
+            title: "MFA coverage is incomplete",
+            controlArea: "Identity",
+            severity: "critical",
+            source: "manual input",
+            businessImpact: "Accounts remain easier to compromise.",
+            status: "open"
+          }
+        ]
+      },
+      recommendations: [],
+      evidence: [],
+      reports: [],
+      remediation: {
+        total: 0,
+        approvalRequested: 0,
+        approved: 0,
+        dryRunOnly: true
+      },
+      lastSync: null,
+      nextAction: {
+        label: "Start readiness onboarding",
+        href: "/onboarding"
+      },
+      legalCaveat: PURESOC_LEGAL_CAVEAT
+    },
+    details: {},
+    session: {
+      user: {
+        id: "user_demo",
+        email: "owner@example.test",
+        displayName: "Owner"
+      },
+      session: {
+        activeOrganizationId: "org_demo"
+      }
+    }
+  });
+
+  it("renders the clean product MVP shell with canonical navigation and business-facing copy", () => {
+    const html = renderProductMvpShell(productShellModel());
+
+    expect(html).toContain('data-ui-smoke="product-mvp-shell"');
+    expect(html).toContain('href="/dashboard"');
+    expect(html).toContain('href="/onboarding"');
+    expect(html).toContain('href="/gap-analyzer"');
+    expect(html).toContain('href="/microsoft365"');
+    expect(html).toContain('href="/remediation"');
+    expect(html).toContain('href="/evidence"');
+    expect(html).toContain('href="/reports"');
+    expect(html).toContain('href="/settings"');
+    expect(html).toContain("Microsoft 365 is not connected yet");
+    expect(html).toContain("Start readiness onboarding");
+    expect(html).toContain("Remediation actions require approval");
+    expect(html).not.toContain("Dashboard Snapshot Required");
+    expect(html).not.toContain("provider_connection_oauth");
+    expect(html).not.toContain("context message");
+  });
+
+  it("redirects old fragmented product routes to canonical MVP routes", async () => {
+    const server = startWebServer(0, {
+      apiBaseUrl: "http://127.0.0.1:9",
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(server);
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const root = await fetch(`${baseUrl}/`, { redirect: "manual" });
+      expect(root.status).toBe(303);
+      expect(root.headers.get("location")).toBe("/dashboard");
+
+      const oldConnector = await fetch(`${baseUrl}/providers/microsoft365`, { redirect: "manual" });
+      expect(oldConnector.status).toBe(303);
+      expect(oldConnector.headers.get("location")).toBe("/connectors/microsoft365");
+
+      const oldOnboarding = await fetch(`${baseUrl}/onboarding/nis2?country=RO`, { redirect: "manual" });
+      expect(oldOnboarding.status).toBe(303);
+      expect(oldOnboarding.headers.get("location")).toBe("/onboarding?country=RO");
+
+      const nestedConnector = await fetch(`${baseUrl}/onboarding/romania/connector`, { redirect: "manual" });
+      expect(nestedConnector.status).toBe(303);
+      expect(nestedConnector.headers.get("location")).toBe("/microsoft365");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
     const model = createOperationalConsoleDemoModel();
     const html = renderOperationalConsole(model);
@@ -67,8 +204,10 @@ describe("web dashboard reports operational UI", () => {
 
   it("redirects browser GET requests for form action URLs to the real auth pages", async () => {
     const server = startWebServer(0, {
-      apiBaseUrl: "http://127.0.0.1:9"
+      apiBaseUrl: "http://127.0.0.1:9",
+      listenHost: "127.0.0.1"
     });
+    await waitForListening(server);
     const address = server.address() as AddressInfo;
     const baseUrl = `http://127.0.0.1:${address.port}`;
 

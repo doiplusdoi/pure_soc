@@ -121,8 +121,40 @@ import {
   listPartnersRoute,
   startTenantAccessRoute
 } from "./partners/routes";
+import {
+  productAuditRoute,
+  productCompleteOnboardingRoute,
+  productCreateCustomerRoute,
+  productCreateEvidenceRoute,
+  productCreateReportRoute,
+  productCreateWorkspaceRoute,
+  productDashboardRoute,
+  productGetCountryPackRoute,
+  productGetOnboardingAnswersRoute,
+  productGetWorkspaceRoute,
+  productImpersonateCustomerRoute,
+  productListConnectorsRoute,
+  productListCountryPacksRoute,
+  productListCustomersRoute,
+  productListEvidenceRoute,
+  productListGapsRoute,
+  productListRecommendationsRoute,
+  productListRemediationRoute,
+  productListReportsRoute,
+  productListWorkspacesRoute,
+  productMicrosoft365ConnectRoute,
+  productMicrosoft365ConnectorRoute,
+  productMicrosoft365FindingsRoute,
+  productMicrosoft365OverviewRoute,
+  productMicrosoft365SnapshotRoute,
+  productMicrosoft365SyncRoute,
+  productOnboardingSchemaRoute,
+  productRunReadinessRoute,
+  productSaveOnboardingAnswersRoute,
+  productUnsupportedWriteRoute
+} from "./product/routes";
 
-type ApiRouteMethod = "DELETE" | "GET" | "POST" | "PUT";
+type ApiRouteMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 
 interface ApiRouteDispatchInput {
   request: IncomingMessage;
@@ -139,7 +171,7 @@ interface ApiRouteEntry {
   pattern: RegExp;
   routeFamily: ApiRouteFamily;
   rawBody?: boolean;
-  handler: (input: ApiRouteDispatchInput) => Promise<ApiResult>;
+  handler: (input: ApiRouteDispatchInput) => ApiResult | Promise<ApiResult>;
 }
 
 const route = (
@@ -161,6 +193,89 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     stripeBillingWebhookRoute(rawBody ?? Buffer.alloc(0), request.headers["stripe-signature"], context, services), {
       rawBody: true
     }),
+  route("GET", /^\/api\/dashboard$/, "tenant_read", ({ request, services }) =>
+    productDashboardRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/workspaces$/, "tenant_read", ({ request, services }) =>
+    productListWorkspacesRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/workspaces$/, "organization", ({ body, request, context, services }) =>
+    productCreateWorkspaceRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/workspaces\/([^/]+)$/, "tenant_read", ({ params, request, services }) =>
+    productGetWorkspaceRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("PATCH", /^\/api\/workspaces\/([^/]+)$/, "organization", () =>
+    productUnsupportedWriteRoute("Workspace profile updates need a real update repository before the product facade enables PATCH.")),
+  route("GET", /^\/api\/customers$/, "partner", ({ request, services }) =>
+    productListCustomersRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/customers$/, "partner", ({ body, request, context, services }) =>
+    productCreateCustomerRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/customers\/([^/]+)$/, "partner", ({ params, request, services }) =>
+    productGetWorkspaceRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/customers\/([^/]+)\/impersonate$/, "partner", ({ params, body, request, context, services }) =>
+    productImpersonateCustomerRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/country-packs$/, "public_read", () => productListCountryPacksRoute()),
+  route("GET", /^\/api\/country-packs\/([^/]+)$/, "public_read", ({ params }) =>
+    productGetCountryPackRoute(params[0] ?? "")),
+  route("GET", /^\/api\/onboarding\/schema$/, "public_compliance", ({ url }) =>
+    productOnboardingSchemaRoute(url.searchParams)),
+  route("GET", /^\/api\/onboarding\/answers$/, "compliance", ({ request, services }) =>
+    productGetOnboardingAnswersRoute(request.headers.cookie, services)),
+  route("PUT", /^\/api\/onboarding\/answers$/, "compliance", ({ body, request, context, services }) =>
+    productSaveOnboardingAnswersRoute(body, request.headers.cookie, context, services)),
+  route("POST", /^\/api\/onboarding\/complete$/, "compliance", ({ request, context, services }) =>
+    productCompleteOnboardingRoute(request.headers.cookie, context, services)),
+  route("POST", /^\/api\/readiness\/run$/, "compliance", ({ body, request, context, services }) =>
+    productRunReadinessRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/gaps$/, "tenant_read", ({ request, services }) =>
+    productListGapsRoute(request.headers.cookie, services)),
+  route("PATCH", /^\/api\/gaps\/([^/]+)$/, "compliance", () =>
+    productUnsupportedWriteRoute("Gap status updates need a persisted gap workflow before PATCH is enabled.")),
+  route("GET", /^\/api\/recommendations$/, "tenant_read", ({ request, services }) =>
+    productListRecommendationsRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/microsoft365\/overview$/, "provider", ({ request, services }) =>
+    productMicrosoft365OverviewRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/microsoft365\/snapshot$/, "provider", ({ request, services }) =>
+    productMicrosoft365SnapshotRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/microsoft365\/sync$/, "provider", ({ body, request, context, services }) =>
+    productMicrosoft365SyncRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/microsoft365\/findings$/, "provider", ({ request, services }) =>
+    productMicrosoft365FindingsRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/connectors$/, "provider", ({ request, services }) =>
+    productListConnectorsRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/connectors\/microsoft365$/, "provider", ({ request, services }) =>
+    productMicrosoft365ConnectorRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/connectors\/microsoft365\/connect$/, "provider", ({ body, request, context, services }) =>
+    productMicrosoft365ConnectRoute(body, request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/connectors\/microsoft365\/callback$/, "provider_callback", ({ request, url, body, context, services }) => {
+    const callbackInput = request.method === "GET" ? Object.fromEntries(url.searchParams.entries()) : body;
+    return productUnsupportedWriteRoute(
+      `Use /organizations/:organizationId/provider-connections/microsoft365/consent/callback for the current callback contract. Received ${Object.keys(callbackInput).length} callback fields.`
+    );
+  }),
+  route("POST", /^\/api\/connectors\/microsoft365\/disconnect$/, "provider", () =>
+    productUnsupportedWriteRoute("Microsoft 365 disconnect needs token revocation and audit-specific repository support before it is enabled.")),
+  route("POST", /^\/api\/connectors\/microsoft365\/sync$/, "provider", ({ body, request, context, services }) =>
+    productMicrosoft365SyncRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/remediation\/actions$/, "actions", ({ request, services }) =>
+    productListRemediationRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/remediation\/actions\/([^/]+)\/(preview|approve|execute)$/, "actions", () =>
+    productUnsupportedWriteRoute("Use the existing action-run lifecycle routes until the product action center owns these transitions.")),
+  route("GET", /^\/api\/evidence$/, "evidence", ({ request, services }) =>
+    productListEvidenceRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/evidence$/, "evidence", ({ body, request, context, services }) =>
+    productCreateEvidenceRoute(body, request.headers.cookie, context, services)),
+  route("DELETE", /^\/api\/evidence\/([^/]+)$/, "evidence", () =>
+    productUnsupportedWriteRoute("Evidence delete needs retention and audit policy support before it is exposed.")),
+  route("GET", /^\/api\/reports$/, "tenant_read", ({ request, services }) =>
+    productListReportsRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/reports\/nis2-summary$/, "compliance", ({ body, request, context, services }) =>
+    productCreateReportRoute("nis2-summary", body, request.headers.cookie, context, services)),
+  route("POST", /^\/api\/reports\/gap-list$/, "compliance", ({ body, request, context, services }) =>
+    productCreateReportRoute("gap-list", body, request.headers.cookie, context, services)),
+  route("POST", /^\/api\/reports\/m365-posture$/, "compliance", ({ body, request, context, services }) =>
+    productCreateReportRoute("m365-posture", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/reports\/([^/]+)\/download$/, "tenant_read", () =>
+    productUnsupportedWriteRoute("Use the generated report PDF route until the product facade owns binary report downloads.")),
+  route("GET", /^\/api\/audit$/, "tenant_read", ({ request, services }) =>
+    productAuditRoute(request.headers.cookie, services)),
   route("POST", /^\/auth\/register$/, "auth", ({ body, context, services }) => registerRoute(body, context, services)),
   route("POST", /^\/auth\/email\/verify$/, "auth", ({ body, context, services }) =>
     verifyEmailRoute(body, context, services)),

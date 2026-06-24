@@ -25,6 +25,7 @@ export {
   renderNotificationSettingsScreen,
   renderOrganizationInvitationsScreen,
   renderPartnerConsoleScreen,
+  renderProductMvpShell,
   renderOperationalConsole,
   renderRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -37,11 +38,14 @@ export {
   type RenderNotificationSettingsOptions,
   type RenderOrganizationInvitationsOptions,
   type RenderPartnerConsoleOptions,
+  type RenderProductMvpShellOptions,
   type RenderOperationalConsoleOptions,
   type RenderRegisterScreenOptions,
   type RenderRomaniaOnboardingRouteOptions,
   type RenderWorkspaceSelectionOptions,
   type RomaniaOnboardingScreen,
   type RuntimeMessageScreenInput,
-  type Microsoft365ConnectorPageModel
+  type Microsoft365ConnectorPageModel,
+  type ProductMvpRoute,
+  type ProductMvpShellModel
 } from "./operational-console";

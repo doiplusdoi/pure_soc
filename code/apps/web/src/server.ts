@@ -31,17 +31,21 @@ import {
   renderEmailVerificationScreen,
   renderOrganizationInvitationsScreen,
   renderPartnerConsoleScreen,
+  renderProductMvpShell,
   renderOperationalConsole,
   renderRegisterScreen as renderBaseRegisterScreen,
   renderRomaniaOnboardingRoute,
   renderRuntimeMessageScreen,
   renderWorkspaceSelectionScreen,
+  type ProductMvpRoute,
+  type ProductMvpShellModel,
   type RomaniaOnboardingScreen
 } from "./operational-console";
 
 export interface WebServerOptions {
   apiBaseUrl?: string;
   apiRequestOrigin?: string;
+  listenHost?: string;
   publicBaseUrl?: string;
 }
 
@@ -268,6 +272,56 @@ interface CreatePartnerCustomerWebResponse {
   };
 }
 
+interface ProductDashboardWebResponse {
+  dashboard: ProductMvpShellModel["dashboard"];
+}
+
+interface ProductCustomersWebResponse {
+  customers: ProductMvpShellModel["customers"];
+}
+
+interface ProductConnectorsWebResponse {
+  connectors: NonNullable<ProductMvpShellModel["details"]>["connectors"];
+}
+
+interface ProductGapsWebResponse {
+  gaps: NonNullable<ProductMvpShellModel["details"]>["gaps"];
+}
+
+interface ProductRecommendationsWebResponse {
+  recommendations: NonNullable<ProductMvpShellModel["details"]>["recommendations"];
+}
+
+interface ProductEvidenceWebResponse {
+  evidence: NonNullable<ProductMvpShellModel["details"]>["evidence"];
+}
+
+interface ProductReportsWebResponse {
+  reports: NonNullable<ProductMvpShellModel["details"]>["reports"];
+}
+
+interface ProductRemediationWebResponse {
+  actions: NonNullable<ProductMvpShellModel["details"]>["remediationActions"];
+}
+
+interface ProductMicrosoft365FindingsWebResponse {
+  findings: NonNullable<ProductMvpShellModel["details"]>["findings"];
+}
+
+const productRouteByPath = new Map<string, ProductMvpRoute>([
+  ["/customers", "customers"],
+  ["/dashboard", "dashboard"],
+  ["/evidence", "evidence"],
+  ["/gap-analyzer", "gap_analyzer"],
+  ["/microsoft365", "microsoft365"],
+  ["/connectors", "connectors"],
+  ["/connectors/microsoft365", "connectors_microsoft365"],
+  ["/onboarding", "onboarding"],
+  ["/remediation", "remediation"],
+  ["/reports", "reports"],
+  ["/settings", "settings"]
+]);
+
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
   const apiBaseUrl = normalizeBaseUrl(
     options.apiBaseUrl ??
@@ -308,6 +362,62 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           apiBacked: true
         })
       );
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/") {
+      response.statusCode = 303;
+      response.setHeader("location", "/dashboard");
+      response.end();
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/onboarding/nis2") {
+      response.statusCode = 303;
+      response.setHeader("location", `/onboarding${url.search}`);
+      response.end();
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname.startsWith("/onboarding/romania/")) {
+      const target = url.pathname.endsWith("/gaps")
+        ? "/gap-analyzer"
+        : url.pathname.endsWith("/connector")
+          ? "/microsoft365"
+          : "/onboarding";
+      response.statusCode = 303;
+      response.setHeader("location", target);
+      response.end();
+      return;
+    }
+
+    if (request.method === "GET" && url.pathname === "/providers/microsoft365") {
+      response.statusCode = 303;
+      response.setHeader("location", "/connectors/microsoft365");
+      response.end();
+      return;
+    }
+
+    const productRoute = productRouteByPath.get(url.pathname);
+    if (request.method === "GET" && productRoute) {
+      const productModel = await loadProductMvpShellModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        route: productRoute
+      });
+
+      if (!productModel) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in and select a workspace to open PureSOC."
+          })
+        );
+        return;
+      }
+
+      sendHtml(response, renderProductMvpShell(productModel));
       return;
     }
 
@@ -611,6 +721,245 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       process.env.PURESOC_PUBLIC_BASE_URL ??
       resolvePublicRequestOrigin(request, port);
     const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
+
+    if (request.method === "POST" && url.pathname === "/onboarding") {
+      const form = await readFormBody(request);
+      const saved = await apiJson<unknown>(apiBaseUrl, "/api/onboarding/answers", {
+        method: "PUT",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {
+          countryCode: optionalFormValue(form.get("countryCode")) ?? "RO",
+          currentScreen: "company_profile",
+          status: "in_progress",
+          completedScreens: ["company_profile"],
+          answers: {
+            company: {
+              legalName: form.get("legalName") ?? "",
+              countryCode: optionalFormValue(form.get("countryCode")) ?? "RO"
+            },
+            contacts: {
+              primaryEmail: form.get("primaryContactEmail") ?? ""
+            },
+            business: {
+              sector: form.get("sector") ?? "",
+              employeeCount: numberFormValue(form.get("employeeCount"))
+            },
+            dependencies: {
+              microsoft365Usage: form.get("microsoft365Usage") ?? ""
+            },
+            governance: {
+              securityPractices: form.get("securityPractices") ?? ""
+            }
+          }
+        }
+      });
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/gap-analyzer?message=${encodeURIComponent(
+          apiSucceeded(saved.statusCode) ? "Readiness onboarding saved." : "Onboarding was not saved. Check required fields."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/gap-analyzer/run") {
+      const result = await apiJson<unknown>(apiBaseUrl, "/api/readiness/run", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {}
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/gap-analyzer?message=${encodeURIComponent(
+          apiSucceeded(result.statusCode) ? "Gap analyzer completed." : "Gap analyzer needs saved onboarding answers first."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/connectors/microsoft365/connect") {
+      const begin = await apiJson<Microsoft365ConsentBeginWebResponse>(apiBaseUrl, "/api/connectors/microsoft365/connect", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {
+          redirectUri: `${requestOrigin}/connectors/microsoft365/callback`,
+          requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
+        }
+      });
+
+      if (begin.statusCode !== 201 || !begin.body.url) {
+        response.statusCode = 303;
+        response.setHeader(
+          "location",
+          `/connectors/microsoft365?message=${encodeURIComponent("Microsoft 365 connection could not start.")}`
+        );
+        response.end();
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader("location", begin.body.url);
+      response.end();
+      return;
+    }
+
+    if (
+      (request.method === "GET" || request.method === "POST") &&
+      url.pathname === "/connectors/microsoft365/callback"
+    ) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        sendHtml(response, renderLoginScreen({ errorMessage: "Sign in to complete Microsoft 365 tenant consent." }), 401);
+        return;
+      }
+
+      const callbackInput =
+        request.method === "GET"
+          ? Object.fromEntries(url.searchParams.entries())
+          : Object.fromEntries((await readFormBody(request)).entries());
+      const completed = await apiJson<unknown>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/provider-connections/microsoft365/consent/callback`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: apiRequestOrigin,
+          body: {
+            ...callbackInput,
+            redirectUri: `${requestOrigin}/connectors/microsoft365/callback`
+          }
+        }
+      );
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/microsoft365?message=${encodeURIComponent(
+          apiSucceeded(completed.statusCode)
+            ? "Microsoft 365 connection completed."
+            : "Microsoft 365 consent was not completed."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/evidence") {
+      const form = await readFormBody(request);
+      const created = await apiJson<unknown>(apiBaseUrl, "/api/evidence", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {
+          title: form.get("title") ?? "",
+          controlId: optionalFormValue(form.get("controlId")),
+          content: form.get("content") ?? "",
+          mimeType: "text/plain"
+        }
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/evidence?message=${encodeURIComponent(
+          apiSucceeded(created.statusCode) ? "Evidence attached." : "Evidence was not attached."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && /^\/reports\/(nis2-summary|gap-list|m365-posture)$/.test(url.pathname)) {
+      const reportKind = url.pathname.split("/").pop() ?? "nis2-summary";
+      const created = await apiJson<unknown>(apiBaseUrl, `/api/reports/${reportKind}`, {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {}
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/reports?message=${encodeURIComponent(
+          apiSucceeded(created.statusCode) ? "Report generated." : "Run the gap analyzer before generating reports."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/customers") {
+      const form = await readFormBody(request);
+      const created = await apiJson<unknown>(apiBaseUrl, "/api/customers", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {
+          name: form.get("name") ?? "",
+          legalName: optionalFormValue(form.get("legalName")),
+          countryCode: optionalFormValue(form.get("countryCode")) ?? "RO"
+        }
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/customers?message=${encodeURIComponent(
+          apiSucceeded(created.statusCode) ? "Customer workspace added." : "Customer was not added."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    const productCustomerEnter = /^\/customers\/([^/]+)\/impersonate$/.exec(url.pathname);
+    if (request.method === "POST" && productCustomerEnter) {
+      const form = await readFormBody(request);
+      const customerId = productCustomerEnter[1] ?? "";
+      const opened = await apiJson<PartnerTenantSessionWebResponse>(
+        apiBaseUrl,
+        `/api/customers/${encodeURIComponent(customerId)}/impersonate`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: apiRequestOrigin,
+          body: {
+            reason: form.get("reason") ?? ""
+          }
+        }
+      );
+      if (apiSucceeded(opened.statusCode)) {
+        await apiJson<unknown>(apiBaseUrl, "/auth/session/active-organization", {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: apiRequestOrigin,
+          body: {
+            organizationId: opened.body.tenantSession?.effectiveOrganizationId ?? customerId
+          }
+        });
+      }
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/dashboard?message=${encodeURIComponent(
+          apiSucceeded(opened.statusCode)
+            ? "Customer workspace opened. Actions are logged with your real user."
+            : "Customer workspace could not be opened."
+        )}`
+      );
+      response.end();
+      return;
+    }
 
     if (request.method === "POST" && url.pathname === "/partners") {
       const form = await readFormBody(request);
@@ -1773,7 +2122,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
     }
   });
 
-  server.listen(port, () => {
+  const listenHost = options.listenHost ?? process.env.PURESOC_WEB_LISTEN_HOST;
+  server.listen(port, listenHost, () => {
     const address = server.address();
     console.log(
       JSON.stringify({
@@ -1925,6 +2275,14 @@ const webRequestErrorMessage = (error: unknown): string =>
 const optionalFormValue = (value: string | null): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;
 
+const numberFormValue = (value: string | null): number | undefined => {
+  if (!value || value.trim().length === 0) {
+    return undefined;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : undefined;
+};
+
 const sendHtml = (response: { statusCode: number; setHeader: (name: string, value: string) => void; end: (body: string) => void }, html: string, statusCode = 200) => {
   response.statusCode = statusCode;
   response.setHeader("content-type", "text/html; charset=utf-8");
@@ -1941,6 +2299,103 @@ const readFormBody = async (request: AsyncIterable<Buffer>): Promise<URLSearchPa
   }
 
   return new URLSearchParams(body);
+};
+
+const loadProductMvpShellModel = async (input: {
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  route: ProductMvpRoute;
+}): Promise<ProductMvpShellModel | null> => {
+  const session = await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (session.statusCode !== 200) {
+    return null;
+  }
+  if (!session.body.session.activeOrganizationId) {
+    return null;
+  }
+
+  const dashboard = await apiJson<ProductDashboardWebResponse>(input.apiBaseUrl, "/api/dashboard", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (dashboard.statusCode !== 200) {
+    return null;
+  }
+
+  const [customers, connectors] = await Promise.all([
+    apiJson<ProductCustomersWebResponse>(input.apiBaseUrl, "/api/customers", {
+      method: "GET",
+      cookie: input.cookie
+    }).catch(() => ({ statusCode: 500, body: { customers: [] } })),
+    apiJson<ProductConnectorsWebResponse>(input.apiBaseUrl, "/api/connectors", {
+      method: "GET",
+      cookie: input.cookie
+    }).catch(() => ({ statusCode: 500, body: { connectors: [] } }))
+  ]);
+
+  const details: ProductMvpShellModel["details"] = {
+    connectors: connectors.statusCode === 200 ? connectors.body.connectors ?? [] : []
+  };
+
+  if (input.route === "gap_analyzer") {
+    const [gaps, recommendations] = await Promise.all([
+      apiJson<ProductGapsWebResponse>(input.apiBaseUrl, "/api/gaps", {
+        method: "GET",
+        cookie: input.cookie
+      }),
+      apiJson<ProductRecommendationsWebResponse>(input.apiBaseUrl, "/api/recommendations", {
+        method: "GET",
+        cookie: input.cookie
+      })
+    ]);
+    details.gaps = gaps.statusCode === 200 ? gaps.body.gaps ?? [] : [];
+    details.recommendations = recommendations.statusCode === 200 ? recommendations.body.recommendations ?? [] : [];
+  }
+
+  if (input.route === "microsoft365") {
+    const findings = await apiJson<ProductMicrosoft365FindingsWebResponse>(input.apiBaseUrl, "/api/microsoft365/findings", {
+      method: "GET",
+      cookie: input.cookie
+    });
+    details.findings = findings.statusCode === 200 ? findings.body.findings ?? [] : [];
+  }
+
+  if (input.route === "evidence") {
+    const evidence = await apiJson<ProductEvidenceWebResponse>(input.apiBaseUrl, "/api/evidence", {
+      method: "GET",
+      cookie: input.cookie
+    });
+    details.evidence = evidence.statusCode === 200 ? evidence.body.evidence ?? [] : [];
+  }
+
+  if (input.route === "reports") {
+    const reports = await apiJson<ProductReportsWebResponse>(input.apiBaseUrl, "/api/reports", {
+      method: "GET",
+      cookie: input.cookie
+    });
+    details.reports = reports.statusCode === 200 ? reports.body.reports ?? [] : [];
+  }
+
+  if (input.route === "remediation") {
+    const remediation = await apiJson<ProductRemediationWebResponse>(input.apiBaseUrl, "/api/remediation/actions", {
+      method: "GET",
+      cookie: input.cookie
+    });
+    details.remediationActions = remediation.statusCode === 200 ? remediation.body.actions ?? [] : [];
+  }
+
+  return {
+    actionMessage: input.actionMessage ?? undefined,
+    activeRoute: input.route,
+    customers: customers.statusCode === 200 ? customers.body.customers ?? [] : [],
+    dashboard: dashboard.body.dashboard,
+    details,
+    session: session.body
+  };
 };
 
 const loadPartnerConsoleModel = async (input: {

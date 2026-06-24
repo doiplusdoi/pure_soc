@@ -5,6 +5,7 @@ import {
   PURESOC_MESSAGE_KEYS,
   resolvePureSocLocale,
   resolvePureSocMessage,
+  type ActionableSeverity,
   type PureSocLocale
 } from "@puresoc/shared";
 import {
@@ -41,6 +42,7 @@ import type {
   PartnerPortfolioCustomerSurface,
   RecommendationSurface,
   ReportSurface,
+  RuntimeSessionSurface,
   WorkspaceSelectionModel
 } from "./app-data";
 
@@ -82,6 +84,87 @@ export interface RuntimeMessageScreenInput {
   statusTone?: PureSocUiTone;
   summary: string;
   title: string;
+}
+
+export type ProductMvpRoute =
+  | "connectors"
+  | "connectors_microsoft365"
+  | "customers"
+  | "dashboard"
+  | "evidence"
+  | "gap_analyzer"
+  | "microsoft365"
+  | "onboarding"
+  | "remediation"
+  | "reports"
+  | "settings";
+
+export interface ProductMvpShellModel {
+  actionMessage?: string | null;
+  activeRoute: ProductMvpRoute;
+  customers: Array<Record<string, unknown>>;
+  dashboard: {
+    workspace: {
+      id: string;
+      name: string;
+      legalName?: string | null;
+      countryCode: string;
+      billingStatus: string;
+    };
+    countryPack: {
+      selected: string;
+      available: string[];
+      status: string;
+    };
+    readiness: {
+      score: number;
+      label: string;
+      assessmentId: string;
+      baselineState: string;
+    };
+    microsoft365: {
+      status: string;
+      connectionId: string | null;
+      tenantName: string;
+      lastSyncAt: string | null;
+      writeEnabled: boolean;
+    };
+    gaps: {
+      critical: number;
+      open: number;
+      recent: Array<Record<string, unknown>>;
+    };
+    recommendations: Array<Record<string, unknown>>;
+    evidence: Array<Record<string, unknown>>;
+    reports: Array<Record<string, unknown>>;
+    remediation: {
+      total: number;
+      approvalRequested: number;
+      approved: number;
+      dryRunOnly: boolean;
+    };
+    lastSync: string | null;
+    nextAction: {
+      label: string;
+      href: string;
+    };
+    legalCaveat: string;
+  };
+  details?: {
+    connectors?: Array<Record<string, unknown>>;
+    evidence?: Array<Record<string, unknown>>;
+    findings?: Array<Record<string, unknown>>;
+    gaps?: Array<Record<string, unknown>>;
+    recommendations?: Array<Record<string, unknown>>;
+    remediationActions?: Array<Record<string, unknown>>;
+    reports?: Array<Record<string, unknown>>;
+  };
+  session: RuntimeSessionSurface;
+}
+
+export interface RenderProductMvpShellOptions {
+  includeDocumentShell?: boolean;
+  locale?: string | null;
 }
 
 export interface Microsoft365ConnectorPageModel {
@@ -464,6 +547,506 @@ export const renderRuntimeMessageScreen = (input: RuntimeMessageScreenInput): st
     "</html>"
     ].join("");
   };
+
+export const renderProductMvpShell = (
+  model: ProductMvpShellModel,
+  options: RenderProductMvpShellOptions = {}
+): string => {
+  const locale = resolvePureSocLocale(options.locale).locale;
+  const content = [
+    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
+    '<div class="ps-shell ps-shell--product" data-ui-smoke="product-mvp-shell">',
+    renderProductSidebar(model),
+    '<main class="ps-main" id="content" tabindex="-1">',
+    renderProductTopbar(model),
+    '<div class="ps-content ps-content--product">',
+    model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    renderProductActivePage(model),
+    "</div>",
+    "</main>",
+    "</div>"
+  ].join("");
+
+  if (options.includeDocumentShell === false) {
+    return content;
+  }
+
+  return [
+    "<!doctype html>",
+    `<html lang="${locale}">`,
+    "<head>",
+    '<meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width, initial-scale=1">',
+    `<title>${escapeHtml(productRouteTitle(model.activeRoute))} | PureSOC</title>`,
+    `<style>${renderPureSocDesignSystemCss()}</style>`,
+    "</head>",
+    '<body class="ps-body">',
+    content,
+    "</body>",
+    "</html>"
+  ].join("");
+};
+
+const productNavItems: Array<{
+  href: string;
+  icon: string;
+  label: string;
+  route: ProductMvpRoute;
+  partnerOnly?: boolean;
+}> = [
+  { href: "/dashboard", icon: "DB", label: "Dashboard", route: "dashboard" },
+  { href: "/customers", icon: "CU", label: "Customers", route: "customers", partnerOnly: true },
+  { href: "/onboarding", icon: "ON", label: "Readiness", route: "onboarding" },
+  { href: "/gap-analyzer", icon: "GA", label: "Gap Analyzer", route: "gap_analyzer" },
+  { href: "/microsoft365", icon: "M3", label: "Microsoft 365", route: "microsoft365" },
+  { href: "/remediation", icon: "RM", label: "Remediation", route: "remediation" },
+  { href: "/evidence", icon: "EV", label: "Evidence", route: "evidence" },
+  { href: "/reports", icon: "RP", label: "Reports", route: "reports" },
+  { href: "/settings", icon: "ST", label: "Settings", route: "settings" }
+];
+
+const productRouteTitle = (route: ProductMvpRoute): string =>
+  productNavItems.find((item) => item.route === route)?.label ?? "Dashboard";
+
+const renderProductSidebar = (model: ProductMvpShellModel): string => {
+  const showCustomers = model.customers.length > 0 || ["customers"].includes(model.activeRoute);
+  return [
+    '<aside class="ps-sidebar" aria-label="Primary navigation">',
+    '<div class="ps-brand">',
+    '<span class="ps-brand__mark" aria-hidden="true">PS</span>',
+    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">SMB security readiness</span><br><span class="ps-brand__meta">${escapeHtml(
+      model.dashboard.workspace.countryCode
+    )} workspace</span></div>`,
+    "</div>",
+    '<nav class="ps-nav">',
+    ...productNavItems
+      .filter((item) => !item.partnerOnly || showCustomers)
+      .map(
+        (item) =>
+          `<a class="ps-nav__link" href="${escapeHtml(item.href)}"${
+            item.route === model.activeRoute ? ' aria-current="page"' : ""
+          } data-ui-action="open-${escapeHtml(item.route)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
+            item.icon
+          )}</span><span>${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
+      ),
+    "</nav>",
+    '<div class="ps-sidebar__footer">',
+    `<a class="ps-command ps-command--primary" href="${escapeHtml(model.dashboard.nextAction.href)}" data-ui-action="primary-next-action">${escapeHtml(
+      model.dashboard.nextAction.label
+    )}</a>`,
+    renderStatusPill({ label: model.dashboard.readiness.label, tone: "accent" }),
+    '<form class="ps-inline-form" action="/auth/logout" method="post" data-ui-action="sign-out">',
+    renderCommandButton({ label: "Sign out", ariaLabel: "Sign out of PureSOC", tone: "secondary", type: "submit" }),
+    "</form>",
+    "</div>",
+    "</aside>"
+  ].join("");
+};
+
+const renderProductTopbar = (model: ProductMvpShellModel): string => [
+  '<header class="ps-topbar">',
+  '<div class="ps-topbar__actions ps-topbar__actions--left">',
+  `<a class="ps-command" href="/workspaces" data-ui-action="switch-workspace">${escapeHtml(model.dashboard.workspace.name)}</a>`,
+  '<div class="ps-chip-row ps-chip-row--compact" aria-label="Country packs">',
+  ...model.dashboard.countryPack.available.map((country) => {
+    const selected = country === model.dashboard.countryPack.selected;
+    return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="/onboarding?country=${escapeHtml(
+      country
+    )}" aria-current="${selected ? "page" : "false"}">${escapeHtml(country)}</a>`;
+  }),
+  "</div>",
+  "</div>",
+  '<div class="ps-topbar__actions">',
+  renderStatusPill({
+    label: model.dashboard.microsoft365.connectionId ? "Microsoft 365 connected" : "Microsoft 365 not connected",
+    tone: model.dashboard.microsoft365.connectionId ? "success" : "warning"
+  }),
+  renderStatusPill({ label: `${clampPercent(model.dashboard.readiness.score)}% readiness`, tone: "info" }),
+  `<span class="ps-muted">${escapeHtml(model.session.user.displayName ?? model.session.user.email)}</span>`,
+  "</div>",
+  "</header>"
+].join("");
+
+const renderProductActivePage = (model: ProductMvpShellModel): string => {
+  if (model.activeRoute === "onboarding") {
+    return renderProductOnboardingPage(model);
+  }
+  if (model.activeRoute === "gap_analyzer") {
+    return renderProductGapAnalyzerPage(model);
+  }
+  if (model.activeRoute === "microsoft365") {
+    return renderProductMicrosoft365Page(model);
+  }
+  if (model.activeRoute === "connectors" || model.activeRoute === "connectors_microsoft365") {
+    return renderProductConnectorsPage(model);
+  }
+  if (model.activeRoute === "remediation") {
+    return renderProductRemediationPage(model);
+  }
+  if (model.activeRoute === "evidence") {
+    return renderProductEvidencePage(model);
+  }
+  if (model.activeRoute === "reports") {
+    return renderProductReportsPage(model);
+  }
+  if (model.activeRoute === "settings") {
+    return renderProductSettingsPage(model);
+  }
+  if (model.activeRoute === "customers") {
+    return renderProductCustomersPage(model);
+  }
+  return renderProductDashboardPage(model);
+};
+
+const renderProductPageHeader = (input: {
+  eyebrow: string;
+  primaryAction?: { href: string; label: string };
+  status?: string;
+  title: string;
+}): string => [
+  '<section class="ps-section ps-section--product-hero" aria-labelledby="product-page-title">',
+  '<div class="ps-section__header">',
+  `<div><p class="ps-route-hero__eyebrow">${escapeHtml(input.eyebrow)}</p><h1 class="ps-section__title" id="product-page-title">${escapeHtml(
+    input.title
+  )}</h1></div>`,
+  input.status ? renderStatusPill({ label: input.status, tone: "info" }) : "",
+  input.primaryAction
+    ? `<a class="ps-command ps-command--primary" href="${escapeHtml(input.primaryAction.href)}">${escapeHtml(
+        input.primaryAction.label
+      )}</a>`
+    : "",
+  "</div>",
+  "</section>"
+].join("");
+
+const renderProductDashboardPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({
+    eyebrow: "Workspace overview",
+    title: "Dashboard",
+    status: model.dashboard.countryPack.status.replaceAll("_", " "),
+    primaryAction: model.dashboard.nextAction
+  }),
+  '<section class="ps-grid ps-grid--dense" aria-label="Dashboard summary">',
+  renderProductScoreCard("Readiness score", `${clampPercent(model.dashboard.readiness.score)}%`, model.dashboard.readiness.baselineState),
+  renderProductScoreCard("Critical gaps", String(model.dashboard.gaps.critical), `${model.dashboard.gaps.open} open gaps`),
+  renderProductScoreCard("Microsoft 365", model.dashboard.microsoft365.connectionId ? "Connected" : "Not connected", model.dashboard.microsoft365.tenantName),
+  renderProductScoreCard("Remediation", `${model.dashboard.remediation.approvalRequested} waiting`, "Remediation actions require approval"),
+  "</section>",
+  '<section class="ps-grid ps-stack-top">',
+  renderProductNextActionCard(model),
+  renderProductReadinessAreas(model),
+  "</section>",
+  '<section class="ps-grid ps-stack-top">',
+  renderProductGapList(model.dashboard.gaps.recent),
+  renderProductEvidenceList(model.dashboard.evidence),
+  renderProductReportCards(model.dashboard.reports),
+  "</section>",
+  renderLegalCaveat(model.dashboard.legalCaveat)
+].join("");
+
+const renderProductScoreCard = (label: string, value: string, detail: string): string =>
+  `<article class="ps-panel"><h2 class="ps-panel__title">${escapeHtml(label)}</h2><p class="ps-metric">${escapeHtml(
+    value
+  )}</p><p class="ps-muted">${escapeHtml(detail)}</p></article>`;
+
+const renderProductNextActionCard = (model: ProductMvpShellModel): string => [
+  '<article class="ps-panel" aria-labelledby="next-action-title">',
+  '<div class="ps-section__header ps-section__header--flat">',
+  `<div><h2 class="ps-panel__title" id="next-action-title">Recommended next action</h2><p class="ps-muted">One step moves this workspace forward.</p></div>`,
+  renderStatusPill({ label: "guided", tone: "accent" }),
+  "</div>",
+  `<p>${escapeHtml(nextActionCopy(model.dashboard.nextAction.label))}</p>`,
+  `<p><a class="ps-command ps-command--primary" href="${escapeHtml(model.dashboard.nextAction.href)}">${escapeHtml(
+    model.dashboard.nextAction.label
+  )}</a></p>`,
+  "</article>"
+].join("");
+
+const nextActionCopy = (label: string): string => {
+  if (label.includes("onboarding")) {
+    return "Capture company context first. This creates the business baseline for readiness and reports.";
+  }
+  if (label.includes("gap")) {
+    return "Run the analyzer from saved answers. Microsoft 365 can improve confidence later, but it is not required.";
+  }
+  if (label.includes("Microsoft")) {
+    return "Add read-only Microsoft 365 posture so identity, device, and email gaps can be verified.";
+  }
+  return "Review the remediation plan and assign the highest-risk actions.";
+};
+
+const renderProductReadinessAreas = (model: ProductMvpShellModel): string => {
+  const areas = [
+    ["Business profile", model.dashboard.readiness.baselineState === "ready" ? "Ready" : "Draft"],
+    ["Country pack", `${model.dashboard.countryPack.selected} ${model.dashboard.countryPack.status.replaceAll("_", " ")}`],
+    ["Microsoft 365", model.dashboard.microsoft365.connectionId ? "Verified signals available" : "Manual baseline only"],
+    ["Evidence", `${model.dashboard.evidence.length} recent items`]
+  ];
+  return [
+    '<article class="ps-panel" aria-labelledby="readiness-areas-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="readiness-areas-title">Readiness areas</h2><p class="ps-muted">Draft reports are allowed before every signal is connected.</p></div>',
+    renderStatusPill({ label: "business baseline", tone: "info" }),
+    "</div>",
+    '<div class="ps-grid ps-grid--dense">',
+    ...areas.map(([label, status]) => renderProductScoreCard(label, status, "")),
+    "</div>",
+    "</article>"
+  ].join("");
+};
+
+const renderProductOnboardingPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({
+    eyebrow: "Business onboarding",
+    title: "Readiness",
+    status: "autosave"
+  }),
+  '<section class="ps-layout-with-aside">',
+  '<form class="ps-panel ps-form ps-form--wide" action="/onboarding" method="post" data-ui-action="save-business-onboarding">',
+  '<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title">Company profile</h2><p class="ps-muted">Start with the business facts needed for a draft baseline.</p></div></div>',
+  '<div class="ps-form-grid">',
+  renderTextInput("legalName", "Legal name", model.dashboard.workspace.legalName ?? model.dashboard.workspace.name, true),
+  renderTextInput("primaryContactEmail", "Primary contact email", "", true, "email"),
+  renderSelect("countryCode", "Country pack", model.dashboard.countryPack.selected, [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]], "", true),
+  renderTextInput("sector", "Main sector", "", true),
+  renderTextInput("employeeCount", "Employee count", "", false, "number", "", ['min="0"', 'inputmode="numeric"']),
+  renderSelect(
+    "microsoft365Usage",
+    "Microsoft 365 usage",
+    "",
+    [["", "Choose usage"], ["not_connected", "Not connected yet"], ["email_collaboration", "Email and collaboration"], ["identity_devices_security", "Identity, devices, and security"]],
+    "",
+    true
+  ),
+  renderTextarea("securityPractices", "Existing security practices", "", "Mention MFA, backups, incident response, supplier reviews, or known gaps.", "ps-field--full"),
+  "</div>",
+  '<div class="ps-command-row">',
+  renderCommandButton({ label: "Save onboarding", ariaLabel: "Save readiness onboarding", tone: "primary", type: "submit" }),
+  "</div>",
+  "</form>",
+  '<aside class="ps-panel ps-panel--quiet"><h2 class="ps-panel__title">Progress</h2><ol class="ps-step-list"><li><span class="ps-step-list__number">1</span><div><strong>Company profile</strong><span>Current step</span></div></li><li><span class="ps-step-list__number">2</span><div><strong>Gap analyzer</strong><span>Runs after save</span></div></li><li><span class="ps-step-list__number">3</span><div><strong>Microsoft 365</strong><span>Optional confidence boost</span></div></li></ol></aside>',
+  "</section>"
+].join("");
+
+const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({
+    eyebrow: "Manual and connector baseline",
+    title: "Gap Analyzer",
+    status: model.dashboard.readiness.baselineState,
+    primaryAction: { href: "/gap-analyzer/run", label: "Run analyzer" }
+  }),
+  '<form class="ps-panel ps-form" action="/gap-analyzer/run" method="post" data-ui-action="run-gap-analyzer">',
+  '<p class="ps-muted">The analyzer works from onboarding answers and manual security input. Microsoft 365 findings increase confidence when connected.</p>',
+  renderCommandButton({ label: "Run analyzer", ariaLabel: "Run gap analyzer", tone: "primary", type: "submit" }),
+  "</form>",
+  renderProductGapList(model.details?.gaps ?? model.dashboard.gaps.recent),
+  renderProductRecommendations(model.details?.recommendations ?? model.dashboard.recommendations)
+].join("");
+
+const renderProductMicrosoft365Page = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({
+    eyebrow: "Security posture",
+    title: "Microsoft 365",
+    status: model.dashboard.microsoft365.connectionId ? "connected" : "not connected",
+    primaryAction: { href: model.dashboard.microsoft365.connectionId ? "/connectors/microsoft365" : "/connectors/microsoft365", label: model.dashboard.microsoft365.connectionId ? "Manage connection" : "Connect Microsoft 365" }
+  }),
+  '<section class="ps-grid">',
+  renderProductScoreCard("Connection", model.dashboard.microsoft365.connectionId ? "Connected" : "Not connected", model.dashboard.microsoft365.tenantName),
+  renderProductScoreCard("Last sync", model.dashboard.lastSync ? formatTimestamp(model.dashboard.lastSync) : "No sync yet", "Read-only modules"),
+  renderProductScoreCard("Remediation", "Approval required", "No dashboard execution"),
+  "</section>",
+  renderProductFindingTable(model.details?.findings ?? []),
+  '<p class="ps-stack-top"><a class="ps-command" href="/connectors/microsoft365">Open connector settings</a></p>'
+].join("");
+
+const renderProductConnectorsPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({
+    eyebrow: "Data sources",
+    title: model.activeRoute === "connectors_microsoft365" ? "Microsoft 365 connector" : "Connectors",
+    status: "read-only first"
+  }),
+  '<section class="ps-grid">',
+  ...(model.details?.connectors ?? []).map((connector) => {
+    const providerKey = String(connector.providerKey ?? "");
+    const isMicrosoft = providerKey === "microsoft365";
+    return [
+      '<article class="ps-panel">',
+      `<h2 class="ps-panel__title">${escapeHtml(String(connector.name ?? providerKey))}</h2>`,
+      renderStatusPill({ label: String(connector.status ?? "not connected").replaceAll("_", " "), tone: connectorStatusTone(String(connector.status ?? "")) }),
+      `<p class="ps-muted">${escapeHtml(isMicrosoft ? "Read-only Microsoft Graph modules for identity, devices, email, and Secure Score." : "Planned data source.")}</p>`,
+      isMicrosoft
+        ? `<form class="ps-form" action="/connectors/microsoft365/connect" method="post" data-ui-action="connect-microsoft365"><input type="hidden" name="providerConnectionId" value="${escapeHtml(String(connector.connectionId ?? ""))}">${renderCommandButton({
+            label: connector.connectionId ? "Reconnect" : "Connect",
+            ariaLabel: "Connect Microsoft 365",
+            tone: "primary",
+            type: "submit"
+          })}</form>`
+        : renderStatusPill({ label: "coming later", tone: "neutral" }),
+      "</article>"
+    ].join("");
+  }),
+  "</section>",
+  model.activeRoute === "connectors_microsoft365"
+    ? '<article class="ps-panel ps-stack-top"><h2 class="ps-panel__title">Permissions</h2><p class="ps-muted">The MVP requests read permissions only. Remediation actions require preview, approval, audit, and rollback guidance before any execution path.</p><div class="ps-chip-row">' +
+      renderStatusPill({ label: "Baseline read", tone: "info" }) +
+      renderStatusPill({ label: "Security read", tone: "info" }) +
+      renderStatusPill({ label: "Intune read", tone: "info" }) +
+      renderStatusPill({ label: "Write actions require approval", tone: "warning" }) +
+      "</div></article>"
+    : ""
+].join("");
+
+const renderProductRemediationPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({ eyebrow: "Action center", title: "Remediation", status: "approval gated" }),
+  renderDataTable<Record<string, unknown>>(
+    "Remediation actions",
+    [
+      { header: "Action", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Action"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.expectedChange ?? ""))}</span>` },
+      { header: "Risk", render: (row) => renderStatusPill({ label: String(row.risk ?? "medium"), tone: toneForSeverity(String(row.risk ?? "medium") as ActionableSeverity) }) },
+      { header: "Approval", render: (row) => renderStatusPill({ label: String(row.approvalState ?? "not requested").replaceAll("_", " "), tone: "info" }) },
+      { header: "Execution", render: (row) => escapeHtml(String(row.executionState ?? "draft").replaceAll("_", " ")) }
+    ],
+    model.details?.remediationActions ?? []
+  )
+].join("");
+
+const renderProductEvidencePage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({ eyebrow: "Evidence library", title: "Evidence", status: `${(model.details?.evidence ?? model.dashboard.evidence).length} items` }),
+  '<form class="ps-panel ps-form" action="/evidence" method="post" data-ui-action="attach-evidence">',
+  '<div class="ps-form-grid">',
+  renderTextInput("title", "Evidence title", "", true),
+  renderTextInput("controlId", "Control ID", "", false),
+  renderTextarea("content", "Evidence note", "", "Do not paste secrets, passwords, tokens, or private keys.", "ps-field--full"),
+  "</div>",
+  renderCommandButton({ label: "Attach evidence", ariaLabel: "Attach evidence", tone: "primary", type: "submit" }),
+  "</form>",
+  renderProductEvidenceList(model.details?.evidence ?? model.dashboard.evidence)
+].join("");
+
+const renderProductReportsPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({ eyebrow: "Reports and exports", title: "Reports", status: "draft reports allowed" }),
+  '<section class="ps-grid">',
+  renderReportActionCard("NIS2 readiness summary", "/reports/nis2-summary", "PDF-ready internal readiness summary."),
+  renderReportActionCard("Gap list", "/reports/gap-list", "CSV export for gap review."),
+  renderReportActionCard("Microsoft 365 posture", "/reports/m365-posture", "Security posture summary after connector sync."),
+  "</section>",
+  renderProductReportCards(model.details?.reports ?? model.dashboard.reports)
+].join("");
+
+const renderReportActionCard = (title: string, action: string, summary: string): string => [
+  '<article class="ps-panel">',
+  `<h2 class="ps-panel__title">${escapeHtml(title)}</h2>`,
+  `<p class="ps-muted">${escapeHtml(summary)}</p>`,
+  `<form class="ps-form" action="${escapeHtml(action)}" method="post">`,
+  renderCommandButton({ label: "Generate", ariaLabel: `Generate ${title}`, tone: "primary", type: "submit" }),
+  "</form>",
+  "</article>"
+].join("");
+
+const renderProductSettingsPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({ eyebrow: "Workspace settings", title: "Settings", status: model.dashboard.workspace.billingStatus }),
+  '<section class="ps-grid">',
+  renderProductScoreCard("Workspace", model.dashboard.workspace.name, model.dashboard.workspace.countryCode),
+  renderProductScoreCard("Country pack", model.dashboard.countryPack.selected, model.dashboard.countryPack.status.replaceAll("_", " ")),
+  renderProductScoreCard("Users and roles", "Invite teammates", "Owner and admin managed"),
+  renderProductScoreCard("Notifications", "Channels", "Critical gaps and deadlines"),
+  "</section>",
+  '<p class="ps-stack-top"><a class="ps-command" href="/workspaces">Switch workspace</a> <a class="ps-command" href="/invitations">Invite users</a> <a class="ps-command" href="/settings/notifications">Notification channels</a></p>'
+].join("");
+
+const renderProductCustomersPage = (model: ProductMvpShellModel): string => [
+  renderProductPageHeader({ eyebrow: "Partner portfolio", title: "Customers", status: `${model.customers.length} customers` }),
+  '<form class="ps-panel ps-form" action="/customers" method="post" data-ui-action="create-customer">',
+  '<div class="ps-form-grid">',
+  renderTextInput("name", "Customer name", "", true),
+  renderTextInput("legalName", "Legal name", "", false),
+  renderSelect("countryCode", "Country", "RO", [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]], "", true),
+  "</div>",
+  renderCommandButton({ label: "Add customer", ariaLabel: "Add customer workspace", tone: "primary", type: "submit" }),
+  "</form>",
+  renderDataTable<Record<string, unknown>>(
+    "Customers",
+    [
+      { header: "Company", render: (row) => escapeHtml(String(row.name ?? "Customer")) },
+      { header: "Country", render: (row) => escapeHtml(String(row.countryCode ?? "EU")) },
+      { header: "Microsoft", render: (row) => renderStatusPill({ label: String((row.snapshot as Record<string, unknown> | undefined)?.microsoftConnectionState ?? "not connected").replaceAll("_", " "), tone: "info" }) },
+      { header: "Open", render: (row) => `<form class="ps-form ps-form--compact" action="/customers/${escapeHtml(String(row.id ?? ""))}/impersonate" method="post"><input name="reason" placeholder="Reason for review" minlength="8" required>${renderCommandButton({ label: "Open", ariaLabel: "Open customer workspace", tone: "primary", type: "submit" })}</form>` }
+    ],
+    model.customers
+  )
+].join("");
+
+const renderProductGapList = (gaps: Array<Record<string, unknown>>): string =>
+  renderDataTable<Record<string, unknown>>(
+    "Gap list",
+    [
+      { header: "Gap", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Gap"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.businessImpact ?? ""))}</span>` },
+      { header: "Area", render: (row) => escapeHtml(String(row.controlArea ?? "Readiness")) },
+      { header: "Severity", render: (row) => renderStatusPill({ label: String(row.severity ?? "medium"), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
+      { header: "Source", render: (row) => escapeHtml(String(row.source ?? "manual input")) },
+      { header: "Status", render: (row) => escapeHtml(String(row.status ?? "open")) }
+    ],
+    gaps
+  );
+
+const renderProductRecommendations = (recommendations: Array<Record<string, unknown>>): string =>
+  renderDataTable<Record<string, unknown>>(
+    "Recommendations",
+    [
+      { header: "Recommendation", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Recommendation"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.summary ?? ""))}</span>` },
+      { header: "Priority", render: (row) => renderStatusPill({ label: String(row.priority ?? "medium"), tone: toneForSeverity(String(row.priority ?? "medium") as ActionableSeverity) }) },
+      { header: "Effort", render: (row) => escapeHtml(String(row.effort ?? "review")) }
+    ],
+    recommendations
+  );
+
+const renderProductEvidenceList = (items: Array<Record<string, unknown>>): string =>
+  renderDataTable<Record<string, unknown>>(
+    "Evidence",
+    [
+      { header: "Evidence", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Evidence"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.sourceType ?? "manual"))}</span>` },
+      { header: "Control", render: (row) => escapeHtml(String(row.controlId ?? "Not mapped")) },
+      { header: "Scan", render: (row) => renderStatusPill({ label: String(row.scanStatus ?? "stored").replaceAll("_", " "), tone: "info" }) },
+      { header: "Created", render: (row) => escapeHtml(row.createdAt ? formatTimestamp(String(row.createdAt)) : "") }
+    ],
+    items
+  );
+
+const renderProductReportCards = (reports: Array<Record<string, unknown>>): string => [
+  '<section class="ps-grid ps-stack-top" aria-label="Generated reports">',
+  reports.length === 0 ? '<article class="ps-panel"><h2 class="ps-panel__title">No reports yet</h2><p class="ps-muted">Generate a draft report after running the gap analyzer.</p></article>' : "",
+  ...reports.map((report) => [
+    '<article class="ps-panel">',
+    `<h2 class="ps-panel__title">${escapeHtml(String(report.title ?? "Report"))}</h2>`,
+    renderStatusPill({ label: String(report.status ?? "ready"), tone: "success" }),
+    `<p class="ps-muted">${escapeHtml(String(report.format ?? "export"))}</p>`,
+    report.downloadHref ? `<p><a class="ps-command" href="${escapeHtml(String(report.downloadHref))}">Download</a></p>` : "",
+    "</article>"
+  ].join("")),
+  "</section>"
+].join("");
+
+const renderProductFindingTable = (findings: Array<Record<string, unknown>>): string =>
+  renderDataTable<Record<string, unknown>>(
+    "Microsoft 365 findings",
+    [
+      { header: "Finding", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Finding"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.resourceDisplayName ?? ""))}</span>` },
+      { header: "Severity", render: (row) => renderStatusPill({ label: String(row.severity ?? "medium"), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
+      { header: "Status", render: (row) => escapeHtml(String(row.status ?? "open")) }
+    ],
+    findings
+  );
+
+const connectorStatusTone = (status: string): PureSocUiTone => {
+  if (status === "connected") {
+    return "success";
+  }
+  if (status === "coming_later") {
+    return "neutral";
+  }
+  return "warning";
+};
+
 
 export const renderMicrosoft365ConnectorPage = (
   model: Microsoft365ConnectorPageModel,

@@ -6,7 +6,12 @@
       "WebFetch(domain:pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro)",
       "Bash(curl -s -i -X POST \"https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/login\" -H \"Content-Type: application/x-www-form-urlencoded\" --data \"email=test@test.com&password=wrongpass123\" --max-time 25)",
       "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' --data 'email=newuser__CMDSUB_OUTPUT__@example.com&password=SuperSecret123!&organizationName=TestOrg&displayName=Test+User' --max-time 25)",
-      "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro' -H 'Referer: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/register' --data 'email=newuser__CMDSUB_OUTPUT__b@example.com&password=SuperSecret123!&displayName=Test+User' --max-time 25)"
+      "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro' -H 'Referer: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/register' --data 'email=newuser__CMDSUB_OUTPUT__b@example.com&password=SuperSecret123!&displayName=Test+User' --max-time 25)",
+      "Bash(curl -s -o /dev/null -w 'register: %{http_code} -> %{redirect_url}\\\\n' -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/register -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro' --data-urlencode email=rt__CMDSUB_OUTPUT__@example.com --data-urlencode password=__TRACKED_VAR__ --data-urlencode 'displayName=RT User' --max-time 25)",
+      "Bash(curl -s -i -X POST https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/auth/login -H 'Content-Type: application/x-www-form-urlencoded' -H 'Origin: https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro' --data-urlencode email=rt__CMDSUB_OUTPUT__@example.com --data-urlencode password=__TRACKED_VAR__ --max-time 25)",
+      "Bash(curl -s https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/login --max-time 25)",
+      "Bash(curl -s https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/register --max-time 25)",
+      "Bash(curl -s -D - -o /dev/null https://pure-soc-06fey72bpds95dk0t1k3fkrz4w-dev.apps.doiplusdoi.ro/login --max-time 25)"
     ]
   }
 }
