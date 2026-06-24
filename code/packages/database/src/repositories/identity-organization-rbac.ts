@@ -433,6 +433,32 @@ export class PrismaIdentityOrganizationRbacRepository {
     return fromOrganizationRow(row);
   }
 
+  async updateOrganization(input: {
+    organizationId: string;
+    name?: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    headquartersCountryCode?: string | null;
+    updatedAt: Date;
+  }): Promise<OrganizationRecordContract> {
+    const row = await this.client.organization.update({
+      where: {
+        id: input.organizationId
+      },
+      data: {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
+        ...(input.primaryCountryCode !== undefined ? { primaryCountryCode: input.primaryCountryCode } : {}),
+        ...(input.headquartersCountryCode !== undefined
+          ? { headquartersCountryCode: input.headquartersCountryCode }
+          : {}),
+        updatedAt: input.updatedAt
+      }
+    });
+
+    return fromOrganizationRow(row);
+  }
+
   async addOrganizationMember(
     input: OrganizationMembershipRecordContract
   ): Promise<OrganizationMembershipRecordContract> {

@@ -1,8 +1,9 @@
 import { AuthError, type PureSocRoleKey } from "@puresoc/auth-core";
+import type { ComplianceStatus } from "@puresoc/compliance-core";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import type { ApiServices } from "../auth/services";
 import { listNis2CountryPacksRoute, getNis2CountryPackRoute } from "../compliance/nis2/routes";
-import type { ApiResult, JsonResult, RequestContext } from "../http";
+import type { ApiResult, BinaryResult, JsonResult, RequestContext } from "../http";
 import { parseCookies, sessionCookieName } from "../http";
 import { requireOrganizationRole } from "../rbac";
 
@@ -52,6 +53,30 @@ const safeString = (body: Record<string, unknown>, key: string): string | undefi
 const optionalStringArray = (value: unknown): string[] | undefined =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : undefined;
 
+const optionalNullableString = (body: Record<string, unknown>, key: string): string | null | undefined => {
+  if (body[key] === null) {
+    return null;
+  }
+  return safeString(body, key);
+};
+
+const safeBoolean = (body: Record<string, unknown>, key: string): boolean | undefined => {
+  const value = body[key];
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.trim().toLowerCase();
+    if (["true", "1", "yes"].includes(normalized)) {
+      return true;
+    }
+    if (["false", "0", "no"].includes(normalized)) {
+      return false;
+    }
+  }
+  return undefined;
+};
+
 const requireBodyString = (body: Record<string, unknown>, key: string, label = key): string => {
   const value = safeString(body, key);
   if (!value) {
@@ -84,7 +109,7 @@ const scoreFromAnalysis = (analysis: Awaited<ReturnType<typeof latestAnalysis>>)
   return Math.round((completed / total) * 100);
 };
 
-const businessGapView = (gap: Record<string, unknown>) => ({
+const businessGapView = (gap: Record<string, unknown>, planItem?: Record<string, unknown>) => ({
   id: String(gap.id ?? ""),
   title: String(gap.title ?? gap.summary ?? "Readiness gap"),
   controlArea: String(gap.controlArea ?? gap.controlId ?? "NIS2 readiness"),
@@ -92,12 +117,28 @@ const businessGapView = (gap: Record<string, unknown>) => ({
   source: String(gap.source ?? gap.sourceType ?? "readiness_engine"),
   businessImpact: String(gap.businessImpact ?? gap.summary ?? "This gap reduces confidence in the readiness baseline."),
   recommendedAction: String(gap.recommendedAction ?? "Review the control and attach evidence or remediation notes."),
-  status: String(gap.status ?? "open"),
-  owner: typeof gap.ownerUserId === "string" ? gap.ownerUserId : null,
-  dueDate: typeof gap.dueDate === "string" ? gap.dueDate : null,
+  status: String(planItem?.status ?? gap.status ?? "open"),
+  engineStatus: String(gap.status ?? "unknown"),
+  owner:
+    typeof planItem?.ownerUserId === "string"
+      ? planItem.ownerUserId
+      : typeof gap.ownerUserId === "string"
+        ? gap.ownerUserId
+        : null,
+  dueDate:
+    typeof planItem?.dueDate === "string"
+      ? planItem.dueDate
+      : typeof gap.dueDate === "string"
+        ? gap.dueDate
+        : null,
   relatedEvidence: Array.isArray(gap.evidenceArtifactIds) ? gap.evidenceArtifactIds : [],
   relatedConnectorFinding: typeof gap.providerFindingId === "string" ? gap.providerFindingId : null
 });
+
+const planItemForGap = (analysis: Awaited<ReturnType<typeof latestAnalysis>>, gap: Record<string, unknown>) =>
+  analysis?.readinessPlan.items.find(
+    (item) => item.controlId === gap.controlId || item.gapSummary === gap.summary
+  ) as Record<string, unknown> | undefined;
 
 const recommendationView = (recommendation: Record<string, unknown>) => ({
   id: String(recommendation.id ?? ""),
@@ -119,6 +160,26 @@ const reportView = (artifact: Record<string, unknown>) => ({
   downloadHref: `/reports/generated/${encodeURIComponent(String(artifact.id ?? ""))}/pdf?format=pdf`
 });
 
+const complianceStatuses = new Set<ComplianceStatus>([
+  "not_started",
+  "not_applicable",
+  "passing",
+  "failing",
+  "partial",
+  "unsupported",
+  "needs_evidence",
+  "accepted_risk"
+]);
+
+const readinessPlanItemStatuses = new Set(["proposed", "accepted", "planned", "completed", "dismissed"]);
+
+const safeActionRunView = <TActionRun extends { idempotencyKey?: string }>(
+  run: TActionRun
+): Omit<TActionRun, "idempotencyKey"> & { idempotencyKeyPresent?: true } => {
+  const { idempotencyKey, ...response } = run;
+  return idempotencyKey ? { ...response, idempotencyKeyPresent: true } : response;
+};
+
 export const productDashboardRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
@@ -131,7 +192,10 @@ export const productDashboardRoute = async (
     services.evidence.list(organizationId),
     services.actionsRepository.listActionRuns(organizationId)
   ]);
-  const gaps = (analysis?.gaps ?? []).map((gap) => businessGapView(gap as unknown as Record<string, unknown>));
+  const gaps = (analysis?.gaps ?? []).map((gap) => {
+    const gapRecord = gap as unknown as Record<string, unknown>;
+    return businessGapView(gapRecord, planItemForGap(analysis, gapRecord));
+  });
   const recommendations = (analysis?.recommendations ?? []).map((recommendation) =>
     recommendationView(recommendation as unknown as Record<string, unknown>)
   );
@@ -289,11 +353,48 @@ export const productGetWorkspaceRoute = async (
   };
 };
 
+export const productUpdateWorkspaceRoute = async (
+  workspaceId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const session = await readSession(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: session.user.id,
+    organizationId: workspaceId,
+    allowedRoles: ["owner", "org_admin"]
+  });
+
+  const patch = {
+    name: safeString(body, "name"),
+    legalName: optionalNullableString(body, "legalName"),
+    primaryCountryCode: optionalNullableString(body, "countryCode") ?? optionalNullableString(body, "primaryCountryCode"),
+    headquartersCountryCode: optionalNullableString(body, "headquartersCountryCode")
+  };
+  if (Object.values(patch).every((value) => value === undefined)) {
+    throw new AuthError("invalid_request", "At least one workspace field must be provided.", 400);
+  }
+
+  return {
+    statusCode: 200,
+    body: await services.organizations.updateOrganization({
+      actorUserId: session.user.id,
+      organizationId: workspaceId,
+      ...patch,
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
 export const productUnsupportedWriteRoute = (message: string): JsonResult => ({
   statusCode: 409,
   body: {
     error: {
-      code: "not_available_in_current_runtime",
+      code: "not_available",
       message
     }
   }
@@ -585,13 +686,17 @@ export const productRunReadinessRoute = async (
       providerConnectionId: connection?.id ?? null
     }
   });
+  const storedAnalysis = await latestAnalysis(organizationId, services);
 
   return {
     statusCode: 201,
     body: {
       assessmentId,
-      score: scoreFromAnalysis(await latestAnalysis(organizationId, services)),
-      gaps: result.gaps.map((gap) => businessGapView(gap as unknown as Record<string, unknown>)),
+      score: scoreFromAnalysis(storedAnalysis),
+      gaps: result.gaps.map((gap) => {
+        const gapRecord = gap as unknown as Record<string, unknown>;
+        return businessGapView(gapRecord, planItemForGap(storedAnalysis, gapRecord));
+      }),
       recommendations: result.recommendations.map((recommendation) =>
         recommendationView(recommendation as unknown as Record<string, unknown>)
       )
@@ -608,7 +713,123 @@ export const productListGapsRoute = async (
   return {
     statusCode: 200,
     body: {
-      gaps: (analysis?.gaps ?? []).map((gap) => businessGapView(gap as unknown as Record<string, unknown>))
+      gaps: (analysis?.gaps ?? []).map((gap) => {
+        const gapRecord = gap as unknown as Record<string, unknown>;
+        return businessGapView(gapRecord, planItemForGap(analysis, gapRecord));
+      })
+    }
+  };
+};
+
+export const productUpdateGapRoute = async (
+  gapId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, [
+    "owner",
+    "org_admin",
+    "compliance_manager",
+    "security_operator"
+  ]);
+  const analysis = await latestAnalysis(organizationId, services);
+  if (!analysis) {
+    throw new AuthError("invalid_request", "Run the gap analyzer before updating gaps.", 400);
+  }
+  const gapIndex = analysis.gaps.findIndex((gap) => gap.id === gapId);
+  if (gapIndex < 0) {
+    throw new AuthError("invalid_request", "Gap was not found for this workspace.", 404);
+  }
+
+  const requestedStatus = safeString(body, "status");
+  const planStatus = safeString(body, "planStatus");
+  const ownerUserId = optionalNullableString(body, "ownerUserId") ?? optionalNullableString(body, "owner");
+  const dueDate = optionalNullableString(body, "dueDate");
+  if (
+    requestedStatus === undefined &&
+    planStatus === undefined &&
+    ownerUserId === undefined &&
+    dueDate === undefined
+  ) {
+    throw new AuthError("invalid_request", "Provide a gap status, plan status, owner, or due date to update.", 400);
+  }
+  if (requestedStatus && !complianceStatuses.has(requestedStatus as ComplianceStatus)) {
+    throw new AuthError("invalid_request", "Gap status is not supported.", 400);
+  }
+  if (planStatus && !readinessPlanItemStatuses.has(planStatus)) {
+    throw new AuthError("invalid_request", "Plan status is not supported.", 400);
+  }
+  if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    throw new AuthError("invalid_request", "Due date must use YYYY-MM-DD.", 400);
+  }
+
+  const existingGap = analysis.gaps[gapIndex]!;
+  const updatedGap = {
+    ...existingGap,
+    ...(requestedStatus ? { status: requestedStatus as ComplianceStatus } : {})
+  };
+  const readinessPlan = {
+    ...analysis.readinessPlan,
+    items: analysis.readinessPlan.items.map((item) =>
+      item.controlId === existingGap.controlId || item.gapSummary === existingGap.summary
+        ? {
+            ...item,
+            ...(planStatus ? { status: planStatus as typeof item.status } : {}),
+            ...(ownerUserId !== undefined ? { ownerUserId: ownerUserId ?? undefined } : {}),
+            ...(dueDate !== undefined ? { dueDate: dueDate ?? undefined } : {})
+          }
+        : item
+    )
+  };
+  const results =
+    requestedStatus === "accepted_risk" || requestedStatus === "not_applicable" || requestedStatus === "failing"
+      ? analysis.results.map((result) =>
+          result.controlId === existingGap.controlId && result.jurisdiction === existingGap.jurisdiction
+            ? { ...result, status: requestedStatus as ComplianceStatus }
+            : result
+        )
+      : analysis.results;
+  const updatedAnalysis = {
+    ...analysis,
+    recordedAt: new Date().toISOString(),
+    results,
+    gaps: analysis.gaps.map((gap, index) => (index === gapIndex ? updatedGap : gap)),
+    readinessPlan
+  };
+  await services.outputRepository.saveStoredAnalysis(updatedAnalysis);
+  await services.auditWriter.write({
+    actorUserId: session.user.id,
+    organizationId,
+    targetType: "compliance_gap",
+    targetId: gapId,
+    action: "product.gap.updated",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    afterJson: {
+      status: updatedGap.status,
+      planStatus: planStatus ?? null,
+      ownerUserId: ownerUserId ?? null,
+      dueDate: dueDate ?? null
+    }
+  });
+
+  return {
+    statusCode: 200,
+    body: {
+      gap: businessGapView(
+        updatedGap as unknown as Record<string, unknown>,
+        readinessPlan.items.find(
+          (item) => item.controlId === existingGap.controlId || item.gapSummary === existingGap.summary
+        ) as unknown as Record<string, unknown> | undefined
+      ),
+      readinessPlan: {
+        id: readinessPlan.id,
+        updatedItems: readinessPlan.items.filter(
+          (item) => item.controlId === existingGap.controlId || item.gapSummary === existingGap.summary
+        )
+      }
     }
   };
 };
@@ -734,6 +955,31 @@ export const productMicrosoft365SyncRoute = async (
   };
 };
 
+export const productMicrosoft365DisconnectRoute = async (
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, ["owner", "org_admin"]);
+  const providerConnectionId = safeString(body, "providerConnectionId") ?? (await primaryMicrosoftConnection(organizationId, services))?.id;
+  if (!providerConnectionId) {
+    throw new AuthError("invalid_request", "Microsoft 365 is not connected.", 400);
+  }
+
+  return {
+    statusCode: 200,
+    body: await services.microsoft365ProviderConnections.disconnect({
+      organizationId,
+      actorUserId: session.user.id,
+      providerConnectionId,
+      reason: safeString(body, "reason"),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
 export const productListConnectorsRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
@@ -775,6 +1021,34 @@ export const productMicrosoft365ConnectRoute = async (
       actorUserId: session.user.id,
       redirectUri: requireBodyString(body, "redirectUri", "Redirect URI"),
       requestedPermissionBundles: optionalStringArray(body.requestedPermissionBundles),
+      ipAddress: context.ipAddress,
+      userAgent: context.userAgent
+    })
+  };
+};
+
+export const productMicrosoft365CallbackRoute = async (
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, ["owner", "org_admin"]);
+  const tenantId = safeString(body, "tenant") ?? safeString(body, "tenantId");
+  if (!tenantId) {
+    throw new AuthError("invalid_request", "Microsoft 365 tenant is required.", 400);
+  }
+
+  return {
+    statusCode: 200,
+    body: await services.microsoft365ProviderConnections.completeConsent({
+      organizationId,
+      actorUserId: session.user.id,
+      state: requireBodyString(body, "state", "Microsoft 365 state"),
+      tenantId,
+      adminConsent: safeBoolean(body, "admin_consent") ?? safeBoolean(body, "adminConsent") ?? false,
+      redirectUri: safeString(body, "redirectUri"),
+      authorizationCode: safeString(body, "code") ?? safeString(body, "authorizationCode"),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -892,6 +1166,38 @@ export const productCreateReportRoute = async (
   };
 };
 
+export const productDownloadReportRoute = async (
+  reportId: string,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<BinaryResult> => {
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, [
+    "owner",
+    "org_admin",
+    "compliance_manager",
+    "auditor"
+  ]);
+  const result = await services.reports.downloadGeneratedReportPdf({
+    organizationId,
+    reportId,
+    actorUserId: session.user.id,
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
+  return {
+    kind: "binary",
+    statusCode: 200,
+    body: result.pdf.body,
+    headers: {
+      "content-type": result.pdf.mimeType,
+      "content-disposition": `attachment; filename="${result.pdf.filename}"`,
+      "x-content-hash-sha256": result.pdf.contentHashSha256
+    }
+  };
+};
+
 export const productListRemediationRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
@@ -912,6 +1218,128 @@ export const productListRemediationRoute = async (
         expectedChange: run.expectedChange,
         rollbackGuidance: run.rollbackStrategy
       }))
+    }
+  };
+};
+
+export const productRemediationTransitionRoute = async (
+  actionRunId: string,
+  transition: "preview" | "approve" | "execute",
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const allowedRoles =
+    transition === "approve"
+      ? (["owner", "org_admin", "remediation_approver"] as const)
+      : (["owner", "org_admin", "compliance_manager", "security_operator"] as const);
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, allowedRoles);
+  const run = await services.actionsRepository.findActionRunForOrganization({ organizationId, actionRunId });
+  if (!run) {
+    throw new AuthError("invalid_request", "Remediation action was not found for this workspace.", 404);
+  }
+
+  if (transition === "preview") {
+    const connection = await services.providerConnections.store.getConnectionForOrganization(
+      organizationId,
+      run.providerConnectionId
+    );
+    const executableBlocked = run.highRiskForbiddenInV1 && run.automationMode === "executable_later";
+    const preview = await services.actions.recordPreflight({
+      organizationId,
+      actionRunId,
+      actorUserId: session.user.id,
+      context,
+      result: {
+        status: executableBlocked ? "failed" : "passed",
+        checks: [
+          {
+            code: "provider_connection_available",
+            status: connection.status === "connected" || connection.status === "degraded" ? "passed" : "warning",
+            message: "Provider connection state is available for preview."
+          },
+          {
+            code: "write_execution_policy",
+            status: run.automationMode === "executable_later" && !connection.writeEnabled ? "warning" : "passed",
+            message:
+              run.automationMode === "executable_later" && !connection.writeEnabled
+                ? "Execution will remain blocked until Microsoft 365 write access is explicitly enabled."
+                : "This action can proceed through the approval workflow."
+          }
+        ],
+        diff: {
+          summary: run.expectedChange,
+          changes: [
+            {
+              field: "expectedChange",
+              after: run.expectedChange
+            },
+            {
+              field: "rollbackOrManualFallback",
+              after: run.rollbackStrategy || run.manualFallback
+            }
+          ]
+        },
+        requiredPermissions: run.permissionsRequired,
+        requiredLicense: run.licenseRequired,
+        canRequestApproval: !executableBlocked
+      }
+    });
+
+    return {
+      statusCode: 200,
+      body: {
+        actionRun: safeActionRunView(preview),
+        preview: preview.preflightResult
+      }
+    };
+  }
+
+  if (transition === "approve") {
+    const requested =
+      run.approval.status === "requested" || run.approval.status === "approved"
+        ? run
+        : await services.actions.requestApproval({
+            organizationId,
+            actionRunId,
+            actorUserId: session.user.id,
+            context
+          });
+    const approved =
+      requested.approval.status === "approved"
+        ? requested
+        : await services.actions.approve({
+            organizationId,
+            actionRunId,
+            actorUserId: session.user.id,
+            context
+          });
+
+    return {
+      statusCode: 200,
+      body: {
+        actionRun: safeActionRunView(approved)
+      }
+    };
+  }
+
+  const connection = await services.providerConnections.store.getConnectionForOrganization(
+    organizationId,
+    run.providerConnectionId
+  );
+  const queued = await services.actions.queue({
+    organizationId,
+    actionRunId,
+    actorUserId: session.user.id,
+    providerConnectionWriteEnabled: connection.writeEnabled,
+    context
+  });
+
+  return {
+    statusCode: 202,
+    body: {
+      actionRun: safeActionRunView(queued.run),
+      workerJob: queued.job
     }
   };
 };

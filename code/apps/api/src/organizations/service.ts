@@ -83,6 +83,14 @@ export interface AcceptOrganizationInvitationInput {
 export interface OrganizationRepository {
   findUserById(userId: string): Promise<AuthenticatedUser | null>;
   createOrganization(input: OrganizationRecord): Promise<OrganizationRecord>;
+  updateOrganization(input: {
+    organizationId: string;
+    name?: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    headquartersCountryCode?: string | null;
+    updatedAt: Date;
+  }): Promise<OrganizationRecord>;
   addOrganizationMember(input: OrganizationMembershipRecord): Promise<OrganizationMembershipRecord>;
   updateOrganizationMemberStatus(input: {
     memberId: string;
@@ -241,6 +249,46 @@ export class OrganizationService {
 
     return {
       organization: this.safeOrganizationView(organization)
+    };
+  }
+
+  async updateOrganization(input: {
+    actorUserId: string;
+    organizationId: string;
+    name?: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    headquartersCountryCode?: string | null;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }) {
+    const updated = await this.repository.updateOrganization({
+      organizationId: input.organizationId,
+      name: input.name,
+      legalName: input.legalName,
+      primaryCountryCode: input.primaryCountryCode,
+      headquartersCountryCode: input.headquartersCountryCode,
+      updatedAt: this.now()
+    });
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      targetType: "organization",
+      targetId: input.organizationId,
+      action: "organization_updated",
+      ipAddress: input.ipAddress ?? null,
+      userAgent: input.userAgent ?? null,
+      afterJson: {
+        name: updated.name,
+        legalName: updated.legalName,
+        primaryCountryCode: updated.primaryCountryCode,
+        headquartersCountryCode: updated.headquartersCountryCode
+      }
+    });
+
+    return {
+      organization: this.safeOrganizationView(updated)
     };
   }
 

@@ -102,6 +102,14 @@ export interface ProviderResourceStore {
   createConnection(input: CreateProviderConnectionInput): Promise<ProviderConnectionRecord>;
   getConnectionForOrganization(organizationId: string, providerConnectionId: string): Promise<ProviderConnectionRecord>;
   listConnections(organizationId: string): Promise<ProviderConnectionRecord[]>;
+  updateConnectionState(input: {
+    organizationId: string;
+    providerConnectionId: string;
+    status?: ProviderConnectionRecord["status"];
+    readEnabled?: boolean;
+    writeEnabled?: boolean;
+    metadataPatch?: Record<string, unknown>;
+  }): Promise<ProviderConnectionRecord>;
   upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord>;
   listCredentials(organizationId: string, providerConnectionId: string): Promise<ProviderCredentialRecord[]>;
   upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord>;
@@ -193,6 +201,30 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
 
   async listConnections(organizationId: string): Promise<ProviderConnectionRecord[]> {
     return [...this.connections.values()].filter((connection) => connection.organizationId === organizationId);
+  }
+
+  async updateConnectionState(input: {
+    organizationId: string;
+    providerConnectionId: string;
+    status?: ProviderConnectionRecord["status"];
+    readEnabled?: boolean;
+    writeEnabled?: boolean;
+    metadataPatch?: Record<string, unknown>;
+  }): Promise<ProviderConnectionRecord> {
+    const connection = await this.getConnectionForOrganization(input.organizationId, input.providerConnectionId);
+    const updated: ProviderConnectionRecord = {
+      ...connection,
+      status: input.status ?? connection.status,
+      readEnabled: input.readEnabled ?? connection.readEnabled,
+      writeEnabled: input.writeEnabled ?? connection.writeEnabled,
+      metadata: {
+        ...connection.metadata,
+        ...(input.metadataPatch ?? {})
+      },
+      updatedAt: this.timestamp()
+    };
+    this.connections.set(updated.id, updated);
+    return updated;
   }
 
   async upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord> {

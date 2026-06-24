@@ -64,6 +64,15 @@ export interface Microsoft365RunSyncInput {
   userAgent?: string | null;
 }
 
+export interface Microsoft365DisconnectInput {
+  organizationId: string;
+  actorUserId: string;
+  providerConnectionId: string;
+  reason?: string;
+  ipAddress?: string | null;
+  userAgent?: string | null;
+}
+
 export interface Microsoft365ConnectionHealth {
   connection: ProviderConnectionView;
   status: ProviderConnectionRecord["status"];
@@ -342,6 +351,9 @@ export class Microsoft365ProviderConnectionService {
     if (connection.providerKey !== microsoft365ProviderKey) {
       throw new AuthError("invalid_request", "Provider connection is not a Microsoft 365 connection.", 400);
     }
+    if (connection.status === "revoked" || connection.readEnabled !== true) {
+      throw new AuthError("invalid_request", "Microsoft 365 connection is disconnected. Reconnect before running sync.", 400);
+    }
 
     await this.auditWriter.write({
       actorUserId: input.actorUserId,
@@ -388,6 +400,51 @@ export class Microsoft365ProviderConnectionService {
     await this.notifyNewOpenFindings(input.organizationId, result.findings);
 
     return result;
+  }
+
+  async disconnect(input: Microsoft365DisconnectInput): Promise<{
+    connection: ProviderConnectionView;
+    providerRevocation: "manual_admin_center_recommended";
+  }> {
+    const connection = await this.store.getConnectionForOrganization(input.organizationId, input.providerConnectionId);
+    if (connection.providerKey !== microsoft365ProviderKey) {
+      throw new AuthError("invalid_request", "Provider connection is not a Microsoft 365 connection.", 400);
+    }
+
+    const disconnected = await this.store.updateConnectionState({
+      organizationId: input.organizationId,
+      providerConnectionId: input.providerConnectionId,
+      status: "revoked",
+      readEnabled: false,
+      writeEnabled: false,
+      metadataPatch: {
+        disconnectedAt: this.now().toISOString(),
+        disconnectReason: input.reason ?? "user_requested",
+        providerRevocation: "manual_admin_center_recommended"
+      }
+    });
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      targetType: "provider_connection",
+      targetId: disconnected.id,
+      action: "provider_disconnected",
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent,
+      afterJson: {
+        providerKey: microsoft365ProviderKey,
+        status: disconnected.status,
+        readEnabled: disconnected.readEnabled,
+        writeEnabled: disconnected.writeEnabled,
+        providerRevocation: "manual_admin_center_recommended"
+      }
+    });
+
+    return {
+      connection: safeConnectionView(disconnected),
+      providerRevocation: "manual_admin_center_recommended"
+    };
   }
 
   async getHealth(organizationId: string, providerConnectionId: string): Promise<Microsoft365ConnectionHealth> {

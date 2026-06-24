@@ -119,6 +119,7 @@ The repository currently contains:
 - PLAN_M93 PDF report generation: `apps/report-renderer` now has a Playwright-backed HTML-to-PDF route, `@puresoc/reports` has PDF HTML templates for executive summary, gap report, Romania notification draft, and evidence-package index, the API exposes authenticated gap-report and Romania notification-draft PDF download routes, generated PDFs are stored as evidence with `GeneratedReport` and `report_exports` content hashes, direct PDF downloads are audited through `EvidenceAccessLog`, and the renderer Compose service is internal-only.
 - PLAN_M94 notification and alert system: `@puresoc/notifications` now has non-throwing SMTP/Slack/Teams transport boundaries, org-scoped notification channels/logs/deadlines persist in memory and Prisma modes, API and Settings -> Notifications routes manage channels and logs with webhook redaction, compliance/Microsoft/remediation triggers send events, and the scheduler scans incident/evidence/checklist alert windows without live external delivery proof.
 - PLAN_M95 compliance score trend chart: dashboard snapshots now include trend metrics for compliant/accepted-risk score, severity counts, compliant/total controls, and provider connection health; the scheduler creates at most one daily snapshot per organization with stored analysis; the API exposes ascending dashboard history rows; and the served dashboard renders a dependency-free SVG trend chart with 30/90/180 day toggles, exact-value hover labels, not-enough-data state, and movement copy without provider writes or live external calls.
+- PLAN_M97 product MVP facade hardening: product `PATCH` JSON bodies are parsed, workspace and gap facade updates persist through existing repositories, Microsoft 365 product callback/disconnect are real local active-workspace flows, generated-report PDF downloads use the evidence-backed renderer path, and remediation preview/approve/execute aliases delegate to the action lifecycle without bypassing snapshot/write gates.
 - PARTNER_DEMO Milestone 0-8: `docs/execplans/PLAN_PURESOC_PARTNER_DEMO.md` now tracks the autonomous partner-led NIS2/Microsoft evidence demo. The completed foundation adds partner businesses, partner memberships, explicit partner-tenant grants, short-lived tenant-access sessions, audit `contextJson`, memory/Prisma partner repositories, authenticated partner API routes, served `/partners` console, tenant-only partner customer creation, reason-gated customer sessions, active customer-session banner, exit flow, typed EU/RO/PL/DE NIS2 country-pack definitions, source-backed country-pack registry/classification API routes, served `/onboarding/nis2` country-aware entry page, immutable initial report metadata, separate applicability/readiness/evidence-confidence/priority report concepts, Romania report-version context, Microsoft connector `fixture`/`live`/`auto` modes, fixture consent through one-time state/callback, five core Microsoft read-only modules including MFA registration, health/UI connector-mode metadata, immutable Microsoft-verified report version 2, explicit finding provenance, declared-versus-verified contradiction records, readiness/evidence-confidence deltas, PDF comparison rendering, deterministic recommendation snapshots, versioned Microsoft 365 capability mapping, Business Premium evaluation logic, unknown SKU diagnostics, sector-sensitive opportunity priority/action text, backend-derived partner portfolio metrics/opportunities, enriched customer portfolio rows, deterministic Asterion Cloud Partners demo reset/seed/verify scripts, and focused package/API/web tests without enabling Microsoft writes, live external calls, DNSC submission, billing changes, license ordering, Partner Center ordering, pricing/margin/commission logic, or legal certification claims.
 
 Known major remaining work is tracked in `docs/implementation-gaps.md`, sequenced in `docs/gap-implementation-path.md`, and supplemented by `docs/claude_rec.md`, `docs/claude_rec2.md`, `docs/claude_rec3.md`, and `docs/claude_rec4.md`.
@@ -217,6 +218,8 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 93 / `docs/PLAN_M94.md` is completed.
 - Prompt 94 / `docs/PLAN_M95.md` is completed.
 - Prompt 95 / `docs/PLAN_M96.md` is staged as the next product milestone runner.
+- Ad hoc `docs/PLAN_M97.md` is completed for product MVP facade hardening.
+- `docs/PLAN_M98.md` is staged for the remaining product facade destructive-semantics work.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
 
 During each prompt run:
@@ -233,10 +236,13 @@ Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
 2. Prompt 95 / `docs/PLAN_M96.md`: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius.
+3. `docs/PLAN_M98.md`: Product MVP Remaining Destructive Semantics.
 
-M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads, M94 narrowed local notification/alert delivery plumbing while opening GAP-048 for live delivery operations and incident workflow modeling, and M95 added local compliance score trend history/charting. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
+M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads, M94 narrowed local notification/alert delivery plumbing while opening GAP-048 for live delivery operations and incident workflow modeling, M95 added local compliance score trend history/charting, and M97 narrowed GAP-050 with persisted product facade update/download/remediation aliases. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
 Use M96 when continuing the user-directed product milestone sequence. It should implement Milestone 4 write actions wave 1 only, keeping all four actions zero-blast-radius, evidence-producing, approval-gated, and free of Microsoft 365 configuration writes.
+
+Use M98 when continuing the product MVP facade cleanup. It should implement evidence retention/deletion semantics and optional Microsoft Entra provider-side revocation proof only when the backing contracts, audit behavior, and tests are included.
 
 ## Active Prompt 79 / PLAN_M80: Romania Legal/Product Decision Gate And External Proof Handoff
 
@@ -382,6 +388,30 @@ Negative constraints:
 - Do not bypass existing remediation approval, audit, preflight, snapshot, verification, and evidence metadata boundaries.
 
 Use the validation plan from `docs/PLAN_M96.md`, and always run `git diff --check`.
+
+## Staged PLAN_M98: Product MVP Remaining Destructive Semantics
+
+Read:
+
+- `docs/puresoc_vision.md`
+- `docs/master-plan.md`
+- `docs/implementation-gaps.md`
+- `docs/codex-prompts.md`
+- `docs/LEARNINGS.md`
+- `docs/PLAN_M98.md`
+- `docs/PLAN_M97.md`
+
+Goal:
+
+Finish the remaining product facade destructive semantics that M97 intentionally left open: evidence retention/deletion policy and, if feasible without live-customer risk, Microsoft provider-side revocation proof.
+
+Negative constraints:
+
+- Do not hard-delete evidence without explicit retention, legal-hold/tombstone, authorization, audit, and object-storage behavior.
+- Do not claim Microsoft provider-side revocation unless the implementation actually proves the provider-side call or documents the manual handoff.
+- Do not enable Microsoft configuration writes, DNSC submission, live external calls, or legal/certification claims.
+
+Use the validation plan from `docs/PLAN_M98.md`, and always run `git diff --check`.
 
 ## Completed Prompt 94 / PLAN_M95: Compliance Score Trend Chart
 

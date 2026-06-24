@@ -139,6 +139,50 @@ export class PrismaProviderResourceStore implements ProviderResourceStore {
     return rows.map(fromConnectionRow);
   }
 
+  async updateConnectionState(input: {
+    organizationId: string;
+    providerConnectionId: string;
+    status?: ProviderConnectionRecord["status"];
+    readEnabled?: boolean;
+    writeEnabled?: boolean;
+    metadataPatch?: Record<string, unknown>;
+  }): Promise<ProviderConnectionRecord> {
+    const existing = await this.client.providerConnection.findUnique({
+      where: {
+        id: input.providerConnectionId
+      }
+    });
+    if (!existing || existing.organizationId !== input.organizationId) {
+      throw new ProviderStoreIsolationError("connection", input.providerConnectionId, input.organizationId);
+    }
+
+    const existingMetadata =
+      existing.metadataJson && typeof existing.metadataJson === "object" && !Array.isArray(existing.metadataJson)
+        ? (existing.metadataJson as Record<string, unknown>)
+        : {};
+    const updated = await this.client.providerConnection.update({
+      where: {
+        id: input.providerConnectionId
+      },
+      data: {
+        ...(input.status ? { status: input.status } : {}),
+        ...(typeof input.readEnabled === "boolean" ? { readEnabled: input.readEnabled } : {}),
+        ...(typeof input.writeEnabled === "boolean" ? { writeEnabled: input.writeEnabled } : {}),
+        ...(input.metadataPatch
+          ? {
+              metadataJson: {
+                ...existingMetadata,
+                ...input.metadataPatch
+              }
+            }
+          : {}),
+        updatedAt: this.now()
+      }
+    });
+
+    return fromConnectionRow(updated);
+  }
+
   async upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord> {
     await this.getConnectionForOrganization(input.organizationId, input.providerConnectionId);
     const timestamp = this.timestamp();

@@ -68,6 +68,20 @@ const smokeConfig = (overrides: Partial<ReturnType<typeof microsoft365ReadOnlySm
 });
 
 describe("Microsoft 365 read-only smoke harness", () => {
+  it("loads the documented PureSOC connector app environment names", () => {
+    expect(
+      microsoft365ReadOnlySmokeConfigFromEnv({
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID: "documented-client-id",
+        PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET: clientSecret,
+        PURESOC_MICROSOFT365_SMOKE_TENANT_ID: tenantId
+      })
+    ).toMatchObject({
+      clientId: "documented-client-id",
+      clientSecret,
+      tenantId
+    });
+  });
+
   it("defaults to a secret-free dry run and does not call Microsoft Graph", async () => {
     const tokenCalls: string[] = [];
     const graphCalls: string[] = [];

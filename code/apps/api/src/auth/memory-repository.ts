@@ -240,6 +240,33 @@ export class InMemoryIdentityOrganizationRbacRepository
     return input;
   }
 
+  async updateOrganization(input: {
+    organizationId: string;
+    name?: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    headquartersCountryCode?: string | null;
+    updatedAt: Date;
+  }): Promise<OrganizationRecord> {
+    const organization = this.organizations.get(input.organizationId);
+    if (!organization) {
+      throw new Error(`Unknown organization: ${input.organizationId}`);
+    }
+
+    const updated = {
+      ...organization,
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.legalName !== undefined ? { legalName: input.legalName } : {}),
+      ...(input.primaryCountryCode !== undefined ? { primaryCountryCode: input.primaryCountryCode } : {}),
+      ...(input.headquartersCountryCode !== undefined
+        ? { headquartersCountryCode: input.headquartersCountryCode }
+        : {}),
+      updatedAt: input.updatedAt
+    };
+    this.organizations.set(input.organizationId, updated);
+    return updated;
+  }
+
   async addOrganizationMember(input: OrganizationMembershipRecord): Promise<OrganizationMembershipRecord> {
     this.organizationMembers.set(input.id, input);
     return input;

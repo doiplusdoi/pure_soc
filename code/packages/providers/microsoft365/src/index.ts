@@ -1828,8 +1828,16 @@ type Microsoft365SmokeEndpointClass = "official_microsoft_public_cloud" | "empty
 export const microsoft365ReadOnlySmokeConfigFromEnv = (
   env: NodeJS.ProcessEnv = process.env
 ): Microsoft365ReadOnlySmokeConfig => ({
-  clientId: firstConfiguredEnv(env, ["MICROSOFT365_CLIENT_ID", "M365_CLIENT_ID"]),
-  clientSecret: firstConfiguredEnv(env, ["MICROSOFT365_CLIENT_SECRET", "M365_CLIENT_SECRET"]),
+  clientId: firstConfiguredEnv(env, [
+    "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
+    "MICROSOFT365_CLIENT_ID",
+    "M365_CLIENT_ID"
+  ]),
+  clientSecret: firstConfiguredEnv(env, [
+    "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
+    "MICROSOFT365_CLIENT_SECRET",
+    "M365_CLIENT_SECRET"
+  ]),
   tenantId: firstConfiguredEnv(env, ["PURESOC_MICROSOFT365_SMOKE_TENANT_ID", "MICROSOFT365_TENANT_ID", "M365_TENANT_ID"]),
   authorityHost: "https://login.microsoftonline.com",
   graphBaseUrl: "https://graph.microsoft.com/v1.0",
