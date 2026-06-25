@@ -532,8 +532,10 @@ export class Microsoft365ProviderConnectionService {
 
   private async consumePendingState(input: Microsoft365ConsentCallbackInput): Promise<PendingConsentState> {
     const persisted = await this.consentStateStore.consumeConsentState({
+      organizationId: input.organizationId,
       providerKey: microsoft365ProviderKey,
       stateHash: hashConsentState(input.state),
+      actorUserId: input.actorUserId,
       consumedAt: this.now().toISOString()
     });
     const pending = persisted ? consentStateRecordToPendingState(persisted) : null;
@@ -544,10 +546,6 @@ export class Microsoft365ProviderConnectionService {
 
     if (pending.organizationId !== input.organizationId || pending.actorUserId !== input.actorUserId) {
       throw new AuthError("forbidden", "Microsoft 365 consent state does not belong to this session.", 403);
-    }
-
-    if (input.redirectUri && input.redirectUri !== pending.redirectUri) {
-      throw new AuthError("invalid_request", "Microsoft 365 consent redirect URI does not match the pending state.", 400);
     }
 
     if (new Date(pending.expiresAt).getTime() < this.now().getTime()) {

@@ -70,6 +70,44 @@ describe("PrismaProviderConsentStateStore", () => {
       })
     ).resolves.toBeNull();
   });
+
+  it("does not consume consent state for a different organization or actor", async () => {
+    const client = new FakePrismaProviderConsentStateClient();
+    const store = new PrismaProviderConsentStateStore(client as unknown as PrismaProviderConsentStateClient, {
+      now: () => NOW,
+      idFactory: () => "state_row_3"
+    });
+
+    await store.saveConsentState({
+      organizationId: "11111111-1111-1111-1111-111111111111",
+      providerKey: "microsoft365",
+      stateHash: "scoped-state-hash",
+      actorUserId: "22222222-2222-2222-2222-222222222222",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      requestedPermissionBundles: ["m365_read_baseline"],
+      expiresAt: EXPIRES.toISOString()
+    });
+
+    await expect(
+      store.consumeConsentState({
+        organizationId: "33333333-3333-3333-3333-333333333333",
+        providerKey: "microsoft365",
+        stateHash: "scoped-state-hash",
+        actorUserId: "22222222-2222-2222-2222-222222222222",
+        consumedAt: NOW.toISOString()
+      })
+    ).resolves.toBeNull();
+
+    const consumed = await store.consumeConsentState({
+      organizationId: "11111111-1111-1111-1111-111111111111",
+      providerKey: "microsoft365",
+      stateHash: "scoped-state-hash",
+      actorUserId: "22222222-2222-2222-2222-222222222222",
+      consumedAt: NOW.toISOString()
+    });
+
+    expect(consumed?.id).toBe("state_row_3");
+  });
 });
 
 class FakePrismaProviderConsentStateClient {

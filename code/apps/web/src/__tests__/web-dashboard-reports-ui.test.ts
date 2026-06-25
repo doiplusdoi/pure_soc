@@ -1086,6 +1086,92 @@ describe("web dashboard reports operational UI", () => {
     }
   });
 
+  it("renders Microsoft 365 callback API errors without sending a recomputed redirect URI", async () => {
+    let receivedBody:
+      | {
+          state?: string;
+          tenant?: string;
+          admin_consent?: string;
+          redirectUri?: string;
+        }
+      | undefined;
+    const apiServer = createServer(async (request, response) => {
+      if (request.method === "GET" && request.url === "/auth/session") {
+        response.statusCode = 200;
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            session: {
+              activeOrganizationId: "org_1"
+            }
+          })
+        );
+        return;
+      }
+
+      if (
+        request.method === "POST" &&
+        request.url === "/organizations/org_1/provider-connections/microsoft365/consent/callback"
+      ) {
+        receivedBody = await readRequestJson<typeof receivedBody>(request);
+        response.statusCode = 400;
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            error: {
+              code: "invalid_request",
+              message: "Microsoft 365 consent state is invalid or expired."
+            }
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end("not found");
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/providers/microsoft365/callback?state=state_123&tenant=tenant_123&admin_consent=True`,
+        {
+          headers: {
+            cookie: "puresoc_session=test",
+            "x-forwarded-host": "demo.puresoc.example",
+            "x-forwarded-proto": "https"
+          }
+        }
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(400);
+      expect(receivedBody).toEqual({
+        state: "state_123",
+        tenant: "tenant_123",
+        admin_consent: "True"
+      });
+      expect(html).toContain("Microsoft 365 consent state is invalid or expired.");
+      expect(html).toContain("invalid_request");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("renders the operational console from stored aggregate data with source indicators and the legal caveat", () => {
     const model = createOperationalConsoleDemoModel();
     const html = renderOperationalConsole(model);

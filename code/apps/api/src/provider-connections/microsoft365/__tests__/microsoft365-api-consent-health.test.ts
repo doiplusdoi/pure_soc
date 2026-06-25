@@ -239,6 +239,73 @@ describe("microsoft365 API consent and health service", () => {
     expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_read_baseline")?.enabled).toBe(true);
   });
 
+  it("does not burn pending Microsoft consent state for the wrong workspace session", async () => {
+    const store = new InMemoryProviderResourceStore({ now: fixedNow });
+    const consentStates = new InMemoryProviderConsentStateStore({ now: fixedNow });
+    const auditWriter = new AuditWriter({
+      sink: new InMemoryAuditSink(),
+      now: fixedNow
+    });
+    const tokenCipher = createLocalMicrosoft365TokenCipher({ masterKey: "api-test-master-key" });
+    const accessToken = jwt(baselinePermissions);
+    const createConnector = (input: {
+      credentialResolver: Microsoft365CredentialResolver;
+      tokenCipher: Microsoft365TokenCipher;
+    }) =>
+      createMicrosoft365Connector({
+        clientId: "client-id",
+        clientSecret: "client-secret",
+        graphHttpClient,
+        credentialResolver: input.credentialResolver,
+        tokenCipher: input.tokenCipher,
+        tokenClient: async () => ({
+          accessToken,
+          tokenType: "Bearer",
+          expiresIn: 3600,
+          tenantId,
+          grantedPermissions: baselinePermissions
+        }),
+        idFactory: () => "m365_api_connection_scoped",
+        now: fixedNow
+      });
+
+    const service = new Microsoft365ProviderConnectionService({
+      store,
+      consentStateStore: consentStates,
+      auditWriter,
+      now: fixedNow,
+      stateFactory: () => "workspace_bound_state",
+      tokenCipher,
+      createConnector
+    });
+    const begin = await service.beginConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      requestedPermissionBundles: ["m365_read_baseline"]
+    });
+
+    await expect(
+      service.completeConsent({
+        organizationId: "org_2",
+        actorUserId: "user_1",
+        state: begin.state,
+        tenantId,
+        adminConsent: true
+      })
+    ).rejects.toMatchObject({ code: "invalid_request" });
+
+    const completed = await service.completeConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      state: begin.state,
+      tenantId,
+      adminConsent: true
+    });
+
+    expect(completed.connection.id).toBe("m365_api_connection_scoped");
+  });
+
   it("runs fixture-mode consent and five-module sync without Microsoft connector app secrets", async () => {
     const store = new InMemoryProviderResourceStore({ now: fixedNow });
     const auditSink = new InMemoryAuditSink();

@@ -26,8 +26,10 @@ export interface SaveProviderConsentStateInput {
 }
 
 export interface ConsumeProviderConsentStateInput {
+  organizationId?: string;
   providerKey: string;
   stateHash: string;
+  actorUserId?: string;
   consumedAt: string;
 }
 
@@ -98,7 +100,13 @@ export class InMemoryProviderConsentStateStore implements ProviderConsentStateSt
     const existing = this.states.get(key);
     const consumedAtMs = new Date(input.consumedAt).getTime();
 
-    if (!existing || existing.consumedAt || new Date(existing.expiresAt).getTime() <= consumedAtMs) {
+    if (
+      !existing ||
+      existing.consumedAt ||
+      new Date(existing.expiresAt).getTime() <= consumedAtMs ||
+      (input.organizationId && existing.organizationId !== input.organizationId) ||
+      (input.actorUserId && existing.actorUserId !== input.actorUserId)
+    ) {
       return null;
     }
 
@@ -146,8 +154,10 @@ export class PrismaProviderConsentStateStore implements ProviderConsentStateStor
     const consumedAt = toDate(input.consumedAt);
     const existing = await this.client.providerConsentState.findFirst({
       where: {
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
         providerKey: input.providerKey,
         stateHash: input.stateHash,
+        ...(input.actorUserId ? { actorUserId: input.actorUserId } : {}),
         consumedAt: null
       },
       orderBy: {
@@ -162,6 +172,8 @@ export class PrismaProviderConsentStateStore implements ProviderConsentStateStor
     const updated = await this.client.providerConsentState.updateMany({
       where: {
         id: existing.id,
+        ...(input.organizationId ? { organizationId: input.organizationId } : {}),
+        ...(input.actorUserId ? { actorUserId: input.actorUserId } : {}),
         consumedAt: null
       },
       data: {

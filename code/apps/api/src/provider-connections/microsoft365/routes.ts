@@ -21,6 +21,9 @@ const requireString = (body: Record<string, unknown>, key: string): string => {
 const optionalStringArray = (value: unknown): string[] | undefined =>
   Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === "string") : undefined;
 
+const microsoftAdminConsentGranted = (value: unknown): boolean =>
+  value === true || (typeof value === "string" && value.trim().toLowerCase() === "true");
+
 export const beginMicrosoft365ConsentRoute = async (
   organizationId: string,
   body: Record<string, unknown>,
@@ -71,7 +74,7 @@ export const completeMicrosoft365ConsentRoute = async (
       actorUserId,
       state: requireString(input, "state"),
       tenantId: requireString(input, "tenant"),
-      adminConsent: input.admin_consent === true || input.admin_consent === "True",
+      adminConsent: microsoftAdminConsentGranted(input.admin_consent),
       redirectUri: typeof input.redirectUri === "string" ? input.redirectUri : undefined,
       authorizationCode: typeof input.code === "string" ? input.code : undefined,
       ipAddress: context.ipAddress,

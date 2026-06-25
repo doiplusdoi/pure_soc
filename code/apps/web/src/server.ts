@@ -1290,10 +1290,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           method: "POST",
           cookie: request.headers.cookie,
           origin: apiRequestOrigin,
-          body: {
-            ...callbackInput,
-            redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin)
-          }
+          body: callbackInput
         }
       );
 
@@ -1303,7 +1300,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         `/microsoft365?message=${encodeURIComponent(
           apiSucceeded(completed.statusCode)
             ? "Microsoft 365 connection completed."
-            : "Microsoft 365 consent was not completed."
+            : apiErrorMessage(completed.body) ?? "Microsoft 365 consent was not completed."
         )}`
       );
       response.end();
@@ -1976,20 +1973,21 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           method: "POST",
           cookie: request.headers.cookie,
           origin: apiRequestOrigin,
-          body: {
-            ...callbackInput,
-            redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin)
-          }
+          body: callbackInput
         }
       );
 
       if (completed.statusCode !== 201) {
+        const errorCode = apiErrorCode(completed.body);
+        const errorMessage = apiErrorMessage(completed.body);
         sendHtml(
           response,
           renderRuntimeMessageScreen({
             title: "Microsoft 365 Consent Not Completed",
-            summary: "The callback did not match the active workspace session or Microsoft did not grant admin consent.",
-            statusLabel: "Consent blocked",
+            summary:
+              errorMessage ??
+              "The callback did not match the active workspace session or Microsoft did not grant admin consent.",
+            statusLabel: errorCode ?? "Consent blocked",
             statusTone: "warning",
             actionHref: "/providers/microsoft365",
             actionLabel: "Return to connector"
@@ -4848,6 +4846,14 @@ const apiErrorCode = (body: unknown): string | null => {
   }
 
   return typeof body.error.code === "string" ? body.error.code : null;
+};
+
+const apiErrorMessage = (body: unknown): string | null => {
+  if (!isRecord(body) || !isRecord(body.error)) {
+    return null;
+  }
+
+  return typeof body.error.message === "string" ? body.error.message : null;
 };
 
 const apiJson = async <T>(
