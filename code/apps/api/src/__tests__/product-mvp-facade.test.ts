@@ -8,6 +8,7 @@ import { createApiServices } from "../auth/services";
 import { startApiServer } from "../server";
 
 const password = "CorrectHorseBatteryStaple42!";
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const readJson = async <T>(response: Response): Promise<T> => (await response.json()) as T;
 
@@ -174,14 +175,17 @@ describe("product MVP facade routes", () => {
     });
     expect(freshBody.dashboard.microsoft365.status).toBe("not_connected");
 
+    const runWithoutOnboarding = await postJson("/api/readiness/run", {}, cookie);
+    expect(runWithoutOnboarding.status).toBe(404);
+
     const saved = await putJson(
       "/api/onboarding/answers",
       {
-        countryCode: "RO",
+        countryCode: "DE",
         currentScreen: "company_profile",
         completedScreens: ["company_profile"],
         answers: {
-          company: { legalName: "Asterion Tools SRL", countryCode: "RO" },
+          company: { legalName: "Asterion Cloud Services SRL", countryCode: "DE" },
           contacts: { primaryEmail: "security@example.test" },
           business: { sector: "digital_services", employeeCount: 42 },
           dependencies: { microsoft365Usage: "email_collaboration" }
@@ -190,10 +194,14 @@ describe("product MVP facade routes", () => {
       cookie
     );
     expect(saved.status).toBe(200);
+    const savedBody = await readJson<{ progress: { assessmentId: string } }>(saved);
+    expect(savedBody.progress.assessmentId).toMatch(uuidPattern);
 
     const run = await postJson("/api/readiness/run", {}, cookie);
     expect(run.status).toBe(201);
-    const runBody = await readJson<{ gaps: Array<{ id: string }>; recommendations: unknown[] }>(run);
+    const runBody = await readJson<{ assessmentId: string; gaps: Array<{ id: string }>; recommendations: unknown[] }>(run);
+    expect(runBody.assessmentId).toMatch(uuidPattern);
+    expect(runBody.assessmentId).toBe(savedBody.progress.assessmentId);
     expect(runBody.gaps.length).toBeGreaterThan(0);
     expect(runBody.recommendations.length).toBeGreaterThan(0);
 

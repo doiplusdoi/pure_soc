@@ -1,3 +1,5 @@
+import { randomUUID } from "node:crypto";
+
 import { AuthError, type PureSocRoleKey } from "@puresoc/auth-core";
 import type { ComplianceStatus } from "@puresoc/compliance-core";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -58,6 +60,21 @@ const optionalNullableString = (body: Record<string, unknown>, key: string): str
     return null;
   }
   return safeString(body, key);
+};
+
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const isUuidString = (value: string | undefined): value is string => Boolean(value && uuidPattern.test(value));
+
+const optionalUuidString = (body: Record<string, unknown>, key: string, label = key): string | undefined => {
+  const value = safeString(body, key);
+  if (!value) {
+    return undefined;
+  }
+  if (!isUuidString(value)) {
+    throw new AuthError("invalid_request", `${label} must be a UUID.`, 400);
+  }
+  return value;
 };
 
 const safeBoolean = (body: Record<string, unknown>, key: string): boolean | undefined => {
@@ -574,7 +591,7 @@ export const productSaveOnboardingAnswersRoute = async (
     organizationId,
     countryCode,
     onboardingProgressId: safeString(body, "onboardingProgressId"),
-    assessmentId: safeString(body, "assessmentId") ?? preferredAssessmentId(organizationId),
+    assessmentId: optionalUuidString(body, "assessmentId", "Assessment ID"),
     answers,
     completedScreens: optionalStringArray(body.completedScreens),
     currentScreen: safeString(body, "currentScreen"),
@@ -654,16 +671,23 @@ export const productRunReadinessRoute = async (
     "security_operator"
   ]);
   const connection = await primaryMicrosoftConnection(organizationId, services);
-  const assessmentId = safeString(body, "assessmentId") ?? preferredAssessmentId(organizationId);
+  const countryCode = organization.primaryCountryCode ?? "RO";
+  const progress = await services.nis2Onboarding.requireLatestProgress({
+    countryCode,
+    organizationId
+  });
+  const assessmentId =
+    optionalUuidString(body, "assessmentId", "Assessment ID") ??
+    (isUuidString(progress.assessmentId) ? progress.assessmentId : randomUUID());
   const result = await services.compliance.evaluateAssessment({
     organizationId,
     assessmentId,
     providerConnectionId: connection?.id,
-    jurisdiction: organization.primaryCountryCode ?? "EU",
+    jurisdiction: countryCode,
     ownerUserId: session.user.id,
     countryPack: {
-      countryCode: organization.primaryCountryCode ?? "RO",
-      countryPackStatus: organization.primaryCountryCode === "RO" ? "review_required" : "demo",
+      countryCode,
+      countryPackStatus: countryCode === "RO" ? "review_required" : "demo",
       completeness: "partial"
     }
   });
