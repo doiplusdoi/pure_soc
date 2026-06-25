@@ -192,6 +192,102 @@ describe("web dashboard reports operational UI", () => {
     }
   });
 
+  it("sends signed-in sessions without an active organization to workspace selection", async () => {
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "POST" && url.pathname === "/auth/login") {
+        response.setHeader("set-cookie", "puresoc_session=test-session; HttpOnly; SameSite=Lax; Path=/");
+        response.end(
+          JSON.stringify({
+            user: { id: "user_workspace", email: "workspace@example.test", displayName: "Workspace User" },
+            session: { activeOrganizationId: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/auth/session") {
+        response.end(
+          JSON.stringify({
+            user: { id: "user_workspace", email: "workspace@example.test", displayName: "Workspace User" },
+            session: { activeOrganizationId: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/organizations") {
+        response.end(
+          JSON.stringify({
+            organizations: [
+              {
+                membership: { id: "membership_workspace", status: "active" },
+                organization: {
+                  id: "org_workspace",
+                  name: "Workspace Demo",
+                  billingStatus: "none",
+                  primaryCountryCode: "RO"
+                },
+                roleKeys: ["owner"]
+              }
+            ]
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const login = await fetch(`${baseUrl}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          email: "workspace@example.test",
+          password: "demo-password"
+        }),
+        redirect: "manual"
+      });
+
+      expect(login.status).toBe(303);
+      expect(login.headers.get("location")).toBe("/workspaces");
+      expect(login.headers.get("set-cookie")).toContain("puresoc_session=");
+
+      const dashboard = await fetch(`${baseUrl}/dashboard`, {
+        headers: { cookie: login.headers.get("set-cookie") ?? "" },
+        redirect: "manual"
+      });
+      const dashboardHtml = await dashboard.text();
+
+      expect(dashboard.status).toBe(200);
+      expect(dashboard.headers.get("location")).toBeNull();
+      expect(dashboardHtml).toContain('data-ui-smoke="workspace-selection"');
+      expect(dashboardHtml).toContain("Select or create a workspace to open PureSOC.");
+      expect(dashboardHtml).toContain("Workspace Demo");
+      expect(dashboardHtml).not.toContain("Sign in and select a workspace to open PureSOC.");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("renders organization-scoped app routes from product v1 APIs", async () => {
     const apiServer = createServer(async (request, response) => {
       const url = new URL(request.url ?? "/", "http://api.local");

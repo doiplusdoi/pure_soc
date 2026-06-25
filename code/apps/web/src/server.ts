@@ -810,18 +810,62 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     const productRoute = productRouteByPath.get(url.pathname);
     if (request.method === "GET" && productRoute) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+
+      if (session.statusCode !== 200) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in and select a workspace to open PureSOC."
+          })
+        );
+        return;
+      }
+
+      if (!session.body.session.activeOrganizationId) {
+        const selection = await loadWorkspaceSelectionModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Select or create a workspace to open PureSOC.",
+          session: session.body
+        });
+        sendHtml(
+          response,
+          selection
+            ? renderWorkspaceSelectionScreen(selection)
+            : renderRuntimeMessageScreen({
+                title: "Select A Workspace",
+                summary: "The API session is valid, but workspace memberships could not be loaded.",
+                statusLabel: "Session active",
+                statusTone: "warning",
+                actionHref: "/workspaces",
+                actionLabel: "Choose workspace"
+              })
+        );
+        return;
+      }
+
       const productModel = await loadProductMvpShellModel({
         actionMessage: url.searchParams.get("message"),
         apiBaseUrl,
         cookie: request.headers.cookie,
-        route: productRoute
+        route: productRoute,
+        session: session.body
       });
 
       if (!productModel) {
         sendHtml(
           response,
-          renderLoginScreen({
-            errorMessage: "Sign in and select a workspace to open PureSOC."
+          renderRuntimeMessageScreen({
+            title: "Workspace Unavailable",
+            summary: "The session is active, but the selected workspace could not load the product dashboard.",
+            statusLabel: "API connected",
+            statusTone: "warning",
+            actionHref: "/workspaces",
+            actionLabel: "Choose workspace"
           })
         );
         return;
@@ -2043,7 +2087,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     if (request.method === "POST" && url.pathname === "/auth/login") {
       const form = await readFormBody(request);
-      const login = await apiJson<unknown>(apiBaseUrl, "/auth/login", {
+      const login = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/login", {
         method: "POST",
         origin: apiRequestOrigin,
         body: {
@@ -2070,7 +2114,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response.setHeader("set-cookie", login.setCookie);
       }
       response.statusCode = 303;
-      response.setHeader("location", "/");
+      response.setHeader("location", login.body.session?.activeOrganizationId ? "/dashboard" : "/workspaces");
       response.end();
       return;
     }
@@ -2805,15 +2849,20 @@ const loadProductMvpShellModel = async (input: {
   apiBaseUrl: string;
   cookie?: string;
   route: ProductMvpRoute;
+  session?: RuntimeSessionSurface;
 }): Promise<ProductMvpShellModel | null> => {
-  const session = await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
-    method: "GET",
-    cookie: input.cookie
-  });
-  if (session.statusCode !== 200) {
-    return null;
+  let session = input.session;
+  if (!session) {
+    const sessionResponse = await apiJson<RuntimeSessionSurface>(input.apiBaseUrl, "/auth/session", {
+      method: "GET",
+      cookie: input.cookie
+    });
+    if (sessionResponse.statusCode !== 200) {
+      return null;
+    }
+    session = sessionResponse.body;
   }
-  if (!session.body.session.activeOrganizationId) {
+  if (!session.session.activeOrganizationId) {
     return null;
   }
 
@@ -2893,7 +2942,7 @@ const loadProductMvpShellModel = async (input: {
     customers: customers.statusCode === 200 ? customers.body.customers ?? [] : [],
     dashboard: dashboard.body.dashboard,
     details,
-    session: session.body
+    session
   };
 };
 
