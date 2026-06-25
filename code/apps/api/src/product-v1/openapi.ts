@@ -66,11 +66,61 @@ export const productV1OpenApiDocument = {
     "/organizations/{organizationId}/provider-capabilities": {
       get: { summary: "List normalized provider capability states." }
     },
+    "/organizations/{organizationId}/provider-actions/{actionTemplateId}/preflight": {
+      post: { summary: "Create or reuse a provider action run and record a safe preflight without provider mutation." }
+    },
+    "/organizations/{organizationId}/provider-actions/{actionRunId}": {
+      get: { summary: "Read one provider action run without exposing idempotency secrets." }
+    },
+    "/organizations/{organizationId}/provider-actions/{actionRunId}/approve": {
+      post: { summary: "Request and grant provider action approval after preflight succeeds." }
+    },
+    "/organizations/{organizationId}/provider-actions/{actionRunId}/execute": {
+      post: { summary: "Create local zero-blast action artifacts or return an explicit execution-blocked state for provider writes." }
+    },
     "/organizations/{organizationId}/internal-events": {
       get: { summary: "List Product V1 internal events and outbox status." }
     },
     "/organizations/{organizationId}/internal-events/{eventId}/publish-result": {
       post: { summary: "Record an internal event publisher result without calling external infrastructure." }
+    },
+    "/organizations/{organizationId}/audit/export": {
+      get: { summary: "Export a redacted audit segment with explicit non-WORM/non-notarization guarantees." }
+    },
+    "/organizations/{organizationId}/audit/checkpoints": {
+      get: { summary: "List audit checkpoints for an organization." },
+      post: { summary: "Record a database checkpoint or configured fake external anchor without WORM claims." }
+    },
+    "/organizations/{organizationId}/notification-channels": {
+      get: { summary: "List notification delivery channels for an organization." },
+      post: { summary: "Create an email or webhook notification delivery channel." }
+    },
+    "/organizations/{organizationId}/notification-channels/{notificationChannelId}": {
+      patch: { summary: "Rotate a notification channel destination or enable/disable delivery without deleting logs." },
+      delete: { summary: "Delete a notification delivery channel for an organization." }
+    },
+    "/organizations/{organizationId}/notification-channels/{notificationChannelId}/test": {
+      post: { summary: "Send a zero-blast test notification through one channel and record delivery logs." }
+    },
+    "/organizations/{organizationId}/notification-logs": {
+      get: { summary: "List redacted notification delivery logs for an organization." }
+    },
+    "/organizations/{organizationId}/notification-operator-alerts": {
+      get: { summary: "List local operator alerts created when notification delivery retries exhaust." }
+    },
+    "/organizations/{organizationId}/notification-operator-alerts/{operatorAlertId}/acknowledge": {
+      post: { summary: "Acknowledge a local notification delivery operator alert." }
+    },
+    "/organizations/{organizationId}/notifications": {
+      get: { summary: "List in-app notification-center items for an organization." },
+      post: { summary: "Create an in-app notification-center item without using delivery transports." }
+    },
+    "/organizations/{organizationId}/notifications/{notificationId}": {
+      patch: { summary: "Mark an in-app notification unread, read, archived, or suppressed." }
+    },
+    "/organizations/{organizationId}/notification-preferences": {
+      get: { summary: "Read organization notification-center preferences." },
+      put: { summary: "Update digest and suppression preferences for in-app notifications." }
     },
     "/organizations/{organizationId}/assets": {
       get: { summary: "List product assets." },

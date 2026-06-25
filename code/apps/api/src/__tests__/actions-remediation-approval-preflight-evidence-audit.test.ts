@@ -327,6 +327,328 @@ describe("api remediation action safety foundation", () => {
     expect(services.auditSink.findByAction("action_queued")).toHaveLength(0);
   });
 
+  it("exposes v1 provider action safety routes without enabling provider writes", async () => {
+    const owner = await registerAndLogin("v1-action-owner@example.test");
+    const other = await registerAndLogin("v1-action-other@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    const connection = await services.providerConnections.store.createConnection({
+      id: "provider_connection_v1_action",
+      organizationId: organization.id,
+      providerKey: "mock",
+      displayName: "Mock v1 action connection",
+      status: "connected",
+      writeEnabled: false
+    });
+    const requestInput = actionRunRequestBody(organization.id, connection.id);
+    const actionTemplate = {
+      ...requestInput.actionTemplate,
+      id: `template_v1_${organization.id}`,
+      automationMode: "executable_later" as const
+    };
+    const recommendationInput = {
+      ...requestInput.recommendation,
+      id: "recommendation_v1_provider_action",
+      automationMode: "executable_later" as const
+    };
+
+    const firstResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${actionTemplate.id}/preflight`,
+      {
+        ...requestInput,
+        actionTemplate,
+        recommendation: recommendationInput
+      },
+      owner.cookie,
+      {
+        "Idempotency-Key": "v1-provider-action:legacy-auth-report",
+        "x-request-id": "req_v1_provider_action_preflight",
+        "x-correlation-id": "corr_v1_provider_action"
+      }
+    );
+    expect(firstResponse.status).toBe(201);
+    const first = await readJson<{
+      actionRun: {
+        id: string;
+        recommendationId: string;
+        idempotencyKey?: string;
+        idempotencyKeyPresent?: true;
+        status: string;
+        preflightStatus: string;
+        approval: { status: string };
+      };
+      preflight: {
+        status: string;
+        canRequestApproval: boolean;
+        checks: Array<{ code: string; status: string; message: string }>;
+      };
+    }>(firstResponse);
+
+    const retriedResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${actionTemplate.id}/preflight`,
+      {
+        ...requestInput,
+        actionTemplate,
+        recommendation: {
+          ...recommendationInput,
+          id: "recommendation_v1_provider_action_retry_payload"
+        }
+      },
+      owner.cookie,
+      {
+        "Idempotency-Key": "v1-provider-action:legacy-auth-report"
+      }
+    );
+    expect(retriedResponse.status).toBe(201);
+    const retried = await readJson<{
+      actionRun: {
+        id: string;
+        recommendationId: string;
+        idempotencyKey?: string;
+        idempotencyKeyPresent?: true;
+      };
+    }>(retriedResponse);
+
+    const deniedResponse = await fetch(
+      `${baseUrl}/api/v1/organizations/${organization.id}/provider-actions/${first.actionRun.id}`,
+      {
+        headers: {
+          cookie: other.cookie,
+          "x-request-id": "req_v1_provider_action_denied",
+          "x-correlation-id": "corr_v1_provider_action"
+        }
+      }
+    );
+    expect(deniedResponse.status).toBe(403);
+    const denied = await readJson<{
+      error: { code: string; requestId: string; correlationId: string };
+    }>(deniedResponse);
+
+    const approveResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${first.actionRun.id}/approve`,
+      {},
+      owner.cookie
+    );
+    expect(approveResponse.status).toBe(200);
+    const approved = await readJson<{ actionRun: { approval: { status: string }; status: string } }>(approveResponse);
+
+    const executeResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${first.actionRun.id}/execute`,
+      {},
+      owner.cookie,
+      {
+        "x-request-id": "req_v1_provider_action_execute",
+        "x-correlation-id": "corr_v1_provider_action"
+      }
+    );
+    expect(executeResponse.status).toBe(409);
+    const blocked = await readJson<{
+      error: {
+        code: string;
+        requestId: string;
+        correlationId: string;
+        details: { actionRunId: string; requiredGates: string[] };
+      };
+    }>(executeResponse);
+
+    expect(first.actionRun.idempotencyKey).toBeUndefined();
+    expect(first.actionRun.idempotencyKeyPresent).toBe(true);
+    expect(first.actionRun.status).toBe("preflight_passed");
+    expect(first.actionRun.preflightStatus).toBe("passed");
+    expect(first.preflight).toMatchObject({
+      status: "passed",
+      canRequestApproval: true
+    });
+    expect(first.preflight.checks).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ code: "provider_connection_available", status: "passed" }),
+        expect.objectContaining({ code: "provider_action_write_policy", status: "warning" }),
+        expect.objectContaining({ code: "high_risk_v1_policy", status: "passed" })
+      ])
+    );
+    expect(retried.actionRun.id).toBe(first.actionRun.id);
+    expect(retried.actionRun.recommendationId).toBe("recommendation_v1_provider_action");
+    expect(retried.actionRun.idempotencyKey).toBeUndefined();
+    expect(retried.actionRun.idempotencyKeyPresent).toBe(true);
+    expect(denied.error).toMatchObject({
+      code: "forbidden",
+      requestId: "req_v1_provider_action_denied",
+      correlationId: "corr_v1_provider_action"
+    });
+    expect(approved.actionRun).toMatchObject({
+      status: "approved",
+      approval: {
+        status: "approved"
+      }
+    });
+    expect(blocked.error).toMatchObject({
+      code: "provider_action_execution_blocked",
+      requestId: "req_v1_provider_action_execute",
+      correlationId: "corr_v1_provider_action",
+      details: {
+        actionRunId: first.actionRun.id,
+        requiredGates: expect.arrayContaining([
+          "approval_policy",
+          "recent_auth",
+          "verification",
+          "evidence",
+          "audit",
+          "disposable_tenant_proof"
+        ])
+      }
+    });
+    expect(services.auditSink.findByAction("action_preflight")).toHaveLength(1);
+    expect(services.auditSink.findByAction("action_approved")).toHaveLength(1);
+    expect(services.auditSink.findByAction("action_queued")).toHaveLength(0);
+  });
+
+  it("executes zero-blast v1 provider actions as local product artifacts only", async () => {
+    const owner = await registerAndLogin("v1-zero-blast-owner@example.test");
+    const { organization } = await createOrganization(owner.cookie);
+    const connection = await services.providerConnections.store.createConnection({
+      id: "provider_connection_v1_zero_blast",
+      organizationId: organization.id,
+      providerKey: "microsoft365",
+      displayName: "Microsoft 365 zero-blast connection",
+      status: "connected",
+      writeEnabled: false
+    });
+    const requestInput = actionRunRequestBody(organization.id, connection.id);
+    const actionTemplate = {
+      ...requestInput.actionTemplate,
+      id: `template_zero_blast_${organization.id}`,
+      providerKey: "microsoft365",
+      actionKey: "m365_zero_blast_review_packet",
+      title: "Create Microsoft 365 remediation review packet"
+    };
+    const recommendationInput = {
+      ...requestInput.recommendation,
+      id: "recommendation_zero_blast_m365",
+      title: "Create Microsoft 365 remediation review packet"
+    };
+
+    const preflightResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${actionTemplate.id}/preflight`,
+      {
+        ...requestInput,
+        actionTemplate,
+        recommendation: recommendationInput
+      },
+      owner.cookie,
+      {
+        "Idempotency-Key": "v1-provider-action:zero-blast"
+      }
+    );
+    expect(preflightResponse.status).toBe(201);
+    const preflight = await readJson<{ actionRun: { id: string; preflightStatus: string } }>(preflightResponse);
+
+    const approveResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${preflight.actionRun.id}/approve`,
+      {},
+      owner.cookie
+    );
+    expect(approveResponse.status).toBe(200);
+
+    const executeResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${preflight.actionRun.id}/execute`,
+      {},
+      owner.cookie,
+      {
+        "Idempotency-Key": "v1-provider-action:zero-blast-execute"
+      }
+    );
+    expect(executeResponse.status).toBe(202);
+    const executed = await readJson<{
+      operationId: string;
+      status: string;
+      zeroBlast: {
+        providerMutation: boolean;
+        actionRunId: string;
+        taskId: string;
+        evidenceFileObjectId: string;
+        reportSnapshotId: string;
+        reportFileObjectId: string;
+        resources: {
+          task: { id: string; status: string; title: string };
+          evidenceFileObject: { id: string; sourceResourceType: string; sourceResourceId: string; scanStatus: string };
+          reportSnapshot: { id: string; templateKey: string; immutable: boolean; legalCaveat: string };
+          reportFileObject: { id: string; purpose: string };
+        };
+      };
+    }>(executeResponse);
+
+    const retriedResponse = await postJson(
+      `/api/v1/organizations/${organization.id}/provider-actions/${preflight.actionRun.id}/execute`,
+      {},
+      owner.cookie,
+      {
+        "Idempotency-Key": "v1-provider-action:zero-blast-execute"
+      }
+    );
+    expect(retriedResponse.status).toBe(202);
+    const retried = await readJson<{
+      operationId: string;
+      zeroBlast: {
+        taskId: string;
+        evidenceFileObjectId: string;
+        reportSnapshotId: string;
+        resources: null;
+      };
+    }>(retriedResponse);
+    const tasks = await services.productV1.listTasks(organization.id);
+    const fileObjects = await services.productV1.listFileObjects(organization.id);
+    const reportSnapshots = await services.productV1.listReportSnapshots(organization.id);
+    const internalEvents = await services.productV1.listInternalEvents(organization.id);
+
+    expect(preflight.actionRun.preflightStatus).toBe("passed");
+    expect(executed).toMatchObject({
+      status: "succeeded",
+      zeroBlast: {
+        providerMutation: false,
+        actionRunId: preflight.actionRun.id,
+        resources: {
+          task: {
+            status: "TODO",
+            title: "Review zero-blast action: Create Microsoft 365 remediation review packet"
+          },
+          evidenceFileObject: {
+            sourceResourceType: "action_run",
+            sourceResourceId: preflight.actionRun.id,
+            scanStatus: "skipped"
+          },
+          reportSnapshot: {
+            templateKey: "remediation_progress",
+            immutable: true
+          },
+          reportFileObject: {
+            purpose: "generated_report"
+          }
+        }
+      }
+    });
+    expect(executed.zeroBlast.resources.reportSnapshot.legalCaveat).toContain("not a legal opinion");
+    expect(retried.operationId).toBe(executed.operationId);
+    expect(retried.zeroBlast.taskId).toBe(executed.zeroBlast.taskId);
+    expect(retried.zeroBlast.evidenceFileObjectId).toBe(executed.zeroBlast.evidenceFileObjectId);
+    expect(retried.zeroBlast.reportSnapshotId).toBe(executed.zeroBlast.reportSnapshotId);
+    expect(retried.zeroBlast.resources).toBeNull();
+    expect(tasks).toHaveLength(1);
+    expect(fileObjects.map((fileObject) => fileObject.id).sort()).toEqual(
+      [executed.zeroBlast.evidenceFileObjectId, executed.zeroBlast.reportFileObjectId].sort()
+    );
+    expect(reportSnapshots.map((snapshot) => snapshot.id)).toEqual([executed.zeroBlast.reportSnapshotId]);
+    expect(internalEvents).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventType: "product_v1.provider_action.zero_blast_executed",
+          aggregateType: "action_run",
+          aggregateId: preflight.actionRun.id
+        })
+      ])
+    );
+    expect(services.auditSink.findByAction("product_v1.provider_action.zero_blast_executed")).toHaveLength(1);
+    expect(services.auditSink.findByAction("action_queued")).toHaveLength(0);
+  });
+
   it("rejects malformed action-run idempotency key headers", async () => {
     const owner = await registerAndLogin("m55-invalid-key@example.test");
     const { organization } = await createOrganization(owner.cookie);

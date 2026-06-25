@@ -1,6 +1,16 @@
-import type { NotificationRepository, NotificationService } from "@puresoc/notifications";
+import type {
+  NotificationDigestDispatchResult,
+  NotificationRepository,
+  NotificationRetryDispatchResult,
+  NotificationService
+} from "@puresoc/notifications";
+
+export type { NotificationDigestDispatchResult } from "@puresoc/notifications";
+export type { NotificationRetryDispatchResult } from "@puresoc/notifications";
 
 export const notificationDeadlineScanJobName = "notifications.scanDeadlines";
+export const notificationDigestDispatchJobName = "notifications.dispatchDigests";
+export const notificationRetryDispatchJobName = "notifications.retryDeliveries";
 
 const sixHoursMs = 6 * 60 * 60 * 1000;
 const sevenDaysMs = 7 * 24 * 60 * 60 * 1000;
@@ -18,6 +28,30 @@ export interface RunNotificationDeadlineScanJobInput {
   scanIntervalMs: number;
   now?: () => Date;
 }
+
+export interface RunNotificationDigestDispatchJobInput {
+  notifications: Pick<NotificationService, "dispatchDueDigests">;
+  limitPerFrequency?: number;
+}
+
+export interface RunNotificationRetryDispatchJobInput {
+  notifications: Pick<NotificationService, "dispatchDueRetries">;
+  limit?: number;
+}
+
+export const runNotificationDigestDispatchJob = async (
+  input: RunNotificationDigestDispatchJobInput
+): Promise<NotificationDigestDispatchResult> =>
+  input.notifications.dispatchDueDigests({
+    limitPerFrequency: input.limitPerFrequency
+  });
+
+export const runNotificationRetryDispatchJob = async (
+  input: RunNotificationRetryDispatchJobInput
+): Promise<NotificationRetryDispatchResult> =>
+  input.notifications.dispatchDueRetries({
+    limit: input.limit
+  });
 
 export const runNotificationDeadlineScanJob = async (
   input: RunNotificationDeadlineScanJobInput

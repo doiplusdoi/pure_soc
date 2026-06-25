@@ -1,11 +1,14 @@
 import type { AuditWriter } from "@puresoc/audit";
+import { AuthError } from "@puresoc/auth-core";
 import {
+  NotificationValidationError,
   type NotificationChannel,
   type NotificationLog,
+  type NotificationOperatorAlert,
   type NotificationRepository,
-  type NotificationService
+  type NotificationService,
+  validateNotificationChannelInput
 } from "@puresoc/notifications";
-import { validateNotificationChannelInput } from "@puresoc/notifications";
 
 import type { RequestContext } from "../http";
 
@@ -28,6 +31,21 @@ export interface NotificationLogView {
   sentAt: string;
   status: NotificationLog["status"];
   errorMessage?: string;
+}
+
+export interface NotificationOperatorAlertView {
+  id: string;
+  organizationId: string;
+  alertType: NotificationOperatorAlert["alertType"];
+  severity: NotificationOperatorAlert["severity"];
+  status: NotificationOperatorAlert["status"];
+  title: string;
+  body: string;
+  sourceRetryItemId?: string;
+  channelId?: string;
+  eventType?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
 }
 
 export interface NotificationApiServiceOptions {
@@ -82,6 +100,62 @@ export class NotificationApiService {
     };
   }
 
+  async updateChannel(input: {
+    organizationId: string;
+    actorUserId: string;
+    channelId: string;
+    destination?: unknown;
+    enabled?: unknown;
+    context?: RequestContext;
+  }): Promise<{ channel: NotificationChannelView }> {
+    if (input.destination === undefined && input.enabled === undefined) {
+      throw new NotificationValidationError(
+        "invalid_notification_channel_update",
+        "Notification channel update requires a destination or enabled value."
+      );
+    }
+
+    const existing = await this.repository.findChannel(input.organizationId, input.channelId);
+    if (!existing) {
+      throw new AuthError("invalid_request", "Notification channel was not found for this organization.", 404);
+    }
+
+    const destination =
+      input.destination === undefined
+        ? undefined
+        : validateNotificationChannelInput({
+            type: existing.type,
+            destination: input.destination
+          }).destination;
+    const enabled = parseOptionalEnabled(input.enabled);
+    const result = await this.repository.updateChannel({
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      destination,
+      enabled
+    });
+
+    if (!result) {
+      throw new AuthError("invalid_request", "Notification channel was not found for this organization.", 404);
+    }
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      targetType: "notification_channel",
+      targetId: input.channelId,
+      action: "notification_channel_updated",
+      ipAddress: input.context?.ipAddress,
+      userAgent: input.context?.userAgent,
+      beforeJson: safeNotificationChannelAuditJson(result.before),
+      afterJson: safeNotificationChannelAuditJson(result.after)
+    });
+
+    return {
+      channel: safeNotificationChannelView(result.after)
+    };
+  }
+
   async deleteChannel(input: {
     organizationId: string;
     actorUserId: string;
@@ -121,6 +195,48 @@ export class NotificationApiService {
     const logs = await this.repository.listLogs(organizationId, { limit: 100 });
     return {
       logs: logs.map(safeNotificationLogView)
+    };
+  }
+
+  async listOperatorAlerts(organizationId: string): Promise<{ operatorAlerts: NotificationOperatorAlertView[] }> {
+    const alerts = (await this.repository.listOperatorAlerts?.(organizationId, { limit: 100 })) ?? [];
+    return {
+      operatorAlerts: alerts.map(safeNotificationOperatorAlertView)
+    };
+  }
+
+  async acknowledgeOperatorAlert(input: {
+    organizationId: string;
+    actorUserId: string;
+    alertId: string;
+    context?: RequestContext;
+  }): Promise<{ operatorAlert: NotificationOperatorAlertView }> {
+    const before = (await this.repository.listOperatorAlerts?.(input.organizationId, { limit: 100 }))?.find(
+      (alert) => alert.id === input.alertId
+    );
+    const alert = await this.repository.acknowledgeOperatorAlert?.({
+      organizationId: input.organizationId,
+      alertId: input.alertId,
+      acknowledgedAt: new Date().toISOString()
+    });
+    if (!alert) {
+      throw new AuthError("invalid_request", "Notification operator alert was not found for this organization.", 404);
+    }
+
+    await this.auditWriter.write({
+      actorUserId: input.actorUserId,
+      organizationId: input.organizationId,
+      targetType: "notification_operator_alert",
+      targetId: input.alertId,
+      action: "notification_operator_alert_acknowledged",
+      ipAddress: input.context?.ipAddress,
+      userAgent: input.context?.userAgent,
+      beforeJson: before ? safeNotificationOperatorAlertView(before) : undefined,
+      afterJson: safeNotificationOperatorAlertView(alert)
+    });
+
+    return {
+      operatorAlert: safeNotificationOperatorAlertView(alert)
     };
   }
 
@@ -168,6 +284,25 @@ export class NotificationApiService {
   }
 }
 
+const parseOptionalEnabled = (enabled: unknown): boolean | undefined => {
+  if (enabled === undefined) {
+    return undefined;
+  }
+  if (typeof enabled !== "boolean") {
+    throw new NotificationValidationError(
+      "invalid_notification_channel_enabled",
+      "Notification channel enabled value must be boolean."
+    );
+  }
+  return enabled;
+};
+
+const safeNotificationChannelAuditJson = (channel: NotificationChannel): Record<string, unknown> => ({
+  type: channel.type,
+  destinationPreview: destinationPreview(channel),
+  enabled: channel.enabled
+});
+
 export const safeNotificationChannelView = (channel: NotificationChannel): NotificationChannelView => ({
   id: channel.id,
   organizationId: channel.organizationId,
@@ -187,6 +322,23 @@ export const safeNotificationLogView = (log: NotificationLog): NotificationLogVi
   sentAt: log.sentAt,
   status: log.status,
   errorMessage: log.errorMessage
+});
+
+export const safeNotificationOperatorAlertView = (
+  alert: NotificationOperatorAlert
+): NotificationOperatorAlertView => ({
+  id: alert.id,
+  organizationId: alert.organizationId,
+  alertType: alert.alertType,
+  severity: alert.severity,
+  status: alert.status,
+  title: alert.title,
+  body: alert.body,
+  sourceRetryItemId: alert.sourceRetryItemId,
+  channelId: alert.channelId,
+  eventType: alert.eventType,
+  createdAt: alert.createdAt,
+  acknowledgedAt: alert.acknowledgedAt
 });
 
 const destinationPreview = (channel: NotificationChannel): string => {

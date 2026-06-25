@@ -2,7 +2,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 
 import { AuthError } from "@puresoc/auth-core";
 import { validateConfigForStartup } from "@puresoc/config";
-import { getApiHealth } from "./health";
+import { ApiMetricsRegistry, getApiHealth, renderApiMetricsPrometheus } from "./health";
 import {
   beginOidcAuthorizationRoute,
   completeOidcCallbackRoute,
@@ -93,7 +93,11 @@ import {
   attachActionSnapshotRoute,
   closeActionRunRoute,
   createActionRunRoute,
+  createProviderActionPreflightRoute,
+  executeProviderActionRunRoute,
   failActionRunRoute,
+  getProviderActionRunRoute,
+  approveProviderActionRunRoute,
   queueActionRunRoute,
   recordActionPreflightRoute,
   requestActionApprovalRoute,
@@ -106,11 +110,14 @@ import {
   recordAuditCheckpointRoute
 } from "./audit/routes";
 import {
+  acknowledgeNotificationOperatorAlertRoute,
   createNotificationChannelRoute,
   deleteNotificationChannelRoute,
   listNotificationChannelsRoute,
   listNotificationLogsRoute,
-  sendNotificationChannelTestRoute
+  listNotificationOperatorAlertsRoute,
+  sendNotificationChannelTestRoute,
+  updateNotificationChannelRoute
 } from "./notifications/routes";
 import {
   createPartnerCustomerRoute,
@@ -179,6 +186,9 @@ import {
   productV1MeRoute,
   productV1Microsoft365DisconnectRoute,
   productV1Microsoft365SyncRunRoute,
+  productV1NotificationPreferencesRoute,
+  productV1NotificationUpdateRoute,
+  productV1NotificationsRoute,
   productV1OpenApiRoute,
   productV1PartnerAssignmentsRoute,
   productV1PartnerCustomerContextRoute,
@@ -277,10 +287,67 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     productV1Microsoft365DisconnectRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("GET", /^\/api\/v1\/organizations\/([^/]+)\/provider-capabilities$/, "provider", ({ params, url, request, services }) =>
     productV1ProviderCapabilitiesRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/provider-actions\/([^/]+)\/preflight$/, "actions", ({ params, body, request, context, services }) =>
+    createProviderActionPreflightRoute(
+      params[0] ?? "",
+      params[1] ?? "",
+      body,
+      request.headers.cookie,
+      request.headers["idempotency-key"],
+      context,
+      services
+    )),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/provider-actions\/([^/]+)$/, "actions", ({ params, request, services }) =>
+    getProviderActionRunRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/provider-actions\/([^/]+)\/approve$/, "actions", ({ params, request, context, services }) =>
+    approveProviderActionRunRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/provider-actions\/([^/]+)\/execute$/, "actions", ({ params, request, context, services }) =>
+    executeProviderActionRunRoute(
+      params[0] ?? "",
+      params[1] ?? "",
+      request.headers.cookie,
+      request.headers["idempotency-key"],
+      context,
+      services
+    )),
   route("GET", /^\/api\/v1\/organizations\/([^/]+)\/internal-events$/, "tenant_read", ({ params, url, request, services }) =>
     productV1InternalEventsRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
   route("POST", /^\/api\/v1\/organizations\/([^/]+)\/internal-events\/([^/]+)\/publish-result$/, "organization", ({ params, body, request, context, services }) =>
     productV1InternalEventPublishResultRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/audit\/export$/, "unknown", ({ params, request, services }) =>
+    exportAuditSegmentRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/audit\/checkpoints$/, "unknown", ({ params, request, services }) =>
+    listAuditCheckpointsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/audit\/checkpoints$/, "unknown", ({ params, body, request, context, services }) =>
+    recordAuditCheckpointRoute(
+      params[0] ?? "",
+      assertAuditCheckpointRequestBody(body),
+      request.headers.cookie,
+      context,
+      services
+    )),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/notification-channels$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationChannelsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/notification-channels$/, "organization", ({ params, body, request, context, services }) =>
+    createNotificationChannelRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("PATCH", /^\/api\/v1\/organizations\/([^/]+)\/notification-channels\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
+    updateNotificationChannelRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("DELETE", /^\/api\/v1\/organizations\/([^/]+)\/notification-channels\/([^/]+)$/, "organization", ({ params, request, context, services }) =>
+    deleteNotificationChannelRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/notification-channels\/([^/]+)\/test$/, "organization", ({ params, request, context, services }) =>
+    sendNotificationChannelTestRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/notification-logs$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationLogsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/notification-operator-alerts$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationOperatorAlertsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/notification-operator-alerts\/([^/]+)\/acknowledge$/, "organization", ({ params, request, context, services }) =>
+    acknowledgeNotificationOperatorAlertRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/notifications$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1NotificationsRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("PATCH", /^\/api\/v1\/organizations\/([^/]+)\/notifications\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
+    productV1NotificationUpdateRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route(["GET", "PUT"], /^\/api\/v1\/organizations\/([^/]+)\/notification-preferences$/, "organization", ({ params, body, request, context, services }) =>
+    productV1NotificationPreferencesRoute(params[0] ?? "", body, request.method ?? "GET", request.headers.cookie, context, services)),
   route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/(assets|findings|remediation-plans|tasks|incidents|risks|policies|supplier-reviews|policy-reviews|policy-acknowledgements|governance-activities|governance-calendar-events|attestations|training-records)$/, "organization", ({ params, url, body, request, context, services }) =>
     productV1AggregateRoute(params[0] ?? "", params[1] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
   route("PATCH", /^\/api\/v1\/organizations\/([^/]+)\/(findings|remediation-plans|tasks|incidents|risks|policies|supplier-reviews|policy-reviews|policy-acknowledgements|governance-activities|governance-calendar-events|attestations|training-records)\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
@@ -502,12 +569,18 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     listNotificationChannelsRoute(params[0] ?? "", request.headers.cookie, services)),
   route("POST", /^\/organizations\/([^/]+)\/notification-channels$/, "organization", ({ params, body, request, context, services }) =>
     createNotificationChannelRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("PATCH", /^\/organizations\/([^/]+)\/notification-channels\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
+    updateNotificationChannelRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
   route("DELETE", /^\/organizations\/([^/]+)\/notification-channels\/([^/]+)$/, "organization", ({ params, request, context, services }) =>
     deleteNotificationChannelRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/notification-channels\/([^/]+)\/test$/, "organization", ({ params, request, context, services }) =>
     sendNotificationChannelTestRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("GET", /^\/organizations\/([^/]+)\/notification-logs$/, "tenant_read", ({ params, request, services }) =>
     listNotificationLogsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("GET", /^\/organizations\/([^/]+)\/notification-operator-alerts$/, "tenant_read", ({ params, request, services }) =>
+    listNotificationOperatorAlertsRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/organizations\/([^/]+)\/notification-operator-alerts\/([^/]+)\/acknowledge$/, "organization", ({ params, request, context, services }) =>
+    acknowledgeNotificationOperatorAlertRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/checkout$/, "billing", ({ params, body, request, context, services }) =>
     createBillingCheckoutSessionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
   route("POST", /^\/organizations\/([^/]+)\/billing\/stripe\/portal$/, "billing", ({ params, body, request, context, services }) =>
@@ -700,6 +773,7 @@ const findApiRoute = (
 
 export const startApiServer = (port = Number(process.env.PORT ?? 3001), services: ApiServices = createApiServices()) => {
   validateConfigForStartup(services.config, { serviceName: "api" });
+  const metrics = new ApiMetricsRegistry();
   const middleware = createApiMiddleware({
     config: services.config.api,
     sessionResolver: services.localAuth
@@ -714,13 +788,18 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       response.end(JSON.stringify(getApiHealth()));
       return;
     }
+    if (request.method === "GET" && url.pathname === "/metrics") {
+      response.setHeader("content-type", "text/plain; version=0.0.4; charset=utf-8");
+      response.end(renderApiMetricsPrometheus(metrics.snapshot()));
+      return;
+    }
 
     try {
       const middlewareDecision = await middleware.apply(request, url);
       const context = middlewareDecision.context;
       requestContext = context;
       if (middlewareDecision.rejection) {
-        sendApiJson(response, middlewareDecision.rejection, context);
+        sendApiJson(response, middlewareDecision.rejection, context, metrics);
         return;
       }
 
@@ -742,7 +821,8 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             services,
             params: routeMatch.params
           }),
-          context
+          context,
+          metrics
         );
         return;
       }
@@ -765,7 +845,8 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             services,
             params: routeMatch.params
           }),
-          context
+          context,
+          metrics
         );
         return;
       }
@@ -782,7 +863,8 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
               }
             }
           },
-          context
+          context,
+          metrics
         );
         return;
       }
@@ -793,7 +875,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       if (result.statusCode >= 500 && !(error instanceof AuthError)) {
         logUnhandledApiError(error, requestContext, request);
       }
-      sendApiJson(response, result, requestContext);
+      sendApiJson(response, result, requestContext, metrics);
     }
   });
 
@@ -804,8 +886,10 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
 const sendContextualApiResult = (
   response: ServerResponse,
   result: ApiResult,
-  context: ApiRequestContext | null
+  context: ApiRequestContext | null,
+  metrics?: ApiMetricsRegistry
 ): void => {
+  recordApiMetric(metrics, result.statusCode, context);
   applyContextHeaders(response, context);
   sendApiResult(response, normalizeV1ApiResult(result, context));
 };
@@ -813,10 +897,24 @@ const sendContextualApiResult = (
 const sendApiJson = (
   response: ServerResponse,
   result: JsonResult,
-  context: ApiRequestContext | null
+  context: ApiRequestContext | null,
+  metrics?: ApiMetricsRegistry
 ): void => {
+  recordApiMetric(metrics, result.statusCode, context);
   applyContextHeaders(response, context);
   sendJson(response, normalizeV1JsonResult(result, context));
+};
+
+const recordApiMetric = (
+  metrics: ApiMetricsRegistry | undefined,
+  statusCode: number,
+  context: ApiRequestContext | null
+): void => {
+  metrics?.record({
+    method: context?.method ?? "UNKNOWN",
+    routeFamily: context?.routeFamily ?? "unknown",
+    statusCode
+  });
 };
 
 const applyContextHeaders = (response: ServerResponse, context: ApiRequestContext | null): void => {

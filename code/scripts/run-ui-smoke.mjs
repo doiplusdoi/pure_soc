@@ -25,14 +25,16 @@ const UI_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.served_artifact_index.v
 const UI_SMOKE_ARTIFACT_INDEX_FILE = "ui-smoke-artifact-index.json";
 const BROWSER_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.browser_artifact_index.v1";
 const BROWSER_SMOKE_ARTIFACT_INDEX_FILE = "browser-smoke-artifact-index.json";
+const PRODUCT_ONBOARDING_ROUTE = "/onboarding";
 const ROMANIA_COMPANY_ROUTE = "/onboarding/romania/company?locale=ro-RO";
 const ROMANIA_OUTPUTS_ROUTE = "/onboarding/romania/outputs?locale=ro-RO";
-const EXPECTED_UI_HTML_SNAPSHOT_COUNT = 6;
+const EXPECTED_UI_HTML_SNAPSHOT_COUNT = 10;
 const EXPECTED_BROWSER_VISUAL_CAPTURE_COUNT = 10;
 const UI_ARTIFACT_INDEX_CHECK_NAMES = [
   "ui_smoke_artifact_index_snapshot_count",
   "ui_smoke_artifact_index_workspace_selection_referenced",
-  "ui_smoke_artifact_index_romania_route_referenced",
+  "ui_smoke_artifact_index_onboarding_route_referenced",
+  "ui_smoke_artifact_index_app_routes_referenced",
   "ui_smoke_artifact_index_auth_cookie_origin_checks_referenced",
   "ui_smoke_artifact_index_secret_free",
   "ui_smoke_artifact_index_written"
@@ -265,12 +267,47 @@ async function runServedUiSmoke() {
       }
     });
     assertApiBackedDashboardHtml(consoleHtml, apiBackedDashboard);
-    const romaniaRouteHtml = await fetchText(`${webBaseUrl}${ROMANIA_COMPANY_ROUTE}`, {
+    const onboardingRouteHtml = await fetchText(`${webBaseUrl}${PRODUCT_ONBOARDING_ROUTE}`, {
       headers: {
         cookie: webLogin.cookie
       }
     });
-    assertRomaniaOnboardingRoute(romaniaRouteHtml);
+    assertProductMvpOnboardingRoute(onboardingRouteHtml, apiBackedDashboard);
+    const appOrganizationRoute = `/app/o/${apiBackedDashboard.selectedOrganization.organizationId}/security/findings`;
+    const appOrganizationHtml = await fetchText(`${webBaseUrl}${appOrganizationRoute}`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    assertProductV1AppOrganizationRoute(appOrganizationHtml, apiBackedDashboard);
+    const appSetupRoute = "/app/setup/microsoft365";
+    const appSetupHtml = await fetchText(`${webBaseUrl}${appSetupRoute}`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    assertProductV1AppSetupRoute(appSetupHtml, apiBackedDashboard);
+    const partnerPortfolio = await seedPartnerPortfolio({
+      apiBaseUrl,
+      webBaseUrl,
+      webCookie: webLogin.cookie
+    });
+    const appPartnerRoute = `/app/partner/${partnerPortfolio.partnerId}/customers`;
+    const appPartnerHtml = await fetchText(`${webBaseUrl}${appPartnerRoute}`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    assertProductV1AppPartnerRoute(appPartnerHtml, partnerPortfolio);
+    const appAdminRoute = "/app/admin/health";
+    const appAdminResponse = await fetch(`${webBaseUrl}${appAdminRoute}`, {
+      headers: {
+        cookie: webLogin.cookie
+      }
+    });
+    record("ui_smoke_app_admin_blocked_status_403", appAdminResponse.status === 403, String(appAdminResponse.status));
+    const appAdminHtml = await appAdminResponse.text();
+    assertProductV1AppAdminBlockedRoute(appAdminHtml);
 
     const desktopSnapshot = writeViewportSnapshot({
       name: "desktop",
@@ -296,21 +333,45 @@ async function runServedUiSmoke() {
       height: 844,
       html: workspaceSelectionHtml
     });
-    const romaniaDesktopSnapshot = writeViewportSnapshot({
-      name: "romania-desktop",
+    const onboardingDesktopSnapshot = writeViewportSnapshot({
+      name: "onboarding-route-desktop",
       width: 1440,
       height: 900,
-      html: romaniaRouteHtml
+      html: onboardingRouteHtml
     });
-    const romaniaMobileSnapshot = writeViewportSnapshot({
-      name: "romania-mobile",
+    const onboardingMobileSnapshot = writeViewportSnapshot({
+      name: "onboarding-route-mobile",
       width: 390,
       height: 844,
-      html: romaniaRouteHtml
+      html: onboardingRouteHtml
+    });
+    const appOrganizationSnapshot = writeViewportSnapshot({
+      name: "app-organization-security-desktop",
+      width: 1440,
+      height: 900,
+      html: appOrganizationHtml
+    });
+    const appSetupSnapshot = writeViewportSnapshot({
+      name: "app-setup-desktop",
+      width: 1440,
+      height: 900,
+      html: appSetupHtml
+    });
+    const appPartnerSnapshot = writeViewportSnapshot({
+      name: "app-partner-desktop",
+      width: 1440,
+      height: 900,
+      html: appPartnerHtml
+    });
+    const appAdminSnapshot = writeViewportSnapshot({
+      name: "app-admin-blocked-desktop",
+      width: 1440,
+      height: 900,
+      html: appAdminHtml
     });
 
-    record("unauthenticated_root_prompts_for_login", htmlText(unauthenticatedHtml).includes("Sign in to open the operational console"));
-    assertOperationalConsole(consoleHtml, loginHtml);
+    record("unauthenticated_root_prompts_for_login", htmlText(unauthenticatedHtml).includes("Sign in") && htmlText(unauthenticatedHtml).includes("PureSOC"));
+    assertProductMvpDashboardShell(consoleHtml, loginHtml, apiBackedDashboard);
     assertResponsiveLayout(consoleHtml);
     assertNoObviousOverlapRegression(consoleHtml);
     const localHttpAuthChecks = await assertBrowserAuthMiddlewareSmoke({
@@ -338,16 +399,16 @@ async function runServedUiSmoke() {
           {
             captureId: "dashboard-desktop",
             filePath: desktopSnapshot,
-            routeId: "operational-console",
-            routePath: "/",
+            routeId: "product-mvp-shell",
+            routePath: "/dashboard",
             width: 1440,
             height: 900
           },
           {
             captureId: "dashboard-mobile",
             filePath: mobileSnapshot,
-            routeId: "operational-console",
-            routePath: "/",
+            routeId: "product-mvp-shell",
+            routePath: "/dashboard",
             width: 390,
             height: 844
           }
@@ -370,22 +431,56 @@ async function runServedUiSmoke() {
             height: 844
           }
         ],
-        romaniaRoute: [
+        onboardingRoute: [
           {
-            captureId: "romania-desktop",
-            filePath: romaniaDesktopSnapshot,
-            routeId: "romania-onboarding-route",
-            routePath: ROMANIA_COMPANY_ROUTE,
+            captureId: "onboarding-route-desktop",
+            filePath: onboardingDesktopSnapshot,
+            routeId: "product-mvp-shell",
+            routePath: PRODUCT_ONBOARDING_ROUTE,
             width: 1440,
             height: 900
           },
           {
-            captureId: "romania-mobile",
-            filePath: romaniaMobileSnapshot,
-            routeId: "romania-onboarding-route",
-            routePath: ROMANIA_COMPANY_ROUTE,
+            captureId: "onboarding-route-mobile",
+            filePath: onboardingMobileSnapshot,
+            routeId: "product-mvp-shell",
+            routePath: PRODUCT_ONBOARDING_ROUTE,
             width: 390,
             height: 844
+          }
+        ],
+        appRoutes: [
+          {
+            captureId: "app-organization-security-desktop",
+            filePath: appOrganizationSnapshot,
+            routeId: "product-v1-console",
+            routePath: "/app/o/:organizationId/security/findings",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "app-setup-desktop",
+            filePath: appSetupSnapshot,
+            routeId: "product-v1-console",
+            routePath: "/app/setup/microsoft365",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "app-partner-desktop",
+            filePath: appPartnerSnapshot,
+            routeId: "partner-console",
+            routePath: "/app/partner/:partnerId/customers",
+            width: 1440,
+            height: 900
+          },
+          {
+            captureId: "app-admin-blocked-desktop",
+            filePath: appAdminSnapshot,
+            routeId: "runtime-message",
+            routePath: "/app/admin/health",
+            width: 1440,
+            height: 900
           }
         ]
       },
@@ -412,9 +507,15 @@ async function runServedUiSmoke() {
               desktopSnapshot: workspaceDesktopSnapshot,
               mobileSnapshot: workspaceMobileSnapshot
             },
-            romaniaRoute: {
-              desktopSnapshot: romaniaDesktopSnapshot,
-              mobileSnapshot: romaniaMobileSnapshot
+            onboardingRoute: {
+              desktopSnapshot: onboardingDesktopSnapshot,
+              mobileSnapshot: onboardingMobileSnapshot
+            },
+            appRoutes: {
+              organizationSnapshot: appOrganizationSnapshot,
+              setupSnapshot: appSetupSnapshot,
+              partnerSnapshot: appPartnerSnapshot,
+              adminBlockedSnapshot: appAdminSnapshot
             },
             artifactIndex
           },
@@ -1207,8 +1308,9 @@ function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authCh
   const artifactIndexPath = join(artifactsDir, UI_SMOKE_ARTIFACT_INDEX_FILE);
   const dashboardSnapshots = snapshots.dashboard.map(formatServedUiSnapshotSummary);
   const workspaceSnapshots = snapshots.workspaceSelection.map(formatServedUiSnapshotSummary);
-  const romaniaSnapshots = snapshots.romaniaRoute.map(formatServedUiSnapshotSummary);
-  const allSnapshots = [...dashboardSnapshots, ...workspaceSnapshots, ...romaniaSnapshots];
+  const onboardingSnapshots = snapshots.onboardingRoute.map(formatServedUiSnapshotSummary);
+  const appRouteSnapshots = snapshots.appRoutes.map(formatServedUiSnapshotSummary);
+  const allSnapshots = [...dashboardSnapshots, ...workspaceSnapshots, ...onboardingSnapshots, ...appRouteSnapshots];
   const finalCheckNames = finalUiArtifactIndexCheckNames();
   const index = {
     schema: UI_SMOKE_ARTIFACT_INDEX_SCHEMA,
@@ -1219,7 +1321,8 @@ function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authCh
       htmlSnapshots: allSnapshots,
       dashboardSnapshots,
       workspaceSelectionSnapshots: workspaceSnapshots,
-      romaniaRouteSnapshots: romaniaSnapshots
+      onboardingRouteSnapshots: onboardingSnapshots,
+      appRouteSnapshots
     },
     workspaceSelection: {
       status: "passed",
@@ -1233,24 +1336,34 @@ function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authCh
       selectedWorkspaceControlsDashboard: true,
       rawSessionValueIncluded: false
     },
-    romaniaRoute: {
+    onboardingRoute: {
       status: "passed",
-      routePath: ROMANIA_COMPANY_ROUTE,
-      localeRequested: "ro-RO",
-      resolvedDocumentLanguage: "ro",
+      routePath: PRODUCT_ONBOARDING_ROUTE,
+      resolvedDocumentLanguage: "en",
       guidedProductWorkflowVisible: true,
-      serviceCatalogVisible: true,
-      legalCaveatVisible: true,
-      localeReviewVisible: true,
-      unsupportedStateVisible: true,
-      noDnscSubmissionVisible: true,
-      customerUiHidesWorkbookDebugTerms: true,
+      appRouteMigrationVisible: true,
+      legalCaveatVisible: false,
+      noLegacyRomaniaDebugTermsVisible: true,
       directDnscSubmitCommandPresent: false,
       certificationClaimPresent: false
     },
+    appRoutes: {
+      status: "passed",
+      routePaths: [
+        "/app/o/:organizationId/security/findings",
+        "/app/setup/microsoft365",
+        "/app/partner/:partnerId/customers",
+        "/app/admin/health"
+      ],
+      organizationContextExplicit: true,
+      setupRouteUsesActiveOrganization: true,
+      partnerRouteUsesAppPrefixedForms: true,
+      adminRouteBlockedUntilRbac: true,
+      browserMatrixStillDeferred: true
+    },
     apiBackedDashboard: {
       status: "passed",
-      sourceRouteTemplate: "GET /organizations/:orgId/dashboards/snapshots/latest",
+      sourceRouteTemplate: "GET /api/dashboard",
       storedOutputSource: "stored_analysis",
       selectedWorkspaceName: apiBackedDashboard.selectedOrganization.name,
       unselectedWorkspaceHidden: true,
@@ -1295,7 +1408,8 @@ function writeServedUiSmokeArtifactIndex({ snapshots, apiBackedDashboard, authCh
     String(allSnapshots.length)
   );
   record("ui_smoke_artifact_index_workspace_selection_referenced", workspaceSnapshots.length === 2, String(workspaceSnapshots.length));
-  record("ui_smoke_artifact_index_romania_route_referenced", romaniaSnapshots.length === 2, String(romaniaSnapshots.length));
+  record("ui_smoke_artifact_index_onboarding_route_referenced", onboardingSnapshots.length === 2, String(onboardingSnapshots.length));
+  record("ui_smoke_artifact_index_app_routes_referenced", appRouteSnapshots.length === 4, String(appRouteSnapshots.length));
   record(
     "ui_smoke_artifact_index_auth_cookie_origin_checks_referenced",
     authChecks.localHttp?.sessionCookie?.httpOnly === true && authChecks.secureCookieConfig?.sessionCookie?.secureExpected === true
@@ -1825,7 +1939,48 @@ async function seedApiBackedWebDashboard({ apiBaseUrl, webBaseUrl, emailPrefix }
     assessmentId: selectedOrganization.assessmentId,
     primaryOrganization,
     selectedOrganization,
-    expectedDashboardText: "Open gaps"
+    expectedDashboardText: "Connect Microsoft 365"
+  };
+}
+
+async function seedPartnerPortfolio({ apiBaseUrl, webBaseUrl, webCookie }) {
+  const headers = {
+    cookie: webCookie,
+    origin: webBaseUrl
+  };
+  const partner = await postJson(
+    `${apiBaseUrl}/partners`,
+    {
+      name: "M97 App Route Partner",
+      slug: `m97-app-route-${Date.now()}`
+    },
+    headers
+  );
+  record("ui_smoke_partner_seed_status_created", partner.status === 201, String(partner.status));
+  const partnerBody = await partner.json();
+  const partnerId = partnerBody.partner?.id;
+  record("ui_smoke_partner_seed_id_present", typeof partnerId === "string" && partnerId.length > 0);
+
+  const customer = await postJson(
+    `${apiBaseUrl}/partners/${partnerId}/customers`,
+    {
+      accessLevel: "admin",
+      legalName: "M97 App Route Customer SRL",
+      name: "M97 App Route Customer",
+      primaryCountryCode: "RO"
+    },
+    headers
+  );
+  record("ui_smoke_partner_customer_seed_status_created", customer.status === 201, String(customer.status));
+  const customerBody = await customer.json();
+  const customerId = customerBody.organization?.id;
+  record("ui_smoke_partner_customer_seed_id_present", typeof customerId === "string" && customerId.length > 0);
+
+  return {
+    customerId,
+    customerName: "M97 App Route Customer",
+    partnerId,
+    partnerName: "M97 App Route Partner"
   };
 }
 
@@ -2103,12 +2258,35 @@ async function selectWorkspaceThroughWeb({ webBaseUrl, cookie, organizationId })
 
 function assertApiBackedDashboardHtml(html, seeded) {
   const text = htmlText(html);
-  record("web_dashboard_uses_api_latest_snapshot_route", text.includes("GET /organizations/:orgId/dashboards/snapshots/latest"));
+  record("web_dashboard_uses_product_mvp_shell", html.includes('data-ui-smoke="product-mvp-shell"'));
   record("web_dashboard_contains_seeded_api_widget", text.includes(seeded.expectedDashboardText));
   record("web_dashboard_contains_selected_workspace_name", text.includes(seeded.selectedOrganization.name));
-  record("web_dashboard_contains_selected_snapshot_id", text.includes(`snapshot ${seeded.selectedOrganization.organizationId}`));
+  record("web_dashboard_contains_internal_readiness_label", text.includes("PureSOC internal readiness"));
   record("web_dashboard_excludes_unselected_workspace_name", !text.includes(seeded.primaryOrganization.name));
   record("web_dashboard_contains_api_session_user", text.includes("M64 Web Runtime"));
+}
+
+function assertProductMvpDashboardShell(html, loginHtml, seeded) {
+  assertApiBackedDashboardHtml(html, seeded);
+  record("product_mvp_dashboard_legal_caveat_is_present", htmlText(html).includes("not a legal opinion"));
+  record("product_mvp_dashboard_has_no_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(htmlText(html)));
+  record("product_mvp_dashboard_html_has_no_undefined_or_object_leaks", !/(undefined|\[object Object\])/.test(html));
+  record("product_mvp_dashboard_html_ids_are_unique", duplicateIds(html).length === 0, duplicateIds(html).join(", "));
+  record("login_form_has_accessible_labels", loginHtml.includes('<label for="email">Email</label>') && loginHtml.includes('autocomplete="current-password"'));
+}
+
+function assertProductMvpOnboardingRoute(html, seeded) {
+  const text = htmlText(html);
+  record("onboarding_route_html_is_nonblank", html.length > 8_000, String(html.length));
+  record("onboarding_route_uses_product_mvp_shell", html.includes('data-ui-smoke="product-mvp-shell"'));
+  record("onboarding_route_context_is_explicit", text.includes(seeded.selectedOrganization.name));
+  record("onboarding_route_readiness_page_visible", text.includes("Readiness") && text.includes("Company profile"));
+  record("onboarding_route_posts_to_compatibility_onboarding", html.includes('action="/onboarding"'));
+  record("onboarding_route_hides_legacy_romania_debug_terms", !/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i.test(text));
+  record("onboarding_route_no_dnsc_direct_submit_command", !/submit\s+(to\s+)?dnsc/i.test(text));
+  record("onboarding_route_has_no_certification_claims", !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));
+  record("onboarding_route_html_has_no_undefined_or_object_leaks", !/(undefined|\[object Object\])/.test(html));
+  record("onboarding_route_html_ids_are_unique", duplicateIds(html).length === 0, duplicateIds(html).join(", "));
 }
 
 function assertWorkspaceSelectionHtml(html, seeded) {
@@ -4363,6 +4541,54 @@ function assertRomaniaOnboardingRoute(html) {
   record("romania_route_html_has_no_undefined_or_object_leaks", !/(undefined|\[object Object\])/.test(html));
   record("romania_route_html_ids_are_unique", duplicateIds(html).length === 0, duplicateIds(html).join(", "));
   assertRomaniaRouteResponsiveFocus(html);
+}
+
+function assertProductV1AppOrganizationRoute(html, seeded) {
+  const text = htmlText(html);
+  record("app_organization_route_html_is_nonblank", html.length > 8_000, String(html.length));
+  record("app_organization_route_marker_present", html.includes('data-ui-smoke="product-v1-console"'));
+  record("app_organization_route_context_is_explicit", text.includes(seeded.selectedOrganization.name));
+  record("app_organization_route_security_section_visible", text.includes("Security operations") && text.includes("Assets, findings, plans, and tasks"));
+  record("app_organization_route_uses_organization_scoped_forms", html.includes(`/app/o/${seeded.selectedOrganization.organizationId}/security`));
+  assertProductV1AppRouteSafety(html, "app_organization_route");
+}
+
+function assertProductV1AppSetupRoute(html, seeded) {
+  const text = htmlText(html);
+  record("app_setup_route_html_is_nonblank", html.length > 8_000, String(html.length));
+  record("app_setup_route_marker_present", html.includes('data-ui-smoke="product-v1-console"'));
+  record("app_setup_route_context_is_explicit", text.includes(seeded.selectedOrganization.name));
+  record("app_setup_route_launch_readiness_visible", text.includes("Launch readiness"));
+  record("app_setup_route_links_back_to_org_setup", html.includes(`/app/o/${seeded.selectedOrganization.organizationId}/setup`));
+  assertProductV1AppRouteSafety(html, "app_setup_route");
+}
+
+function assertProductV1AppPartnerRoute(html, seeded) {
+  const text = htmlText(html);
+  record("app_partner_route_html_is_nonblank", html.length > 8_000, String(html.length));
+  record("app_partner_route_marker_present", html.includes('data-ui-smoke="partner-console"'));
+  record("app_partner_route_partner_context_visible", text.includes(seeded.partnerName));
+  record("app_partner_route_customer_context_visible", text.includes(seeded.customerName));
+  record("app_partner_route_create_customer_uses_app_action", html.includes(`action="/app/partner/${seeded.partnerId}/customers"`));
+  record("app_partner_route_enter_customer_uses_app_action", html.includes(`action="/app/partner/${seeded.partnerId}/tenant-sessions"`));
+  record("app_partner_route_avoids_legacy_customer_action", !html.includes(`action="/partners/${seeded.partnerId}/customers"`));
+  assertProductV1AppRouteSafety(html, "app_partner_route");
+}
+
+function assertProductV1AppAdminBlockedRoute(html) {
+  const text = htmlText(html);
+  record("app_admin_route_html_is_nonblank", html.length > 2_000, String(html.length));
+  record("app_admin_route_blocked_state_visible", text.includes("Platform admin gated"));
+  record("app_admin_route_names_rbac_blocker", text.includes("platform-admin RBAC"));
+  record("app_admin_route_has_no_fake_admin_controls", !/activate country pack|open support session|disable tenant/i.test(text));
+  assertProductV1AppRouteSafety(html, "app_admin_route");
+}
+
+function assertProductV1AppRouteSafety(html, prefix) {
+  const text = htmlText(html);
+  record(`${prefix}_has_no_certification_claims`, !/certified compliant|guaranteed nis2 compliance|legal compliance approved/i.test(text));
+  record(`${prefix}_html_has_no_undefined_or_object_leaks`, !/(undefined|\[object Object\])/.test(html));
+  record(`${prefix}_html_ids_are_unique`, duplicateIds(html).length === 0, duplicateIds(html).join(", "));
 }
 
 function assertRomaniaRouteResponsiveFocus(html) {

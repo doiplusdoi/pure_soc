@@ -100,6 +100,7 @@ export type ProductV1ConsoleSection =
   | "evidence"
   | "reports"
   | "connectors"
+  | "notifications"
   | "events";
 
 export interface ProductV1ConsoleModel {
@@ -117,6 +118,7 @@ export interface ProductV1ConsoleModel {
   setup: Record<string, unknown> | null;
   countryPacks: Array<Record<string, unknown>>;
   providerCapabilities: Array<Record<string, unknown>>;
+  notificationPreferences: Record<string, unknown> | null;
   reportTemplates: Array<Record<string, unknown>>;
   resources: {
     assets: Array<Record<string, unknown>>;
@@ -128,6 +130,7 @@ export interface ProductV1ConsoleModel {
     governanceCalendarEvents: Array<Record<string, unknown>>;
     incidents: Array<Record<string, unknown>>;
     internalEvents: Array<Record<string, unknown>>;
+    notifications: Array<Record<string, unknown>>;
     people: Array<Record<string, unknown>>;
     policies: Array<Record<string, unknown>>;
     policyAcknowledgements: Array<Record<string, unknown>>;
@@ -136,6 +139,7 @@ export interface ProductV1ConsoleModel {
     reportSnapshots: Array<Record<string, unknown>>;
     retentionPolicies: Array<Record<string, unknown>>;
     risks: Array<Record<string, unknown>>;
+    supportSessions: Array<Record<string, unknown>>;
     supplierReviews: Array<Record<string, unknown>>;
     suppliers: Array<Record<string, unknown>>;
     tasks: Array<Record<string, unknown>>;
@@ -206,6 +210,20 @@ export interface NotificationLogSettingsSurface {
   errorMessage?: string;
 }
 
+export interface NotificationOperatorAlertSettingsSurface {
+  id: string;
+  alertType: "delivery_exhausted";
+  severity: "warning" | "critical";
+  status: "open" | "acknowledged";
+  title: string;
+  body: string;
+  sourceRetryItemId?: string;
+  channelId?: string;
+  eventType?: string;
+  createdAt: string;
+  acknowledgedAt?: string;
+}
+
 export interface NotificationSettingsScreenModel {
   actionMessage?: string;
   activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
@@ -214,6 +232,7 @@ export interface NotificationSettingsScreenModel {
   channels: NotificationChannelSettingsSurface[];
   errorMessage?: string;
   logs: NotificationLogSettingsSurface[];
+  operatorAlerts: NotificationOperatorAlertSettingsSurface[];
   roleKeys: string[];
   session: RuntimeSessionSurface;
 }

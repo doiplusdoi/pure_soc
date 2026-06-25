@@ -3,11 +3,17 @@ import { randomUUID } from "node:crypto";
 import type {
   ChecklistOverdueCandidate,
   EvidenceExpiryCandidate,
+  NotificationCategory,
   NotificationChannel,
   NotificationChannelType,
   NotificationDeadline,
+  NotificationDeliveryRetryItem,
+  NotificationDigestFrequency,
+  NotificationDigestItem,
   NotificationEventType,
   NotificationLog,
+  NotificationOperatorAlert,
+  NotificationOperatorAlertStatus,
   NotificationRepository,
   NotificationSendStatus
 } from "@puresoc/notifications";
@@ -36,6 +42,34 @@ type NotificationDeadlineRow = Omit<NotificationDeadline, "createdAt" | "deadlin
   lastNotifiedAt?: Date | string | null;
 };
 
+type NotificationDigestItemRow = Omit<NotificationDigestItem, "createdAt" | "deliveredAt" | "payload"> & {
+  payloadJson: unknown;
+  createdAt: Date | string;
+  deliveredAt?: Date | string | null;
+};
+
+type NotificationDeliveryRetryItemRow = Omit<
+  NotificationDeliveryRetryItem,
+  "createdAt" | "updatedAt" | "completedAt" | "nextAttemptAt" | "payload"
+> & {
+  payloadJson: unknown;
+  createdAt: Date | string;
+  updatedAt: Date | string;
+  completedAt?: Date | string | null;
+  nextAttemptAt?: Date | string | null;
+};
+
+type NotificationOperatorAlertRow = Omit<
+  NotificationOperatorAlert,
+  "createdAt" | "acknowledgedAt" | "sourceRetryItemId" | "channelId" | "eventType"
+> & {
+  sourceRetryItemId?: string | null;
+  channelId?: string | null;
+  eventType?: NotificationEventType | null;
+  createdAt: Date | string;
+  acknowledgedAt?: Date | string | null;
+};
+
 type EvidenceArtifactExpiryRow = {
   id: string;
   organizationId: string;
@@ -60,6 +94,9 @@ export interface PrismaNotificationClient {
   notificationChannel: Delegate<NotificationChannelRow>;
   notificationLog: Delegate<NotificationLogRow>;
   notificationDeadline: Delegate<NotificationDeadlineRow>;
+  notificationDigestItem: Delegate<NotificationDigestItemRow>;
+  notificationDeliveryRetry: Delegate<NotificationDeliveryRetryItemRow>;
+  notificationOperatorAlert: Delegate<NotificationOperatorAlertRow>;
   evidenceArtifact: Pick<Delegate<EvidenceArtifactExpiryRow>, "findMany">;
   checklistRun: Pick<Delegate<ChecklistRunOverdueRow>, "findMany">;
   checklistTemplate: Pick<Delegate<ChecklistTemplateRow>, "findFirst">;
@@ -69,6 +106,9 @@ export class InMemoryNotificationRepository implements NotificationRepository {
   readonly channels = new Map<string, NotificationChannel>();
   readonly logs: NotificationLog[] = [];
   readonly deadlines = new Map<string, NotificationDeadline>();
+  readonly digestItems = new Map<string, NotificationDigestItem>();
+  readonly deliveryRetries = new Map<string, NotificationDeliveryRetryItem>();
+  readonly operatorAlerts = new Map<string, NotificationOperatorAlert>();
   readonly evidenceExpiryCandidates: EvidenceExpiryCandidate[] = [];
   readonly checklistOverdueCandidates: ChecklistOverdueCandidate[] = [];
 
@@ -104,6 +144,26 @@ export class InMemoryNotificationRepository implements NotificationRepository {
     };
     this.channels.set(channel.id, clone(channel));
     return clone(channel);
+  }
+
+  async updateChannel(input: {
+    organizationId: string;
+    channelId: string;
+    destination?: string;
+    enabled?: boolean;
+  }): Promise<{ before: NotificationChannel; after: NotificationChannel } | null> {
+    const existing = this.channels.get(input.channelId);
+    if (!existing || existing.organizationId !== input.organizationId) {
+      return null;
+    }
+    const before = clone(existing);
+    const after: NotificationChannel = {
+      ...existing,
+      destination: input.destination ?? existing.destination,
+      enabled: input.enabled ?? existing.enabled
+    };
+    this.channels.set(after.id, clone(after));
+    return { before, after: clone(after) };
   }
 
   async deleteChannel(organizationId: string, channelId: string): Promise<boolean> {
@@ -238,6 +298,252 @@ export class InMemoryNotificationRepository implements NotificationRepository {
       .sort((left, right) => left.dueDate.localeCompare(right.dueDate))
       .map(clone);
   }
+
+  async recordDigestItem(input: {
+    id?: string;
+    organizationId: string;
+    eventType: NotificationEventType;
+    category: NotificationCategory;
+    payloadHash: string;
+    payload: Record<string, unknown>;
+    digestFrequency: Exclude<NotificationDigestFrequency, "off">;
+    createdAt: string;
+  }): Promise<NotificationDigestItem> {
+    const existing = [...this.digestItems.values()].find(
+      (item) =>
+        item.organizationId === input.organizationId &&
+        item.eventType === input.eventType &&
+        item.payloadHash === input.payloadHash &&
+        item.digestFrequency === input.digestFrequency &&
+        item.status === "pending"
+    );
+    if (existing) {
+      return clone(existing);
+    }
+
+    const item: NotificationDigestItem = {
+      id: input.id ?? this.idFactory(),
+      organizationId: input.organizationId,
+      eventType: input.eventType,
+      category: input.category,
+      payloadHash: input.payloadHash,
+      payload: clone(input.payload),
+      digestFrequency: input.digestFrequency,
+      status: "pending",
+      createdAt: input.createdAt
+    };
+    this.digestItems.set(item.id, clone(item));
+    return clone(item);
+  }
+
+  async listPendingDigestItems(input: {
+    digestFrequency: Exclude<NotificationDigestFrequency, "off">;
+    createdBefore: string;
+    limit?: number;
+  }): Promise<NotificationDigestItem[]> {
+    return [...this.digestItems.values()]
+      .filter(
+        (item) =>
+          item.status === "pending" &&
+          item.digestFrequency === input.digestFrequency &&
+          item.createdAt <= input.createdBefore
+      )
+      .sort((left, right) => left.createdAt.localeCompare(right.createdAt))
+      .slice(0, input.limit ?? 100)
+      .map(clone);
+  }
+
+  async markDigestItemsDelivered(input: {
+    organizationId: string;
+    digestItemIds: string[];
+    deliveredAt: string;
+  }): Promise<NotificationDigestItem[]> {
+    const delivered: NotificationDigestItem[] = [];
+    for (const digestItemId of input.digestItemIds) {
+      const item = this.digestItems.get(digestItemId);
+      if (!item || item.organizationId !== input.organizationId || item.status !== "pending") {
+        continue;
+      }
+      const updated: NotificationDigestItem = {
+        ...item,
+        status: "delivered",
+        deliveredAt: input.deliveredAt
+      };
+      this.digestItems.set(updated.id, clone(updated));
+      delivered.push(clone(updated));
+    }
+    return delivered;
+  }
+
+  async recordDeliveryRetryItem(input: {
+    id?: string;
+    organizationId: string;
+    channelId: string;
+    eventType: NotificationEventType;
+    payloadHash: string;
+    payload: Record<string, unknown>;
+    attemptCount: number;
+    maxAttempts: number;
+    nextAttemptAt?: string;
+    lastError?: string;
+    createdAt: string;
+  }): Promise<NotificationDeliveryRetryItem> {
+    const existing = [...this.deliveryRetries.values()].find(
+      (item) =>
+        item.organizationId === input.organizationId &&
+        item.channelId === input.channelId &&
+        item.eventType === input.eventType &&
+        item.payloadHash === input.payloadHash &&
+        item.status === "pending"
+    );
+    if (existing) {
+      return clone(existing);
+    }
+
+    const retryItem: NotificationDeliveryRetryItem = {
+      id: input.id ?? this.idFactory(),
+      organizationId: input.organizationId,
+      channelId: input.channelId,
+      eventType: input.eventType,
+      payloadHash: input.payloadHash,
+      payload: clone(input.payload),
+      attemptCount: input.attemptCount,
+      maxAttempts: input.maxAttempts,
+      nextAttemptAt: input.nextAttemptAt,
+      status: input.nextAttemptAt ? "pending" : "failed",
+      lastError: input.lastError,
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      completedAt: input.nextAttemptAt ? undefined : input.createdAt
+    };
+    this.deliveryRetries.set(retryItem.id, clone(retryItem));
+    return clone(retryItem);
+  }
+
+  async listDueDeliveryRetryItems(input: {
+    dueAt: string;
+    limit?: number;
+  }): Promise<NotificationDeliveryRetryItem[]> {
+    return [...this.deliveryRetries.values()]
+      .filter((item) => item.status === "pending" && item.nextAttemptAt && item.nextAttemptAt <= input.dueAt)
+      .sort((left, right) => (left.nextAttemptAt ?? "").localeCompare(right.nextAttemptAt ?? ""))
+      .slice(0, input.limit ?? 100)
+      .map(clone);
+  }
+
+  async markDeliveryRetryItemSucceeded(input: {
+    organizationId: string;
+    retryItemId: string;
+    completedAt: string;
+  }): Promise<NotificationDeliveryRetryItem | null> {
+    const item = this.deliveryRetries.get(input.retryItemId);
+    if (!item || item.organizationId !== input.organizationId) {
+      return null;
+    }
+    const updated: NotificationDeliveryRetryItem = {
+      ...item,
+      status: "succeeded",
+      nextAttemptAt: undefined,
+      updatedAt: input.completedAt,
+      completedAt: input.completedAt
+    };
+    this.deliveryRetries.set(updated.id, clone(updated));
+    return clone(updated);
+  }
+
+  async markDeliveryRetryItemFailed(input: {
+    organizationId: string;
+    retryItemId: string;
+    attemptCount: number;
+    lastError: string;
+    nextAttemptAt?: string;
+    failedAt: string;
+  }): Promise<NotificationDeliveryRetryItem | null> {
+    const item = this.deliveryRetries.get(input.retryItemId);
+    if (!item || item.organizationId !== input.organizationId) {
+      return null;
+    }
+    const updated: NotificationDeliveryRetryItem = {
+      ...item,
+      attemptCount: input.attemptCount,
+      lastError: input.lastError,
+      nextAttemptAt: input.nextAttemptAt,
+      status: input.nextAttemptAt ? "pending" : "failed",
+      updatedAt: input.failedAt,
+      completedAt: input.nextAttemptAt ? undefined : input.failedAt
+    };
+    this.deliveryRetries.set(updated.id, clone(updated));
+    return clone(updated);
+  }
+
+  async recordOperatorAlert(input: {
+    id?: string;
+    organizationId: string;
+    alertType: "delivery_exhausted";
+    severity: NotificationOperatorAlert["severity"];
+    title: string;
+    body: string;
+    sourceRetryItemId?: string;
+    channelId?: string;
+    eventType?: NotificationEventType;
+    createdAt: string;
+  }): Promise<NotificationOperatorAlert> {
+    const existing = [...this.operatorAlerts.values()].find(
+      (alert) =>
+        alert.organizationId === input.organizationId &&
+        alert.sourceRetryItemId === input.sourceRetryItemId &&
+        alert.alertType === input.alertType &&
+        alert.status === "open"
+    );
+    if (existing) {
+      return clone(existing);
+    }
+
+    const alert: NotificationOperatorAlert = {
+      id: input.id ?? this.idFactory(),
+      organizationId: input.organizationId,
+      alertType: input.alertType,
+      severity: input.severity,
+      status: "open",
+      title: input.title,
+      body: input.body,
+      sourceRetryItemId: input.sourceRetryItemId,
+      channelId: input.channelId,
+      eventType: input.eventType,
+      createdAt: input.createdAt
+    };
+    this.operatorAlerts.set(alert.id, clone(alert));
+    return clone(alert);
+  }
+
+  async listOperatorAlerts(
+    organizationId: string,
+    options: { status?: NotificationOperatorAlertStatus; limit?: number } = {}
+  ): Promise<NotificationOperatorAlert[]> {
+    return [...this.operatorAlerts.values()]
+      .filter((alert) => alert.organizationId === organizationId && (!options.status || alert.status === options.status))
+      .sort((left, right) => right.createdAt.localeCompare(left.createdAt))
+      .slice(0, options.limit ?? 100)
+      .map(clone);
+  }
+
+  async acknowledgeOperatorAlert(input: {
+    organizationId: string;
+    alertId: string;
+    acknowledgedAt: string;
+  }): Promise<NotificationOperatorAlert | null> {
+    const alert = this.operatorAlerts.get(input.alertId);
+    if (!alert || alert.organizationId !== input.organizationId) {
+      return null;
+    }
+    const updated: NotificationOperatorAlert = {
+      ...alert,
+      status: "acknowledged",
+      acknowledgedAt: input.acknowledgedAt
+    };
+    this.operatorAlerts.set(updated.id, clone(updated));
+    return clone(updated);
+  }
 }
 
 export class PrismaNotificationRepository implements NotificationRepository {
@@ -260,6 +566,39 @@ export class PrismaNotificationRepository implements NotificationRepository {
       }
     });
     return fromChannelRow(row);
+  }
+
+  async updateChannel(input: {
+    organizationId: string;
+    channelId: string;
+    destination?: string;
+    enabled?: boolean;
+  }): Promise<{ before: NotificationChannel; after: NotificationChannel } | null> {
+    const existing = await this.client.notificationChannel.findFirst({
+      where: {
+        id: input.channelId,
+        organizationId: input.organizationId
+      }
+    });
+
+    if (!existing || !this.client.notificationChannel.update) {
+      return null;
+    }
+
+    const row = await this.client.notificationChannel.update({
+      where: {
+        id: input.channelId
+      },
+      data: {
+        ...(input.destination !== undefined ? { destination: input.destination } : {}),
+        ...(input.enabled !== undefined ? { enabled: input.enabled } : {})
+      }
+    });
+
+    return {
+      before: fromChannelRow(existing),
+      after: fromChannelRow(row)
+    };
   }
 
   async deleteChannel(organizationId: string, channelId: string): Promise<boolean> {
@@ -486,6 +825,325 @@ export class PrismaNotificationRepository implements NotificationRepository {
     }
     return candidates;
   }
+
+  async recordDigestItem(input: {
+    id?: string;
+    organizationId: string;
+    eventType: NotificationEventType;
+    category: NotificationCategory;
+    payloadHash: string;
+    payload: Record<string, unknown>;
+    digestFrequency: Exclude<NotificationDigestFrequency, "off">;
+    createdAt: string;
+  }): Promise<NotificationDigestItem> {
+    const existing = await this.client.notificationDigestItem.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        eventType: input.eventType,
+        payloadHash: input.payloadHash,
+        digestFrequency: input.digestFrequency,
+        status: "pending"
+      }
+    });
+    if (existing) {
+      return fromDigestItemRow(existing);
+    }
+
+    const row = await this.client.notificationDigestItem.create({
+      data: {
+        id: input.id,
+        organizationId: input.organizationId,
+        eventType: input.eventType,
+        category: input.category,
+        payloadHash: input.payloadHash,
+        payloadJson: input.payload,
+        digestFrequency: input.digestFrequency,
+        status: "pending",
+        createdAt: new Date(input.createdAt)
+      }
+    });
+    return fromDigestItemRow(row);
+  }
+
+  async listPendingDigestItems(input: {
+    digestFrequency: Exclude<NotificationDigestFrequency, "off">;
+    createdBefore: string;
+    limit?: number;
+  }): Promise<NotificationDigestItem[]> {
+    const rows = await this.client.notificationDigestItem.findMany({
+      where: {
+        digestFrequency: input.digestFrequency,
+        status: "pending",
+        createdAt: {
+          lte: new Date(input.createdBefore)
+        }
+      },
+      orderBy: {
+        createdAt: "asc"
+      },
+      take: input.limit ?? 100
+    });
+    return rows.map(fromDigestItemRow);
+  }
+
+  async markDigestItemsDelivered(input: {
+    organizationId: string;
+    digestItemIds: string[];
+    deliveredAt: string;
+  }): Promise<NotificationDigestItem[]> {
+    if (!this.client.notificationDigestItem.update) {
+      return [];
+    }
+
+    const delivered: NotificationDigestItem[] = [];
+    for (const digestItemId of input.digestItemIds) {
+      const existing = await this.client.notificationDigestItem.findFirst({
+        where: {
+          id: digestItemId,
+          organizationId: input.organizationId,
+          status: "pending"
+        }
+      });
+      if (!existing) {
+        continue;
+      }
+      const row = await this.client.notificationDigestItem.update({
+        where: {
+          id: digestItemId
+        },
+        data: {
+          status: "delivered",
+          deliveredAt: new Date(input.deliveredAt)
+        }
+      });
+      delivered.push(fromDigestItemRow(row));
+    }
+    return delivered;
+  }
+
+  async recordDeliveryRetryItem(input: {
+    id?: string;
+    organizationId: string;
+    channelId: string;
+    eventType: NotificationEventType;
+    payloadHash: string;
+    payload: Record<string, unknown>;
+    attemptCount: number;
+    maxAttempts: number;
+    nextAttemptAt?: string;
+    lastError?: string;
+    createdAt: string;
+  }): Promise<NotificationDeliveryRetryItem> {
+    const existing = await this.client.notificationDeliveryRetry.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        channelId: input.channelId,
+        eventType: input.eventType,
+        payloadHash: input.payloadHash,
+        status: "pending"
+      }
+    });
+    if (existing) {
+      return fromDeliveryRetryRow(existing);
+    }
+
+    const row = await this.client.notificationDeliveryRetry.create({
+      data: {
+        id: input.id,
+        organizationId: input.organizationId,
+        channelId: input.channelId,
+        eventType: input.eventType,
+        payloadHash: input.payloadHash,
+        payloadJson: input.payload,
+        attemptCount: input.attemptCount,
+        maxAttempts: input.maxAttempts,
+        nextAttemptAt: input.nextAttemptAt ? new Date(input.nextAttemptAt) : null,
+        status: input.nextAttemptAt ? "pending" : "failed",
+        lastError: input.lastError ?? null,
+        createdAt: new Date(input.createdAt),
+        completedAt: input.nextAttemptAt ? null : new Date(input.createdAt)
+      }
+    });
+    return fromDeliveryRetryRow(row);
+  }
+
+  async listDueDeliveryRetryItems(input: {
+    dueAt: string;
+    limit?: number;
+  }): Promise<NotificationDeliveryRetryItem[]> {
+    const rows = await this.client.notificationDeliveryRetry.findMany({
+      where: {
+        status: "pending",
+        nextAttemptAt: {
+          lte: new Date(input.dueAt)
+        }
+      },
+      orderBy: {
+        nextAttemptAt: "asc"
+      },
+      take: input.limit ?? 100
+    });
+    return rows.map(fromDeliveryRetryRow);
+  }
+
+  async markDeliveryRetryItemSucceeded(input: {
+    organizationId: string;
+    retryItemId: string;
+    completedAt: string;
+  }): Promise<NotificationDeliveryRetryItem | null> {
+    if (!this.client.notificationDeliveryRetry.update) {
+      return null;
+    }
+
+    const existing = await this.client.notificationDeliveryRetry.findFirst({
+      where: {
+        id: input.retryItemId,
+        organizationId: input.organizationId
+      }
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const row = await this.client.notificationDeliveryRetry.update({
+      where: {
+        id: input.retryItemId
+      },
+      data: {
+        status: "succeeded",
+        nextAttemptAt: null,
+        completedAt: new Date(input.completedAt)
+      }
+    });
+    return fromDeliveryRetryRow(row);
+  }
+
+  async markDeliveryRetryItemFailed(input: {
+    organizationId: string;
+    retryItemId: string;
+    attemptCount: number;
+    lastError: string;
+    nextAttemptAt?: string;
+    failedAt: string;
+  }): Promise<NotificationDeliveryRetryItem | null> {
+    if (!this.client.notificationDeliveryRetry.update) {
+      return null;
+    }
+
+    const existing = await this.client.notificationDeliveryRetry.findFirst({
+      where: {
+        id: input.retryItemId,
+        organizationId: input.organizationId
+      }
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const row = await this.client.notificationDeliveryRetry.update({
+      where: {
+        id: input.retryItemId
+      },
+      data: {
+        attemptCount: input.attemptCount,
+        lastError: input.lastError,
+        nextAttemptAt: input.nextAttemptAt ? new Date(input.nextAttemptAt) : null,
+        status: input.nextAttemptAt ? "pending" : "failed",
+        completedAt: input.nextAttemptAt ? null : new Date(input.failedAt)
+      }
+    });
+    return fromDeliveryRetryRow(row);
+  }
+
+  async recordOperatorAlert(input: {
+    id?: string;
+    organizationId: string;
+    alertType: "delivery_exhausted";
+    severity: NotificationOperatorAlert["severity"];
+    title: string;
+    body: string;
+    sourceRetryItemId?: string;
+    channelId?: string;
+    eventType?: NotificationEventType;
+    createdAt: string;
+  }): Promise<NotificationOperatorAlert> {
+    const existing = await this.client.notificationOperatorAlert.findFirst({
+      where: {
+        organizationId: input.organizationId,
+        sourceRetryItemId: input.sourceRetryItemId ?? null,
+        alertType: input.alertType,
+        status: "open"
+      }
+    });
+    if (existing) {
+      return fromOperatorAlertRow(existing);
+    }
+
+    const row = await this.client.notificationOperatorAlert.create({
+      data: {
+        id: input.id,
+        organizationId: input.organizationId,
+        alertType: input.alertType,
+        severity: input.severity,
+        status: "open",
+        title: input.title,
+        body: input.body,
+        sourceRetryItemId: input.sourceRetryItemId ?? null,
+        channelId: input.channelId ?? null,
+        eventType: input.eventType ?? null,
+        createdAt: new Date(input.createdAt)
+      }
+    });
+    return fromOperatorAlertRow(row);
+  }
+
+  async listOperatorAlerts(
+    organizationId: string,
+    options: { status?: NotificationOperatorAlertStatus; limit?: number } = {}
+  ): Promise<NotificationOperatorAlert[]> {
+    const rows = await this.client.notificationOperatorAlert.findMany({
+      where: {
+        organizationId,
+        ...(options.status ? { status: options.status } : {})
+      },
+      orderBy: {
+        createdAt: "desc"
+      },
+      take: options.limit ?? 100
+    });
+    return rows.map(fromOperatorAlertRow);
+  }
+
+  async acknowledgeOperatorAlert(input: {
+    organizationId: string;
+    alertId: string;
+    acknowledgedAt: string;
+  }): Promise<NotificationOperatorAlert | null> {
+    if (!this.client.notificationOperatorAlert.update) {
+      return null;
+    }
+
+    const existing = await this.client.notificationOperatorAlert.findFirst({
+      where: {
+        id: input.alertId,
+        organizationId: input.organizationId
+      }
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const row = await this.client.notificationOperatorAlert.update({
+      where: {
+        id: input.alertId
+      },
+      data: {
+        status: "acknowledged",
+        acknowledgedAt: new Date(input.acknowledgedAt)
+      }
+    });
+    return fromOperatorAlertRow(row);
+  }
 }
 
 const fromChannelRow = (row: NotificationChannelRow): NotificationChannel => ({
@@ -518,6 +1176,51 @@ const fromDeadlineRow = (row: NotificationDeadlineRow): NotificationDeadline => 
   status: row.status,
   lastNotifiedAt: row.lastNotifiedAt ? toIso(row.lastNotifiedAt) : undefined,
   createdAt: toIso(row.createdAt)
+});
+
+const fromDigestItemRow = (row: NotificationDigestItemRow): NotificationDigestItem => ({
+  id: row.id,
+  organizationId: row.organizationId,
+  eventType: row.eventType,
+  category: row.category,
+  payloadHash: row.payloadHash,
+  payload: clone(row.payloadJson) as Record<string, unknown>,
+  digestFrequency: row.digestFrequency,
+  status: row.status,
+  createdAt: toIso(row.createdAt),
+  deliveredAt: row.deliveredAt ? toIso(row.deliveredAt) : undefined
+});
+
+const fromDeliveryRetryRow = (row: NotificationDeliveryRetryItemRow): NotificationDeliveryRetryItem => ({
+  id: row.id,
+  organizationId: row.organizationId,
+  channelId: row.channelId,
+  eventType: row.eventType,
+  payloadHash: row.payloadHash,
+  payload: clone(row.payloadJson) as Record<string, unknown>,
+  attemptCount: row.attemptCount,
+  maxAttempts: row.maxAttempts,
+  nextAttemptAt: row.nextAttemptAt ? toIso(row.nextAttemptAt) : undefined,
+  status: row.status,
+  lastError: row.lastError,
+  createdAt: toIso(row.createdAt),
+  updatedAt: toIso(row.updatedAt),
+  completedAt: row.completedAt ? toIso(row.completedAt) : undefined
+});
+
+const fromOperatorAlertRow = (row: NotificationOperatorAlertRow): NotificationOperatorAlert => ({
+  id: row.id,
+  organizationId: row.organizationId,
+  alertType: row.alertType,
+  severity: row.severity,
+  status: row.status,
+  title: row.title,
+  body: row.body,
+  sourceRetryItemId: row.sourceRetryItemId ?? undefined,
+  channelId: row.channelId ?? undefined,
+  eventType: row.eventType ?? undefined,
+  createdAt: toIso(row.createdAt),
+  acknowledgedAt: row.acknowledgedAt ? toIso(row.acknowledgedAt) : undefined
 });
 
 const toIso = (value: Date | string): string =>

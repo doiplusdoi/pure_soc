@@ -6,10 +6,18 @@ export {
   type RunRegulatorySourceMonitorJobInput
 } from "./regulatory-source-monitor";
 export {
+  notificationDigestDispatchJobName,
   notificationDeadlineScanJobName,
+  notificationRetryDispatchJobName,
+  runNotificationDigestDispatchJob,
+  type NotificationDigestDispatchResult,
   runNotificationDeadlineScanJob,
   type NotificationDeadlineScanResult,
-  type RunNotificationDeadlineScanJobInput
+  runNotificationRetryDispatchJob,
+  type NotificationRetryDispatchResult,
+  type RunNotificationDigestDispatchJobInput,
+  type RunNotificationDeadlineScanJobInput,
+  type RunNotificationRetryDispatchJobInput
 } from "./notifications";
 export {
   dashboardSnapshotJobName,
@@ -21,7 +29,9 @@ export {
 export {
   createSchedulerRuntime,
   runSchedulerTick,
+  type NotificationDigestDispatchScheduledJob,
   type NotificationDeadlineScanScheduledJob,
+  type NotificationRetryDispatchScheduledJob,
   type RegulatorySourceMonitorScheduledJob,
   type SchedulerRuntime,
   type SchedulerRuntimeDependencies

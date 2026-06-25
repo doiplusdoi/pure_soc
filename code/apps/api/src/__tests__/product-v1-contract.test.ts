@@ -165,6 +165,13 @@ describe("product v1 API contract", () => {
     expect(openapi.status).toBe(200);
     const openapiBody = await readJson<{ paths: Record<string, unknown> }>(openapi);
     expect(openapiBody.paths).toHaveProperty("/operations/{operationId}");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/notification-channels");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/notification-logs");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/notification-operator-alerts");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/notifications");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/notification-preferences");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/provider-actions/{actionTemplateId}/preflight");
+    expect(openapiBody.paths).toHaveProperty("/organizations/{organizationId}/provider-actions/{actionRunId}/execute");
 
     await createOrganization(owner.cookie, "Asterion RO", "RO");
     await createOrganization(owner.cookie, "Asterion DE", "DE");
@@ -295,6 +302,27 @@ describe("product v1 API contract", () => {
     const supportBody = await readJson<{ supportSession: { id: string; status: string } }>(supportSession);
     expect(supportBody.supportSession.status).toBe("active");
     await expect(services.productV1.listAssignments(partner.id)).resolves.toHaveLength(1);
+
+    const supportWithoutScope = await getJson("/api/v1/support-sessions", customerOwner.cookie);
+    expect(supportWithoutScope.status).toBe(400);
+
+    const customerVisibleSupport = await getJson(
+      `/api/v1/support-sessions?organizationId=${organization.id}`,
+      customerOwner.cookie
+    );
+    expect(customerVisibleSupport.status).toBe(200);
+    const customerVisibleSupportBody = await readJson<{ data: Array<{ id: string; reason: string }> }>(
+      customerVisibleSupport
+    );
+    expect(customerVisibleSupportBody.data).toEqual([
+      expect.objectContaining({ id: supportBody.supportSession.id, reason: "Troubleshoot onboarding" })
+    ]);
+
+    const delegatedPartnerSupportBypass = await getJson(
+      `/api/v1/support-sessions?organizationId=${organization.id}`,
+      partnerOwner.cookie
+    );
+    expect(delegatedPartnerSupportBypass.status).toBe(403);
 
     const endedSupport = await postJson(
       `/api/v1/support-sessions/${supportBody.supportSession.id}/end`,

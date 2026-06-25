@@ -31,7 +31,7 @@ describe("database schema groups", () => {
   it("contains every required Phase B schema group table", () => {
     const requiredTables = Object.values(schemaGroups).flat();
 
-    expect(requiredTables).toHaveLength(91);
+    expect(requiredTables).toHaveLength(94);
     for (const table of requiredTables) {
       expect(modelBlocks.has(table), `missing Prisma model mapped to ${table}`).toBe(true);
     }
@@ -135,6 +135,18 @@ describe("database schema groups", () => {
     expect(fieldLine("generated_reports", "contentHashSha256")).toContain('@map("content_hash_sha256")');
     expect(fieldLine("dashboard_widgets", "dashboardSnapshotId")).toContain('@map("dashboard_snapshot_id")');
     expect(fieldLine("dashboard_widgets", "valueJson")).toContain("Json");
+    expect(fieldLine("notification_digest_items", "organizationId")).toContain('@map("organization_id")');
+    expect(fieldLine("notification_digest_items", "payloadJson")).toContain("Json");
+    expect(fieldLine("notification_digest_items", "digestFrequency")).toContain('@map("digest_frequency")');
+    expect(modelBlocks.get("notification_digest_items")).toContain("@@index([status, digestFrequency, createdAt]");
+    expect(fieldLine("notification_delivery_retries", "organizationId")).toContain('@map("organization_id")');
+    expect(fieldLine("notification_delivery_retries", "payloadJson")).toContain("Json");
+    expect(fieldLine("notification_delivery_retries", "nextAttemptAt")).toContain('@map("next_attempt_at")');
+    expect(modelBlocks.get("notification_delivery_retries")).toContain("@@index([status, nextAttemptAt]");
+    expect(fieldLine("notification_operator_alerts", "organizationId")).toContain('@map("organization_id")');
+    expect(fieldLine("notification_operator_alerts", "sourceRetryItemId")).toContain('@map("source_retry_item_id")');
+    expect(fieldLine("notification_operator_alerts", "acknowledgedAt")).toContain('@map("acknowledged_at")');
+    expect(modelBlocks.get("notification_operator_alerts")).toContain("@@index([organizationId, status, createdAt]");
   });
 
   it("models remediation action safety gates before provider execution", () => {

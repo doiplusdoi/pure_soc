@@ -213,6 +213,10 @@ interface NotificationLogsResponse {
   logs: NotificationSettingsScreenModel["logs"];
 }
 
+interface NotificationOperatorAlertsResponse {
+  operatorAlerts: NotificationSettingsScreenModel["operatorAlerts"];
+}
+
 interface PartnerListWebResponse {
   partners: PartnerConsoleModel["partners"];
 }
@@ -323,6 +327,10 @@ interface ProductV1SetupWebResponse {
   setup: Record<string, unknown>;
 }
 
+interface ProductV1NotificationPreferencesWebResponse {
+  notificationPreferences: Record<string, unknown>;
+}
+
 interface ProductV1MeWebResponse {
   user: RuntimeSessionSurface["user"];
   session: RuntimeSessionSurface["session"];
@@ -391,6 +399,7 @@ const productV1SectionByAppTail = new Map<string, ProductV1ConsoleSection>([
   ["reports", "reports"],
   ["connectors", "connectors"],
   ["connectors/microsoft365", "connectors"],
+  ["notifications", "notifications"],
   ["audit", "events"],
   ["events", "events"]
 ]);
@@ -398,6 +407,25 @@ const productV1SectionByAppTail = new Map<string, ProductV1ConsoleSection>([
 interface ProductV1AppOrganizationRoute {
   organizationId: string;
   section: ProductV1ConsoleSection;
+}
+
+interface ProductV1AppSetupRoute {
+  step: string | null;
+}
+
+interface ProductV1AppPartnerRoute {
+  partnerId: string;
+}
+
+type PartnerConsoleRouteMode = "app" | "legacy";
+
+interface PartnerConsolePostRoute {
+  partnerId: string;
+  routeMode: PartnerConsoleRouteMode;
+}
+
+interface PartnerConsoleSessionExitRoute extends PartnerConsolePostRoute {
+  sessionId: string;
 }
 
 const productV1AppOrganizationRoute = (pathname: string): ProductV1AppOrganizationRoute | null => {
@@ -412,6 +440,29 @@ const productV1AppOrganizationRoute = (pathname: string): ProductV1AppOrganizati
   };
 };
 
+const productV1AppSetupRoute = (pathname: string): ProductV1AppSetupRoute | null => {
+  if (pathname === "/app/setup") {
+    return { step: null };
+  }
+
+  const match = /^\/app\/setup\/([^/]+)$/.exec(pathname);
+  return match ? { step: decodeURIComponent(match[1] ?? "") } : null;
+};
+
+const productV1AppPartnerRoute = (pathname: string): ProductV1AppPartnerRoute | null => {
+  const match = /^\/app\/partner\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  if (!match) {
+    return null;
+  }
+
+  return {
+    partnerId: decodeURIComponent(match[1] ?? "")
+  };
+};
+
+const productV1AppAdminRoute = (pathname: string): boolean =>
+  pathname === "/app/admin" || pathname.startsWith("/app/admin/");
+
 const productV1SectionPath = (section: ProductV1ConsoleSection): string =>
   ({
     overview: "overview",
@@ -424,26 +475,13 @@ const productV1SectionPath = (section: ProductV1ConsoleSection): string =>
     evidence: "evidence",
     reports: "reports",
     connectors: "connectors/microsoft365",
+    notifications: "notifications",
     events: "audit"
   })[section];
 
 const appRouteRedirectTarget = (pathname: string): string | null => {
   if (pathname === "/app") {
     return "/dashboard";
-  }
-
-  if (pathname === "/app/setup" || pathname.startsWith("/app/setup/")) {
-    return pathname === "/app/setup/microsoft365" ? "/connectors/microsoft365" : "/onboarding";
-  }
-
-  if (pathname === "/app/admin" || pathname.startsWith("/app/admin/")) {
-    return "/settings";
-  }
-
-  const partnerMatch = /^\/app\/partner\/([^/]+)(?:\/(.*))?$/.exec(pathname);
-  if (partnerMatch) {
-    const partnerId = partnerMatch[1] ?? "";
-    return `/customers?partnerId=${encodeURIComponent(partnerId)}`;
   }
 
   const organizationMatch = /^\/app\/o\/([^/]+)(?:\/(.*))?$/.exec(pathname);
@@ -462,6 +500,58 @@ const mergeRedirectSearch = (target: string, sourceSearch: string): string => {
     return target;
   }
   return `${target}${target.includes("?") ? "&" : "?"}${sourceSearch.slice(1)}`;
+};
+
+const partnerCustomerCreateRoute = (pathname: string): PartnerConsolePostRoute | null => {
+  const appMatch = /^\/app\/partner\/([^/]+)\/customers$/.exec(pathname);
+  if (appMatch) {
+    return { partnerId: decodeURIComponent(appMatch[1] ?? ""), routeMode: "app" };
+  }
+
+  const legacyMatch = /^\/partners\/([^/]+)\/customers$/.exec(pathname);
+  return legacyMatch ? { partnerId: decodeURIComponent(legacyMatch[1] ?? ""), routeMode: "legacy" } : null;
+};
+
+const partnerTenantSessionStartRoute = (pathname: string): PartnerConsolePostRoute | null => {
+  const appMatch = /^\/app\/partner\/([^/]+)\/tenant-sessions$/.exec(pathname);
+  if (appMatch) {
+    return { partnerId: decodeURIComponent(appMatch[1] ?? ""), routeMode: "app" };
+  }
+
+  const legacyMatch = /^\/partners\/([^/]+)\/tenant-sessions$/.exec(pathname);
+  return legacyMatch ? { partnerId: decodeURIComponent(legacyMatch[1] ?? ""), routeMode: "legacy" } : null;
+};
+
+const partnerTenantSessionExitRoute = (pathname: string): PartnerConsoleSessionExitRoute | null => {
+  const appMatch = /^\/app\/partner\/([^/]+)\/tenant-sessions\/([^/]+)\/exit$/.exec(pathname);
+  if (appMatch) {
+    return {
+      partnerId: decodeURIComponent(appMatch[1] ?? ""),
+      routeMode: "app",
+      sessionId: decodeURIComponent(appMatch[2] ?? "")
+    };
+  }
+
+  const legacyMatch = /^\/partners\/([^/]+)\/tenant-sessions\/([^/]+)\/exit$/.exec(pathname);
+  return legacyMatch
+    ? {
+        partnerId: decodeURIComponent(legacyMatch[1] ?? ""),
+        routeMode: "legacy",
+        sessionId: decodeURIComponent(legacyMatch[2] ?? "")
+      }
+    : null;
+};
+
+const partnerConsoleRedirectLocation = (
+  partnerId: string,
+  routeMode: PartnerConsoleRouteMode,
+  message: string
+): string => {
+  const base =
+    routeMode === "app"
+      ? `/app/partner/${encodeURIComponent(partnerId)}`
+      : `/partners?partnerId=${encodeURIComponent(partnerId)}`;
+  return `${base}${base.includes("?") ? "&" : "?"}message=${encodeURIComponent(message)}`;
 };
 
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
@@ -562,6 +652,125 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         )}?message=${encodeURIComponent(result.message)}`
       );
       response.end();
+      return;
+    }
+
+    const productV1SetupRoute = productV1AppSetupRoute(url.pathname);
+    if (productV1SetupRoute && request.method === "GET") {
+      const activeOrganizationId = await loadProductV1ActiveOrganizationId({
+        apiBaseUrl,
+        cookie: request.headers.cookie
+      });
+
+      if (!activeOrganizationId) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in and select a workspace to continue setup."
+          }),
+          401
+        );
+        return;
+      }
+
+      const model = await loadProductV1ConsoleModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        organizationId: activeOrganizationId,
+        section: "setup"
+      });
+
+      if (!model) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in and select a workspace to continue setup."
+          }),
+          401
+        );
+        return;
+      }
+
+      sendHtml(response, renderProductV1ConsoleScreen(model), model.errorMessage ? 403 : 200);
+      return;
+    }
+
+    if (productV1SetupRoute && request.method === "POST") {
+      const activeOrganizationId = await loadProductV1ActiveOrganizationId({
+        apiBaseUrl,
+        cookie: request.headers.cookie
+      });
+
+      if (!activeOrganizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const requestOrigin =
+        options.publicBaseUrl ??
+        process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
+        process.env.PURESOC_PUBLIC_BASE_URL ??
+        resolvePublicRequestOrigin(request, port);
+      const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
+      const result = await handleProductV1ConsolePost({
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        organizationId: activeOrganizationId,
+        origin: apiRequestOrigin,
+        request,
+        section: "setup"
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `${url.pathname}?message=${encodeURIComponent(result.message)}`
+      );
+      response.end();
+      return;
+    }
+
+    const productV1PartnerRoute = productV1AppPartnerRoute(url.pathname);
+    if (productV1PartnerRoute && request.method === "GET") {
+      const partnerModel = await loadPartnerConsoleModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        errorMessage: url.searchParams.get("error"),
+        partnerId: productV1PartnerRoute.partnerId
+      });
+
+      if (!partnerModel) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to manage a partner portfolio."
+          }),
+          401
+        );
+        return;
+      }
+
+      sendHtml(response, renderPartnerConsoleScreen(partnerModel, { routeMode: "app" }));
+      return;
+    }
+
+    if (productV1AppAdminRoute(url.pathname) && request.method === "GET") {
+      sendHtml(
+        response,
+        renderRuntimeMessageScreen({
+          title: "Platform admin gated",
+          summary:
+            "Platform admin routes need dedicated platform-admin RBAC, support-session operations, country-pack activation controls, and production audit review before customer use.",
+          statusLabel: "Blocked",
+          statusTone: "warning",
+          actionHref: "/settings",
+          actionLabel: "Open workspace settings"
+        }),
+        403
+      );
       return;
     }
 
@@ -1201,9 +1410,9 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
-    const partnerCustomerCreate = /^\/partners\/([^/]+)\/customers$/.exec(url.pathname);
+    const partnerCustomerCreate = partnerCustomerCreateRoute(url.pathname);
     if (request.method === "POST" && partnerCustomerCreate) {
-      const partnerId = partnerCustomerCreate[1] ?? "";
+      const { partnerId, routeMode } = partnerCustomerCreate;
       const form = await readFormBody(request);
       const created = await apiJson<CreatePartnerCustomerWebResponse>(
         apiBaseUrl,
@@ -1231,7 +1440,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           partnerModel
-            ? renderPartnerConsoleScreen(partnerModel)
+            ? renderPartnerConsoleScreen(partnerModel, { routeMode })
             : renderLoginScreen({ errorMessage: "Sign in to add a partner customer." }),
           created.statusCode
         );
@@ -1241,17 +1450,19 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+        partnerConsoleRedirectLocation(
+          partnerId,
+          routeMode,
           `${created.body.organization?.name ?? "Customer"} added to the partner portfolio.`
-        )}`
+        )
       );
       response.end();
       return;
     }
 
-    const partnerTenantSessionStart = /^\/partners\/([^/]+)\/tenant-sessions$/.exec(url.pathname);
+    const partnerTenantSessionStart = partnerTenantSessionStartRoute(url.pathname);
     if (request.method === "POST" && partnerTenantSessionStart) {
-      const partnerId = partnerTenantSessionStart[1] ?? "";
+      const { partnerId, routeMode } = partnerTenantSessionStart;
       const form = await readFormBody(request);
       const started = await apiJson<PartnerTenantSessionWebResponse>(
         apiBaseUrl,
@@ -1277,7 +1488,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           partnerModel
-            ? renderPartnerConsoleScreen(partnerModel)
+            ? renderPartnerConsoleScreen(partnerModel, { routeMode })
             : renderLoginScreen({ errorMessage: "Sign in to enter a partner customer." }),
           started.statusCode
         );
@@ -1292,24 +1503,30 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           organizationId: started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? ""
         }
       });
+      const effectiveOrganizationId = started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? "";
 
       response.statusCode = 303;
       response.setHeader(
         "location",
         selected.statusCode === 200
-          ? `/?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
-          : `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+          ? routeMode === "app"
+            ? `/app/o/${encodeURIComponent(
+                String(effectiveOrganizationId)
+              )}/overview?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
+            : `/?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
+          : partnerConsoleRedirectLocation(
+              partnerId,
+              routeMode,
               "Customer session started, but the customer workspace was not selected."
-            )}`
+            )
       );
       response.end();
       return;
     }
 
-    const partnerTenantSessionExit = /^\/partners\/([^/]+)\/tenant-sessions\/([^/]+)\/exit$/.exec(url.pathname);
+    const partnerTenantSessionExit = partnerTenantSessionExitRoute(url.pathname);
     if (request.method === "POST" && partnerTenantSessionExit) {
-      const partnerId = partnerTenantSessionExit[1] ?? "";
-      const sessionId = partnerTenantSessionExit[2] ?? "";
+      const { partnerId, routeMode, sessionId } = partnerTenantSessionExit;
       const exited = await apiJson<PartnerTenantSessionWebResponse>(
         apiBaseUrl,
         `/partners/${encodeURIComponent(partnerId)}/tenant-access-sessions/${encodeURIComponent(sessionId)}/exit`,
@@ -1335,13 +1552,15 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/partners?partnerId=${encodeURIComponent(partnerId)}&message=${encodeURIComponent(
+        partnerConsoleRedirectLocation(
+          partnerId,
+          routeMode,
           apiSucceeded(exited.statusCode) && apiSucceeded(cleared?.statusCode ?? 500)
             ? "Customer session exited and customer context cleared."
             : apiSucceeded(exited.statusCode)
               ? "Customer session exited, but customer context was not cleared."
               : "Customer session exit was not completed."
-        )}`
+        )
       );
       response.end();
       return;
@@ -1400,7 +1619,62 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
-    const notificationChannelAction = /^\/settings\/notifications\/channels\/([^/]+)\/(test|delete)$/.exec(
+    const notificationAlertAction = /^\/settings\/notifications\/operator-alerts\/([^/]+)\/acknowledge$/.exec(
+      url.pathname
+    );
+    if (request.method === "POST" && notificationAlertAction) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        response.statusCode = 303;
+        response.setHeader("location", "/login");
+        response.end();
+        return;
+      }
+
+      const alertId = notificationAlertAction[1] ?? "";
+      const result = await apiJson<unknown>(
+        apiBaseUrl,
+        `/organizations/${encodeURIComponent(organizationId)}/notification-operator-alerts/${encodeURIComponent(
+          alertId
+        )}/acknowledge`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: apiRequestOrigin,
+          body: {}
+        }
+      );
+
+      if (!apiSucceeded(result.statusCode)) {
+        const settingsModel = await loadNotificationSettingsScreenModel({
+          apiBaseUrl,
+          cookie: request.headers.cookie,
+          errorMessage: "Notification operator alert was not acknowledged. Check your workspace role."
+        });
+        sendHtml(
+          response,
+          settingsModel
+            ? renderNotificationSettingsScreen(settingsModel)
+            : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
+          result.statusCode
+        );
+        return;
+      }
+
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/settings/notifications?message=${encodeURIComponent("Notification operator alert acknowledged.")}`
+      );
+      response.end();
+      return;
+    }
+
+    const notificationChannelAction = /^\/settings\/notifications\/channels\/([^/]+)\/(test|delete|update)$/.exec(
       url.pathname
     );
     if (request.method === "POST" && notificationChannelAction) {
@@ -1418,27 +1692,45 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
       const channelId = notificationChannelAction[1] ?? "";
       const action = notificationChannelAction[2];
-      const result =
-        action === "test"
-          ? await apiJson<unknown>(
-              apiBaseUrl,
-              `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}/test`,
-              {
-                method: "POST",
-                cookie: request.headers.cookie,
-                origin: apiRequestOrigin,
-                body: {}
-              }
-            )
-          : await apiJson<unknown>(
-              apiBaseUrl,
-              `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}`,
-              {
-                method: "DELETE",
-                cookie: request.headers.cookie,
-                origin: apiRequestOrigin
-              }
-            );
+      let result: Awaited<ReturnType<typeof apiJson<unknown>>>;
+      if (action === "test") {
+        result = await apiJson<unknown>(
+          apiBaseUrl,
+          `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}/test`,
+          {
+            method: "POST",
+            cookie: request.headers.cookie,
+            origin: apiRequestOrigin,
+            body: {}
+          }
+        );
+      } else if (action === "update") {
+        const form = await readFormBody(request);
+        const destination = String(form.get("destination") ?? "").trim();
+        result = await apiJson<unknown>(
+          apiBaseUrl,
+          `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}`,
+          {
+            method: "PATCH",
+            cookie: request.headers.cookie,
+            origin: apiRequestOrigin,
+            body: {
+              ...(destination ? { destination } : {}),
+              enabled: form.get("enabled") === "true"
+            }
+          }
+        );
+      } else {
+        result = await apiJson<unknown>(
+          apiBaseUrl,
+          `/organizations/${encodeURIComponent(organizationId)}/notification-channels/${encodeURIComponent(channelId)}`,
+          {
+            method: "DELETE",
+            cookie: request.headers.cookie,
+            origin: apiRequestOrigin
+          }
+        );
+      }
 
       if (!apiSucceeded(result.statusCode)) {
         const settingsModel = await loadNotificationSettingsScreenModel({
@@ -1447,7 +1739,9 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           errorMessage:
             action === "test"
               ? "Test notification was not sent. Check channel delivery configuration and recent logs."
-              : "Notification channel was not removed. Check your workspace role."
+              : action === "update"
+                ? "Notification channel was not updated. Check your workspace role and destination format."
+                : "Notification channel was not removed. Check your workspace role."
         });
         sendHtml(
           response,
@@ -1463,7 +1757,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.setHeader(
         "location",
         `/settings/notifications?message=${encodeURIComponent(
-          action === "test" ? "Test notification attempted. Review the delivery log." : "Notification channel removed."
+          action === "test"
+            ? "Test notification attempted. Review the delivery log."
+            : action === "update"
+              ? "Notification channel updated."
+              : "Notification channel removed."
         )}`
       );
       response.end();
@@ -2609,6 +2907,7 @@ const emptyProductV1Resources = (): ProductV1ConsoleModel["resources"] => ({
   governanceCalendarEvents: [],
   incidents: [],
   internalEvents: [],
+  notifications: [],
   people: [],
   policies: [],
   policyAcknowledgements: [],
@@ -2617,11 +2916,27 @@ const emptyProductV1Resources = (): ProductV1ConsoleModel["resources"] => ({
   reportSnapshots: [],
   retentionPolicies: [],
   risks: [],
+  supportSessions: [],
   supplierReviews: [],
   suppliers: [],
   tasks: [],
   trainingRecords: []
 });
+
+const loadProductV1ActiveOrganizationId = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+}): Promise<string | null> => {
+  const session = await apiJson<ProductV1MeWebResponse>(input.apiBaseUrl, "/api/v1/me", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (session.statusCode !== 200) {
+    return null;
+  }
+
+  return session.body.session.activeOrganizationId ?? null;
+};
 
 const loadProductV1ConsoleModel = async (input: {
   actionMessage?: string | null;
@@ -2674,6 +2989,7 @@ const loadProductV1ConsoleModel = async (input: {
       countryPacks: [],
       errorMessage: "Access blocked for this organization route. Check workspace membership, partner scope, or support session policy.",
       organization,
+      notificationPreferences: null,
       providerCapabilities: [],
       reportTemplates: [],
       resources: emptyProductV1Resources(),
@@ -2711,7 +3027,10 @@ const loadProductV1ConsoleModel = async (input: {
     reportTemplates,
     reportSnapshots,
     providerCapabilities,
-    internalEvents
+    internalEvents,
+    notifications,
+    notificationPreferences,
+    supportSessions
   ] = await Promise.all([
     productV1Page(input.apiBaseUrl, "/api/v1/country-packs?limit=20", input.cookie),
     productV1Page(input.apiBaseUrl, `${orgBase}/business-services?limit=25`, input.cookie),
@@ -2736,7 +3055,14 @@ const loadProductV1ConsoleModel = async (input: {
     productV1Page(input.apiBaseUrl, "/api/v1/report-templates?limit=25", input.cookie),
     productV1Page(input.apiBaseUrl, `${orgBase}/report-snapshots?limit=25`, input.cookie),
     productV1Page(input.apiBaseUrl, `${orgBase}/provider-capabilities?limit=25`, input.cookie),
-    productV1Page(input.apiBaseUrl, `${orgBase}/internal-events?limit=25`, input.cookie)
+    productV1Page(input.apiBaseUrl, `${orgBase}/internal-events?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/notifications?limit=25`, input.cookie),
+    productV1NotificationPreferences(input.apiBaseUrl, `${orgBase}/notification-preferences`, input.cookie),
+    productV1Page(
+      input.apiBaseUrl,
+      `/api/v1/support-sessions?organizationId=${encodeURIComponent(input.organizationId)}&limit=25`,
+      input.cookie
+    )
   ]);
 
   return {
@@ -2747,6 +3073,7 @@ const loadProductV1ConsoleModel = async (input: {
         ? undefined
         : "Product v1 setup loaded with partial API data. Check API health and route authorization.",
     organization,
+    notificationPreferences,
     providerCapabilities,
     reportTemplates,
     resources: {
@@ -2759,6 +3086,7 @@ const loadProductV1ConsoleModel = async (input: {
       governanceCalendarEvents,
       incidents,
       internalEvents,
+      notifications,
       people,
       policies,
       policyAcknowledgements,
@@ -2767,6 +3095,7 @@ const loadProductV1ConsoleModel = async (input: {
       reportSnapshots,
       retentionPolicies,
       risks,
+      supportSessions,
       supplierReviews,
       suppliers,
       tasks,
@@ -2787,6 +3116,20 @@ const productV1Page = async (apiBaseUrl: string, path: string, cookie?: string):
     cookie
   }).catch(() => ({ statusCode: 500, body: { data: [] } }));
   return result.statusCode === 200 ? result.body.data ?? [] : [];
+};
+
+const productV1NotificationPreferences = async (
+  apiBaseUrl: string,
+  path: string,
+  cookie?: string
+): Promise<Record<string, unknown> | null> => {
+  const result = await apiJson<ProductV1NotificationPreferencesWebResponse>(apiBaseUrl, path, {
+    method: "GET",
+    cookie
+  }).catch(() => ({ statusCode: 500, body: { notificationPreferences: null } }));
+  return result.statusCode === 200 && result.body.notificationPreferences
+    ? result.body.notificationPreferences
+    : null;
 };
 
 const handleProductV1ConsolePost = async (input: {
@@ -2810,6 +3153,13 @@ const handleProductV1ConsolePost = async (input: {
   const put = (path: string, body: Record<string, unknown>) =>
     apiJson<unknown>(input.apiBaseUrl, path, {
       method: "PUT",
+      cookie: input.cookie,
+      origin: input.origin,
+      body
+    });
+  const patch = (path: string, body: Record<string, unknown>) =>
+    apiJson<unknown>(input.apiBaseUrl, path, {
+      method: "PATCH",
       cookie: input.cookie,
       origin: input.origin,
       body
@@ -2931,11 +3281,41 @@ const handleProductV1ConsolePost = async (input: {
                                                 source: "product_v1_web_console"
                                               }
                                             })
-                                          : action === "runMicrosoft365Sync"
-                                            ? await post(`${orgBase}/connectors/microsoft365/sync-runs`, {
-                                                requestedModules: splitFormList(form.get("requestedModules"))
+                                          : action === "createNotification"
+                                            ? await post(`${orgBase}/notifications`, {
+                                                title: form.get("title") ?? "",
+                                                body: optionalFormValue(form.get("body")),
+                                                category: optionalFormValue(form.get("category")) ?? "system",
+                                                severity: optionalFormValue(form.get("severity")) ?? "info",
+                                                sourceResourceType: optionalFormValue(form.get("sourceResourceType")),
+                                                sourceResourceId: optionalFormValue(form.get("sourceResourceId")),
+                                                actionHref: optionalFormValue(form.get("actionHref"))
                                               })
-                                            : { statusCode: 400 };
+                                            : action === "markNotificationRead"
+                                              ? await patch(
+                                                  `${orgBase}/notifications/${encodeURIComponent(
+                                                    optionalFormValue(form.get("notificationId")) ?? ""
+                                                  )}`,
+                                                  { status: "read" }
+                                                )
+                                              : action === "archiveNotification"
+                                                ? await patch(
+                                                    `${orgBase}/notifications/${encodeURIComponent(
+                                                      optionalFormValue(form.get("notificationId")) ?? ""
+                                                    )}`,
+                                                    { status: "archived" }
+                                                  )
+                                                : action === "updateNotificationPreferences"
+                                                  ? await put(`${orgBase}/notification-preferences`, {
+                                                      digestFrequency: optionalFormValue(form.get("digestFrequency")) ?? "off",
+                                                      suppressedCategories: splitFormList(form.get("suppressedCategories")),
+                                                      mutedUntil: optionalFormValue(form.get("mutedUntil"))
+                                                    })
+                                                  : action === "runMicrosoft365Sync"
+                                                    ? await post(`${orgBase}/connectors/microsoft365/sync-runs`, {
+                                                        requestedModules: splitFormList(form.get("requestedModules"))
+                                                      })
+                                                    : { statusCode: 400 };
 
   return {
     message: apiSucceeded(result.statusCode) ? productV1SuccessMessage(action) : productV1FailureMessage(action, result.statusCode)
@@ -2950,6 +3330,7 @@ const productV1SuccessMessage = (action: string): string =>
     createFinding: "Finding added.",
     createGovernanceActivity: "Governance activity added.",
     createIncident: "Incident declared.",
+    createNotification: "Notification added.",
     createPolicy: "Policy added.",
     createPolicyReview: "Policy review scheduled.",
     createRemediationPlan: "Remediation plan added.",
@@ -2962,8 +3343,11 @@ const productV1SuccessMessage = (action: string): string =>
     createTask: "Task added.",
     createTrainingRecord: "Training assigned.",
     launchSetup: "Setup launch readiness evaluated.",
+    archiveNotification: "Notification archived.",
+    markNotificationRead: "Notification marked read.",
     runMicrosoft365Sync: "Microsoft 365 sync requested.",
-    saveSetupStep: "Setup step saved."
+    saveSetupStep: "Setup step saved.",
+    updateNotificationPreferences: "Notification preferences saved."
   })[action] ?? "Product v1 action completed.";
 
 const productV1FailureMessage = (action: string, statusCode: number): string =>
@@ -3454,12 +3838,13 @@ const loadNotificationSettingsScreenModel = async (input: {
       channels: [],
       errorMessage: input.errorMessage,
       logs: [],
+      operatorAlerts: [],
       roleKeys,
       session: selection.session
     };
   }
 
-  const [channels, logs] = await Promise.all([
+  const [channels, logs, operatorAlerts] = await Promise.all([
     apiJson<NotificationChannelsResponse>(
       input.apiBaseUrl,
       `/organizations/${encodeURIComponent(activeOrganizationId)}/notification-channels`,
@@ -3475,6 +3860,14 @@ const loadNotificationSettingsScreenModel = async (input: {
         method: "GET",
         cookie: input.cookie
       }
+    ),
+    apiJson<NotificationOperatorAlertsResponse>(
+      input.apiBaseUrl,
+      `/organizations/${encodeURIComponent(activeOrganizationId)}/notification-operator-alerts`,
+      {
+        method: "GET",
+        cookie: input.cookie
+      }
     )
   ]);
 
@@ -3486,10 +3879,11 @@ const loadNotificationSettingsScreenModel = async (input: {
     channels: channels.statusCode === 200 ? channels.body.channels : [],
     errorMessage:
       input.errorMessage ??
-      (channels.statusCode === 200 && logs.statusCode === 200
+      (channels.statusCode === 200 && logs.statusCode === 200 && operatorAlerts.statusCode === 200
         ? undefined
         : "Notification settings could not load all API data for this workspace."),
     logs: logs.statusCode === 200 ? logs.body.logs : [],
+    operatorAlerts: operatorAlerts.statusCode === 200 ? operatorAlerts.body.operatorAlerts : [],
     roleKeys,
     session: selection.session
   };
@@ -4411,20 +4805,21 @@ const apiJson = async <T>(
   apiBaseUrl: string,
   path: string,
   input: {
-    method: "DELETE" | "GET" | "POST" | "PUT";
+    method: "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
     body?: Record<string, unknown>;
     cookie?: string;
     origin?: string;
   }
 ): Promise<{ statusCode: number; body: T; setCookie?: string }> => {
+  const hasJsonBody = input.method === "PATCH" || input.method === "POST" || input.method === "PUT";
   const response = await fetch(`${apiBaseUrl}${path}`, {
     method: input.method,
     headers: {
-      ...(input.method === "POST" || input.method === "PUT" ? { "content-type": "application/json" } : {}),
+      ...(hasJsonBody ? { "content-type": "application/json" } : {}),
       ...(input.cookie ? { cookie: input.cookie } : {}),
       ...(input.origin ? { origin: input.origin } : {})
     },
-    body: input.method === "POST" || input.method === "PUT" ? JSON.stringify(input.body ?? {}) : undefined
+    body: hasJsonBody ? JSON.stringify(input.body ?? {}) : undefined
   });
 
   return {

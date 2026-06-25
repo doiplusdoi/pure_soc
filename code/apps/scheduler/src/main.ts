@@ -39,6 +39,8 @@ try {
     if (config.jobs.scheduler.runOnStartup) {
       await scheduler.enqueueRegulatorySourceMonitorJob({ reason: "startup" });
       await scheduler.enqueueNotificationDeadlineScanJob({ reason: "startup" });
+      await scheduler.enqueueNotificationDigestDispatchJob({ reason: "startup" });
+      await scheduler.enqueueNotificationRetryDispatchJob({ reason: "startup" });
       await scheduler.enqueueDashboardSnapshotJob({ reason: "startup" });
     }
 
@@ -56,6 +58,8 @@ try {
 
       if (Date.now() >= nextNotificationScanAt) {
         await scheduler.enqueueNotificationDeadlineScanJob({ reason: "interval" });
+        await scheduler.enqueueNotificationDigestDispatchJob({ reason: "interval" });
+        await scheduler.enqueueNotificationRetryDispatchJob({ reason: "interval" });
         nextNotificationScanAt = Date.now() + config.notifications.scheduler.deadlineScanIntervalMs;
       }
 

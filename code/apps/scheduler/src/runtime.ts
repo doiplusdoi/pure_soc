@@ -29,16 +29,27 @@ import {
   SlackWebhookNotificationTransport,
   SmtpNotificationTransport,
   TeamsWebhookNotificationTransport,
+  notificationCategories,
   type NotificationChannelType,
+  type NotificationCategory,
+  type NotificationDeliveryPreferences,
+  type NotificationDigestFrequency,
+  type NotificationPreferenceProvider,
   type NotificationRepository,
   type NotificationTransport
 } from "@puresoc/notifications";
 
 import { regulatorySourceMonitorJobName, runRegulatorySourceMonitorJob } from "./regulatory-source-monitor";
 import {
+  notificationDigestDispatchJobName,
   notificationDeadlineScanJobName,
+  notificationRetryDispatchJobName,
+  runNotificationDigestDispatchJob,
   runNotificationDeadlineScanJob,
-  type NotificationDeadlineScanResult
+  runNotificationRetryDispatchJob,
+  type NotificationDigestDispatchResult,
+  type NotificationDeadlineScanResult,
+  type NotificationRetryDispatchResult
 } from "./notifications";
 import {
   dashboardSnapshotJobName,
@@ -60,6 +71,7 @@ export interface SchedulerRuntimeDependencies {
   providerStore?: Pick<ProviderResourceStore, "listConnections">;
   notificationRepository?: NotificationRepository;
   notificationTransports?: Partial<Record<NotificationChannelType, NotificationTransport>>;
+  notificationPreferenceProvider?: NotificationPreferenceProvider;
   queue?: JobQueueAdapter;
   now?: () => Date;
   idFactory?: () => string;
@@ -73,12 +85,28 @@ export interface SchedulerRuntime {
   enqueueNotificationDeadlineScanJob: (
     input?: Partial<NotificationDeadlineScanScheduledJob>
   ) => Promise<JobDispatchResult<NotificationDeadlineScanScheduledJob>>;
+  enqueueNotificationDigestDispatchJob: (
+    input?: Partial<NotificationDigestDispatchScheduledJob>
+  ) => Promise<JobDispatchResult<NotificationDigestDispatchScheduledJob>>;
+  enqueueNotificationRetryDispatchJob: (
+    input?: Partial<NotificationRetryDispatchScheduledJob>
+  ) => Promise<JobDispatchResult<NotificationRetryDispatchScheduledJob>>;
   enqueueDashboardSnapshotJob: (
     input?: Partial<DashboardSnapshotScheduledJob>
   ) => Promise<JobDispatchResult<DashboardSnapshotScheduledJob>>;
 }
 
 export interface NotificationDeadlineScanScheduledJob {
+  reason: "startup" | "interval" | "manual";
+  scheduledAt: string;
+}
+
+export interface NotificationDigestDispatchScheduledJob {
+  reason: "startup" | "interval" | "manual";
+  scheduledAt: string;
+}
+
+export interface NotificationRetryDispatchScheduledJob {
   reason: "startup" | "interval" | "manual";
   scheduledAt: string;
 }
@@ -93,6 +121,8 @@ export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencie
   const notificationDelivery = new NotificationService({
     repository: notificationRepository,
     transports: dependencies.notificationTransports ?? createSchedulerNotificationTransports(dependencies.config),
+    preferenceProvider:
+      dependencies.notificationPreferenceProvider ?? createSchedulerNotificationPreferenceProvider(dependencies.config),
     now
   });
   const queue = dependencies.queue ?? createSchedulerQueue(dependencies, now);
@@ -120,6 +150,24 @@ export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencie
         notifications: notificationDelivery,
         scanIntervalMs: dependencies.config.notifications.scheduler.deadlineScanIntervalMs,
         now
+      })
+  }).register<NotificationDigestDispatchScheduledJob, NotificationDigestDispatchResult>({
+    name: notificationDigestDispatchJobName,
+    defaultMaxAttempts: dependencies.config.jobs.defaultMaxAttempts,
+    retryBackoffMs: dependencies.config.jobs.retryBackoffMs,
+    idempotencyKey: (payload) => `${payload.reason}:${payload.scheduledAt}`,
+    handler: () =>
+      runNotificationDigestDispatchJob({
+        notifications: notificationDelivery
+      })
+  }).register<NotificationRetryDispatchScheduledJob, NotificationRetryDispatchResult>({
+    name: notificationRetryDispatchJobName,
+    defaultMaxAttempts: dependencies.config.jobs.defaultMaxAttempts,
+    retryBackoffMs: dependencies.config.jobs.retryBackoffMs,
+    idempotencyKey: (payload) => `${payload.reason}:${payload.scheduledAt}`,
+    handler: () =>
+      runNotificationRetryDispatchJob({
+        notifications: notificationDelivery
       })
   }).register<DashboardSnapshotScheduledJob, DashboardSnapshotJobResult>({
     name: dashboardSnapshotJobName,
@@ -160,6 +208,28 @@ export const createSchedulerRuntime = (dependencies: SchedulerRuntimeDependencie
       const scheduledAt = input.scheduledAt ?? now().toISOString();
       return runtime.dispatch({
         name: notificationDeadlineScanJobName,
+        payload: {
+          reason: input.reason ?? "manual",
+          scheduledAt
+        },
+        idempotencyKey: `${input.reason ?? "manual"}:${scheduledAt}`
+      });
+    },
+    enqueueNotificationDigestDispatchJob: (input = {}) => {
+      const scheduledAt = input.scheduledAt ?? now().toISOString();
+      return runtime.dispatch({
+        name: notificationDigestDispatchJobName,
+        payload: {
+          reason: input.reason ?? "manual",
+          scheduledAt
+        },
+        idempotencyKey: `${input.reason ?? "manual"}:${scheduledAt}`
+      });
+    },
+    enqueueNotificationRetryDispatchJob: (input = {}) => {
+      const scheduledAt = input.scheduledAt ?? now().toISOString();
+      return runtime.dispatch({
+        name: notificationRetryDispatchJobName,
         payload: {
           reason: input.reason ?? "manual",
           scheduledAt
@@ -223,6 +293,64 @@ const createSchedulerProviderStore = (
     ? new PrismaProviderResourceStore(createPrismaClient() as never)
     : new InMemoryProviderResourceStore();
 
+interface ProductV1NotificationPreferencesRow {
+  recordType: string;
+  recordJson: unknown;
+}
+
+interface ProductV1NotificationPreferencesClient {
+  productV1StateRecord: {
+    findUnique(args: { where: { id: string } }): Promise<ProductV1NotificationPreferencesRow | null>;
+  };
+}
+
+const createSchedulerNotificationPreferenceProvider = (
+  config: Pick<PureSocConfig, "app">
+): NotificationPreferenceProvider | undefined => {
+  if (config.app.persistenceMode !== "prisma") {
+    return undefined;
+  }
+
+  const client = createPrismaClient() as unknown as ProductV1NotificationPreferencesClient;
+  return {
+    getPreferences: async (organizationId) => {
+      const row = await client.productV1StateRecord.findUnique({
+        where: {
+          id: notificationPreferencesRecordId(organizationId)
+        }
+      });
+      if (!row || row.recordType !== "notification_preferences") {
+        return null;
+      }
+
+      return notificationPreferencesFromRecord(row.recordJson);
+    }
+  };
+};
+
+const notificationPreferencesRecordId = (organizationId: string): string => `notification_preferences_${organizationId}`;
+
+const notificationPreferencesFromRecord = (record: unknown): NotificationDeliveryPreferences | null => {
+  if (!record || typeof record !== "object") {
+    return null;
+  }
+
+  const value = record as Record<string, unknown>;
+  return {
+    digestFrequency: notificationDigestFrequency(value.digestFrequency),
+    suppressedCategories: Array.isArray(value.suppressedCategories)
+      ? value.suppressedCategories.filter(isNotificationCategory)
+      : [],
+    mutedUntil: typeof value.mutedUntil === "string" ? value.mutedUntil : null
+  };
+};
+
+const notificationDigestFrequency = (value: unknown): NotificationDigestFrequency =>
+  value === "daily" || value === "weekly" ? value : "off";
+
+const isNotificationCategory = (value: unknown): value is NotificationCategory =>
+  notificationCategories.includes(value as NotificationCategory);
+
 const createSchedulerNotificationTransports = (
   config: Pick<PureSocConfig, "notifications">
 ): Partial<Record<NotificationChannelType, NotificationTransport>> => ({
@@ -256,6 +384,12 @@ export const runSchedulerTick = async (scheduler: SchedulerRuntime): Promise<{
   const notificationDispatch = await scheduler.enqueueNotificationDeadlineScanJob({
     reason: "manual"
   });
+  const notificationDigestDispatch = await scheduler.enqueueNotificationDigestDispatchJob({
+    reason: "manual"
+  });
+  const notificationRetryDispatch = await scheduler.enqueueNotificationRetryDispatchJob({
+    reason: "manual"
+  });
   const dashboardSnapshotDispatch = await scheduler.enqueueDashboardSnapshotJob({
     reason: "manual"
   });
@@ -265,6 +399,8 @@ export const runSchedulerTick = async (scheduler: SchedulerRuntime): Promise<{
     enqueued:
       (dispatch.status === "enqueued" ? 1 : 0) +
       (notificationDispatch.status === "enqueued" ? 1 : 0) +
+      (notificationDigestDispatch.status === "enqueued" ? 1 : 0) +
+      (notificationRetryDispatch.status === "enqueued" ? 1 : 0) +
       (dashboardSnapshotDispatch.status === "enqueued" ? 1 : 0),
     processed: result.processedCount
   };

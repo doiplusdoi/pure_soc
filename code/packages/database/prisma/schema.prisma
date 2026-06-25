@@ -1814,6 +1814,65 @@ model NotificationDeadline {
   @@map("notification_deadlines")
 }
 
+model NotificationDigestItem {
+  id              String   @id @default(uuid()) @db.Uuid
+  organizationId  String   @map("organization_id") @db.Uuid
+  eventType       String   @map("event_type")
+  category        String
+  payloadHash     String   @map("payload_hash")
+  payloadJson     Json     @map("payload_json")
+  digestFrequency String   @map("digest_frequency")
+  status          String   @default("pending")
+  createdAt       DateTime @default(now()) @map("created_at")
+  deliveredAt     DateTime? @map("delivered_at")
+
+  @@index([status, digestFrequency, createdAt], map: "notification_digest_items_due_idx")
+  @@index([organizationId, status, createdAt], map: "notification_digest_items_org_status_idx")
+  @@index([organizationId, eventType, payloadHash, digestFrequency, status], map: "notification_digest_items_dedupe_idx")
+  @@map("notification_digest_items")
+}
+
+model NotificationDeliveryRetry {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  channelId      String    @map("channel_id") @db.Uuid
+  eventType      String    @map("event_type")
+  payloadHash    String    @map("payload_hash")
+  payloadJson    Json      @map("payload_json")
+  attemptCount   Int       @default(1) @map("attempt_count")
+  maxAttempts    Int       @default(3) @map("max_attempts")
+  nextAttemptAt  DateTime? @map("next_attempt_at")
+  status         String    @default("pending")
+  lastError      String?   @map("last_error")
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  completedAt    DateTime? @map("completed_at")
+
+  @@index([status, nextAttemptAt], map: "notification_delivery_retries_due_idx")
+  @@index([organizationId, status, nextAttemptAt], map: "notification_delivery_retries_org_status_idx")
+  @@index([organizationId, channelId, eventType, payloadHash, status], map: "notification_delivery_retries_dedupe_idx")
+  @@map("notification_delivery_retries")
+}
+
+model NotificationOperatorAlert {
+  id                String    @id @default(uuid()) @db.Uuid
+  organizationId    String    @map("organization_id") @db.Uuid
+  alertType         String    @map("alert_type")
+  severity          String
+  status            String    @default("open")
+  title             String
+  body              String
+  sourceRetryItemId String?   @map("source_retry_item_id") @db.Uuid
+  channelId         String?   @map("channel_id") @db.Uuid
+  eventType         String?   @map("event_type")
+  createdAt         DateTime  @default(now()) @map("created_at")
+  acknowledgedAt    DateTime? @map("acknowledged_at")
+
+  @@index([organizationId, status, createdAt], map: "notification_operator_alerts_org_status_idx")
+  @@index([organizationId, sourceRetryItemId, alertType, status], map: "notification_operator_alerts_dedupe_idx")
+  @@map("notification_operator_alerts")
+}
+
 model RoNis2NotificationDraft {
   id                   String                  @id @default(uuid()) @db.Uuid
   organizationId       String                  @map("organization_id") @db.Uuid

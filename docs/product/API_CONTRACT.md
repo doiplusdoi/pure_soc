@@ -16,9 +16,9 @@ Current gaps:
 - OpenAPI exists as checked-in route metadata, but generated schema validation is not yet the source of truth.
 - Error, pagination, filtering, idempotency, and async operation shapes are enforced for current v1 routes but not uniformly across older compatibility routes.
 - Product commands and resources are mixed with older route semantics.
-- Destructive and provider-write aliases are correctly guarded, but their final command contracts are not yet defined.
+- Destructive and provider-write aliases are correctly guarded. Provider-action preflight/read/approval contracts now exist, but real execution remains an explicit blocked command until the full safety chain and disposable-target proof are complete.
 
-Implementation note, 2026-06-25: `/api/v1` includes request/correlation IDs, error envelopes, pagination/filtering, idempotent operation records, organization/partner/support/setup resources, country-pack metadata, Microsoft capability/disconnect views, product workflow aggregates, FileObject/retention resources, immutable report snapshots, and internal-event handoff records. Existing `/api/*` routes remain compatibility facades.
+Implementation note, 2026-06-25: `/api/v1` includes request/correlation IDs, error envelopes, pagination/filtering, idempotent operation records, organization/partner/support/setup resources, country-pack metadata, Microsoft capability/disconnect views, provider-action safety aliases, product workflow aggregates, FileObject/retention resources, immutable report snapshots, notification channel/log aliases, in-app notification-center item/preference routes, and internal-event handoff records. Existing `/api/*` routes remain compatibility facades.
 
 ## Target Cross-Cutting Contract
 
@@ -185,7 +185,9 @@ Support sessions require reason, expiry, policy authorization, customer-visible 
 - `POST /api/v1/organizations/:organizationId/provider-actions/:actionRunId/execute`
 - `GET /api/v1/organizations/:organizationId/provider-actions/:actionRunId`
 
-Provider action endpoints must enforce capability, safety class, approval policy, recent auth, idempotency, async operation, verification, evidence, and audit.
+Current implementation: preflight creates or reuses an `ActionRun` by organization-scoped `Idempotency-Key`, records a deterministic local preflight result, redacts the raw idempotency key, and does not mutate provider tenants. Read and approve endpoints use the same organization authorization boundary. Execute can complete approved non-executable actions as zero-blast local work: it creates a product task, evidence FileObject metadata, immutable remediation-progress report snapshot, product-v1 action operation, audit entry, and internal event without calling provider APIs. Execute returns `409 provider_action_execution_blocked` for `executable_later` provider-write actions instead of queueing provider mutation.
+
+Provider action execution must enforce capability state, safety class, approval policy, recent auth, idempotency, async operation, verification, evidence, audit, and disposable-tenant proof before it can replace the blocked response.
 
 ### Reports, Audit, And Notifications
 
@@ -197,9 +199,25 @@ Provider action endpoints must enforce capability, safety class, approval policy
 - `POST /api/v1/organizations/:organizationId/reports`
 - `GET /api/v1/organizations/:organizationId/reports/:reportId`
 - `GET /api/v1/organizations/:organizationId/reports/:reportId/download`
+- `GET /api/v1/organizations/:organizationId/audit/export`
+- `GET /api/v1/organizations/:organizationId/audit/checkpoints`
+- `POST /api/v1/organizations/:organizationId/audit/checkpoints`
 - `GET /api/v1/organizations/:organizationId/audit-events`
+- `GET /api/v1/organizations/:organizationId/notification-channels`
+- `POST /api/v1/organizations/:organizationId/notification-channels`
+- `PATCH /api/v1/organizations/:organizationId/notification-channels/:notificationChannelId`
+- `DELETE /api/v1/organizations/:organizationId/notification-channels/:notificationChannelId`
+- `POST /api/v1/organizations/:organizationId/notification-channels/:notificationChannelId/test`
+- `GET /api/v1/organizations/:organizationId/notification-logs`
+- `GET /api/v1/organizations/:organizationId/notification-operator-alerts`
+- `POST /api/v1/organizations/:organizationId/notification-operator-alerts/:operatorAlertId/acknowledge`
 - `GET /api/v1/organizations/:organizationId/notifications`
+- `POST /api/v1/organizations/:organizationId/notifications`
 - `PATCH /api/v1/organizations/:organizationId/notifications/:notificationId`
+- `GET /api/v1/organizations/:organizationId/notification-preferences`
+- `PUT /api/v1/organizations/:organizationId/notification-preferences`
+
+In-app notification-center resources now store product-state items, read/archive/suppression state, digest preference settings, audit entries, and internal events. API-triggered and scheduler-initiated transport sends honor product-v1 mute/suppressed-category preferences and defer non-urgent events when daily or weekly digest mode is enabled. Deferred sends are persisted as notification digest items, and the scheduler dispatches due daily/weekly digest summaries through the same channel/log service. Failed transport attempts are persisted as notification delivery retry items and retried by the scheduler with bounded backoff; exhausted retries create local operator-alert records that can be listed and acknowledged without recursively sending another external notification. Notification channel PATCH updates rotate destinations and enable/disable endpoints without exposing webhook secrets or deleting immutable logs. Live SMTP/Slack/Teams proof remains deferred. Do not mutate immutable delivery logs to simulate notification-center or retry state.
 
 ## Migration Plan
 

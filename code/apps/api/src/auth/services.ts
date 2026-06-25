@@ -358,9 +358,20 @@ export const createApiServices = (
     portfolioReader: new RepositoryBackedPartnerPortfolioReader(runtimeRepositories.outputRepository, providerStore),
     now: options.now
   });
+  const productV1 = new ProductV1Service(runtimeRepositories.productV1Repository, { now: options.now });
   const notificationDelivery = new NotificationService({
     repository: runtimeRepositories.notificationRepository,
     transports: options.notificationTransports ?? createNotificationTransports(config),
+    preferenceProvider: {
+      getPreferences: async (organizationId) => {
+        const preferences = await productV1.getNotificationPreferences(organizationId);
+        return {
+          digestFrequency: preferences.digestFrequency,
+          suppressedCategories: preferences.suppressedCategories,
+          mutedUntil: preferences.mutedUntil
+        };
+      }
+    },
     now: options.now
   });
   const providerConnections = new ProviderConnectionsService({
@@ -466,7 +477,6 @@ export const createApiServices = (
     notifications: notificationDelivery,
     now: options.now
   });
-  const productV1 = new ProductV1Service(runtimeRepositories.productV1Repository, { now: options.now });
 
   const rbacRepository = createPartnerAwareRbacRepository({
     baseRepository: runtimeRepositories.identityRepository,

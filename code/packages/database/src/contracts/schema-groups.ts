@@ -96,6 +96,9 @@ export const schemaGroups = {
     "notification_channels",
     "notification_logs",
     "notification_deadlines",
+    "notification_digest_items",
+    "notification_delivery_retries",
+    "notification_operator_alerts",
     "ro_nis2_notification_drafts"
   ],
   billing: ["billing_customers", "billing_subscriptions", "billing_entitlements", "billing_events"]
@@ -157,6 +160,9 @@ export const tenantOwnedTables = [
   "notification_channels",
   "notification_logs",
   "notification_deadlines",
+  "notification_digest_items",
+  "notification_delivery_retries",
+  "notification_operator_alerts",
   "ro_nis2_notification_drafts",
   "billing_customers",
   "billing_subscriptions",

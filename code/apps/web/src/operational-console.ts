@@ -204,6 +204,7 @@ export interface RenderNotificationSettingsOptions {
 export interface RenderPartnerConsoleOptions {
   includeDocumentShell?: boolean;
   locale?: string | null;
+  routeMode?: "app" | "legacy";
 }
 
 export interface RenderNis2CountryAwareOnboardingOptions {
@@ -1065,6 +1066,7 @@ const productV1SectionItems: Array<{ hrefTail: string; label: string; section: P
   { hrefTail: "evidence", label: "Evidence", section: "evidence" },
   { hrefTail: "reports", label: "Reports", section: "reports" },
   { hrefTail: "connectors/microsoft365", label: "Connectors", section: "connectors" },
+  { hrefTail: "notifications", label: "Notifications", section: "notifications" },
   { hrefTail: "audit", label: "Events", section: "events" }
 ];
 
@@ -1193,6 +1195,9 @@ const renderProductV1ActiveSection = (model: ProductV1ConsoleModel): string => {
   }
   if (model.section === "connectors") {
     return renderProductV1ConnectorsSection(model);
+  }
+  if (model.section === "notifications") {
+    return renderProductV1NotificationsSection(model);
   }
   if (model.section === "events") {
     return renderProductV1EventsSection(model);
@@ -1488,8 +1493,124 @@ const renderProductV1ConnectorsSection = (model: ProductV1ConsoleModel): string 
   renderV1RecordsTable("Recent connector events", model.resources.internalEvents.filter((event) => String(event.eventType ?? "").includes("microsoft365")), ["eventType", "outboxStatus", "attempts", "createdAt"])
 ].join("");
 
+const renderProductV1NotificationsSection = (model: ProductV1ConsoleModel): string => {
+  const notifications = model.resources.notifications;
+  const unreadCount = notifications.filter((notification) => notification.status === "unread").length;
+  const highPriorityCount = notifications.filter((notification) =>
+    notification.severity === "high" || notification.severity === "critical"
+  ).length;
+  const archivedCount = notifications.filter((notification) => notification.status === "archived").length;
+  return [
+    renderProductV1Header(model, "Notifications", "Notification center", `${unreadCount} unread`),
+    '<section class="ps-grid ps-grid--dense" aria-label="Notification center summary">',
+    renderProductScoreCard("Unread", String(unreadCount), `${notifications.length} total items`),
+    renderProductScoreCard("High priority", String(highPriorityCount), "high and critical"),
+    renderProductScoreCard("Archived", String(archivedCount), "retained in product state"),
+    "</section>",
+    '<section class="ps-grid ps-stack-top">',
+    renderV1CreateNotificationForm(model),
+    renderV1NotificationPreferencesForm(model),
+    "</section>",
+    renderV1NotificationTable(model)
+  ].join("");
+};
+
+const renderV1CreateNotificationForm = (model: ProductV1ConsoleModel): string =>
+  renderSmallV1CreateForm(model, "createNotification", "Add notification", [
+    renderTextInput("title", "Title", "", true),
+    renderTextarea("body", "Body", "", "", "ps-field--full"),
+    renderSelect("category", "Category", "system", notificationCategoryOptions(), "", true),
+    renderSelect("severity", "Severity", "info", [["info", "Info"], ...severityOptions()], "", true),
+    renderTextInput("sourceResourceType", "Source type", "", false),
+    renderTextInput("sourceResourceId", "Source ID", "", false),
+    renderTextInput("actionHref", "Action link", "", false)
+  ]);
+
+const renderV1NotificationPreferencesForm = (model: ProductV1ConsoleModel): string => {
+  const preferences = model.notificationPreferences;
+  return [
+    `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "notifications"))}" method="post" data-ui-action="update-product-v1-notification-preferences">`,
+    '<input type="hidden" name="_action" value="updateNotificationPreferences">',
+    '<h2 class="ps-panel__title">Preferences</h2>',
+    '<div class="ps-form-grid">',
+    renderSelect(
+      "digestFrequency",
+      "Digest",
+      String(fieldValue(preferences, "digestFrequency") ?? "off"),
+      [["daily", "Daily"], ["weekly", "Weekly"], ["off", "Off"]],
+      "",
+      true
+    ),
+    renderTextInput(
+      "suppressedCategories",
+      "Suppressed categories",
+      notificationSuppressedCategories(preferences).join(", "),
+      false
+    ),
+    renderTextInput("mutedUntil", "Muted until", String(fieldValue(preferences, "mutedUntil") ?? ""), false),
+    "</div>",
+    renderCommandButton({ label: "Save preferences", ariaLabel: "Save notification preferences", tone: "primary", type: "submit" }),
+    "</form>"
+  ].join("");
+};
+
+const renderV1NotificationTable = (model: ProductV1ConsoleModel): string =>
+  renderDataTable<Record<string, unknown>>(
+    "Notification center",
+    [
+      {
+        header: "Notification",
+        render: (notification) =>
+          `<strong>${escapeHtml(String(notification.title ?? "Notification"))}</strong><br><span class="ps-muted">${escapeHtml(
+            String(notification.body ?? notification.id ?? "")
+          )}</span>`
+      },
+      { header: "Category", render: (notification) => renderV1FieldValue(notification.category) },
+      { header: "Severity", render: (notification) => renderV1FieldValue(notification.severity) },
+      { header: "Status", render: (notification) => renderV1FieldValue(notification.status) },
+      { header: "Updated", render: (notification) => renderV1FieldValue(notification.updatedAt) },
+      {
+        header: "Actions",
+        render: (notification) => renderV1NotificationActions(model, String(notification.id ?? ""), String(notification.status ?? ""))
+      }
+    ],
+    model.resources.notifications
+  );
+
+const renderV1NotificationActions = (model: ProductV1ConsoleModel, notificationId: string, status: string): string => {
+  const actionPath = escapeHtml(productV1SectionHref(model.organization.id, "notifications"));
+  const escapedId = escapeHtml(notificationId);
+  return [
+    status === "read"
+      ? ""
+      : `<form class="ps-form ps-form--compact" action="${actionPath}" method="post"><input type="hidden" name="_action" value="markNotificationRead"><input type="hidden" name="notificationId" value="${escapedId}">${renderCommandButton({
+          label: "Read",
+          ariaLabel: "Mark notification read",
+          tone: "secondary",
+          type: "submit"
+        })}</form>`,
+    status === "archived"
+      ? ""
+      : `<form class="ps-form ps-form--compact" action="${actionPath}" method="post"><input type="hidden" name="_action" value="archiveNotification"><input type="hidden" name="notificationId" value="${escapedId}">${renderCommandButton({
+          label: "Archive",
+          ariaLabel: "Archive notification",
+          tone: "secondary",
+          type: "submit"
+        })}</form>`
+  ].join("");
+};
+
 const renderProductV1EventsSection = (model: ProductV1ConsoleModel): string => [
   renderProductV1Header(model, "Internal events", "Outbox-compatible event handoff", `${pendingInternalEventCount(model)} pending`),
+  renderV1RecordsTable("Customer-visible support sessions", model.resources.supportSessions, [
+    "reason",
+    "status",
+    "policyBasis",
+    "ticketReference",
+    "startedAt",
+    "expiresAt",
+    "endedAt"
+  ]),
   renderV1RecordsTable("Internal events", model.resources.internalEvents, ["eventType", "aggregateType", "aggregateId", "outboxStatus", "attempts", "publishedAt", "failureReason"])
 ].join("");
 
@@ -1498,11 +1619,17 @@ const renderSmallV1CreateForm = (model: ProductV1ConsoleModel, action: string, t
   `<input type="hidden" name="_action" value="${escapeHtml(action)}">`,
   `<h2 class="ps-panel__title">${escapeHtml(title)}</h2>`,
   '<div class="ps-form-grid">',
-  ...fields,
+  ...fields.map((field) => prefixGeneratedFieldIds(field, action)),
   "</div>",
   renderCommandButton({ label: title, ariaLabel: title, tone: "primary", type: "submit" }),
   "</form>"
 ].join("");
+
+const prefixGeneratedFieldIds = (fieldHtml: string, prefix: string): string =>
+  fieldHtml.replace(
+    /\b(for|id|aria-describedby|data-wizard-question)="([^"]+)"/g,
+    (_match, attribute: string, value: string) => `${attribute}="${escapeHtml(prefix)}-${value}"`
+  );
 
 const renderV1RecordsTable = (title: string, rows: Array<Record<string, unknown>>, fields: string[]): string =>
   renderDataTable<Record<string, unknown>>(
@@ -1573,6 +1700,23 @@ const severityOptions = (): Array<readonly [string, string]> => [
   ["high", "High"],
   ["critical", "Critical"]
 ];
+
+const notificationCategoryOptions = (): Array<readonly [string, string]> => [
+  ["system", "System"],
+  ["compliance", "Compliance"],
+  ["incident", "Incident"],
+  ["evidence", "Evidence"],
+  ["remediation", "Remediation"],
+  ["connector", "Connector"],
+  ["governance", "Governance"]
+];
+
+const notificationSuppressedCategories = (preferences: Record<string, unknown> | null): string[] => {
+  const suppressedCategories = fieldValue(preferences, "suppressedCategories");
+  return Array.isArray(suppressedCategories)
+    ? suppressedCategories.filter((category): category is string => typeof category === "string")
+    : [];
+};
 
 const reportTemplateOptions = (model: ProductV1ConsoleModel): Array<readonly [string, string]> => {
   const options = model.reportTemplates
@@ -1768,6 +1912,7 @@ export const renderNotificationSettingsScreen = (
     '<div class="ps-section__body">',
     model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
+    renderNotificationOperatorAlertPanel(model),
     '<div class="ps-grid">',
     renderNotificationChannelCreatePanel(model),
     renderNotificationChannelListPanel(model),
@@ -1809,7 +1954,7 @@ export const renderPartnerConsoleScreen = (
   const canCreateCustomer = Boolean(activePartner && ["owner", "admin"].includes(activePartner.membership.role));
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
-    renderActiveTenantAccessBanner(model.activeTenantAccess),
+    renderActiveTenantAccessBanner(model.activeTenantAccess, options),
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="partner-console">',
     '<section class="ps-section" aria-labelledby="partner-console-title">',
     '<div class="ps-section__header">',
@@ -1825,7 +1970,9 @@ export const renderPartnerConsoleScreen = (
     '<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>',
     '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
     "</div>",
-    model.partners.length === 0 ? renderPartnerCreateOnlyPanel() : renderPartnerPortfolioContent(model, canCreateCustomer),
+    model.partners.length === 0
+      ? renderPartnerCreateOnlyPanel()
+      : renderPartnerPortfolioContent(model, canCreateCustomer, options),
     "</div>",
     "</section>",
     "</main>"
@@ -3769,13 +3916,56 @@ const renderNotificationChannelListPanel = (model: NotificationSettingsScreenMod
         },
         {
           header: "Actions",
-          render: (channel) => renderNotificationChannelActions(channel.id, model.canManageChannels)
+          render: (channel) => renderNotificationChannelActions(channel, model.canManageChannels)
         }
       ],
       model.channels
     ),
     "</article>"
   ].join("");
+
+const renderNotificationOperatorAlertPanel = (model: NotificationSettingsScreenModel): string => {
+  const openCount = model.operatorAlerts.filter((alert) => alert.status === "open").length;
+  const canAcknowledge = model.roleKeys.some((role) =>
+    ["owner", "org_admin", "compliance_manager", "security_operator"].includes(role)
+  );
+
+  return [
+    '<article class="ps-panel ps-stack-top" aria-labelledby="notification-operator-alert-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h2 class="ps-panel__title" id="notification-operator-alert-title">Operator alerts</h2><p class="ps-muted">Local delivery alerts created when notification retry backoff is exhausted.</p></div>',
+    renderStatusPill({ label: `${openCount} open`, tone: openCount > 0 ? "danger" : "success" }),
+    "</div>",
+    renderDataTable(
+      "Notification operator alerts",
+      [
+        {
+          header: "Alert",
+          render: (alert) => escapeHtml(alert.title)
+        },
+        {
+          header: "Event",
+          render: (alert) => escapeHtml(alert.eventType ?? alert.alertType)
+        },
+        {
+          header: "Status",
+          render: (alert) =>
+            renderStatusPill({ label: alert.status, tone: alert.status === "open" ? "danger" : "neutral" })
+        },
+        {
+          header: "Created",
+          render: (alert) => escapeHtml(formatTimestamp(alert.createdAt))
+        },
+        {
+          header: "Actions",
+          render: (alert) => renderNotificationOperatorAlertActions(alert.id, alert.status, canAcknowledge)
+        }
+      ],
+      model.operatorAlerts
+    ),
+    "</article>"
+  ].join("");
+};
 
 const renderNotificationLogPanel = (model: NotificationSettingsScreenModel): string =>
   [
@@ -3809,9 +3999,57 @@ const renderNotificationLogPanel = (model: NotificationSettingsScreenModel): str
     "</article>"
   ].join("");
 
-const renderNotificationChannelActions = (channelId: string, canManage: boolean): string =>
+const renderNotificationOperatorAlertActions = (
+  alertId: string,
+  status: string,
+  canAcknowledge: boolean
+): string =>
   [
     '<div class="ps-chip-row">',
+    `<form class="ps-inline-form" action="/settings/notifications/operator-alerts/${escapeHtml(
+      alertId
+    )}/acknowledge" method="post" data-ui-action="acknowledge-notification-operator-alert">`,
+    renderCommandButton({
+      label: "Acknowledge",
+      ariaLabel: "Acknowledge notification operator alert",
+      disabled: !canAcknowledge || status !== "open",
+      tone: "secondary",
+      type: "submit"
+    }),
+    "</form>",
+    "</div>"
+  ].join("");
+
+const renderNotificationChannelActions = (
+  channel: NotificationSettingsScreenModel["channels"][number],
+  canManage: boolean
+): string => {
+  const channelId = channel.id;
+  const destinationFieldId = `notification-destination-${channelId}`;
+  const enabledFieldId = `notification-enabled-${channelId}`;
+
+  return [
+    '<div class="ps-chip-row">',
+    `<form class="ps-inline-form ps-chip-row ps-chip-row--compact" action="/settings/notifications/channels/${escapeHtml(
+      channelId
+    )}/update" method="post" data-ui-action="update-notification-channel">`,
+    `<label class="ps-sr-only" for="${escapeHtml(destinationFieldId)}">Rotate notification destination</label>`,
+    `<input id="${escapeHtml(destinationFieldId)}" name="destination" type="text" autocomplete="off" spellcheck="false" value="${escapeHtml(
+      channel.destination ?? ""
+    )}" placeholder="${escapeHtml(channel.destination ? "Destination" : channel.destinationPreview)}"${canManage ? "" : " disabled"}>`,
+    `<label class="ps-sr-only" for="${escapeHtml(enabledFieldId)}">Notification channel status</label>`,
+    `<select id="${escapeHtml(enabledFieldId)}" name="enabled"${canManage ? "" : " disabled"}>`,
+    `<option value="true"${channel.enabled ? " selected" : ""}>Enabled</option>`,
+    `<option value="false"${channel.enabled ? "" : " selected"}>Disabled</option>`,
+    "</select>",
+    renderCommandButton({
+      label: "Save",
+      ariaLabel: "Save notification channel settings",
+      disabled: !canManage,
+      tone: "primary",
+      type: "submit"
+    }),
+    "</form>",
     `<form class="ps-inline-form" action="/settings/notifications/channels/${escapeHtml(channelId)}/test" method="post" data-ui-action="test-notification-channel">`,
     renderCommandButton({
       label: "Send test",
@@ -3832,11 +4070,27 @@ const renderNotificationChannelActions = (channelId: string, canManage: boolean)
     "</form>",
     "</div>"
   ].join("");
+};
 
 const activePartnerForConsole = (model: PartnerConsoleModel) =>
   model.partners.find((entry) => entry.partner.id === model.activePartnerId) ?? model.partners[0] ?? null;
 
-const renderActiveTenantAccessBanner = (banner?: ActiveTenantAccessBannerSurface | null): string => {
+const partnerRouteSegment = (partnerId: string): string => escapeHtml(encodeURIComponent(partnerId));
+
+const partnerConsoleHref = (partnerId: string, options: RenderPartnerConsoleOptions = {}): string =>
+  options.routeMode === "app"
+    ? `/app/partner/${partnerRouteSegment(partnerId)}`
+    : `/partners?partnerId=${partnerRouteSegment(partnerId)}`;
+
+const partnerActionBase = (partnerId: string, options: RenderPartnerConsoleOptions = {}): string =>
+  options.routeMode === "app"
+    ? `/app/partner/${partnerRouteSegment(partnerId)}`
+    : `/partners/${partnerRouteSegment(partnerId)}`;
+
+const renderActiveTenantAccessBanner = (
+  banner?: ActiveTenantAccessBannerSurface | null,
+  options: RenderPartnerConsoleOptions = {}
+): string => {
   const session = banner?.session;
   if (!banner || !session || session.status !== "active") {
     return "";
@@ -3854,7 +4108,7 @@ const renderActiveTenantAccessBanner = (banner?: ActiveTenantAccessBannerSurface
     renderSourceChip({ label: "Reason", detail: session.reason }),
     renderSourceChip({ label: "Expires", detail: formatTimestamp(session.expiresAt) }),
     "</div>",
-    `<form class="ps-inline-form" action="/partners/${escapeHtml(banner.partnerId)}/tenant-sessions/${escapeHtml(
+    `<form class="ps-inline-form" action="${partnerActionBase(banner.partnerId, options)}/tenant-sessions/${escapeHtml(
       session.id
     )}/exit" method="post" data-ui-action="exit-customer-tenant">`,
     renderCommandButton({ label: "Exit customer", ariaLabel: "Exit customer session", tone: "danger", type: "submit" }),
@@ -3878,24 +4132,32 @@ const renderPartnerCreateOnlyPanel = (): string =>
     "</div>"
   ].join("");
 
-const renderPartnerPortfolioContent = (model: PartnerConsoleModel, canCreateCustomer: boolean): string => {
+const renderPartnerPortfolioContent = (
+  model: PartnerConsoleModel,
+  canCreateCustomer: boolean,
+  options: RenderPartnerConsoleOptions = {}
+): string => {
   const activePartner = activePartnerForConsole(model);
   if (!activePartner) {
     return renderPartnerCreateOnlyPanel();
   }
 
   return [
-    renderPartnerSelector(model, activePartner.partner.id),
+    renderPartnerSelector(model, activePartner.partner.id, options),
     '<div class="ps-grid">',
     renderPartnerMetrics(model),
-    renderPartnerCreateCustomerPanel(activePartner.partner.id, canCreateCustomer),
+    renderPartnerCreateCustomerPanel(activePartner.partner.id, canCreateCustomer, options),
     "</div>",
     renderPartnerOpportunityTable(model),
-    renderPartnerPortfolioTable(model, activePartner.partner.id)
+    renderPartnerPortfolioTable(model, activePartner.partner.id, options)
   ].join("");
 };
 
-const renderPartnerSelector = (model: PartnerConsoleModel, activePartnerId: string): string =>
+const renderPartnerSelector = (
+  model: PartnerConsoleModel,
+  activePartnerId: string,
+  options: RenderPartnerConsoleOptions = {}
+): string =>
   [
     '<article class="ps-panel ps-panel--quiet" aria-labelledby="partner-selector-title">',
     '<div class="ps-section__header ps-section__header--flat">',
@@ -3905,8 +4167,9 @@ const renderPartnerSelector = (model: PartnerConsoleModel, activePartnerId: stri
     '<div class="ps-chip-row ps-stack-top">',
     ...model.partners.map((entry) => {
       const selected = entry.partner.id === activePartnerId;
-      return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="/partners?partnerId=${escapeHtml(
-        entry.partner.id
+      return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="${partnerConsoleHref(
+        entry.partner.id,
+        options
       )}" data-ui-action="select-partner">${escapeHtml(entry.partner.name)} (${escapeHtml(entry.membership.role)})</a>`;
     }),
     "</div>",
@@ -3928,14 +4191,21 @@ const renderPartnerCreatePanel = (): string =>
     "</article>"
   ].join("");
 
-const renderPartnerCreateCustomerPanel = (partnerId: string, canCreateCustomer: boolean): string =>
+const renderPartnerCreateCustomerPanel = (
+  partnerId: string,
+  canCreateCustomer: boolean,
+  options: RenderPartnerConsoleOptions = {}
+): string =>
   [
     '<article class="ps-panel" aria-labelledby="partner-create-customer-title">',
     '<div class="ps-section__header ps-section__header--flat">',
     '<div><h2 class="ps-panel__title" id="partner-create-customer-title">Add customer</h2><p class="ps-muted">Creates a tenant and a partner grant. It does not add workspace membership.</p></div>',
     renderStatusPill({ label: canCreateCustomer ? "owner or admin" : "viewer is read only", tone: canCreateCustomer ? "success" : "warning" }),
     "</div>",
-    `<form class="ps-form" action="/partners/${escapeHtml(partnerId)}/customers" method="post" data-ui-action="create-partner-customer">`,
+    `<form class="ps-form" action="${partnerActionBase(
+      partnerId,
+      options
+    )}/customers" method="post" data-ui-action="create-partner-customer">`,
     '<div class="ps-form-grid">',
     `<div class="ps-field"><label for="customerName">Company name</label><input id="customerName" name="name" type="text" autocomplete="organization" required${canCreateCustomer ? "" : " disabled"}></div>`,
     `<div class="ps-field"><label for="customerLegalName">Legal name</label><input id="customerLegalName" name="legalName" type="text"${canCreateCustomer ? "" : " disabled"}></div>`,
@@ -4043,7 +4313,11 @@ const renderPartnerOpportunityTable = (model: PartnerConsoleModel): string => {
   ].join("");
 };
 
-const renderPartnerPortfolioTable = (model: PartnerConsoleModel, partnerId: string): string =>
+const renderPartnerPortfolioTable = (
+  model: PartnerConsoleModel,
+  partnerId: string,
+  options: RenderPartnerConsoleOptions = {}
+): string =>
   [
     '<article class="ps-panel ps-panel--wide ps-stack-top" aria-labelledby="partner-customer-table-title">',
     '<div class="ps-section__header ps-section__header--flat">',
@@ -4097,7 +4371,7 @@ const renderPartnerPortfolioTable = (model: PartnerConsoleModel, partnerId: stri
             },
             {
               header: "Enter customer",
-              render: (row) => renderPartnerEnterCustomerForm(partnerId, row)
+              render: (row) => renderPartnerEnterCustomerForm(partnerId, row, options)
             }
           ],
           model.portfolio
@@ -4105,12 +4379,17 @@ const renderPartnerPortfolioTable = (model: PartnerConsoleModel, partnerId: stri
     "</article>"
   ].join("");
 
-const renderPartnerEnterCustomerForm = (partnerId: string, row: PartnerPortfolioCustomerSurface): string => {
+const renderPartnerEnterCustomerForm = (
+  partnerId: string,
+  row: PartnerPortfolioCustomerSurface,
+  options: RenderPartnerConsoleOptions = {}
+): string => {
   const disabled = row.grant.status !== "active";
   const customerName = row.organization?.name ?? row.grant.organizationId;
   return [
-    `<form class="ps-form ps-form--compact" action="/partners/${escapeHtml(
-      partnerId
+    `<form class="ps-form ps-form--compact" action="${partnerActionBase(
+      partnerId,
+      options
     )}/tenant-sessions" method="post" data-ui-action="enter-customer-tenant">`,
     `<input type="hidden" name="organizationId" value="${escapeHtml(row.grant.organizationId)}">`,
     `<label class="ps-sr-only" for="reason-${escapeHtml(row.grant.id)}">Reason for ${escapeHtml(customerName)}</label>`,

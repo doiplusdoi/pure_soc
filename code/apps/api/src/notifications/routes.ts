@@ -5,6 +5,12 @@ import { parseCookies, sessionCookieName, type JsonResult, type RequestContext }
 import { requireOrganizationRole } from "../rbac/index";
 
 const channelManagerRoles: readonly PureSocRoleKey[] = ["owner", "org_admin"];
+const operatorAlertManagerRoles: readonly PureSocRoleKey[] = [
+  "owner",
+  "org_admin",
+  "compliance_manager",
+  "security_operator"
+];
 const notificationReadRoles: readonly PureSocRoleKey[] = [
   "owner",
   "org_admin",
@@ -97,6 +103,35 @@ export const deleteNotificationChannelRoute = async (
   };
 };
 
+export const updateNotificationChannelRoute = async (
+  organizationId: string,
+  channelId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: channelManagerRoles
+  });
+
+  return {
+    statusCode: 200,
+    body: await services.notifications.updateChannel({
+      organizationId,
+      actorUserId,
+      channelId,
+      destination: body.destination,
+      enabled: body.enabled,
+      context
+    })
+  };
+};
+
 export const sendNotificationChannelTestRoute = async (
   organizationId: string,
   channelId: string,
@@ -143,5 +178,50 @@ export const listNotificationLogsRoute = async (
   return {
     statusCode: 200,
     body: await services.notifications.listLogs(organizationId)
+  };
+};
+
+export const listNotificationOperatorAlertsRoute = async (
+  organizationId: string,
+  cookieHeader: string | undefined,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: notificationReadRoles
+  });
+
+  return {
+    statusCode: 200,
+    body: await services.notifications.listOperatorAlerts(organizationId)
+  };
+};
+
+export const acknowledgeNotificationOperatorAlertRoute = async (
+  organizationId: string,
+  alertId: string,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: operatorAlertManagerRoles
+  });
+
+  return {
+    statusCode: 200,
+    body: await services.notifications.acknowledgeOperatorAlert({
+      organizationId,
+      actorUserId,
+      alertId,
+      context
+    })
   };
 };

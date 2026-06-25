@@ -231,6 +231,51 @@ export interface TaskRecord {
   updatedAt: string;
 }
 
+export type ProductV1NotificationCategory =
+  | "system"
+  | "compliance"
+  | "incident"
+  | "evidence"
+  | "remediation"
+  | "connector"
+  | "governance";
+
+export type ProductV1NotificationSeverity = "info" | "low" | "medium" | "high" | "critical";
+
+export type ProductV1NotificationStatus = "unread" | "read" | "archived" | "suppressed";
+
+export type ProductV1NotificationDigestFrequency = "off" | "daily" | "weekly";
+
+export interface ProductV1NotificationItemRecord {
+  id: string;
+  organizationId: string;
+  title: string;
+  body?: string | null;
+  category: ProductV1NotificationCategory;
+  severity: ProductV1NotificationSeverity;
+  status: ProductV1NotificationStatus;
+  sourceResourceType?: string | null;
+  sourceResourceId?: string | null;
+  actionHref?: string | null;
+  createdByUserId: string;
+  readAt?: string | null;
+  archivedAt?: string | null;
+  suppressedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ProductV1NotificationPreferencesRecord {
+  id: string;
+  organizationId: string;
+  digestFrequency: ProductV1NotificationDigestFrequency;
+  suppressedCategories: ProductV1NotificationCategory[];
+  mutedUntil?: string | null;
+  updatedByUserId?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface IncidentRecord {
   id: string;
   organizationId: string;
@@ -530,7 +575,9 @@ export type ProductV1RecordType =
   | "training_record"
   | "retention_policy"
   | "file_object"
-  | "report_snapshot";
+  | "report_snapshot"
+  | "notification_item"
+  | "notification_preferences";
 
 export interface ProductV1RepositoryListFilter {
   organizationId?: string | null;
@@ -1156,6 +1203,88 @@ export class ProductV1Service {
     return this.repository.list("task", { organizationId });
   }
 
+  async createNotificationItem(
+    input: Omit<ProductV1NotificationItemRecord, "id" | "createdAt" | "updatedAt">
+  ): Promise<ProductV1NotificationItemRecord> {
+    return this.createStoredRecord("notification_item", "notification", input);
+  }
+
+  async listNotificationItems(organizationId: string): Promise<ProductV1NotificationItemRecord[]> {
+    return this.repository.list("notification_item", { organizationId });
+  }
+
+  async updateNotificationItem(input: {
+    organizationId: string;
+    notificationId: string;
+    status: ProductV1NotificationStatus;
+  }): Promise<{ before: ProductV1NotificationItemRecord; after: ProductV1NotificationItemRecord }> {
+    const timestamp = this.timestamp();
+    const updates: Partial<
+      Omit<ProductV1NotificationItemRecord, "id" | "organizationId" | "createdAt" | "updatedAt">
+    > = { status: input.status };
+    if (input.status === "read") {
+      updates.readAt = timestamp;
+      updates.archivedAt = null;
+      updates.suppressedAt = null;
+    }
+    if (input.status === "unread") {
+      updates.readAt = null;
+      updates.archivedAt = null;
+      updates.suppressedAt = null;
+    }
+    if (input.status === "archived") {
+      updates.archivedAt = timestamp;
+    }
+    if (input.status === "suppressed") {
+      updates.suppressedAt = timestamp;
+    }
+    return this.updateStoredRecord<ProductV1NotificationItemRecord>(
+      "notification_item",
+      input.organizationId,
+      input.notificationId,
+      updates
+    );
+  }
+
+  async getNotificationPreferences(organizationId: string): Promise<ProductV1NotificationPreferencesRecord> {
+    const id = notificationPreferencesId(organizationId);
+    const existing = await this.repository.get<ProductV1NotificationPreferencesRecord>("notification_preferences", id);
+    if (existing) {
+      return existing;
+    }
+    const now = this.timestamp();
+    const created: ProductV1NotificationPreferencesRecord = {
+      id,
+      organizationId,
+      digestFrequency: "off",
+      suppressedCategories: [],
+      mutedUntil: null,
+      updatedByUserId: null,
+      createdAt: now,
+      updatedAt: now
+    };
+    return this.repository.upsert("notification_preferences", created, { organizationId });
+  }
+
+  async saveNotificationPreferences(input: {
+    organizationId: string;
+    digestFrequency: ProductV1NotificationDigestFrequency;
+    suppressedCategories: ProductV1NotificationCategory[];
+    mutedUntil?: string | null;
+    updatedByUserId?: string | null;
+  }): Promise<ProductV1NotificationPreferencesRecord> {
+    const existing = await this.getNotificationPreferences(input.organizationId);
+    const updated: ProductV1NotificationPreferencesRecord = {
+      ...existing,
+      digestFrequency: input.digestFrequency,
+      suppressedCategories: input.suppressedCategories,
+      mutedUntil: input.mutedUntil ?? null,
+      updatedByUserId: input.updatedByUserId ?? null,
+      updatedAt: this.timestamp()
+    };
+    return this.repository.upsert("notification_preferences", updated, { organizationId: input.organizationId });
+  }
+
   async createIncident(input: { organizationId: string; title: string; awarenessTime?: string }): Promise<IncidentRecord> {
     const awarenessTime = input.awarenessTime ?? this.timestamp();
     return this.createStoredRecord("incident", "incident", {
@@ -1575,6 +1704,8 @@ export class ProductV1Service {
 }
 
 const cloneRecord = <T>(record: unknown): T => JSON.parse(JSON.stringify(record)) as T;
+
+const notificationPreferencesId = (organizationId: string): string => `notification_preferences_${organizationId}`;
 
 const recordTimestamp = (record: unknown, key: "createdAt" | "updatedAt"): string => {
   const value = typeof record === "object" && record !== null ? (record as Record<string, unknown>)[key] : null;

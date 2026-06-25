@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import { loadConfig } from "@puresoc/config";
-import { InMemoryOutputRecordRepository, type StoredAnalysisRecordContract } from "@puresoc/database";
+import {
+  InMemoryNotificationRepository,
+  InMemoryOutputRecordRepository,
+  type StoredAnalysisRecordContract
+} from "@puresoc/database";
+import type { NotificationTransport, NotificationTransportInput } from "@puresoc/notifications";
 import { InMemoryProviderResourceStore } from "@puresoc/providers-core";
 import {
   InMemoryRegulatorySourceRepository,
@@ -125,6 +130,223 @@ describe("scheduler job runtime", () => {
       }
     });
   });
+
+  it("applies notification preferences when dispatching scheduled deadline scans", async () => {
+    const now = () => new Date("2026-06-14T09:00:00.000Z");
+    const notificationRepository = new InMemoryNotificationRepository({
+      now,
+      evidenceExpiryCandidates: [
+        {
+          organizationId: ORG_ID,
+          artifactId: "evidence-1",
+          title: "Policy evidence",
+          validUntil: "2026-06-21T09:05:00.000Z"
+        }
+      ]
+    });
+    await notificationRepository.createChannel({
+      id: "channel-email",
+      organizationId: ORG_ID,
+      type: "email",
+      destination: "alerts@example.test"
+    });
+    await notificationRepository.createDeadline({
+      id: "deadline-1",
+      organizationId: ORG_ID,
+      sourceType: "incident_reporting",
+      deadlineType: "early warning",
+      deadlineAt: "2026-06-14T15:10:00.000Z"
+    });
+    const emailTransport = new CapturingNotificationTransport();
+    const scheduler = createSchedulerRuntime({
+      config: loadConfig(),
+      notificationRepository,
+      notificationTransports: {
+        email: emailTransport
+      },
+      notificationPreferenceProvider: {
+        getPreferences: async () => ({
+          digestFrequency: "daily",
+          suppressedCategories: [],
+          mutedUntil: null
+        })
+      },
+      now,
+      idFactory: deterministicIds("notification_scan")
+    });
+
+    await scheduler.enqueueNotificationDeadlineScanJob({
+      reason: "manual",
+      scheduledAt: "2026-06-14T09:00:00.000Z"
+    });
+    const result = await scheduler.runtime.runUntilIdle();
+
+    expect(result.results[0]?.job.result).toMatchObject({
+      incidentDeadlineNotifications: 1,
+      evidenceExpiryNotifications: 0,
+      checklistOverdueNotifications: 0
+    });
+    expect(emailTransport.sends.map((send) => send.eventType)).toEqual(["INCIDENT_DEADLINE_APPROACHING"]);
+  });
+
+  it("dispatches due notification digests through the shared runtime", async () => {
+    const now = () => new Date("2026-06-26T09:00:00.000Z");
+    const notificationRepository = new InMemoryNotificationRepository({ now });
+    await notificationRepository.createChannel({
+      id: "channel-email",
+      organizationId: ORG_ID,
+      type: "email",
+      destination: "alerts@example.test"
+    });
+    await notificationRepository.recordDigestItem({
+      id: "digest-1",
+      organizationId: ORG_ID,
+      eventType: "EVIDENCE_EXPIRING",
+      category: "evidence",
+      payloadHash: "hash-1",
+      payload: { count: 1 },
+      digestFrequency: "daily",
+      createdAt: "2026-06-25T08:30:00.000Z"
+    });
+    const emailTransport = new CapturingNotificationTransport();
+    const scheduler = createSchedulerRuntime({
+      config: loadConfig(),
+      notificationRepository,
+      notificationTransports: {
+        email: emailTransport
+      },
+      notificationPreferenceProvider: {
+        getPreferences: async () => ({
+          digestFrequency: "daily",
+          suppressedCategories: [],
+          mutedUntil: null
+        })
+      },
+      now,
+      idFactory: deterministicIds("notification_digest")
+    });
+
+    await scheduler.enqueueNotificationDigestDispatchJob({
+      reason: "manual",
+      scheduledAt: "2026-06-26T09:00:00.000Z"
+    });
+    const result = await scheduler.runtime.runUntilIdle();
+
+    expect(result.results[0]?.job.result).toMatchObject({
+      attemptedDigests: 1,
+      sentDigests: 1,
+      deliveredItems: 1,
+      skipped: []
+    });
+    expect(emailTransport.sends).toHaveLength(1);
+    expect(emailTransport.sends[0]?.eventType).toBe("NOTIFICATION_DIGEST");
+    expect(notificationRepository.digestItems.get("digest-1")?.status).toBe("delivered");
+  });
+
+  it("retries due notification delivery failures through the shared runtime", async () => {
+    const now = () => new Date("2026-06-26T09:00:00.000Z");
+    const notificationRepository = new InMemoryNotificationRepository({ now });
+    await notificationRepository.createChannel({
+      id: "channel-email",
+      organizationId: ORG_ID,
+      type: "email",
+      destination: "alerts@example.test"
+    });
+    await notificationRepository.recordDeliveryRetryItem({
+      id: "retry-1",
+      organizationId: ORG_ID,
+      channelId: "channel-email",
+      eventType: "CRITICAL_GAP_DETECTED",
+      payloadHash: "hash-1",
+      payload: { controlName: "MFA" },
+      attemptCount: 1,
+      maxAttempts: 3,
+      nextAttemptAt: "2026-06-26T08:59:00.000Z",
+      lastError: "temporary transport failure",
+      createdAt: "2026-06-26T08:58:00.000Z"
+    });
+    const emailTransport = new CapturingNotificationTransport();
+    const scheduler = createSchedulerRuntime({
+      config: loadConfig(),
+      notificationRepository,
+      notificationTransports: {
+        email: emailTransport
+      },
+      now,
+      idFactory: deterministicIds("notification_retry")
+    });
+
+    await scheduler.enqueueNotificationRetryDispatchJob({
+      reason: "manual",
+      scheduledAt: "2026-06-26T09:00:00.000Z"
+    });
+    const result = await scheduler.runtime.runUntilIdle();
+
+    expect(result.results[0]?.job.result).toMatchObject({
+      attempted: 1,
+      sent: 1,
+      rescheduled: 0,
+      exhausted: 0
+    });
+    expect(emailTransport.sends).toHaveLength(1);
+    expect(notificationRepository.deliveryRetries.get("retry-1")?.status).toBe("succeeded");
+  });
+
+  it("creates operator alerts when notification retry delivery exhausts through the shared runtime", async () => {
+    const now = () => new Date("2026-06-26T09:00:00.000Z");
+    const notificationRepository = new InMemoryNotificationRepository({ now });
+    await notificationRepository.createChannel({
+      id: "channel-email",
+      organizationId: ORG_ID,
+      type: "email",
+      destination: "alerts@example.test"
+    });
+    await notificationRepository.recordDeliveryRetryItem({
+      id: "retry-exhausted",
+      organizationId: ORG_ID,
+      channelId: "channel-email",
+      eventType: "CRITICAL_GAP_DETECTED",
+      payloadHash: "hash-exhausted",
+      payload: { controlName: "MFA" },
+      attemptCount: 2,
+      maxAttempts: 3,
+      nextAttemptAt: "2026-06-26T08:59:00.000Z",
+      lastError: "temporary transport failure",
+      createdAt: "2026-06-26T08:58:00.000Z"
+    });
+    const scheduler = createSchedulerRuntime({
+      config: loadConfig(),
+      notificationRepository,
+      notificationTransports: {
+        email: new FailingNotificationTransport("smtp still unavailable")
+      },
+      now,
+      idFactory: deterministicIds("notification_operator_alert")
+    });
+
+    await scheduler.enqueueNotificationRetryDispatchJob({
+      reason: "manual",
+      scheduledAt: "2026-06-26T09:00:00.000Z"
+    });
+    const result = await scheduler.runtime.runUntilIdle();
+
+    expect(result.results[0]?.job.result).toMatchObject({
+      attempted: 1,
+      sent: 0,
+      rescheduled: 0,
+      exhausted: 1,
+      operatorAlerts: 1
+    });
+    expect(notificationRepository.deliveryRetries.get("retry-exhausted")?.status).toBe("failed");
+    expect(await notificationRepository.listOperatorAlerts(ORG_ID)).toMatchObject([
+      {
+        alertType: "delivery_exhausted",
+        status: "open",
+        sourceRetryItemId: "retry-exhausted",
+        eventType: "CRITICAL_GAP_DETECTED"
+      }
+    ]);
+  });
 });
 
 const ORG_ID = "11111111-1111-4111-8111-111111111111";
@@ -228,6 +450,22 @@ const controlResult = (controlId: string, status: "failing" | "passing") => ({
 type FakeMetadataClient = RegulatorySourceMetadataCheckClient & {
   checkedSourceIds: string[];
 };
+
+class CapturingNotificationTransport implements NotificationTransport {
+  readonly sends: NotificationTransportInput[] = [];
+
+  async send(input: NotificationTransportInput): Promise<void> {
+    this.sends.push(input);
+  }
+}
+
+class FailingNotificationTransport implements NotificationTransport {
+  constructor(private readonly message: string) {}
+
+  async send(): Promise<void> {
+    throw new Error(this.message);
+  }
+}
 
 const fakeMetadataClient = (results: Record<string, RegulatorySourceMetadataCheckResult>): FakeMetadataClient => {
   const checkedSourceIds: string[] = [];

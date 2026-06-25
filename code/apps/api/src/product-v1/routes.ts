@@ -15,6 +15,10 @@ import {
   type ProductV1CapabilityState,
   type ProductV1ClassificationOutcome,
   type ProductV1InternalEventStatus,
+  type ProductV1NotificationCategory,
+  type ProductV1NotificationDigestFrequency,
+  type ProductV1NotificationSeverity,
+  type ProductV1NotificationStatus,
   type ProductV1RecordType,
   type ProductV1RetentionClass,
   productV1SetupSteps,
@@ -444,6 +448,9 @@ export const productV1SupportSessionsRoute = async (
   const organizationId = query.get("organizationId") ?? optionalString(body, "organizationId");
   const session = await readSession(cookieHeader, services);
   if (method === "GET") {
+    if (!organizationId) {
+      throw new AuthError("invalid_request", "Organization ID is required to list support sessions.", 400);
+    }
     if (organizationId) {
       await requireOrganizationRole({
         repository: services.rbacRepository,
@@ -1229,6 +1236,166 @@ export const productV1InternalEventPublishResultRoute = async (
   return { statusCode: 200, body: { internalEvent: event } };
 };
 
+export const productV1NotificationsRoute = async (
+  organizationId: string,
+  query: URLSearchParams,
+  body: Record<string, unknown>,
+  method: string,
+  cookieHeader: string | undefined,
+  context: V1Context,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const session = await requireOrganizationAccess(cookieHeader, services, organizationId, method === "GET" ? undefined : [
+    "owner",
+    "org_admin",
+    "compliance_manager",
+    "security_operator"
+  ]);
+  if (method === "GET") {
+    return paginated(await services.productV1.listNotificationItems(organizationId), query);
+  }
+
+  const notification = await services.productV1.createNotificationItem({
+    organizationId,
+    title: requiredString(body, "title", "Notification title"),
+    body: optionalString(body, "body") ?? null,
+    category: notificationCategory(body.category),
+    severity: notificationSeverity(body.severity),
+    status: "unread",
+    sourceResourceType: optionalString(body, "sourceResourceType") ?? null,
+    sourceResourceId: optionalString(body, "sourceResourceId") ?? null,
+    actionHref: optionalString(body, "actionHref") ?? null,
+    createdByUserId: session.user.id,
+    readAt: null,
+    archivedAt: null,
+    suppressedAt: null
+  });
+  await auditV1(
+    services,
+    session.user.id,
+    organizationId,
+    "notification_item",
+    notification.id,
+    "product_v1.notification.created",
+    context,
+    { category: notification.category, severity: notification.severity }
+  );
+  await emitProductV1Event(services, {
+    organizationId,
+    eventType: "product_v1.notification.created",
+    aggregateType: "notification_item",
+    aggregateId: notification.id,
+    context,
+    payload: {
+      category: notification.category,
+      severity: notification.severity,
+      sourceResourceType: notification.sourceResourceType,
+      sourceResourceId: notification.sourceResourceId
+    }
+  });
+  return { statusCode: 201, body: { notification } };
+};
+
+export const productV1NotificationUpdateRoute = async (
+  organizationId: string,
+  notificationId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: V1Context,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const session = await requireOrganizationAccess(cookieHeader, services, organizationId);
+  let result;
+  try {
+    result = await services.productV1.updateNotificationItem({
+      organizationId,
+      notificationId,
+      status: notificationStatus(body.status ?? (body.read === true ? "read" : undefined))
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith("Unknown product v1 notification_item")) {
+      throw new AuthError("not_found", "Notification was not found for this organization.", 404);
+    }
+    throw error;
+  }
+  await services.auditWriter.write({
+    actorUserId: session.user.id,
+    organizationId,
+    targetType: "notification_item",
+    targetId: notificationId,
+    action: "product_v1.notification.updated",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    beforeJson: result.before,
+    afterJson: result.after
+  });
+  await emitProductV1Event(services, {
+    organizationId,
+    eventType: "product_v1.notification.updated",
+    aggregateType: "notification_item",
+    aggregateId: notificationId,
+    context,
+    payload: {
+      beforeStatus: result.before.status,
+      afterStatus: result.after.status
+    }
+  });
+  return { statusCode: 200, body: { notification: result.after } };
+};
+
+export const productV1NotificationPreferencesRoute = async (
+  organizationId: string,
+  body: Record<string, unknown>,
+  method: string,
+  cookieHeader: string | undefined,
+  context: V1Context,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const session = await requireOrganizationAccess(cookieHeader, services, organizationId, method === "GET" ? undefined : [
+    "owner",
+    "org_admin",
+    "compliance_manager"
+  ]);
+  if (method === "GET") {
+    return {
+      statusCode: 200,
+      body: { notificationPreferences: await services.productV1.getNotificationPreferences(organizationId) }
+    };
+  }
+
+  const before = await services.productV1.getNotificationPreferences(organizationId);
+  const notificationPreferences = await services.productV1.saveNotificationPreferences({
+    organizationId,
+    digestFrequency: notificationDigestFrequency(body.digestFrequency),
+    suppressedCategories: stringArray(body.suppressedCategories, []).map(notificationCategory),
+    mutedUntil: optionalString(body, "mutedUntil") ?? null,
+    updatedByUserId: session.user.id
+  });
+  await services.auditWriter.write({
+    actorUserId: session.user.id,
+    organizationId,
+    targetType: "notification_preferences",
+    targetId: notificationPreferences.id,
+    action: "product_v1.notification_preferences.updated",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    beforeJson: before,
+    afterJson: notificationPreferences
+  });
+  await emitProductV1Event(services, {
+    organizationId,
+    eventType: "product_v1.notification_preferences.updated",
+    aggregateType: "notification_preferences",
+    aggregateId: notificationPreferences.id,
+    context,
+    payload: {
+      digestFrequency: notificationPreferences.digestFrequency,
+      suppressedCategories: notificationPreferences.suppressedCategories
+    }
+  });
+  return { statusCode: 200, body: { notificationPreferences } };
+};
+
 const listAggregate = async (resource: string, organizationId: string, services: ApiServices): Promise<unknown[]> => {
   switch (resource) {
     case "assets":
@@ -1850,6 +2017,47 @@ const internalEventStatus = (value: unknown): ProductV1InternalEventStatus => {
     return value;
   }
   throw new AuthError("invalid_request", "outboxStatus must be pending, published, failed, or skipped.", 400);
+};
+
+const notificationCategories: readonly ProductV1NotificationCategory[] = [
+  "system",
+  "compliance",
+  "incident",
+  "evidence",
+  "remediation",
+  "connector",
+  "governance"
+];
+
+const notificationCategory = (value: unknown): ProductV1NotificationCategory => {
+  if (notificationCategories.includes(value as ProductV1NotificationCategory)) {
+    return value as ProductV1NotificationCategory;
+  }
+  return "system";
+};
+
+const notificationSeverity = (value: unknown): ProductV1NotificationSeverity => {
+  if (value === "low" || value === "medium" || value === "high" || value === "critical") {
+    return value;
+  }
+  return "info";
+};
+
+const notificationStatus = (value: unknown): ProductV1NotificationStatus => {
+  if (value === "unread" || value === "read" || value === "archived" || value === "suppressed") {
+    return value;
+  }
+  throw new AuthError("invalid_request", "status must be unread, read, archived, or suppressed.", 400);
+};
+
+const notificationDigestFrequency = (value: unknown): ProductV1NotificationDigestFrequency => {
+  if (value === "off" || value === "weekly") {
+    return value;
+  }
+  if (value === "daily") {
+    return value;
+  }
+  return "off";
 };
 
 const governanceActivityType = (

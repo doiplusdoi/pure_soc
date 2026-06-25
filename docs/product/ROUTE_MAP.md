@@ -56,6 +56,7 @@ Purpose: guided customer setup with resumable state, autosave, validation, and l
 - `/app/o/:organizationId/compliance/calendar`
 - `/app/o/:organizationId/connectors`
 - `/app/o/:organizationId/connectors/microsoft365`
+- `/app/o/:organizationId/notifications`
 - `/app/o/:organizationId/reports`
 - `/app/o/:organizationId/reports/:reportId`
 - `/app/o/:organizationId/audit`
@@ -97,7 +98,7 @@ Purpose: platform operations, country-pack review, connector health, and excepti
 
 ## Route Migration Plan
 
-Implementation note, 2026-06-25: `/app/o/:organizationId/*` now renders a compact product v1 console against `/api/v1`, including setup, business context, security work, incidents, risks, governance, evidence, reports, connector capabilities, and internal events. The route keeps the organization ID explicit, forwards create/save forms to organization-scoped v1 endpoints, and surfaces v1 authorization rejection instead of silently changing context. `/app/setup/*`, `/app/partner/:partnerId/*`, and `/app/admin/*` remain compatibility aliases until equivalent dedicated screens and smokes exist.
+Implementation note, 2026-06-25: `/app/o/:organizationId/*` now renders a compact product v1 console against `/api/v1`, including setup, business context, security work, incidents, risks, governance, evidence, reports, connector capabilities, notifications, internal events, and read-only customer-visible support-session audit entries. The route keeps the organization ID explicit, forwards create/save forms to organization-scoped v1 endpoints, and surfaces v1 authorization rejection instead of silently changing context. `/app/setup/*` now resolves the signed-in user's active organization and renders the same v1 setup workflow instead of redirecting to the legacy onboarding page. `/app/partner/:partnerId/*` now renders the existing partner portfolio console through partner membership and portfolio APIs instead of redirecting to `/customers`; add-customer, enter-customer, and exit-customer forms post to app-prefixed aliases while legacy `/partners/*` posts remain compatibility paths. `/app/admin/*` now renders an explicit blocked state instead of redirecting to workspace settings because platform-admin RBAC, support operations, country-pack activation controls, and production audit review are not implemented.
 
 1. **Add context resolver**
    - Resolve active organization, partner, relationship, assignment, and role from the URL.
@@ -105,7 +106,7 @@ Implementation note, 2026-06-25: `/app/o/:organizationId/*` now renders a compac
    - Keep current routes as compatibility redirects or aliases.
 
 2. **Move setup routes**
-   - Implement `/app/setup/*` using existing onboarding services first.
+   - Status: partially implemented. `/app/setup/*` renders the v1 setup console for the active organization.
    - Add missing steps for people, systems, suppliers, Microsoft 365, and review.
    - Save each step independently and make completion state explicit.
 
@@ -115,13 +116,14 @@ Implementation note, 2026-06-25: `/app/o/:organizationId/*` now renders a compac
    - Keep authorization tests that prove a user cannot swap organization IDs.
 
 4. **Introduce partner routes**
-   - Move `/customers` into `/app/partner/:partnerId/customers`.
+   - Status: partially implemented. `/app/partner/:partnerId/*` renders the existing partner portfolio console and app-prefixed add-customer/session forms have parity tests.
    - Add relationship lifecycle and assignment UI before expanding partner operations.
    - Require partner context and customer context for every delegated action.
 
 5. **Add admin/support routes**
-   - Add read-only country-pack and connector health operations first.
-   - Add support-session workflows only after the support access domain model exists.
+   - Status: gated. `/app/admin/*` shows an explicit blocked state until a platform-admin authorization model exists.
+   - Add read-only country-pack and connector health operations first after platform-admin RBAC exists.
+   - Add support-session operation workflows only after platform-admin RBAC, approval policy, customer notification, and break-glass audit procedures exist.
 
 6. **Deprecate old routes**
    - Keep compatibility redirects until browser smokes and API clients use the new route tree.

@@ -1,3 +1,5 @@
+import { createHash } from "node:crypto";
+
 import { AuthError } from "@puresoc/auth-core";
 import {
   RemediationActionError,
@@ -11,6 +13,7 @@ import {
 } from "@puresoc/recommendations";
 import {
   actionableSeverities,
+  resolveLegalCaveatMessage,
   type RecommendationActionType,
   type RecommendationAutomationMode
 } from "@puresoc/shared";
@@ -82,6 +85,442 @@ export const createActionRunRoute = async (
     }
   };
 };
+
+export const createProviderActionPreflightRoute = async (
+  organizationId: string,
+  actionTemplateId: string,
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  idempotencyKeyHeader: string | string[] | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator"]
+  });
+
+  const idempotencyKey = normalizeIdempotencyKeyHeader(idempotencyKeyHeader);
+  let run: ActionRun | null = null;
+  if (idempotencyKey) {
+    run = await services.actionsRepository.findActionRunByIdempotencyKeyForOrganization({
+      organizationId,
+      idempotencyKey
+    });
+  }
+
+  if (!run) {
+    const providerConnectionId = stringField(body, "providerConnectionId");
+    const connection = await services.providerConnections.store.getConnectionForOrganization(
+      organizationId,
+      providerConnectionId
+    );
+    const templateInput = parseActionTemplate(body.actionTemplate, organizationId, actionTemplateId);
+    if (connection.providerKey !== templateInput.providerKey) {
+      throw new AuthError("invalid_request", "Provider connection must match the action template provider.", 400);
+    }
+    const template = await services.actions.createTemplate(templateInput);
+    run = await services.actions.createActionRun({
+      organizationId,
+      providerConnectionId,
+      actorUserId,
+      idempotencyKey,
+      recommendation: parseRecommendation(body.recommendation, organizationId),
+      template
+    });
+  }
+
+  const connection = await services.providerConnections.store.getConnectionForOrganization(
+    organizationId,
+    run.providerConnectionId
+  );
+  const preflighted = run.preflightResult
+    ? run
+    : await services.actions.recordPreflight({
+        organizationId,
+        actionRunId: run.id,
+        actorUserId,
+        context,
+        result: buildV1ProviderActionPreflight(run, connection)
+      });
+
+  return {
+    statusCode: 201,
+    body: {
+      actionRun: actionRunResponse(preflighted),
+      preflight: preflighted.preflightResult,
+      followupTasks: services.actions.createManualGuidedTasks({
+        run: preflighted,
+        ownerUserId: actorUserId
+      })
+    }
+  };
+};
+
+export const getProviderActionRunRoute = async (
+  organizationId: string,
+  actionRunId: string,
+  cookieHeader: string | undefined,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "compliance_manager", "security_operator", "auditor"]
+  });
+  const run = await services.actionsRepository.findActionRunForOrganization({
+    organizationId,
+    actionRunId
+  });
+  if (!run) {
+    throw new AuthError("invalid_request", "Action run was not found for this organization.", 404);
+  }
+
+  return {
+    statusCode: 200,
+    body: {
+      actionRun: actionRunResponse(run)
+    }
+  };
+};
+
+export const approveProviderActionRunRoute = async (
+  organizationId: string,
+  actionRunId: string,
+  cookieHeader: string | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "remediation_approver"]
+  });
+  const run = await services.actionsRepository.findActionRunForOrganization({
+    organizationId,
+    actionRunId
+  });
+  if (!run) {
+    throw new AuthError("invalid_request", "Action run was not found for this organization.", 404);
+  }
+
+  const requested =
+    run.approval.status === "requested" || run.approval.status === "approved"
+      ? run
+      : await services.actions.requestApproval({
+          organizationId,
+          actionRunId,
+          actorUserId,
+          context
+        });
+  const approved =
+    requested.approval.status === "approved"
+      ? requested
+      : await services.actions.approve({
+          organizationId,
+          actionRunId,
+          actorUserId,
+          context
+        });
+
+  return {
+    statusCode: 200,
+    body: {
+      actionRun: actionRunResponse(approved)
+    }
+  };
+};
+
+export const executeProviderActionRunRoute = async (
+  organizationId: string,
+  actionRunId: string,
+  cookieHeader: string | undefined,
+  idempotencyKeyHeader: string | string[] | undefined,
+  context: RequestContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const actorUserId = await readSessionUserId(cookieHeader, services);
+  await requireOrganizationRole({
+    repository: services.rbacRepository,
+    userId: actorUserId,
+    organizationId,
+    allowedRoles: ["owner", "org_admin", "security_operator"]
+  });
+  const run = await services.actionsRepository.findActionRunForOrganization({
+    organizationId,
+    actionRunId
+  });
+  if (!run) {
+    throw new AuthError("invalid_request", "Action run was not found for this organization.", 404);
+  }
+
+  if (run.automationMode !== "executable_later") {
+    return executeZeroBlastProviderAction({
+      organizationId,
+      run,
+      actorUserId,
+      idempotencyKeyHeader,
+      context,
+      services
+    });
+  }
+
+  return providerActionExecutionBlockedResult(run);
+};
+
+const providerActionExecutionBlockedResult = (run: ActionRun): JsonResult => ({
+  statusCode: 409,
+  body: {
+    error: {
+      code: "provider_action_execution_blocked",
+      message: "Provider action execution remains disabled until approval policy, recent auth, verification, evidence, audit, and disposable-tenant proof are complete.",
+      details: {
+        actionRunId: run.id,
+        status: run.status,
+        automationMode: run.automationMode,
+        requiredGates: [
+          "capability_state_available",
+          "preflight_passed",
+          "approval_policy",
+          "recent_auth",
+          "idempotency",
+          "async_execution",
+          "verification",
+          "evidence",
+          "audit",
+          "disposable_tenant_proof"
+        ]
+      }
+    }
+  }
+});
+
+const executeZeroBlastProviderAction = async (input: {
+  organizationId: string;
+  run: ActionRun;
+  actorUserId: string;
+  idempotencyKeyHeader: string | string[] | undefined;
+  context: RequestContext;
+  services: ApiServices;
+}): Promise<JsonResult> => {
+  const { organizationId, run, actorUserId, context, services } = input;
+  if (run.preflightStatus !== "passed" || run.preflightResult?.status !== "passed" || run.approval.status !== "approved") {
+    return {
+      statusCode: 409,
+      body: {
+        error: {
+          code: "provider_action_zero_blast_gates_incomplete",
+          message: "Zero-blast provider action output requires a passed preflight and approved action run.",
+          details: {
+            actionRunId: run.id,
+            preflightStatus: run.preflightStatus,
+            approvalStatus: run.approval.status
+          }
+        }
+      }
+    };
+  }
+
+  const requestIdempotencyKey = normalizeIdempotencyKeyHeader(input.idempotencyKeyHeader);
+  const operationIdempotencyKey = requestIdempotencyKey ?? `provider-action-zero-blast:${run.id}`;
+  const existingOperation = await services.productV1.findOperationByIdempotencyKey({
+    organizationId,
+    kind: "action",
+    idempotencyKey: operationIdempotencyKey
+  });
+  if (existingOperation) {
+    return {
+      statusCode: 202,
+      body: zeroBlastOperationBody(existingOperation, run, existingOperation.result ?? null)
+    };
+  }
+
+  const operation = await services.productV1.createOperation({
+    organizationId,
+    kind: "action",
+    idempotencyKey: operationIdempotencyKey,
+    targetType: "action_run",
+    targetId: run.id,
+    status: "running",
+    progress: {
+      actionRunId: run.id,
+      providerKey: run.providerKey,
+      providerMutation: false
+    }
+  });
+  const zeroBlast = await createZeroBlastProductArtifacts({
+    organizationId,
+    run,
+    operationId: operation.id,
+    actorUserId,
+    context,
+    services
+  });
+  const completed = await services.productV1.updateOperation({
+    ...operation,
+    status: "succeeded",
+    result: zeroBlast.result
+  });
+
+  return {
+    statusCode: 202,
+    body: zeroBlastOperationBody(completed, run, zeroBlast.result, zeroBlast.resources)
+  };
+};
+
+const createZeroBlastProductArtifacts = async (input: {
+  organizationId: string;
+  run: ActionRun;
+  operationId: string;
+  actorUserId: string;
+  context: RequestContext;
+  services: ApiServices;
+}): Promise<{
+  result: Record<string, unknown>;
+  resources: Record<string, unknown>;
+}> => {
+  const { organizationId, run, operationId, actorUserId, context, services } = input;
+  const task = await services.productV1.createTask({
+    organizationId,
+    title: `Review zero-blast action: ${run.title}`,
+    status: "TODO",
+    priority: run.riskLevel,
+    ownerUserId: null,
+    dueDate: null
+  });
+  const sourceReferences = [
+    `action_run:${run.id}`,
+    `provider:${run.providerKey}`,
+    `control:${run.controlId}`,
+    `action:${run.actionKey}`
+  ];
+  const evidencePayload = {
+    schemaVersion: "puresoc.provider_action.zero_blast_evidence.v1",
+    organizationId,
+    operationId,
+    actionRunId: run.id,
+    providerConnectionId: run.providerConnectionId,
+    providerKey: run.providerKey,
+    actionKey: run.actionKey,
+    automationMode: run.automationMode,
+    providerMutation: false,
+    preflightStatus: run.preflightStatus,
+    approvalStatus: run.approval.status,
+    expectedChange: run.expectedChange,
+    manualFallback: run.manualFallback,
+    generatedAt: run.updatedAt
+  };
+  const evidenceBody = Buffer.from(JSON.stringify(evidencePayload, null, 2), "utf8");
+  const evidenceFileObject = await services.productV1.createFileObject({
+    organizationId,
+    purpose: "uploaded_evidence",
+    filename: `provider-action-${run.id}.zero-blast-evidence.json`,
+    mimeType: "application/json",
+    sizeBytes: evidenceBody.byteLength,
+    checksumSha256: sha256Hex(evidenceBody),
+    storage: {
+      provider: "product_v1_state",
+      bucket: "provider-action-zero-blast",
+      key: `${organizationId}/${run.id}/zero-blast-evidence.json`
+    },
+    scanStatus: "skipped",
+    scanFindings: [],
+    retentionClass: "evidence",
+    encryption: {
+      mode: "local_development",
+      algorithm: "metadata-only",
+      keyRef: "product_v1_state_records"
+    },
+    sourceResourceType: "action_run",
+    sourceResourceId: run.id,
+    sourceReferences,
+    createdByUserId: actorUserId
+  });
+  const legalCaveat = resolveLegalCaveatMessage("en");
+  const { reportSnapshot, fileObject: reportFileObject } = await services.productV1.createReportSnapshot({
+    organizationId,
+    templateKey: "remediation_progress",
+    locale: "en",
+    format: "json",
+    legalCaveat: legalCaveat.text,
+    legalCaveatLocale: legalCaveat.resolvedLocale,
+    legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
+    sourceReferences,
+    content: {
+      zeroBlastAction: {
+        actionRunId: run.id,
+        providerKey: run.providerKey,
+        providerMutation: false,
+        taskId: task.id,
+        evidenceFileObjectId: evidenceFileObject.id
+      }
+    },
+    createdByUserId: actorUserId
+  });
+  const result = {
+    mode: "zero_blast",
+    providerMutation: false,
+    actionRunId: run.id,
+    taskId: task.id,
+    evidenceFileObjectId: evidenceFileObject.id,
+    reportSnapshotId: reportSnapshot.id,
+    reportFileObjectId: reportFileObject.id
+  };
+  await services.auditWriter.write({
+    actorUserId,
+    organizationId,
+    targetType: "action_run",
+    targetId: run.id,
+    action: "product_v1.provider_action.zero_blast_executed",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    afterJson: result
+  });
+  await services.productV1.createInternalEvent({
+    organizationId,
+    eventType: "product_v1.provider_action.zero_blast_executed",
+    aggregateType: "action_run",
+    aggregateId: run.id,
+    idempotencyKey: operationId,
+    outboxStatus: "pending",
+    payload: result
+  });
+
+  return {
+    result,
+    resources: {
+      task,
+      evidenceFileObject,
+      reportSnapshot,
+      reportFileObject
+    }
+  };
+};
+
+const zeroBlastOperationBody = (
+  operation: { id: string; status: string },
+  run: ActionRun,
+  result: Record<string, unknown> | null,
+  resources?: Record<string, unknown>
+) => ({
+  operationId: operation.id,
+  status: operation.status,
+  links: {
+    self: `/api/v1/operations/${operation.id}`
+  },
+  actionRun: actionRunResponse(run),
+  zeroBlast: {
+    ...(result ?? {}),
+    resources: resources ?? null
+  }
+});
 
 export const recordActionPreflightRoute = async (
   organizationId: string,
@@ -343,13 +782,21 @@ const actionRunResponse = (run: ActionRun): Omit<ActionRun, "idempotencyKey"> & 
   return idempotencyKey ? { ...response, idempotencyKeyPresent: true } : response;
 };
 
-const parseActionTemplate = (value: unknown, organizationId: string): Omit<ActionTemplate, "createdAt" | "updatedAt"> => {
+const parseActionTemplate = (
+  value: unknown,
+  organizationId: string,
+  expectedActionTemplateId?: string
+): Omit<ActionTemplate, "createdAt" | "updatedAt"> => {
   const input = objectField(value, "actionTemplate");
   const automationMode = automationModeField(input, "automationMode");
   const riskLevel = severityField(input, "riskLevel");
+  const id = optionalStringField(input, "id") ?? expectedActionTemplateId ?? `template_${stringField(input, "actionKey")}`;
+  if (expectedActionTemplateId && id !== expectedActionTemplateId) {
+    throw new AuthError("invalid_request", "actionTemplate.id must match the provider action template route.", 400);
+  }
 
   return {
-    id: optionalStringField(input, "id") ?? `template_${stringField(input, "actionKey")}`,
+    id,
     organizationId,
     providerKey: stringField(input, "providerKey"),
     moduleKey: optionalStringField(input, "moduleKey"),
@@ -370,6 +817,58 @@ const parseActionTemplate = (value: unknown, organizationId: string): Omit<Actio
     enabledByDefault: booleanField(input, "enabledByDefault", false),
     highRiskForbiddenInV1: booleanField(input, "highRiskForbiddenInV1", false),
     sourceReferences: []
+  };
+};
+
+const buildV1ProviderActionPreflight = (
+  run: ActionRun,
+  connection: { status?: string | null; writeEnabled?: boolean | null }
+): Omit<ActionPreflightResult, "checkedAt" | "checkedBy"> => {
+  const providerConnectionAvailable = connection.status === "connected" || connection.status === "degraded";
+  const highRiskBlocked = run.highRiskForbiddenInV1 && run.automationMode === "executable_later";
+  const executableWriteDisabled = run.automationMode === "executable_later" && !connection.writeEnabled;
+
+  return {
+    status: highRiskBlocked ? "failed" : "passed",
+    checks: [
+      {
+        code: "provider_connection_available",
+        status: providerConnectionAvailable ? "passed" : "warning",
+        message: providerConnectionAvailable
+          ? "Provider connection state is available for preflight."
+          : "Provider connection is not fully connected; execution remains blocked."
+      },
+      {
+        code: "provider_action_write_policy",
+        status: executableWriteDisabled ? "warning" : "passed",
+        message: executableWriteDisabled
+          ? "Executable provider writes remain blocked because provider write access is disabled."
+          : "Provider write access check completed for this action mode."
+      },
+      {
+        code: "high_risk_v1_policy",
+        status: highRiskBlocked ? "failed" : "passed",
+        message: highRiskBlocked
+          ? "High-risk provider writes are forbidden in V1."
+          : "The action is not blocked by the V1 high-risk policy."
+      }
+    ],
+    diff: {
+      summary: run.expectedChange,
+      changes: [
+        {
+          field: "expectedChange",
+          after: run.expectedChange
+        },
+        {
+          field: "rollbackOrManualFallback",
+          after: run.rollbackStrategy || run.manualFallback
+        }
+      ]
+    },
+    requiredPermissions: run.permissionsRequired,
+    requiredLicense: run.licenseRequired,
+    canRequestApproval: !highRiskBlocked
   };
 };
 
@@ -509,6 +1008,8 @@ const stringArrayField = (value: Record<string, unknown>, fieldName: string): st
 
 const booleanField = (value: Record<string, unknown>, fieldName: string, fallback: boolean): boolean =>
   typeof value[fieldName] === "boolean" ? value[fieldName] : fallback;
+
+const sha256Hex = (body: Uint8Array): string => createHash("sha256").update(body).digest("hex");
 
 const severityField = (value: Record<string, unknown>, fieldName: string) => {
   const field = value[fieldName];

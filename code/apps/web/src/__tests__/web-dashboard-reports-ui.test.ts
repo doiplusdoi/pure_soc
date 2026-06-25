@@ -179,13 +179,12 @@ describe("web dashboard reports operational UI", () => {
       expect(appRoot.status).toBe(303);
       expect(appRoot.headers.get("location")).toBe("/dashboard");
 
-      const appSetup = await fetch(`${baseUrl}/app/setup/microsoft365`, { redirect: "manual" });
-      expect(appSetup.status).toBe(303);
-      expect(appSetup.headers.get("location")).toBe("/connectors/microsoft365");
-
-      const appPartner = await fetch(`${baseUrl}/app/partner/partner_demo/customers`, { redirect: "manual" });
-      expect(appPartner.status).toBe(303);
-      expect(appPartner.headers.get("location")).toBe("/customers?partnerId=partner_demo");
+      const appAdmin = await fetch(`${baseUrl}/app/admin/health`, { redirect: "manual" });
+      const appAdminHtml = await appAdmin.text();
+      expect(appAdmin.status).toBe(403);
+      expect(appAdmin.headers.get("location")).toBeNull();
+      expect(appAdminHtml).toContain("Platform admin gated");
+      expect(appAdminHtml).toContain("platform-admin RBAC");
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
@@ -246,6 +245,27 @@ describe("web dashboard reports operational UI", () => {
         return;
       }
 
+      if (request.method === "GET" && url.pathname === "/api/v1/support-sessions") {
+        expect(url.searchParams.get("organizationId")).toBe("org_demo");
+        response.end(
+          JSON.stringify({
+            data: [
+              {
+                id: "support_1",
+                reason: "Troubleshoot onboarding",
+                policyBasis: "customer_approved",
+                status: "active",
+                ticketReference: "SUP-123",
+                startedAt: "2026-06-24T09:00:00.000Z",
+                expiresAt: "2026-06-24T10:00:00.000Z"
+              }
+            ],
+            page: { limit: 25, nextCursor: null }
+          })
+        );
+        return;
+      }
+
       const orgResource = /^\/api\/v1\/organizations\/org_demo\/([^/]+(?:\/[^/]+)?)$/.exec(url.pathname);
       if (request.method === "GET" && orgResource) {
         const resource = orgResource[1];
@@ -259,6 +279,19 @@ describe("web dashboard reports operational UI", () => {
                 completedSteps: ["organization", "jurisdiction"],
                 stepData: {},
                 updatedAt: "2026-06-24T09:00:00.000Z"
+              }
+            })
+          );
+          return;
+        }
+        if (resource === "notification-preferences") {
+          response.end(
+            JSON.stringify({
+              notificationPreferences: {
+                id: "notification_preferences_org_demo",
+                organizationId: "org_demo",
+                digestFrequency: "weekly",
+                suppressedCategories: ["connector"]
               }
             })
           );
@@ -283,6 +316,17 @@ describe("web dashboard reports operational UI", () => {
               aggregateId: "finding_1",
               outboxStatus: "pending",
               attempts: 0
+            }
+          ],
+          notifications: [
+            {
+              id: "notification_1",
+              title: "Review Microsoft 365 drift",
+              body: "A high severity connector finding needs triage.",
+              category: "connector",
+              severity: "high",
+              status: "unread",
+              updatedAt: "2026-06-24T09:00:00.000Z"
             }
           ],
           tasks: [{ id: "task_1", title: "Confirm conditional access", priority: "high", status: "TODO" }]
@@ -320,6 +364,302 @@ describe("web dashboard reports operational UI", () => {
       expect(html).toContain("Confirm conditional access");
       expect(html).toContain("/app/o/org_demo/security/findings");
       expect(html).toContain("1 pending events");
+
+      const setupResponse = await fetch(`${baseUrl}/app/setup/microsoft365`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const setupHtml = await setupResponse.text();
+
+      expect(setupResponse.status).toBe(200);
+      expect(setupResponse.headers.get("location")).toBeNull();
+      expect(setupHtml).toContain('data-ui-smoke="product-v1-console"');
+      expect(setupHtml).toContain("Launch readiness");
+      expect(setupHtml).toContain("microsoft365");
+      expect(setupHtml).toContain("/app/o/org_demo/setup");
+
+      const notificationResponse = await fetch(`${baseUrl}/app/o/org_demo/notifications`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const notificationHtml = await notificationResponse.text();
+
+      expect(notificationResponse.status).toBe(200);
+      expect(notificationResponse.headers.get("location")).toBeNull();
+      expect(notificationHtml).toContain('data-ui-action="open-product-v1-notifications"');
+      expect(notificationHtml).toContain("Notification center");
+      expect(notificationHtml).toContain("Review Microsoft 365 drift");
+      expect(notificationHtml).toContain("notification_1");
+      expect(notificationHtml).toContain('name="_action" value="markNotificationRead"');
+      expect(notificationHtml).toContain('name="_action" value="updateNotificationPreferences"');
+      expect(notificationHtml).toContain('value="connector"');
+
+      const auditResponse = await fetch(`${baseUrl}/app/o/org_demo/audit`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const auditHtml = await auditResponse.text();
+
+      expect(auditResponse.status).toBe(200);
+      expect(auditResponse.headers.get("location")).toBeNull();
+      expect(auditHtml).toContain("Customer-visible support sessions");
+      expect(auditHtml).toContain("Troubleshoot onboarding");
+      expect(auditHtml).toContain("customer_approved");
+      expect(auditHtml).toContain("SUP-123");
+      expect(auditHtml).not.toContain('name="_action" value="startSupportSession"');
+      expect(auditHtml).not.toContain('name="_action" value="endSupportSession"');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("renders partner app routes from partner portfolio APIs", async () => {
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "GET" && url.pathname === "/auth/session") {
+        response.end(
+          JSON.stringify({
+            user: { id: "partner_user", email: "partner@example.test", displayName: "Partner Admin" },
+            session: { activeOrganizationId: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/partners") {
+        response.end(
+          JSON.stringify({
+            partners: [
+              {
+                partner: {
+                  id: "partner_asterion",
+                  name: "Asterion Cloud Partners",
+                  slug: "asterion-cloud",
+                  createdAt: "2026-06-24T09:00:00.000Z",
+                  updatedAt: "2026-06-24T09:00:00.000Z"
+                },
+                membership: {
+                  id: "membership_1",
+                  partnerId: "partner_asterion",
+                  userId: "partner_user",
+                  role: "admin",
+                  status: "active",
+                  createdAt: "2026-06-24T09:00:00.000Z",
+                  updatedAt: "2026-06-24T09:00:00.000Z"
+                }
+              }
+            ]
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/partners/partner_asterion/portfolio") {
+        response.end(
+          JSON.stringify({
+            grants: [
+              {
+                id: "grant_1",
+                organizationId: "customer_ro",
+                grantLevel: "admin",
+                status: "active",
+                createdAt: "2026-06-24T09:00:00.000Z",
+                updatedAt: "2026-06-24T09:00:00.000Z",
+                organization: {
+                  id: "customer_ro",
+                  name: "Asterion Tools",
+                  primaryCountryCode: "RO"
+                },
+                snapshot: {
+                  sector: "manufacturing",
+                  opportunities: []
+                }
+              }
+            ],
+            metrics: {
+              totalCustomerTenants: 1,
+              completedAssessments: 0,
+              customersLikelyOrPossiblyInScope: 1,
+              connectedMicrosoftTenants: 0,
+              highPriorityGaps: 1,
+              opportunities: 0
+            },
+            opportunities: []
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/partners/partner_asterion/tenant-access-sessions/current") {
+        response.end(JSON.stringify({ tenantSession: null }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/app/partner/partner_asterion/customers`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+      expect(html).toContain('data-ui-smoke="partner-console"');
+      expect(html).toContain("Asterion Cloud Partners");
+      expect(html).toContain("Asterion Tools");
+      expect(html).toContain('href="/app/partner/partner_asterion"');
+      expect(html).toContain('action="/app/partner/partner_asterion/customers"');
+      expect(html).toContain('action="/app/partner/partner_asterion/tenant-sessions"');
+      expect(html).not.toContain('action="/partners/partner_asterion/customers"');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("forwards app-prefixed partner mutations while keeping redirects inside the app route tree", async () => {
+    let createdCustomerBody: Record<string, unknown> | undefined;
+    let startedSessionBody: Record<string, unknown> | undefined;
+    let exitCalled = false;
+    const activeOrganizationBodies: Array<Record<string, unknown>> = [];
+    const apiServer = createServer(async (request, response) => {
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "POST" && request.url === "/partners/partner_asterion/customers") {
+        createdCustomerBody = await readRequestJson<Record<string, unknown>>(request);
+        response.statusCode = 201;
+        response.end(
+          JSON.stringify({
+            organization: {
+              id: "org_nordfrucht",
+              name: "NordFrucht GmbH",
+              primaryCountryCode: createdCustomerBody.primaryCountryCode
+            }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "POST" && request.url === "/partners/partner_asterion/tenant-access-sessions") {
+        startedSessionBody = await readRequestJson<Record<string, unknown>>(request);
+        response.statusCode = 201;
+        response.end(
+          JSON.stringify({
+            tenantSession: {
+              id: "tenant_session_1",
+              effectiveOrganizationId: "org_nordfrucht",
+              status: "active"
+            }
+          })
+        );
+        return;
+      }
+
+      if (
+        request.method === "POST" &&
+        request.url === "/partners/partner_asterion/tenant-access-sessions/tenant_session_1/exit"
+      ) {
+        exitCalled = true;
+        response.end(
+          JSON.stringify({
+            tenantSession: {
+              id: "tenant_session_1",
+              effectiveOrganizationId: "org_nordfrucht",
+              status: "ended"
+            }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "POST" && request.url === "/auth/session/active-organization") {
+        activeOrganizationBodies.push(await readRequestJson<Record<string, unknown>>(request));
+        response.end(JSON.stringify({ ok: true }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const createResponse = await fetch(`${baseUrl}/app/partner/partner_asterion/customers`, {
+        body: new URLSearchParams({
+          grantLevel: "admin",
+          legalName: "NordFrucht GmbH",
+          name: "NordFrucht GmbH",
+          primaryCountryCode: "DE"
+        }),
+        method: "POST",
+        redirect: "manual"
+      });
+      expect(createResponse.status).toBe(303);
+      expect(createResponse.headers.get("location")).toContain("/app/partner/partner_asterion?message=");
+      expect(createResponse.headers.get("location")).not.toContain("/partners?partnerId=");
+      expect(createdCustomerBody).toEqual({
+        accessLevel: "admin",
+        legalName: "NordFrucht GmbH",
+        name: "NordFrucht GmbH",
+        primaryCountryCode: "DE"
+      });
+
+      const startResponse = await fetch(`${baseUrl}/app/partner/partner_asterion/tenant-sessions`, {
+        body: new URLSearchParams({
+          organizationId: "org_nordfrucht",
+          reason: "Prepare NIS2 readiness review"
+        }),
+        method: "POST",
+        redirect: "manual"
+      });
+      expect(startResponse.status).toBe(303);
+      expect(startResponse.headers.get("location")).toContain("/app/o/org_nordfrucht/overview?message=");
+      expect(startedSessionBody).toEqual({
+        organizationId: "org_nordfrucht",
+        reason: "Prepare NIS2 readiness review"
+      });
+      expect(activeOrganizationBodies).toContainEqual({ organizationId: "org_nordfrucht" });
+
+      const exitResponse = await fetch(`${baseUrl}/app/partner/partner_asterion/tenant-sessions/tenant_session_1/exit`, {
+        method: "POST",
+        redirect: "manual"
+      });
+      expect(exitResponse.status).toBe(303);
+      expect(exitResponse.headers.get("location")).toContain("/app/partner/partner_asterion?message=");
+      expect(exitCalled).toBe(true);
+      expect(activeOrganizationBodies).toContainEqual({ organizationId: null });
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));
@@ -371,6 +711,149 @@ describe("web dashboard reports operational UI", () => {
       expect(response.status).toBe(303);
       expect(response.headers.get("location")).toBe("/app/o/org_demo/services?message=Business%20service%20added.");
       expect(createdBody).toEqual({ criticality: "critical", name: "Payments" });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("forwards product v1 notification form actions to organization-scoped v1 endpoints", async () => {
+    const forwarded: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+      if (
+        request.method === "POST" &&
+        url.pathname === "/api/v1/organizations/org_demo/notifications"
+      ) {
+        const body = await readRequestJson<Record<string, unknown>>(request);
+        forwarded.push({ method: "POST", path: url.pathname, body });
+        response.statusCode = 201;
+        response.end(JSON.stringify({ notification: { id: "notification_1", ...body } }));
+        return;
+      }
+      if (
+        request.method === "PUT" &&
+        url.pathname === "/api/v1/organizations/org_demo/notification-preferences"
+      ) {
+        const body = await readRequestJson<Record<string, unknown>>(request);
+        forwarded.push({ method: "PUT", path: url.pathname, body });
+        response.end(JSON.stringify({ notificationPreferences: { id: "notification_preferences_org_demo", ...body } }));
+        return;
+      }
+      if (
+        request.method === "PATCH" &&
+        url.pathname === "/api/v1/organizations/org_demo/notifications/notification_1"
+      ) {
+        const body = await readRequestJson<Record<string, unknown>>(request);
+        forwarded.push({ method: "PATCH", path: url.pathname, body });
+        response.end(JSON.stringify({ notification: { id: "notification_1", ...body } }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const createResponse = await fetch(`${baseUrl}/app/o/org_demo/notifications`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams({
+          _action: "createNotification",
+          actionHref: "/app/o/org_demo/security/findings",
+          body: "A high severity connector finding needs triage.",
+          category: "connector",
+          severity: "high",
+          sourceResourceId: "finding_m365_drift",
+          sourceResourceType: "finding",
+          title: "Review Microsoft 365 drift"
+        }),
+        redirect: "manual"
+      });
+      expect(createResponse.status).toBe(303);
+      expect(createResponse.headers.get("location")).toBe("/app/o/org_demo/notifications?message=Notification%20added.");
+
+      const preferenceResponse = await fetch(`${baseUrl}/app/o/org_demo/notifications`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams({
+          _action: "updateNotificationPreferences",
+          digestFrequency: "weekly",
+          mutedUntil: "2026-06-30T09:00:00.000Z",
+          suppressedCategories: "connector, incident"
+        }),
+        redirect: "manual"
+      });
+      expect(preferenceResponse.status).toBe(303);
+      expect(preferenceResponse.headers.get("location")).toBe(
+        "/app/o/org_demo/notifications?message=Notification%20preferences%20saved."
+      );
+
+      const readResponse = await fetch(`${baseUrl}/app/o/org_demo/notifications`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams({
+          _action: "markNotificationRead",
+          notificationId: "notification_1"
+        }),
+        redirect: "manual"
+      });
+      expect(readResponse.status).toBe(303);
+      expect(readResponse.headers.get("location")).toBe(
+        "/app/o/org_demo/notifications?message=Notification%20marked%20read."
+      );
+
+      expect(forwarded).toEqual([
+        {
+          method: "POST",
+          path: "/api/v1/organizations/org_demo/notifications",
+          body: {
+            actionHref: "/app/o/org_demo/security/findings",
+            body: "A high severity connector finding needs triage.",
+            category: "connector",
+            severity: "high",
+            sourceResourceId: "finding_m365_drift",
+            sourceResourceType: "finding",
+            title: "Review Microsoft 365 drift"
+          }
+        },
+        {
+          method: "PUT",
+          path: "/api/v1/organizations/org_demo/notification-preferences",
+          body: {
+            digestFrequency: "weekly",
+            mutedUntil: "2026-06-30T09:00:00.000Z",
+            suppressedCategories: ["connector", "incident"]
+          }
+        },
+        {
+          method: "PATCH",
+          path: "/api/v1/organizations/org_demo/notifications/notification_1",
+          body: { status: "read" }
+        }
+      ]);
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));
@@ -713,13 +1196,23 @@ describe("web dashboard reports operational UI", () => {
 
     expect(smokeScript).toContain('const UI_SMOKE_ARTIFACT_INDEX_SCHEMA = "puresoc.ui_smoke.served_artifact_index.v1"');
     expect(smokeScript).toContain('const UI_SMOKE_ARTIFACT_INDEX_FILE = "ui-smoke-artifact-index.json"');
-    expect(smokeScript).toContain("EXPECTED_UI_HTML_SNAPSHOT_COUNT = 6");
+    expect(smokeScript).toContain("EXPECTED_UI_HTML_SNAPSHOT_COUNT = 10");
     expect(smokeScript).toContain("writeServedUiSmokeArtifactIndex");
     expect(smokeScript).toContain("formatServedUiSnapshotSummary");
     expect(smokeScript).toContain("sanitizeServedUiAuthChecks");
     expect(smokeScript).toContain("apiBackedDashboard");
     expect(smokeScript).toContain("workspaceSelectionSnapshots");
-    expect(smokeScript).toContain("romaniaRouteSnapshots");
+    expect(smokeScript).toContain("onboardingRouteSnapshots");
+    expect(smokeScript).toContain("appRouteSnapshots");
+    expect(smokeScript).toContain("assertProductV1AppOrganizationRoute");
+    expect(smokeScript).toContain("assertProductV1AppSetupRoute");
+    expect(smokeScript).toContain("assertProductV1AppPartnerRoute");
+    expect(smokeScript).toContain("assertProductV1AppAdminBlockedRoute");
+    expect(smokeScript).toContain("assertProductMvpOnboardingRoute");
+    expect(smokeScript).toContain("/app/o/:organizationId/security/findings");
+    expect(smokeScript).toContain("/app/partner/:partnerId/customers");
+    expect(smokeScript).toContain("ui_smoke_artifact_index_onboarding_route_referenced");
+    expect(smokeScript).toContain("ui_smoke_artifact_index_app_routes_referenced");
     expect(smokeScript).toContain("authCookieOriginChecks");
     expect(smokeScript).toContain("local port-bearing endpoint URLs");
     expect(smokeScript).toContain("isServedUiArtifactIndexSecretFree");
@@ -784,6 +1277,20 @@ describe("web dashboard reports operational UI", () => {
           status: "sent"
         }
       ],
+      operatorAlerts: [
+        {
+          id: "alert_1",
+          alertType: "delivery_exhausted",
+          severity: "warning",
+          status: "open",
+          title: "Notification delivery exhausted",
+          body: "Retries for CRITICAL_GAP_DETECTED exhausted.",
+          sourceRetryItemId: "retry_1",
+          channelId: "channel_slack",
+          eventType: "CRITICAL_GAP_DETECTED",
+          createdAt: "2026-06-14T09:00:00.000Z"
+        }
+      ],
       roleKeys: ["owner"],
       session: {
         user: {
@@ -799,13 +1306,138 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('data-ui-smoke="notification-settings"');
     expect(html).toContain('action="/settings/notifications/channels"');
     expect(html).toContain('data-ui-action="create-notification-channel"');
+    expect(html).toContain('data-ui-action="update-notification-channel"');
     expect(html).toContain('data-ui-action="test-notification-channel"');
     expect(html).toContain('data-ui-action="delete-notification-channel"');
+    expect(html).toContain('data-ui-action="acknowledge-notification-operator-alert"');
+    expect(html).toContain("Notification delivery exhausted");
     expect(html).toContain("critical gaps");
     expect(html).toContain("TEST_NOTIFICATION");
     expect(html).toContain("alerts@example.test");
     expect(html).toContain("https://hooks.slack.test/services...");
     expect(html).not.toContain("sensitive-secret");
+  });
+
+  it("forwards notification channel rotation forms to the active organization endpoint", async () => {
+    const forwarded: Array<{ method: string; path: string; body: Record<string, unknown> }> = [];
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+      if (request.method === "GET" && url.pathname === "/auth/session") {
+        response.end(
+          JSON.stringify({
+            user: { id: "user_notifications", email: "owner@example.test" },
+            session: { activeOrganizationId: "org_notifications" }
+          })
+        );
+        return;
+      }
+      if (
+        request.method === "PATCH" &&
+        url.pathname === "/organizations/org_notifications/notification-channels/channel_slack"
+      ) {
+        const body = await readRequestJson<Record<string, unknown>>(request);
+        forwarded.push({ method: "PATCH", path: url.pathname, body });
+        response.end(
+          JSON.stringify({
+            channel: {
+              id: "channel_slack",
+              type: "slack_webhook",
+              destinationPreview: "https://hooks.slack.test/services...",
+              enabled: body.enabled,
+              createdAt: "2026-06-14T09:00:00.000Z"
+            }
+          })
+        );
+        return;
+      }
+      if (
+        request.method === "POST" &&
+        url.pathname === "/organizations/org_notifications/notification-operator-alerts/alert_1/acknowledge"
+      ) {
+        const body = await readRequestJson<Record<string, unknown>>(request);
+        forwarded.push({ method: "POST", path: url.pathname, body });
+        response.end(
+          JSON.stringify({
+            operatorAlert: {
+              id: "alert_1",
+              alertType: "delivery_exhausted",
+              severity: "warning",
+              status: "acknowledged",
+              title: "Notification delivery exhausted",
+              body: "Retries exhausted.",
+              createdAt: "2026-06-14T09:00:00.000Z",
+              acknowledgedAt: "2026-06-14T09:05:00.000Z"
+            }
+          })
+        );
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/settings/notifications/channels/channel_slack/update`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams({
+          destination: "",
+          enabled: "false"
+        }),
+        redirect: "manual"
+      });
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe(
+        "/settings/notifications?message=Notification%20channel%20updated."
+      );
+      const acknowledgeResponse = await fetch(`${baseUrl}/settings/notifications/operator-alerts/alert_1/acknowledge`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams(),
+        redirect: "manual"
+      });
+
+      expect(acknowledgeResponse.status).toBe(303);
+      expect(acknowledgeResponse.headers.get("location")).toBe(
+        "/settings/notifications?message=Notification%20operator%20alert%20acknowledged."
+      );
+      expect(forwarded).toEqual([
+        {
+          method: "PATCH",
+          path: "/organizations/org_notifications/notification-channels/channel_slack",
+          body: { enabled: false }
+        },
+        {
+          method: "POST",
+          path: "/organizations/org_notifications/notification-operator-alerts/alert_1/acknowledge",
+          body: {}
+        }
+      ]);
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
   });
 
   it("renders Microsoft 365 tenant connector as a standalone workspace page", () => {
@@ -1159,6 +1791,7 @@ describe("web dashboard reports operational UI", () => {
         canManageChannels: false,
         channels: [],
         logs: [],
+        operatorAlerts: [],
         roleKeys: ["auditor"],
         session
       }),
