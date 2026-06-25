@@ -1074,8 +1074,41 @@ describe("web dashboard reports operational UI", () => {
       expect(response.headers.get("location")).toContain("https://login.microsoftonline.com/organizations/v2.0/adminconsent");
       expect(receivedBody).toEqual({
         redirectUri: "https://demo.puresoc.example/providers/microsoft365/callback",
-        requestedPermissionBundles: ["m365_read_baseline", "m365_security_read", "m365_intune_read"]
+        requestedPermissionBundles: ["m365_read_baseline"]
       });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("redirects stale gap analyzer run links back to the analyzer page instead of returning not found", async () => {
+    const apiServer = createServer((_request, response) => {
+      response.statusCode = 404;
+      response.end("not found");
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/gap-analyzer/run`, {
+        redirect: "manual"
+      });
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toContain("/gap-analyzer?message=");
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));
@@ -1162,6 +1195,79 @@ describe("web dashboard reports operational UI", () => {
       });
       expect(html).toContain("Microsoft 365 consent state is invalid or expired.");
       expect(html).toContain("invalid_request");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("explains Microsoft 365 Graph forbidden callbacks as connector app permission setup issues", async () => {
+    const apiServer = createServer(async (request, response) => {
+      if (request.method === "GET" && request.url === "/auth/session") {
+        response.statusCode = 200;
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            session: {
+              activeOrganizationId: "org_1"
+            }
+          })
+        );
+        return;
+      }
+
+      if (
+        request.method === "POST" &&
+        request.url === "/organizations/org_1/provider-connections/microsoft365/consent/callback"
+      ) {
+        response.statusCode = 403;
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            error: {
+              code: "microsoft365_graph_forbidden",
+              message: "Microsoft Graph rejected the request because a permission or license is missing."
+            }
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end("not found");
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(
+        `${baseUrl}/providers/microsoft365/callback?state=state_123&tenant=tenant_123&admin_consent=True`,
+        {
+          headers: {
+            cookie: "puresoc_session=test",
+            "x-forwarded-host": "demo.puresoc.example",
+            "x-forwarded-proto": "https"
+          }
+        }
+      );
+      const html = await response.text();
+
+      expect(response.status).toBe(403);
+      expect(html).toContain("application permissions for the baseline bundle only");
+      expect(html).toContain("not delegated user scopes or write permissions");
+      expect(html).toContain("microsoft365_graph_forbidden");
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));
@@ -1634,8 +1740,9 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Start global admin approval");
     expect(html).toContain("No customer-created Azure app registration is required.");
     expect(html).toContain("m365_read_baseline");
-    expect(html).toContain("m365_security_read");
-    expect(html).toContain("m365_intune_read");
+    expect(html).toContain("security optional");
+    expect(html).toContain("Intune optional");
+    expect(html).toContain("Baseline first");
     expect(html).toContain("no write scopes");
     expect(html).toContain('action="/providers/microsoft365/connect"');
     expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');

@@ -391,10 +391,10 @@ External setup needed:
 - PureSOC app registration for Microsoft 365 provider consent;
 - supported account type selected for the deployment model: multitenant for SaaS/customer onboarding, single tenant only for a customer-owned in-a-box app;
 - Web redirect URI exactly matching the deployed `/providers/microsoft365/callback` URL derived from the public host/proxy headers;
-- Microsoft Graph application permissions matching the read-only V1 bundles;
+- Microsoft Graph application permissions matching the selected read-only bundle; first onboarding should start with `m365_read_baseline` application permissions only;
 - client ID and client secret;
 - each customer workspace connects its own Microsoft tenant through the provider-connection OAuth/admin-consent flow;
-- admin consent for read-only permission bundles only during first onboarding;
+- admin consent for the baseline read-only permission bundle only during first onboarding;
 - provider-token key material for encrypted tenant credential envelopes;
 - known license/service-plan expectations for Intune, Defender XDR, and Secure Score;
 - no customer production data;
@@ -426,7 +426,7 @@ PURESOC_PROVIDER_TOKEN_KEY_RETIREMENT_PLAN_CONFIRMED=false
 PURESOC_MICROSOFT365_SMOKE_TENANT_ID=<disposable-test-tenant-id>
 ```
 
-Read-only V1 bundles are documented in `docs/microsoft365-permissions.md`:
+Read-only V1 bundles are documented in `docs/microsoft365-permissions.md`. Start first onboarding with baseline only, then add optional bundles through a separate reviewed expansion:
 
 - `m365_read_baseline`;
 - `m365_security_read`;

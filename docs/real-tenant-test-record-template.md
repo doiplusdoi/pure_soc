@@ -55,9 +55,9 @@ Expected application/service-principal count range:
 ## Approved Permission Bundles
 
 ```txt
-m365_read_baseline approved? yes | no
-m365_security_read approved? yes | no
-m365_intune_read approved? yes | no
+m365_read_baseline first-onboarding approved? yes | no
+m365_security_read optional expansion approved? yes | no | not_requested
+m365_intune_read optional expansion approved? yes | no | not_requested
 m365_remediation_write approved? must_be_no
 m365_defender_write approved? must_be_no
 Unexpected Microsoft Graph permissions found? yes | no

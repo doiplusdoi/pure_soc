@@ -80,7 +80,7 @@ const isRomaniaOnboardingScreen = (value: unknown): value is RomaniaOnboardingSc
   typeof value === "string" && romaniaOnboardingScreenKeys.has(value as RomaniaOnboardingScreen);
 
 const romaniaOnboardingPath = (screen: RomaniaOnboardingScreen): string => `/onboarding/romania/${screen}`;
-const microsoft365ReadOnlyConnectionBundles = ["m365_read_baseline", "m365_security_read", "m365_intune_read"] as const;
+const microsoft365FirstConnectionBundles = ["m365_read_baseline"] as const;
 const internalComposeWebOrigin = "http://puresoc-web:3000";
 
 interface LatestDashboardSnapshotResponse {
@@ -808,6 +808,16 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    if (request.method === "GET" && url.pathname === "/gap-analyzer/run") {
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/gap-analyzer?message=${encodeURIComponent("Use the Run analyzer button to start the readiness analysis.")}`
+      );
+      response.end();
+      return;
+    }
+
     const productRoute = productRouteByPath.get(url.pathname);
     if (request.method === "GET" && productRoute) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
@@ -1245,7 +1255,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         origin: apiRequestOrigin,
         body: {
           redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
-          requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
+          requestedPermissionBundles: [...microsoft365FirstConnectionBundles]
         }
       });
 
@@ -1911,7 +1921,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           origin: apiRequestOrigin,
           body: {
             redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
-            requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
+            requestedPermissionBundles: [...microsoft365FirstConnectionBundles]
           }
         }
       );
@@ -1980,13 +1990,12 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       if (completed.statusCode !== 201) {
         const errorCode = apiErrorCode(completed.body);
         const errorMessage = apiErrorMessage(completed.body);
+        const microsoft365Message = microsoft365CallbackErrorMessage(errorCode, errorMessage);
         sendHtml(
           response,
           renderRuntimeMessageScreen({
             title: "Microsoft 365 Consent Not Completed",
-            summary:
-              errorMessage ??
-              "The callback did not match the active workspace session or Microsoft did not grant admin consent.",
+            summary: microsoft365Message,
             statusLabel: errorCode ?? "Consent blocked",
             statusTone: "warning",
             actionHref: "/providers/microsoft365",
@@ -4102,6 +4111,31 @@ const providerStatusToOperationalStatus = (status: string): OperationalStatus =>
 const microsoft365WebCallbackRedirectUri = (requestOrigin: string): string =>
   process.env.PURESOC_CONNECTOR_MICROSOFT365_REDIRECT_URI?.trim() ||
   `${requestOrigin}/providers/microsoft365/callback`;
+
+const microsoft365CallbackErrorMessage = (
+  errorCode: string | null | undefined,
+  errorMessage: string | null | undefined
+): string => {
+  if (errorCode === "microsoft365_graph_forbidden") {
+    return [
+      "Microsoft Graph rejected the first tenant-profile read. Confirm the PureSOC Entra app registration has Microsoft Graph application permissions for the baseline bundle only, not delegated user scopes or write permissions, then grant admin consent again.",
+      errorMessage
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  if (errorCode === "microsoft365_write_permission_granted_disabled") {
+    return [
+      "Microsoft returned write permissions for the connector app, but PureSOC first onboarding is read-only. Remove write permissions from the Entra app registration and grant admin consent again.",
+      errorMessage
+    ]
+      .filter(Boolean)
+      .join(" ");
+  }
+
+  return errorMessage ?? "The callback did not match the active workspace session or Microsoft did not grant admin consent.";
+};
 
 const handleNis2CountryOnboardingPost = async (input: {
   apiBaseUrl: string;

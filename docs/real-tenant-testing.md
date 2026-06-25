@@ -89,7 +89,7 @@ Client secrets are acceptable for disposable smoke, but production should move t
 
 ## Permission Bundles
 
-Use only the read bundles for V1 tenant testing.
+Use only read bundles for V1 tenant testing. Start first onboarding with `m365_read_baseline` only; add security or Intune read bundles only through a separate reviewed expansion after baseline consent and tenant-profile reads work.
 
 | Bundle | Permissions |
 |---|---|
@@ -104,7 +104,7 @@ m365_remediation_write
 m365_defender_write
 ```
 
-In Microsoft Entra, configure these as Microsoft Graph application permissions on the PureSOC connector app, then grant tenant-wide admin consent.
+In Microsoft Entra, configure the selected bundle as Microsoft Graph application permissions on the PureSOC connector app, then grant tenant-wide admin consent. Because `/.default` displays all configured app-registration permissions, do not leave optional or delegated scopes on the connector app when testing baseline onboarding.
 
 For application permissions, use Microsoft identity platform v2 admin consent with `scope=https://graph.microsoft.com/.default`. Use `organizations` before the tenant is known, or a tenant ID when the tenant is known; do not use `common`.
 

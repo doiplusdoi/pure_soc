@@ -40,11 +40,11 @@ Do not print, screenshot, commit, or paste client secrets, provider token keys, 
 
 Use a PureSOC-controlled multitenant Microsoft Entra app registration for the connector flow.
 
-Configure only Microsoft Graph application permissions from the existing read-only bundles:
+Configure only Microsoft Graph application permissions for the baseline first-connection bundle:
 
 - `m365_read_baseline`
-- `m365_security_read`
-- `m365_intune_read`
+
+Add `m365_security_read` or `m365_intune_read` only through a separate reviewed expansion after baseline consent works. Microsoft displays every app-registration permission for `https://graph.microsoft.com/.default`, so optional bundles must not be left on the app registration during baseline onboarding.
 
 Do not request `m365_remediation_write`, `m365_defender_write`, Microsoft Graph write permissions, delegated Graph scopes for the connector, or provider write actions. The consent flow uses Microsoft identity platform v2 admin consent and Graph `https://graph.microsoft.com/.default`.
 

@@ -11,6 +11,7 @@ import {
   createMicrosoft365Connector,
   createMicrosoft365FixtureConnector,
   microsoft365CoreDemoReadModules,
+  normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   type Microsoft365CloudEnvironment,
   type Microsoft365StoredCredential
@@ -374,6 +375,11 @@ const createConnectedStore = async (input: {
 };
 
 describe("microsoft365 consent graph sync permissions redaction", () => {
+  it("defaults omitted consent bundles to baseline only", () => {
+    expect(normalizeMicrosoft365RequestedBundles(undefined)).toEqual(["m365_read_baseline"]);
+    expect(normalizeMicrosoft365RequestedBundles([])).toEqual(["m365_read_baseline"]);
+  });
+
   it("generates a read-only Microsoft admin-consent URL and rejects write bundles", async () => {
     expect(baselinePermissions).toEqual(expect.arrayContaining(["Policy.Read.All", "AuditLog.Read.All"]));
     expect(securityPermissions).toEqual(expect.arrayContaining(["SecurityAlert.Read.All"]));

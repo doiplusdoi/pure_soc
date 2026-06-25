@@ -841,9 +841,9 @@ const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
     eyebrow: "Manual and connector baseline",
     title: "Gap Analyzer",
     status: model.dashboard.readiness.baselineState,
-    primaryAction: { href: "/gap-analyzer/run", label: "Run analyzer" }
+    primaryAction: { href: "#run-gap-analyzer-form", label: "Run analyzer" }
   }),
-  '<form class="ps-panel ps-form" action="/gap-analyzer/run" method="post" data-ui-action="run-gap-analyzer">',
+  '<form class="ps-panel ps-form" id="run-gap-analyzer-form" action="/gap-analyzer/run" method="post" data-ui-action="run-gap-analyzer">',
   '<p class="ps-muted">The analyzer works from onboarding answers and manual security input. Microsoft 365 findings increase confidence when connected.</p>',
   renderCommandButton({ label: "Run analyzer", ariaLabel: "Run gap analyzer", tone: "primary", type: "submit" }),
   "</form>",
@@ -1787,11 +1787,11 @@ export const renderMicrosoft365ConnectorPage = (
     "</article>",
     '<article class="ps-panel">',
     '<h2 class="ps-panel__title">Consent scope</h2>',
-    '<p class="ps-muted">The connect action requests the V1 read-only baseline, security, and Intune bundles. Write and remediation scopes remain disabled.</p>',
+    '<p class="ps-muted">The connect action requests the baseline read-only bundle first. Security and Intune reads stay optional reviewed expansions, and write/remediation scopes remain disabled.</p>',
     '<div class="ps-chip-row">',
     renderStatusPill({ label: "m365_read_baseline", tone: "info" }),
-    renderStatusPill({ label: "m365_security_read", tone: "info" }),
-    renderStatusPill({ label: "m365_intune_read", tone: "info" }),
+    renderStatusPill({ label: "security optional", tone: "neutral" }),
+    renderStatusPill({ label: "Intune optional", tone: "neutral" }),
     renderStatusPill({ label: "no write scopes", tone: "success" }),
     "</div>",
     "</article>",
@@ -5151,8 +5151,8 @@ const microsoft365ConnectorSetupRows: readonly Microsoft365ConnectorSetupRow[] =
   },
   {
     item: "Read-only bundles",
-    value: "Baseline, security, Intune",
-    detail: "The first connection asks for V1 read-only bundles only; remediation write bundles are disabled."
+    value: "Baseline first",
+    detail: "The first connection asks for the baseline application-permission bundle only; optional security and Intune reads need a separate reviewed expansion."
   },
   {
     item: "Token storage",
@@ -5195,7 +5195,7 @@ const renderMicrosoft365ConnectorSetup = (): string =>
       ],
       microsoft365ConnectorSetupRows
     ),
-    '<p class="ps-help">Admin consent redirects use Microsoft identity platform v2 with Microsoft Graph /.default application permissions. Background Graph reads use the tenant grant with the client credentials flow.</p>',
+    '<p class="ps-help">Admin consent redirects use Microsoft identity platform v2 with Microsoft Graph /.default application permissions. Microsoft shows every Graph permission configured on the Entra app registration, so the connector app must not contain delegated user scopes or write permissions for first onboarding.</p>',
     "</div>"
   ].join("");
 

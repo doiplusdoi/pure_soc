@@ -36,9 +36,9 @@ Write bundles stay separate and are not requested during first onboarding:
 
 ## Implementation Notes
 
-- The workspace connector flow uses Microsoft Entra admin consent at `/organizations/v2.0/adminconsent` with `scope=https://graph.microsoft.com/.default`, then app-only client credentials with the tenant grant.
+- The workspace connector flow uses Microsoft Entra admin consent at `/organizations/v2.0/adminconsent` with `scope=https://graph.microsoft.com/.default`, then app-only client credentials with the tenant grant. Microsoft displays every permission configured on the Entra app registration for `/.default`, so the connector app registration must contain only approved Microsoft Graph application permissions for the selected bundle and must not contain delegated user scopes or write permissions during first onboarding.
 - The workspace connector stores admin-consent callback state as a single-use SHA-256 state hash in `provider_consent_states`; raw OAuth state is not persisted, and the callback still validates organization, actor, redirect URI, and expiry before token exchange.
-- When a caller does not supply a narrower bundle list, PureSOC requests the full V1 read-only set: `m365_read_baseline`, `m365_security_read`, and `m365_intune_read`. Write bundles remain rejected during first connection.
+- When a caller does not supply a bundle list, PureSOC requests `m365_read_baseline` only. Security and Intune read bundles stay read-only, but should be added through a separate reviewed expansion after baseline tenant-profile consent works. Write bundles remain rejected during first connection.
 - Granted app permissions are read from the token roles in the mocked/test path and persisted as permission bundle data.
 - Provider credentials are stored encrypted; OAuth codes, access tokens, refresh tokens, client secrets, tenant secrets, and authorization headers must not be logged or returned by API responses.
 - Graph pagination follows `@odata.nextLink`; retry handling honors throttled responses through module retry telemetry.
