@@ -40,11 +40,11 @@ import {
   microsoft365ReadModules,
   microsoft365ReadPermissionBundles,
   microsoft365WritePermissionBundles,
-  assertMicrosoft365NoWritePermissionsGranted,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   missingPermissions,
   type Microsoft365CloudEnvironment,
+  type Microsoft365PermissionBundleKey,
   type Microsoft365ModuleKey,
   type Microsoft365ReadPermissionBundleKey
 } from "./permissions";
@@ -59,7 +59,6 @@ export {
   microsoft365ReadModules,
   microsoft365ReadPermissionBundles,
   microsoft365WritePermissionBundles,
-  assertMicrosoft365NoWritePermissionsGranted,
   normalizeMicrosoft365RequestedBundles,
   permissionsForMicrosoft365Bundles,
   type Microsoft365CloudEnvironment,
@@ -149,7 +148,7 @@ export interface Microsoft365StoredCredential {
   tokenType: string;
   expiresAt: string;
   grantedPermissions: string[];
-  requestedPermissionBundles: Microsoft365ReadPermissionBundleKey[];
+  requestedPermissionBundles: Microsoft365PermissionBundleKey[];
   consentedAt: string;
   cloudEnvironment?: Microsoft365CloudEnvironment;
   sourceMode?: "fixture" | "live";
@@ -292,7 +291,6 @@ export const createMicrosoft365Connector = (
         authorityHost
       });
       const grantedPermissions = [...new Set(token.grantedPermissions ?? decodeJwtRoles(token.accessToken))].sort();
-      assertMicrosoft365NoWritePermissionsGranted(grantedPermissions);
       const tokenTenantId = token.tenantId ?? decodeJwtTenantId(token.accessToken);
 
       if (tokenTenantId && tokenTenantId !== tenantId) {
@@ -313,15 +311,13 @@ export const createMicrosoft365Connector = (
         consentedAt: now().toISOString(),
         sourceMode: options.sourceMode ?? "live"
       };
-      const tenantProfile = await getTenantProfileFromGraph({
-        graphClient,
-        accessToken: token.accessToken,
+      const providerConnectionId = idFactory();
+      const tenantProfile = tenantProfileFromConsent({
         organizationId: input.organizationId,
-        providerConnectionId: idFactory(),
+        providerConnectionId,
         tenantId,
-        maxRetries: 3
+        now
       });
-      const providerConnectionId = tenantProfile.providerConnectionId;
       const connection = connectionFor({
         id: providerConnectionId,
         organizationId: input.organizationId,
@@ -470,7 +466,7 @@ interface ConnectionForInput {
   organizationId: string;
   tenantId: string;
   tenantName: string;
-  requestedBundles: Microsoft365ReadPermissionBundleKey[];
+  requestedBundles: Microsoft365PermissionBundleKey[];
   grantedPermissions: string[];
   sourceMode: "fixture" | "live";
   now: () => Date;
@@ -499,7 +495,7 @@ const connectionFor = (input: ConnectionForInput): ProviderConnectionRecord => (
 const buildPermissionBundleInputs = (input: {
   organizationId: string;
   providerConnectionId: string;
-  requestedBundles: Microsoft365ReadPermissionBundleKey[];
+  requestedBundles: Microsoft365PermissionBundleKey[];
   grantedPermissions: string[];
 }): ProviderPermissionBundleInput[] =>
   input.requestedBundles.map((bundleKey) => {
@@ -1082,6 +1078,35 @@ const getTenantProfileFromGraph = async (input: {
     contentHash: profile.tenantId,
     firstSeenAt: new Date().toISOString(),
     lastSeenAt: new Date().toISOString()
+  };
+};
+
+const tenantProfileFromConsent = (input: {
+  organizationId: string;
+  providerConnectionId: string;
+  tenantId: string;
+  now: () => Date;
+}) => {
+  const observedAt = input.now().toISOString();
+
+  return {
+    id: input.providerConnectionId,
+    organizationId: input.organizationId,
+    providerConnectionId: input.providerConnectionId,
+    providerKey: microsoft365ProviderKey,
+    externalId: input.tenantId,
+    externalResourceType: "organization",
+    rawResourceId: undefined,
+    resourceType: "cloud_tenant" as const,
+    sourceModule: "tenant-profile",
+    normalizedJson: {
+      tenantId: input.tenantId,
+      displayName: input.tenantId,
+      domains: []
+    },
+    contentHash: input.tenantId,
+    firstSeenAt: observedAt,
+    lastSeenAt: observedAt
   };
 };
 
@@ -1928,7 +1953,6 @@ const runLiveMicrosoft365ReadOnlySmoke = async (
       authorityHost: options.config.authorityHost
     });
     const grantedPermissions = [...new Set(token.grantedPermissions ?? decodeJwtRoles(token.accessToken))].sort();
-    assertMicrosoft365NoWritePermissionsGranted(grantedPermissions);
     const tokenTenantId = token.tenantId ?? decodeJwtTenantId(token.accessToken);
     if (tokenTenantId && tokenTenantId !== options.config.tenantId) {
       throw new ProviderConnectorError("microsoft365_smoke_tenant_mismatch", "Microsoft 365 smoke token tenant mismatch.", {

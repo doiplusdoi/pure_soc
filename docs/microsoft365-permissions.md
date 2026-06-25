@@ -10,7 +10,7 @@ Validated on 2026-04-30 against Microsoft Learn references. Admin-consent endpoi
 | `m365_security_read` | `SecurityEvents.Read.All`, `SecurityIncident.Read.All`, `SecurityAlert.Read.All` | Secure Score and Defender XDR incidents/alerts where licensed and available |
 | `m365_intune_read` | `DeviceManagementManagedDevices.Read.All`, `DeviceManagementConfiguration.Read.All` | Intune managed device reads where `INTUNE_A` is detected |
 
-Write bundles stay separate and are not requested during first onboarding:
+Write bundles stay separate from read modules. They can be accepted as consent metadata, but they do not enable provider write execution by themselves:
 
 | Bundle | Status |
 |---|---|
@@ -36,9 +36,9 @@ Write bundles stay separate and are not requested during first onboarding:
 
 ## Implementation Notes
 
-- The workspace connector flow uses Microsoft Entra admin consent at `/organizations/v2.0/adminconsent` with `scope=https://graph.microsoft.com/.default`, then app-only client credentials with the tenant grant. Microsoft displays every permission configured on the Entra app registration for `/.default`, so the connector app registration must contain only approved Microsoft Graph application permissions for the selected bundle and must not contain delegated user scopes or write permissions during first onboarding.
+- The workspace connector flow uses Microsoft Entra admin consent at `/organizations/v2.0/adminconsent` with `scope=https://graph.microsoft.com/.default`, then app-only client credentials with the tenant grant. Microsoft displays every permission configured on the Entra app registration for `/.default`; PureSOC accepts and records any known requested bundle plus any app roles returned in the token, including write roles, while keeping provider write execution behind the separate action lifecycle.
 - The workspace connector stores admin-consent callback state as a single-use SHA-256 state hash in `provider_consent_states`; raw OAuth state is not persisted, and the callback still validates organization, actor, redirect URI, and expiry before token exchange.
-- When a caller does not supply a bundle list, PureSOC requests `m365_read_baseline` only. Security and Intune read bundles stay read-only, but should be added through a separate reviewed expansion after baseline tenant-profile consent works. Write bundles remain rejected during first connection.
+- When a caller does not supply a bundle list, PureSOC requests `m365_read_baseline` only. Callers may request known security, Intune, remediation, or Defender write bundles; write bundle grants are stored as permission metadata and do not by themselves enable provider writes.
 - Granted app permissions are read from the token roles in the mocked/test path and persisted as permission bundle data.
 - Provider credentials are stored encrypted; OAuth codes, access tokens, refresh tokens, client secrets, tenant secrets, and authorization headers must not be logged or returned by API responses.
 - Graph pagination follows `@odata.nextLink`; retry handling honors throttled responses through module retry telemetry.

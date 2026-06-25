@@ -19,6 +19,7 @@ const fixedNow = () => new Date("2026-04-28T10:00:00.000Z");
 const tenantId = "11111111-1111-1111-1111-111111111111";
 const baselinePermissions = permissionsForMicrosoft365Bundles(["m365_read_baseline"]);
 const securityPermissions = permissionsForMicrosoft365Bundles(["m365_security_read"]);
+const remediationWritePermissions = permissionsForMicrosoft365Bundles(["m365_remediation_write"]);
 
 const jwt = (roles: string[]): string => {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
@@ -58,6 +59,11 @@ const graphHttpClient: MicrosoftGraphHttpClient = async (request) => {
 
   throw new Error(`Unhandled Graph fixture path: ${url.pathname}`);
 };
+
+const forbiddenGraphHttpClient: MicrosoftGraphHttpClient = async () => ({
+  status: 403,
+  body: { error: { code: "Authorization_RequestDenied" } }
+});
 
 describe("microsoft365 API consent and health service", () => {
   it("keeps Microsoft 365 onboarding service available and reports missing connector app configuration", async () => {
@@ -237,6 +243,71 @@ describe("microsoft365 API consent and health service", () => {
     ).rejects.toMatchObject({ code: "invalid_request" });
     expect(completed.connection.id).toBe("m365_api_connection_persisted");
     expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_read_baseline")?.enabled).toBe(true);
+  });
+
+  it("accepts write-capable consent and records tenant-profile Graph 403 as module health", async () => {
+    const store = new InMemoryProviderResourceStore({ now: fixedNow });
+    const auditWriter = new AuditWriter({
+      sink: new InMemoryAuditSink(),
+      now: fixedNow
+    });
+    const tokenCipher = createLocalMicrosoft365TokenCipher({ masterKey: "api-test-master-key" });
+    const grantedPermissions = [...baselinePermissions, ...remediationWritePermissions];
+    const accessToken = jwt(grantedPermissions);
+    const service = new Microsoft365ProviderConnectionService({
+      store,
+      auditWriter,
+      now: fixedNow,
+      stateFactory: () => "state_write_capable",
+      tokenCipher,
+      createConnector: ({ credentialResolver, tokenCipher: connectorCipher }) =>
+        createMicrosoft365Connector({
+          clientId: "client-id",
+          clientSecret: "client-secret",
+          graphHttpClient: forbiddenGraphHttpClient,
+          credentialResolver,
+          tokenCipher: connectorCipher,
+          tokenClient: async () => ({
+            accessToken,
+            tokenType: "Bearer",
+            expiresIn: 3600,
+            tenantId,
+            grantedPermissions
+          }),
+          idFactory: () => "m365_api_connection_write_capable",
+          now: fixedNow
+        })
+    });
+
+    const begin = await service.beginConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/providers/microsoft365/callback",
+      requestedPermissionBundles: ["m365_remediation_write"]
+    });
+    const completed = await service.completeConsent({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      state: begin.state,
+      tenantId,
+      adminConsent: true,
+      redirectUri: "https://app.example.test/providers/microsoft365/callback"
+    });
+    const health = await service.getHealth("org_1", completed.connection.id);
+
+    expect(completed.connection.writeEnabled).toBe(false);
+    expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_remediation_write")).toMatchObject({
+      enabled: true,
+      permissionsGranted: remediationWritePermissions
+    });
+    expect(completed.tenantProfileSync.modules[0]).toMatchObject({
+      moduleKey: "tenant-profile",
+      status: "missing_permission"
+    });
+    expect(health.status).toBe("degraded");
+    expect(health.moduleStatuses.find((module) => module.moduleKey === "tenant-profile")?.status).toBe(
+      "missing_permission"
+    );
   });
 
   it("does not burn pending Microsoft consent state for the wrong workspace session", async () => {

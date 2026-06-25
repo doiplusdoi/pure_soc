@@ -1787,12 +1787,12 @@ export const renderMicrosoft365ConnectorPage = (
     "</article>",
     '<article class="ps-panel">',
     '<h2 class="ps-panel__title">Consent scope</h2>',
-    '<p class="ps-muted">The connect action requests the baseline read-only bundle first. Security and Intune reads stay optional reviewed expansions, and write/remediation scopes remain disabled.</p>',
+    '<p class="ps-muted">The connect action requests the baseline read bundle by default. Optional read or write bundle grants are recorded as permission metadata; provider write execution stays gated by the action lifecycle.</p>',
     '<div class="ps-chip-row">',
     renderStatusPill({ label: "m365_read_baseline", tone: "info" }),
     renderStatusPill({ label: "security optional", tone: "neutral" }),
     renderStatusPill({ label: "Intune optional", tone: "neutral" }),
-    renderStatusPill({ label: "no write scopes", tone: "success" }),
+    renderStatusPill({ label: "writes gated", tone: "neutral" }),
     "</div>",
     "</article>",
     "</div>",
@@ -5195,7 +5195,7 @@ const renderMicrosoft365ConnectorSetup = (): string =>
       ],
       microsoft365ConnectorSetupRows
     ),
-    '<p class="ps-help">Admin consent redirects use Microsoft identity platform v2 with Microsoft Graph /.default application permissions. Microsoft shows every Graph permission configured on the Entra app registration, so the connector app must not contain delegated user scopes or write permissions for first onboarding.</p>',
+    '<p class="ps-help">Admin consent redirects use Microsoft identity platform v2 with Microsoft Graph /.default application permissions. Microsoft shows every Graph permission configured on the Entra app registration; PureSOC records granted roles while keeping provider write execution behind the separate action lifecycle.</p>',
     "</div>"
   ].join("");
 

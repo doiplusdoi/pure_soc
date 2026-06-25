@@ -1479,7 +1479,7 @@ async function runLiveDemoLocalMicrosoftAndActionPath({
     }
   });
   const connectorText = htmlText(connectorHtml);
-  record("live_demo_local_m365_connector_shows_read_only_bundles", /read-only/i.test(connectorText) && /no write scopes/i.test(connectorText));
+  record("live_demo_local_m365_connector_shows_gated_writes", /read/i.test(connectorText) && /writes gated/i.test(connectorText));
 
   const connectLocation = await postForm(`${webBaseUrl}/providers/microsoft365/connect`, {}, webCookie);
   const consentUrl = new URL(connectLocation, webBaseUrl);
@@ -2209,7 +2209,11 @@ async function loginThroughWeb({ webBaseUrl, email, password, organizationId }) 
   });
 
   record("web_login_proxy_redirects_after_api_login", response.status === 303, String(response.status));
-  record("web_login_proxy_redirect_location_dashboard", response.headers.get("location") === "/");
+  const loginLocation = response.headers.get("location");
+  const expectedLoginLocation = organizationId
+    ? loginLocation === "/" || loginLocation === "/dashboard"
+    : loginLocation === "/workspaces";
+  record("web_login_proxy_redirect_location_dashboard", expectedLoginLocation, loginLocation ?? "");
   const cookie = response.headers.get("set-cookie") ?? "";
   record("web_login_proxy_sets_api_session_cookie", cookie.includes("puresoc_session"));
   return {

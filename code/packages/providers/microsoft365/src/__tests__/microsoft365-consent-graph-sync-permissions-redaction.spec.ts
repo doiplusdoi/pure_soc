@@ -24,8 +24,16 @@ const graphBaseUrl = "https://graph.microsoft.com/v1.0";
 const baselinePermissions = permissionsForMicrosoft365Bundles(["m365_read_baseline"]);
 const securityPermissions = permissionsForMicrosoft365Bundles(["m365_security_read"]);
 const intunePermissions = permissionsForMicrosoft365Bundles(["m365_intune_read"]);
+const remediationWritePermissions = permissionsForMicrosoft365Bundles(["m365_remediation_write"]);
 
-type GraphScenario = "healthy" | "paginated" | "throttled" | "no_intune_license" | "revoked" | "server_error";
+type GraphScenario =
+  | "healthy"
+  | "paginated"
+  | "throttled"
+  | "no_intune_license"
+  | "revoked"
+  | "forbidden"
+  | "server_error";
 
 const jwt = (input: { tid?: string; roles: string[] }): string => {
   const header = Buffer.from(JSON.stringify({ alg: "none", typ: "JWT" })).toString("base64url");
@@ -43,6 +51,10 @@ const createFixtureGraphHttpClient = (scenario: GraphScenario): MicrosoftGraphHt
 
     if (scenario === "revoked") {
       return { status: 401, body: { error: { code: "InvalidAuthenticationToken" } } };
+    }
+
+    if (scenario === "forbidden") {
+      return { status: 403, body: { error: { code: "Authorization_RequestDenied" } } };
     }
 
     if (scenario === "server_error") {
@@ -380,7 +392,7 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     expect(normalizeMicrosoft365RequestedBundles([])).toEqual(["m365_read_baseline"]);
   });
 
-  it("generates a read-only Microsoft admin-consent URL and rejects write bundles", async () => {
+  it("generates a Microsoft admin-consent URL and accepts known write bundles", async () => {
     expect(baselinePermissions).toEqual(expect.arrayContaining(["Policy.Read.All", "AuditLog.Read.All"]));
     expect(securityPermissions).toEqual(expect.arrayContaining(["SecurityAlert.Read.All"]));
 
@@ -405,15 +417,14 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     expect(url.searchParams.get("scope")).toBe("https://graph.microsoft.com/.default");
     expect(url.searchParams.get("state")).toBe("state_123");
     expect(url.searchParams.get("redirect_uri")).toBe("https://app.example.test/m365/callback");
-    await expect(
-      connector.beginConnection({
-        organizationId: "org_1",
-        actorUserId: "user_1",
-        redirectUri: "https://app.example.test/m365/callback",
-        state: "state_123",
-        requestedPermissionBundles: ["m365_remediation_write"]
-      })
-    ).rejects.toMatchObject({ code: "microsoft365_write_bundle_disabled" });
+    const writeRedirect = await connector.beginConnection({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/m365/callback",
+      state: "state_write_123",
+      requestedPermissionBundles: ["m365_remediation_write"]
+    });
+    expect(new URL(writeRedirect.url).searchParams.get("state")).toBe("state_write_123");
   });
 
   it("validates callback tenant, encrypts token storage, and records permission bundles", async () => {
@@ -448,7 +459,7 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     });
 
     expect(result.connection.writeEnabled).toBe(false);
-    expect(result.tenantProfile?.normalizedJson.displayName).toBe("Contoso PureSOC");
+    expect(result.tenantProfile?.normalizedJson.displayName).toBe(tenantId);
     expect(result.permissionBundles?.find((bundle) => bundle.bundleKey === "m365_security_read")?.enabled).toBe(true);
     expect(result.credentials?.[0]?.encryptedPayload).not.toContain(accessToken);
     expect(cipher.decrypt<Microsoft365StoredCredential>(result.credentials?.[0]?.encryptedPayload ?? "").accessToken).toBe(
@@ -477,38 +488,39 @@ describe("microsoft365 consent graph sync permissions redaction", () => {
     ).rejects.toMatchObject({ code: "microsoft365_tenant_mismatch" });
   });
 
-  it("rejects live consent tokens that include Microsoft Graph write app roles", async () => {
+  it("records write bundles and Graph write app roles without enabling provider writes", async () => {
+    const writeRoles = [...baselinePermissions, ...remediationWritePermissions];
     const connector = createMicrosoft365Connector({
       clientId: "client-id",
       clientSecret: "client-secret",
       graphHttpClient: createFixtureGraphHttpClient("healthy"),
       tokenClient: async () => ({
-        accessToken: jwt({ roles: [...baselinePermissions, "User.ReadWrite.All"] }),
+        accessToken: jwt({ roles: writeRoles }),
         tokenType: "Bearer",
         expiresIn: 3600,
         tenantId,
-        grantedPermissions: [...baselinePermissions, "User.ReadWrite.All"]
+        grantedPermissions: writeRoles
       }),
       now: fixedNow
     });
 
-    await expect(
-      connector.completeConnection({
-        organizationId: "org_1",
-        actorUserId: "user_1",
-        redirectUri: "https://app.example.test/m365/callback",
-        state: "state_123",
-        metadata: {
-          tenantId,
-          adminConsent: true,
-          requestedPermissionBundles: ["m365_read_baseline"]
-        }
-      })
-    ).rejects.toMatchObject({
-      code: "microsoft365_write_permission_granted_disabled",
-      details: {
-        writePermissions: ["User.ReadWrite.All"]
+    const result = await connector.completeConnection({
+      organizationId: "org_1",
+      actorUserId: "user_1",
+      redirectUri: "https://app.example.test/m365/callback",
+      state: "state_123",
+      metadata: {
+        tenantId,
+        adminConsent: true,
+        requestedPermissionBundles: ["m365_remediation_write"]
       }
+    });
+
+    expect(result.connection.writeEnabled).toBe(false);
+    expect(result.connection.metadata.grantedPermissions).toEqual(expect.arrayContaining(remediationWritePermissions));
+    expect(result.permissionBundles?.find((bundle) => bundle.bundleKey === "m365_remediation_write")).toMatchObject({
+      enabled: true,
+      permissionsGranted: remediationWritePermissions
     });
   });
 

@@ -186,56 +186,30 @@ export const microsoft365ModuleRequirements: Record<Microsoft365ModuleKey, Micro
   }
 };
 
-const microsoft365ReadBundleKeys = new Set<string>(microsoft365ReadPermissionBundles);
 const microsoft365AllBundleKeys = new Set<string>([
   ...microsoft365ReadPermissionBundles,
   ...microsoft365WritePermissionBundles
 ]);
-const microsoft365WritePermissionKeys = new Set<string>(
-  microsoft365WritePermissionBundles.flatMap((bundleKey) => microsoft365PermissionBundles[bundleKey].permissions)
-);
 
-export const assertMicrosoft365ReadOnlyBundles = (bundleKeys: readonly string[]): void => {
+export const assertMicrosoft365KnownBundles = (bundleKeys: readonly string[]): void => {
   const unsupported = bundleKeys.filter((bundleKey) => !microsoft365AllBundleKeys.has(bundleKey));
   if (unsupported.length > 0) {
     throw new ProviderConnectorError("microsoft365_unsupported_permission_bundle", "Unsupported Microsoft 365 bundle.", {
       unsupported
     });
   }
-
-  const writeBundles = bundleKeys.filter((bundleKey) => !microsoft365ReadBundleKeys.has(bundleKey));
-  if (writeBundles.length > 0) {
-    throw new ProviderConnectorError(
-      "microsoft365_write_bundle_disabled",
-      "Microsoft 365 write permission bundles are disabled during first onboarding.",
-      { writeBundles }
-    );
-  }
-};
-
-export const assertMicrosoft365NoWritePermissionsGranted = (grantedPermissions: readonly string[]): void => {
-  const writePermissions = grantedPermissions.filter((permission) => microsoft365WritePermissionKeys.has(permission));
-  if (writePermissions.length > 0) {
-    throw new ProviderConnectorError(
-      "microsoft365_write_permission_granted_disabled",
-      "Microsoft 365 app-only token includes write permissions while write scopes are disabled.",
-      {
-        writePermissions: [...new Set(writePermissions)].sort()
-      }
-    );
-  }
 };
 
 export const normalizeMicrosoft365RequestedBundles = (
   requestedPermissionBundles: readonly string[] | undefined
-): Microsoft365ReadPermissionBundleKey[] => {
+): Microsoft365PermissionBundleKey[] => {
   const requested = requestedPermissionBundles?.length ? requestedPermissionBundles : ["m365_read_baseline"];
-  assertMicrosoft365ReadOnlyBundles(requested);
+  assertMicrosoft365KnownBundles(requested);
 
-  const bundleKeys = new Set<Microsoft365ReadPermissionBundleKey>();
+  const bundleKeys = new Set<Microsoft365PermissionBundleKey>();
   bundleKeys.add("m365_read_baseline");
   for (const bundleKey of requested) {
-    bundleKeys.add(bundleKey as Microsoft365ReadPermissionBundleKey);
+    bundleKeys.add(bundleKey as Microsoft365PermissionBundleKey);
   }
 
   return [...bundleKeys];

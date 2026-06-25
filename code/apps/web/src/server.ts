@@ -4118,16 +4118,7 @@ const microsoft365CallbackErrorMessage = (
 ): string => {
   if (errorCode === "microsoft365_graph_forbidden") {
     return [
-      "Microsoft Graph rejected the first tenant-profile read. Confirm the PureSOC Entra app registration has Microsoft Graph application permissions for the baseline bundle only, not delegated user scopes or write permissions, then grant admin consent again.",
-      errorMessage
-    ]
-      .filter(Boolean)
-      .join(" ");
-  }
-
-  if (errorCode === "microsoft365_write_permission_granted_disabled") {
-    return [
-      "Microsoft returned write permissions for the connector app, but PureSOC first onboarding is read-only. Remove write permissions from the Entra app registration and grant admin consent again.",
+      "Microsoft Graph rejected the first tenant-profile read. Confirm the PureSOC Entra app registration includes the Microsoft Graph application permissions required by the selected bundle, then grant admin consent again. Extra granted roles are recorded, but provider writes still require the separate action lifecycle.",
       errorMessage
     ]
       .filter(Boolean)

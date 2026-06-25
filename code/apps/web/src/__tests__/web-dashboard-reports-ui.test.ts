@@ -1265,8 +1265,8 @@ describe("web dashboard reports operational UI", () => {
       const html = await response.text();
 
       expect(response.status).toBe(403);
-      expect(html).toContain("application permissions for the baseline bundle only");
-      expect(html).toContain("not delegated user scopes or write permissions");
+      expect(html).toContain("application permissions required by the selected bundle");
+      expect(html).toContain("Extra granted roles are recorded");
       expect(html).toContain("microsoft365_graph_forbidden");
     } finally {
       await new Promise<void>((resolve, reject) => {
@@ -1743,7 +1743,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("security optional");
     expect(html).toContain("Intune optional");
     expect(html).toContain("Baseline first");
-    expect(html).toContain("no write scopes");
+    expect(html).toContain("writes gated");
     expect(html).toContain('action="/providers/microsoft365/connect"');
     expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
     expect(html).not.toMatch(/PURESOC_CONNECTOR_MICROSOFT365_CLIENT_(ID|SECRET)|migrate reset|db push --force-reset/i);
