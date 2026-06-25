@@ -587,6 +587,22 @@ model TenantAccessSession {
   @@map("tenant_access_sessions")
 }
 
+model ProductV1StateRecord {
+  id             String   @id
+  recordType     String   @map("record_type")
+  organizationId String?  @map("organization_id")
+  partitionKey   String?  @map("partition_key")
+  idempotencyKey String?  @map("idempotency_key")
+  recordJson     Json     @map("record_json")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@index([recordType, organizationId], map: "product_v1_state_records_type_org_idx")
+  @@index([recordType, partitionKey], map: "product_v1_state_records_type_partition_idx")
+  @@index([recordType, organizationId, idempotencyKey], map: "product_v1_state_records_idempotency_idx")
+  @@map("product_v1_state_records")
+}
+
 model Role {
   id          String   @id @default(uuid()) @db.Uuid
   key         String   @unique

@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage } from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 
 import { AuthError } from "@puresoc/auth-core";
 import { validateConfigForStartup } from "@puresoc/config";
@@ -37,7 +37,7 @@ import {
   saveOrganizationNis2OnboardingRoute
 } from "./compliance/nis2/onboarding-routes";
 import { createApiServices, type ApiServices } from "./auth/services";
-import { parseJsonBody, parseRawBody, sendApiResult, sendJson, toJsonResultError, type ApiResult } from "./http";
+import { parseJsonBody, parseRawBody, sendApiResult, sendJson, toJsonResultError, type ApiResult, type JsonResult } from "./http";
 import { createApiMiddleware, type ApiRequestContext, type ApiRouteFamily } from "./middleware";
 import {
   acceptOrganizationInvitationRoute,
@@ -159,6 +159,41 @@ import {
   productUpdateGapRoute,
   productUpdateWorkspaceRoute
 } from "./product/routes";
+import {
+  productV1AggregateRoute,
+  productV1AggregateUpdateRoute,
+  productV1BusinessServicesRoute,
+  productV1CountryPacksRoute,
+  productV1CreateOrganizationRoute,
+  productV1CreateRelationshipInvitationRoute,
+  productV1EndSupportSessionRoute,
+  productV1DeleteFileObjectRoute,
+  productV1DownloadReportSnapshotRoute,
+  productV1FileObjectLegalHoldRoute,
+  productV1FileObjectsRoute,
+  productV1GetOperationRoute,
+  productV1GetSetupRoute,
+  productV1InternalEventPublishResultRoute,
+  productV1InternalEventsRoute,
+  productV1ListOrganizationsRoute,
+  productV1MeRoute,
+  productV1Microsoft365DisconnectRoute,
+  productV1Microsoft365SyncRunRoute,
+  productV1OpenApiRoute,
+  productV1PartnerAssignmentsRoute,
+  productV1PartnerCustomerContextRoute,
+  productV1ProviderCapabilitiesRoute,
+  productV1RelationshipTransitionRoute,
+  productV1ReportSnapshotsRoute,
+  productV1ReportTemplatesRoute,
+  productV1RetentionPoliciesRoute,
+  productV1ResponsibilitiesRoute,
+  productV1RunClassificationRoute,
+  productV1SaveSetupStepRoute,
+  productV1LaunchSetupRoute,
+  productV1SupportSessionsRoute,
+  productV1SuppliersRoute
+} from "./product-v1/routes";
 
 type ApiRouteMethod = "DELETE" | "GET" | "PATCH" | "POST" | "PUT";
 
@@ -199,6 +234,73 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     stripeBillingWebhookRoute(rawBody ?? Buffer.alloc(0), request.headers["stripe-signature"], context, services), {
       rawBody: true
     }),
+  route("GET", /^\/api\/v1\/openapi\.json$/, "public_read", () => productV1OpenApiRoute()),
+  route("GET", /^\/api\/v1\/me$/, "tenant_read", ({ request, services }) =>
+    productV1MeRoute(request.headers.cookie, services)),
+  route("GET", /^\/api\/v1\/organizations$/, "tenant_read", ({ url, request, services }) =>
+    productV1ListOrganizationsRoute(url.searchParams, request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations$/, "organization", ({ body, request, context, services }) =>
+    productV1CreateOrganizationRoute(body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/setup$/, "tenant_read", ({ params, request, services }) =>
+    productV1GetSetupRoute(params[0] ?? "", request.headers.cookie, services)),
+  route("PUT", /^\/api\/v1\/organizations\/([^/]+)\/setup\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
+    productV1SaveSetupStepRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/setup\/launch$/, "organization", ({ params, request, context, services }) =>
+    productV1LaunchSetupRoute(params[0] ?? "", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/business-services$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1BusinessServicesRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/responsibilities$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1ResponsibilitiesRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/suppliers$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1SuppliersRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/partners\/([^/]+)\/customer-invitations$/, "partner", ({ params, body, request, context, services }) =>
+    productV1CreateRelationshipInvitationRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/partners\/([^/]+)\/assignments$/, "partner", ({ params, url, body, request, context, services }) =>
+    productV1PartnerAssignmentsRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/partners\/([^/]+)\/customers\/([^/]+)\/context$/, "partner", ({ params, request, services }) =>
+    productV1PartnerCustomerContextRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organization-relationships\/([^/]+)\/(accept|suspend|request-termination|terminate)$/, "organization", ({ params, request, context, services }) =>
+    productV1RelationshipTransitionRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/support-sessions$/, "organization", ({ url, body, request, context, services }) =>
+    productV1SupportSessionsRoute(url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/support-sessions\/([^/]+)\/end$/, "organization", ({ params, body, request, context, services }) =>
+    productV1EndSupportSessionRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/country-packs$/, "public_read", ({ url }) =>
+    productV1CountryPacksRoute(url.searchParams, null)),
+  route("GET", /^\/api\/v1\/country-packs\/([^/]+)$/, "public_read", ({ url, params }) =>
+    productV1CountryPacksRoute(url.searchParams, params[0] ?? "")),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/compliance\/classification\/run$/, "compliance", ({ params, body, request, services }) =>
+    productV1RunClassificationRoute(params[0] ?? "", body, request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/connectors\/microsoft365\/sync-runs$/, "provider", ({ params, body, request, context, services }) =>
+    productV1Microsoft365SyncRunRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/connectors\/microsoft365\/disconnect$/, "provider", ({ params, body, request, context, services }) =>
+    productV1Microsoft365DisconnectRoute(params[0] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/provider-capabilities$/, "provider", ({ params, url, request, services }) =>
+    productV1ProviderCapabilitiesRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/internal-events$/, "tenant_read", ({ params, url, request, services }) =>
+    productV1InternalEventsRoute(params[0] ?? "", url.searchParams, request.headers.cookie, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/internal-events\/([^/]+)\/publish-result$/, "organization", ({ params, body, request, context, services }) =>
+    productV1InternalEventPublishResultRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/(assets|findings|remediation-plans|tasks|incidents|risks|policies|supplier-reviews|policy-reviews|policy-acknowledgements|governance-activities|governance-calendar-events|attestations|training-records)$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1AggregateRoute(params[0] ?? "", params[1] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("PATCH", /^\/api\/v1\/organizations\/([^/]+)\/(findings|remediation-plans|tasks|incidents|risks|policies|supplier-reviews|policy-reviews|policy-acknowledgements|governance-activities|governance-calendar-events|attestations|training-records)\/([^/]+)$/, "organization", ({ params, body, request, context, services }) =>
+    productV1AggregateUpdateRoute(params[0] ?? "", params[1] ?? "", params[2] ?? "", body, request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/retention-policies$/, "organization", ({ params, url, body, request, context, services }) =>
+    productV1RetentionPoliciesRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/file-objects$/, "evidence", ({ params, url, body, request, context, services }) =>
+    productV1FileObjectsRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("POST", /^\/api\/v1\/organizations\/([^/]+)\/file-objects\/([^/]+)\/legal-hold$/, "evidence", ({ params, body, request, context, services }) =>
+    productV1FileObjectLegalHoldRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("DELETE", /^\/api\/v1\/organizations\/([^/]+)\/file-objects\/([^/]+)$/, "evidence", ({ params, body, request, context, services }) =>
+    productV1DeleteFileObjectRoute(params[0] ?? "", params[1] ?? "", body, request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/report-templates$/, "public_read", () =>
+    productV1ReportTemplatesRoute()),
+  route(["GET", "POST"], /^\/api\/v1\/organizations\/([^/]+)\/report-snapshots$/, "compliance", ({ params, url, body, request, context, services }) =>
+    productV1ReportSnapshotsRoute(params[0] ?? "", url.searchParams, body, request.method ?? "GET", request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/organizations\/([^/]+)\/report-snapshots\/([^/]+)\/download$/, "compliance", ({ params, request, context, services }) =>
+    productV1DownloadReportSnapshotRoute(params[0] ?? "", params[1] ?? "", request.headers.cookie, context, services)),
+  route("GET", /^\/api\/v1\/operations\/([^/]+)$/, "tenant_read", ({ params, request, services }) =>
+    productV1GetOperationRoute(params[0] ?? "", request.headers.cookie, services)),
   route("GET", /^\/api\/dashboard$/, "tenant_read", ({ request, services }) =>
     productDashboardRoute(request.headers.cookie, services)),
   route("GET", /^\/api\/workspaces$/, "tenant_read", ({ request, services }) =>
@@ -618,7 +720,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       const context = middlewareDecision.context;
       requestContext = context;
       if (middlewareDecision.rejection) {
-        sendJson(response, middlewareDecision.rejection);
+        sendApiJson(response, middlewareDecision.rejection, context);
         return;
       }
 
@@ -629,7 +731,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
         const rawBody = await parseRawBody(request, {
           maxBytes: requestLimits.stripeWebhookRawBodyMaxBytes
         });
-        sendApiResult(
+        sendContextualApiResult(
           response,
           await routeMatch.route.handler({
             request,
@@ -639,7 +741,8 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             context,
             services,
             params: routeMatch.params
-          })
+          }),
+          context
         );
         return;
       }
@@ -652,7 +755,7 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
           : {};
 
       if (routeMatch) {
-        sendApiResult(
+        sendContextualApiResult(
           response,
           await routeMatch.route.handler({
             request,
@@ -661,11 +764,28 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
             context,
             services,
             params: routeMatch.params
-          })
+          }),
+          context
         );
         return;
       }
 
+      if (url.pathname.startsWith("/api/v1")) {
+        sendApiJson(
+          response,
+          {
+            statusCode: 404,
+            body: {
+              error: {
+                code: "not_found",
+                message: "Route was not found."
+              }
+            }
+          },
+          context
+        );
+        return;
+      }
       response.statusCode = 404;
       response.end("not found");
     } catch (error) {
@@ -673,12 +793,90 @@ export const startApiServer = (port = Number(process.env.PORT ?? 3001), services
       if (result.statusCode >= 500 && !(error instanceof AuthError)) {
         logUnhandledApiError(error, requestContext, request);
       }
-      sendJson(response, result);
+      sendApiJson(response, result, requestContext);
     }
   });
 
   server.listen(port);
   return server;
+};
+
+const sendContextualApiResult = (
+  response: ServerResponse,
+  result: ApiResult,
+  context: ApiRequestContext | null
+): void => {
+  applyContextHeaders(response, context);
+  sendApiResult(response, normalizeV1ApiResult(result, context));
+};
+
+const sendApiJson = (
+  response: ServerResponse,
+  result: JsonResult,
+  context: ApiRequestContext | null
+): void => {
+  applyContextHeaders(response, context);
+  sendJson(response, normalizeV1JsonResult(result, context));
+};
+
+const applyContextHeaders = (response: ServerResponse, context: ApiRequestContext | null): void => {
+  if (!context) {
+    return;
+  }
+  response.setHeader("x-request-id", context.requestId);
+  response.setHeader("x-correlation-id", context.correlationId);
+};
+
+const normalizeV1ApiResult = (result: ApiResult, context: ApiRequestContext | null): ApiResult => {
+  if ("kind" in result && result.kind === "binary") {
+    return result;
+  }
+  return normalizeV1JsonResult(result, context);
+};
+
+const normalizeV1JsonResult = (result: JsonResult, context: ApiRequestContext | null): JsonResult => {
+  if (!context?.pathname.startsWith("/api/v1") || result.statusCode < 400) {
+    return result;
+  }
+  return {
+    ...result,
+    body: normalizeV1ErrorBody(result.body, context)
+  };
+};
+
+const normalizeV1ErrorBody = (body: unknown, context: ApiRequestContext): { error: Record<string, unknown> } => {
+  const source = typeof body === "object" && body !== null && "error" in body
+    ? (body as { error?: unknown }).error
+    : null;
+  const error = typeof source === "object" && source !== null ? source as Record<string, unknown> : {};
+  const code = typeof error.code === "string" ? error.code : "internal_error";
+  const message = typeof error.message === "string" ? error.message : "Request failed.";
+  const details = normalizeV1ErrorDetails(error);
+  const fieldErrors = Array.isArray(error.fieldErrors) ? error.fieldErrors : [];
+
+  return {
+    error: {
+      code,
+      message,
+      details,
+      requestId: context.requestId,
+      correlationId: context.correlationId,
+      fieldErrors
+    }
+  };
+};
+
+const normalizeV1ErrorDetails = (error: Record<string, unknown>): Record<string, unknown> => {
+  const details = typeof error.details === "object" && error.details !== null && !Array.isArray(error.details)
+    ? { ...(error.details as Record<string, unknown>) }
+    : {};
+  for (const [key, value] of Object.entries(error)) {
+    if (["code", "message", "details", "requestId", "correlationId", "fieldErrors"].includes(key)) {
+      continue;
+    }
+    details[key] = value;
+  }
+  return details;
 };
 
 const logUnhandledApiError = (

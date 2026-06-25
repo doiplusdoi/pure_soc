@@ -411,6 +411,29 @@ export class Microsoft365ProviderConnectionService {
       throw new AuthError("invalid_request", "Provider connection is not a Microsoft 365 connection.", 400);
     }
 
+    const deletedCredentialCount = await this.store.deleteCredentialsForConnection(
+      input.organizationId,
+      input.providerConnectionId
+    );
+    const capabilities = await this.store.listCapabilities(input.organizationId, input.providerConnectionId);
+    let unavailableCapabilityCount = 0;
+    for (const capability of capabilities) {
+      await this.store.upsertCapability({
+        organizationId: capability.organizationId,
+        providerConnectionId: capability.providerConnectionId,
+        providerKey: capability.providerKey,
+        moduleKey: capability.moduleKey,
+        capabilityKey: capability.capabilityKey,
+        available: false,
+        licenseRequired: capability.licenseRequired,
+        licenseDetected: capability.licenseDetected,
+        permissionsRequired: capability.permissionsRequired,
+        permissionsGranted: [],
+        status: "revoked_consent",
+        statusReason: "Microsoft 365 connection was disconnected."
+      });
+      unavailableCapabilityCount += 1;
+    }
     const disconnected = await this.store.updateConnectionState({
       organizationId: input.organizationId,
       providerConnectionId: input.providerConnectionId,
@@ -437,6 +460,8 @@ export class Microsoft365ProviderConnectionService {
         status: disconnected.status,
         readEnabled: disconnected.readEnabled,
         writeEnabled: disconnected.writeEnabled,
+        storedCredentialCountDeleted: deletedCredentialCount,
+        capabilitiesMarkedUnavailable: unavailableCapabilityCount,
         providerRevocation: "manual_admin_center_recommended"
       }
     });

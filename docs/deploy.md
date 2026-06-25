@@ -148,7 +148,7 @@ pnpm prisma:generate
 pnpm prisma:migrate:status
 ```
 
-For a real deployment pipeline, apply checked-in migrations after backup and before starting app services:
+For a real deployment pipeline, apply checked-in migrations after backup and before starting app services. The repository-owned backup/restore entry points and verification expectations are documented in `docs/operations-backup-restore.md`.
 
 ```sh
 pnpm exec prisma migrate deploy --schema packages/database/prisma/schema.prisma
@@ -259,7 +259,7 @@ DATABASE_URL=postgresql://puresoc_admin:...@puresoc-postgres:5432/puresoc
 
 Operator responsibilities:
 
-- backups and restore drills;
+- backups and restore drills using the selected production storage target;
 - migration deployment;
 - encryption at rest where required;
 - connection pooling if the hosting platform needs it;
@@ -580,13 +580,13 @@ Do not run live external smokes against production, staging, customer, or long-l
 - No provider write execution is enabled.
 - Reports retain the PureSOC legal caveat.
 - Romania legal logic remains review-required unless GAP-006/GAP-042 approvals are complete.
-- Backups, restores, log retention, monitoring, incident response, and secret rotation have an operator-owned runbook.
+- Backups, restores, log retention, monitoring, incident response, and secret rotation have an operator-owned runbook. Repository backup/restore script entry points exist, but a production restore drill still has to be executed against an approved target.
 
 ## Known Deployment Gaps
 
 These are known limitations, not deployment steps to paper over:
 
-- no automated backup/restore service or restore drill in the current Compose catalog;
+- no automated backup/restore service or completed restore drill in the current Compose catalog;
 - no approved live Stripe smoke yet;
 - no approved live Microsoft 365 tenant smoke yet;
 - no approved live OIDC provider callback smoke yet;

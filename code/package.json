@@ -33,6 +33,8 @@
     "demo:seed": "jiti scripts/seed.ts seed",
     "demo:verify": "jiti scripts/seed.ts verify",
     "jobs:smoke:redis": "jiti scripts/live-redis-bullmq-smoke.ts",
+    "ops:backup": "sh scripts/backup.sh",
+    "ops:restore": "sh scripts/restore.sh",
     "prisma:validate": "prisma validate --schema packages/database/prisma/schema.prisma",
     "prisma:generate": "prisma generate --schema packages/database/prisma/schema.prisma",
     "prisma:migrate:status": "prisma migrate status --schema packages/database/prisma/schema.prisma",

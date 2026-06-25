@@ -112,6 +112,7 @@ export interface ProviderResourceStore {
   }): Promise<ProviderConnectionRecord>;
   upsertCredential(input: ProviderCredentialInput): Promise<ProviderCredentialRecord>;
   listCredentials(organizationId: string, providerConnectionId: string): Promise<ProviderCredentialRecord[]>;
+  deleteCredentialsForConnection(organizationId: string, providerConnectionId: string): Promise<number>;
   upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord>;
   listPermissionBundles(organizationId: string, providerConnectionId: string): Promise<ProviderPermissionBundleRecord[]>;
   createSyncRun(input: {
@@ -252,6 +253,23 @@ export class InMemoryProviderResourceStore implements ProviderResourceStore {
       (credential) =>
         credential.organizationId === organizationId && credential.providerConnectionId === providerConnectionId
     );
+  }
+
+  async deleteCredentialsForConnection(organizationId: string, providerConnectionId: string): Promise<number> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    let deletedCount = 0;
+
+    for (const credential of [...this.credentials.values()]) {
+      if (credential.organizationId !== organizationId || credential.providerConnectionId !== providerConnectionId) {
+        continue;
+      }
+
+      this.credentials.delete(credential.id);
+      this.credentialKeys.delete([credential.providerConnectionId, credential.credentialType].join(":"));
+      deletedCount += 1;
+    }
+
+    return deletedCount;
   }
 
   async upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord> {

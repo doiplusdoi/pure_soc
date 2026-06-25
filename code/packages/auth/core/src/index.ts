@@ -109,7 +109,11 @@ export type AuthErrorCode =
   | "provider_not_configured"
   | "oidc_callback_invalid"
   | "account_link_required"
-  | "account_link_rejected";
+  | "account_link_rejected"
+  | "not_found"
+  | "invalid_relationship_transition"
+  | "retention_delete_blocked"
+  | "report_format_blocked";
 
 export class AuthError extends Error {
   readonly code: AuthErrorCode;

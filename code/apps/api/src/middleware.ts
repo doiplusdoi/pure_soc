@@ -26,11 +26,13 @@ export type ApiRouteFamily =
 
 export interface ApiRequestContext extends RequestContext {
   requestId: string;
+  correlationId: string;
   method: string;
   pathname: string;
   routeFamily: ApiRouteFamily;
   organizationId: string | null;
   authenticatedUserId: string | null;
+  idempotencyKey: string | null;
   sessionId: string | null;
   rateLimitKey: string | null;
 }
@@ -81,14 +83,18 @@ export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
       const baseContext = readRequestContext(request, options.config.security.proxy);
       const session = await resolveOptionalSession(request.headers.cookie, options.sessionResolver);
       const rateLimitKey = buildRateLimitKey(policy, baseContext, session);
+      const requestId = requestIdentifier(request.headers["x-request-id"]) ?? randomUUID();
+      const correlationId = requestIdentifier(request.headers["x-correlation-id"]) ?? requestId;
       const context: ApiRequestContext = {
         ...baseContext,
-        requestId: randomUUID(),
+        requestId,
+        correlationId,
         method: request.method ?? "GET",
         pathname: url.pathname,
         routeFamily: policy.routeFamily,
         organizationId: policy.organizationId,
         authenticatedUserId: session?.user.id ?? null,
+        idempotencyKey: requestIdentifier(request.headers["idempotency-key"]),
         sessionId: session?.session.id ?? null,
         rateLimitKey
       };
@@ -160,6 +166,12 @@ export const createApiMiddleware = (options: ApiMiddlewareOptions) => {
   };
 };
 
+const requestIdentifier = (value: string | string[] | undefined): string | null => {
+  const raw = Array.isArray(value) ? value[0] : value;
+  const trimmed = raw?.trim();
+  return trimmed && /^[A-Za-z0-9_.:-]{1,128}$/.test(trimmed) ? trimmed : null;
+};
+
 export const resolveRoutePolicy = (method: string, pathname: string): RoutePolicy => {
   if (method === "GET" && pathname === "/compliance/nis2/country-packs/status") {
     return policy("public_read", "tenant_read");
@@ -179,6 +191,45 @@ export const resolveRoutePolicy = (method: string, pathname: string): RoutePolic
 
   if (pathname.startsWith("/auth/")) {
     return policy("auth", "auth");
+  }
+
+  if (pathname === "/api/v1/openapi.json" || /^\/api\/v1\/country-packs(?:\/|$)/.test(pathname)) {
+    return policy("public_read", "tenant_read");
+  }
+
+  if (pathname === "/api/v1/me" || /^\/api\/v1\/operations(?:\/|$)/.test(pathname)) {
+    return policy("tenant_read", "tenant_read");
+  }
+
+  if (pathname === "/api/v1/organizations") {
+    return policy(method === "GET" ? "tenant_read" : "organization", method === "GET" ? "tenant_read" : "auth");
+  }
+
+  if (/^\/api\/v1\/partners(?:\/|$)/.test(pathname)) {
+    return policy("partner", method === "GET" ? "tenant_read" : "organization");
+  }
+
+  if (/^\/api\/v1\/organization-relationships(?:\/|$)/.test(pathname)) {
+    return policy("organization", "organization");
+  }
+
+  if (/^\/api\/v1\/support-sessions(?:\/|$)/.test(pathname)) {
+    return policy("organization", method === "GET" ? "tenant_read" : "organization");
+  }
+
+  const apiV1OrganizationMatch = pathname.match(/^\/api\/v1\/organizations\/([^/]+)/);
+  const apiV1OrganizationId = apiV1OrganizationMatch?.[1] ?? null;
+  if (/^\/api\/v1\/organizations\/[^/]+\/connectors(?:\/|$)/.test(pathname)) {
+    return policy("provider", "provider", apiV1OrganizationId);
+  }
+  if (/^\/api\/v1\/organizations\/[^/]+\/provider-capabilities$/.test(pathname)) {
+    return policy("provider", "tenant_read", apiV1OrganizationId);
+  }
+  if (/^\/api\/v1\/organizations\/[^/]+\/compliance(?:\/|$)/.test(pathname)) {
+    return policy("compliance", method === "GET" ? "tenant_read" : "default", apiV1OrganizationId);
+  }
+  if (apiV1OrganizationId) {
+    return policy(method === "GET" ? "tenant_read" : "organization", method === "GET" ? "tenant_read" : "organization", apiV1OrganizationId);
   }
 
   if (/^\/partners(?:\/|$)/.test(pathname)) {

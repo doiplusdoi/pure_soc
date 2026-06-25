@@ -1,4 +1,4 @@
-import { createServer, type IncomingHttpHeaders } from "node:http";
+import { createServer, type IncomingHttpHeaders, type IncomingMessage } from "node:http";
 
 import type { DashboardSnapshotContract } from "@puresoc/dashboards";
 
@@ -20,6 +20,8 @@ import {
   type PartnerTenantSessionSurface,
   type OperationalStatus,
   type RomaniaOnboardingRouteInput,
+  type ProductV1ConsoleModel,
+  type ProductV1ConsoleSection,
   type RuntimeSessionSurface,
   type WorkspaceSelectionModel
 } from "./app-data";
@@ -32,6 +34,7 @@ import {
   renderOrganizationInvitationsScreen,
   renderPartnerConsoleScreen,
   renderProductMvpShell,
+  renderProductV1ConsoleScreen,
   renderOperationalConsole,
   renderRegisterScreen as renderBaseRegisterScreen,
   renderRomaniaOnboardingRoute,
@@ -308,6 +311,23 @@ interface ProductMicrosoft365FindingsWebResponse {
   findings: NonNullable<ProductMvpShellModel["details"]>["findings"];
 }
 
+interface ProductV1PageWebResponse {
+  data: Array<Record<string, unknown>>;
+  page?: {
+    limit: number;
+    nextCursor?: string | null;
+  };
+}
+
+interface ProductV1SetupWebResponse {
+  setup: Record<string, unknown>;
+}
+
+interface ProductV1MeWebResponse {
+  user: RuntimeSessionSurface["user"];
+  session: RuntimeSessionSurface["session"];
+}
+
 const productRouteByPath = new Map<string, ProductMvpRoute>([
   ["/customers", "customers"],
   ["/dashboard", "dashboard"],
@@ -321,6 +341,128 @@ const productRouteByPath = new Map<string, ProductMvpRoute>([
   ["/reports", "reports"],
   ["/settings", "settings"]
 ]);
+
+const appOrganizationRouteTargets = new Map<string, string>([
+  ["", "/dashboard"],
+  ["overview", "/dashboard"],
+  ["dashboard", "/dashboard"],
+  ["setup", "/onboarding"],
+  ["setup/microsoft365", "/connectors/microsoft365"],
+  ["services", "/onboarding"],
+  ["people", "/onboarding"],
+  ["systems", "/onboarding"],
+  ["suppliers", "/onboarding"],
+  ["connectors", "/connectors"],
+  ["connectors/microsoft365", "/connectors/microsoft365"],
+  ["security", "/microsoft365"],
+  ["security/findings", "/microsoft365"],
+  ["findings", "/microsoft365"],
+  ["remediation", "/remediation"],
+  ["evidence", "/evidence"],
+  ["reports", "/reports"],
+  ["risks", "/gap-analyzer"],
+  ["policies", "/settings"],
+  ["governance", "/settings"],
+  ["incidents", "/gap-analyzer"],
+  ["audit", "/reports"],
+  ["settings", "/settings"]
+]);
+
+const productV1SectionByAppTail = new Map<string, ProductV1ConsoleSection>([
+  ["", "overview"],
+  ["overview", "overview"],
+  ["dashboard", "overview"],
+  ["setup", "setup"],
+  ["services", "business"],
+  ["people", "business"],
+  ["systems", "business"],
+  ["suppliers", "business"],
+  ["security", "security"],
+  ["security/findings", "security"],
+  ["findings", "security"],
+  ["remediation", "security"],
+  ["tasks", "security"],
+  ["incidents", "incidents"],
+  ["risks", "risk"],
+  ["risk", "risk"],
+  ["policies", "risk"],
+  ["governance", "governance"],
+  ["evidence", "evidence"],
+  ["reports", "reports"],
+  ["connectors", "connectors"],
+  ["connectors/microsoft365", "connectors"],
+  ["audit", "events"],
+  ["events", "events"]
+]);
+
+interface ProductV1AppOrganizationRoute {
+  organizationId: string;
+  section: ProductV1ConsoleSection;
+}
+
+const productV1AppOrganizationRoute = (pathname: string): ProductV1AppOrganizationRoute | null => {
+  const match = /^\/app\/o\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  if (!match) {
+    return null;
+  }
+  const tail = match[2] ?? "";
+  return {
+    organizationId: decodeURIComponent(match[1] ?? ""),
+    section: productV1SectionByAppTail.get(tail) ?? "overview"
+  };
+};
+
+const productV1SectionPath = (section: ProductV1ConsoleSection): string =>
+  ({
+    overview: "overview",
+    setup: "setup",
+    business: "services",
+    security: "security/findings",
+    incidents: "incidents",
+    risk: "risks",
+    governance: "governance",
+    evidence: "evidence",
+    reports: "reports",
+    connectors: "connectors/microsoft365",
+    events: "audit"
+  })[section];
+
+const appRouteRedirectTarget = (pathname: string): string | null => {
+  if (pathname === "/app") {
+    return "/dashboard";
+  }
+
+  if (pathname === "/app/setup" || pathname.startsWith("/app/setup/")) {
+    return pathname === "/app/setup/microsoft365" ? "/connectors/microsoft365" : "/onboarding";
+  }
+
+  if (pathname === "/app/admin" || pathname.startsWith("/app/admin/")) {
+    return "/settings";
+  }
+
+  const partnerMatch = /^\/app\/partner\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  if (partnerMatch) {
+    const partnerId = partnerMatch[1] ?? "";
+    return `/customers?partnerId=${encodeURIComponent(partnerId)}`;
+  }
+
+  const organizationMatch = /^\/app\/o\/([^/]+)(?:\/(.*))?$/.exec(pathname);
+  if (!organizationMatch) {
+    return null;
+  }
+
+  const organizationId = organizationMatch[1] ?? "";
+  const routeTail = organizationMatch[2] ?? "";
+  const target = appOrganizationRouteTargets.get(routeTail) ?? "/dashboard";
+  return `${target}?organizationId=${encodeURIComponent(organizationId)}`;
+};
+
+const mergeRedirectSearch = (target: string, sourceSearch: string): string => {
+  if (!sourceSearch) {
+    return target;
+  }
+  return `${target}${target.includes("?") ? "&" : "?"}${sourceSearch.slice(1)}`;
+};
 
 export const startWebServer = (port = Number(process.env.PORT ?? 3000), options: WebServerOptions = {}) => {
   const apiBaseUrl = normalizeBaseUrl(
@@ -372,6 +514,65 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    const productV1AppRoute = productV1AppOrganizationRoute(url.pathname);
+    if (productV1AppRoute && request.method === "GET") {
+      const model = await loadProductV1ConsoleModel({
+        actionMessage: url.searchParams.get("message"),
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        organizationId: productV1AppRoute.organizationId,
+        section: productV1AppRoute.section
+      });
+
+      if (!model) {
+        sendHtml(
+          response,
+          renderLoginScreen({
+            errorMessage: "Sign in to open the organization-scoped product workspace."
+          }),
+          401
+        );
+        return;
+      }
+
+      sendHtml(response, renderProductV1ConsoleScreen(model), model.errorMessage ? 403 : 200);
+      return;
+    }
+
+    if (productV1AppRoute && request.method === "POST") {
+      const requestOrigin =
+        options.publicBaseUrl ??
+        process.env.PURESOC_WEB_PUBLIC_BASE_URL ??
+        process.env.PURESOC_PUBLIC_BASE_URL ??
+        resolvePublicRequestOrigin(request, port);
+      const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
+      const result = await handleProductV1ConsolePost({
+        apiBaseUrl,
+        cookie: request.headers.cookie,
+        organizationId: productV1AppRoute.organizationId,
+        origin: apiRequestOrigin,
+        request,
+        section: productV1AppRoute.section
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/app/o/${encodeURIComponent(productV1AppRoute.organizationId)}/${productV1SectionPath(
+          productV1AppRoute.section
+        )}?message=${encodeURIComponent(result.message)}`
+      );
+      response.end();
+      return;
+    }
+
+    const appRedirect = appRouteRedirectTarget(url.pathname);
+    if (request.method === "GET" && appRedirect) {
+      response.statusCode = 303;
+      response.setHeader("location", mergeRedirectSearch(appRedirect, url.search));
+      response.end();
+      return;
+    }
+
     if (request.method === "GET" && url.pathname === "/onboarding/nis2") {
       response.statusCode = 303;
       response.setHeader("location", `/onboarding${url.search}`);
@@ -393,7 +594,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     if (request.method === "GET" && url.pathname === "/providers/microsoft365") {
       response.statusCode = 303;
-      response.setHeader("location", "/connectors/microsoft365");
+      response.setHeader("location", `/connectors/microsoft365${url.search}`);
       response.end();
       return;
     }
@@ -790,7 +991,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         cookie: request.headers.cookie,
         origin: apiRequestOrigin,
         body: {
-          redirectUri: `${requestOrigin}/connectors/microsoft365/callback`,
+          redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin),
           requestedPermissionBundles: [...microsoft365ReadOnlyConnectionBundles]
         }
       });
@@ -838,7 +1039,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           origin: apiRequestOrigin,
           body: {
             ...callbackInput,
-            redirectUri: `${requestOrigin}/connectors/microsoft365/callback`
+            redirectUri: microsoft365WebCallbackRedirectUri(requestOrigin)
           }
         }
       );
@@ -1459,7 +1660,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/providers/microsoft365?message=${encodeURIComponent("Microsoft 365 tenant consent completed. Read-only tenant profile sync started.")}`
+        `/connectors/microsoft365?message=${encodeURIComponent("Microsoft 365 tenant consent completed. Read-only tenant profile sync started.")}`
       );
       response.end();
       return;
@@ -2397,6 +2598,384 @@ const loadProductMvpShellModel = async (input: {
     session: session.body
   };
 };
+
+const emptyProductV1Resources = (): ProductV1ConsoleModel["resources"] => ({
+  assets: [],
+  attestations: [],
+  businessServices: [],
+  fileObjects: [],
+  findings: [],
+  governanceActivities: [],
+  governanceCalendarEvents: [],
+  incidents: [],
+  internalEvents: [],
+  people: [],
+  policies: [],
+  policyAcknowledgements: [],
+  policyReviews: [],
+  remediationPlans: [],
+  reportSnapshots: [],
+  retentionPolicies: [],
+  risks: [],
+  supplierReviews: [],
+  suppliers: [],
+  tasks: [],
+  trainingRecords: []
+});
+
+const loadProductV1ConsoleModel = async (input: {
+  actionMessage?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+  organizationId: string;
+  section: ProductV1ConsoleSection;
+}): Promise<ProductV1ConsoleModel | null> => {
+  const session = await apiJson<ProductV1MeWebResponse>(input.apiBaseUrl, "/api/v1/me", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  if (session.statusCode !== 200) {
+    return null;
+  }
+
+  const organizations = await apiJson<ProductV1PageWebResponse>(input.apiBaseUrl, "/api/v1/organizations?limit=100", {
+    method: "GET",
+    cookie: input.cookie
+  });
+  const organizationRecord =
+    organizations.statusCode === 200
+      ? organizations.body.data.find((candidate) => String(candidate.id ?? "") === input.organizationId)
+      : undefined;
+  const organization = {
+    id: input.organizationId,
+    name: String(organizationRecord?.name ?? input.organizationId),
+    legalName: typeof organizationRecord?.legalName === "string" ? organizationRecord.legalName : null,
+    primaryCountryCode:
+      typeof organizationRecord?.primaryCountryCode === "string" ? organizationRecord.primaryCountryCode : null,
+    roles: Array.isArray(organizationRecord?.roles)
+      ? organizationRecord.roles.filter((role): role is string => typeof role === "string")
+      : []
+  };
+
+  const setup = await apiJson<ProductV1SetupWebResponse>(
+    input.apiBaseUrl,
+    `/api/v1/organizations/${encodeURIComponent(input.organizationId)}/setup`,
+    {
+      method: "GET",
+      cookie: input.cookie
+    }
+  );
+  if (setup.statusCode === 401) {
+    return null;
+  }
+  if (setup.statusCode === 403 || setup.statusCode === 404) {
+    return {
+      actionMessage: input.actionMessage,
+      countryPacks: [],
+      errorMessage: "Access blocked for this organization route. Check workspace membership, partner scope, or support session policy.",
+      organization,
+      providerCapabilities: [],
+      reportTemplates: [],
+      resources: emptyProductV1Resources(),
+      section: input.section,
+      session: {
+        user: session.body.user,
+        session: session.body.session
+      },
+      setup: null
+    };
+  }
+
+  const orgBase = `/api/v1/organizations/${encodeURIComponent(input.organizationId)}`;
+  const [
+    countryPacks,
+    businessServices,
+    people,
+    suppliers,
+    assets,
+    findings,
+    remediationPlans,
+    tasks,
+    incidents,
+    risks,
+    policies,
+    supplierReviews,
+    policyReviews,
+    policyAcknowledgements,
+    governanceActivities,
+    governanceCalendarEvents,
+    attestations,
+    trainingRecords,
+    retentionPolicies,
+    fileObjects,
+    reportTemplates,
+    reportSnapshots,
+    providerCapabilities,
+    internalEvents
+  ] = await Promise.all([
+    productV1Page(input.apiBaseUrl, "/api/v1/country-packs?limit=20", input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/business-services?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/responsibilities?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/suppliers?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/assets?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/findings?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/remediation-plans?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/tasks?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/incidents?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/risks?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/policies?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/supplier-reviews?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/policy-reviews?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/policy-acknowledgements?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/governance-activities?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/governance-calendar-events?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/attestations?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/training-records?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/retention-policies?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/file-objects?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, "/api/v1/report-templates?limit=25", input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/report-snapshots?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/provider-capabilities?limit=25`, input.cookie),
+    productV1Page(input.apiBaseUrl, `${orgBase}/internal-events?limit=25`, input.cookie)
+  ]);
+
+  return {
+    actionMessage: input.actionMessage,
+    countryPacks,
+    errorMessage:
+      setup.statusCode === 200
+        ? undefined
+        : "Product v1 setup loaded with partial API data. Check API health and route authorization.",
+    organization,
+    providerCapabilities,
+    reportTemplates,
+    resources: {
+      assets,
+      attestations,
+      businessServices,
+      fileObjects,
+      findings,
+      governanceActivities,
+      governanceCalendarEvents,
+      incidents,
+      internalEvents,
+      people,
+      policies,
+      policyAcknowledgements,
+      policyReviews,
+      remediationPlans,
+      reportSnapshots,
+      retentionPolicies,
+      risks,
+      supplierReviews,
+      suppliers,
+      tasks,
+      trainingRecords
+    },
+    section: input.section,
+    session: {
+      user: session.body.user,
+      session: session.body.session
+    },
+    setup: setup.statusCode === 200 ? setup.body.setup : null
+  };
+};
+
+const productV1Page = async (apiBaseUrl: string, path: string, cookie?: string): Promise<Array<Record<string, unknown>>> => {
+  const result = await apiJson<ProductV1PageWebResponse>(apiBaseUrl, path, {
+    method: "GET",
+    cookie
+  }).catch(() => ({ statusCode: 500, body: { data: [] } }));
+  return result.statusCode === 200 ? result.body.data ?? [] : [];
+};
+
+const handleProductV1ConsolePost = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+  organizationId: string;
+  origin?: string;
+  request: IncomingMessage;
+  section: ProductV1ConsoleSection;
+}): Promise<{ message: string }> => {
+  const form = await readFormBody(input.request);
+  const action = optionalFormValue(form.get("_action")) ?? "";
+  const orgBase = `/api/v1/organizations/${encodeURIComponent(input.organizationId)}`;
+  const post = (path: string, body: Record<string, unknown>) =>
+    apiJson<unknown>(input.apiBaseUrl, path, {
+      method: "POST",
+      cookie: input.cookie,
+      origin: input.origin,
+      body
+    });
+  const put = (path: string, body: Record<string, unknown>) =>
+    apiJson<unknown>(input.apiBaseUrl, path, {
+      method: "PUT",
+      cookie: input.cookie,
+      origin: input.origin,
+      body
+    });
+
+  const result =
+    action === "saveSetupStep"
+      ? await put(`${orgBase}/setup/${encodeURIComponent(optionalFormValue(form.get("step")) ?? "organization")}`, {
+          complete: booleanFormValue(form, "complete"),
+          data: {
+            owner: optionalFormValue(form.get("owner")),
+            summary: optionalFormValue(form.get("summary"))
+          }
+        })
+      : action === "launchSetup"
+        ? await post(`${orgBase}/setup/launch`, {})
+        : action === "createBusinessService"
+          ? await post(`${orgBase}/business-services`, {
+              name: form.get("name") ?? "",
+              criticality: optionalFormValue(form.get("criticality")) ?? "medium"
+            })
+          : action === "createResponsibility"
+            ? await post(`${orgBase}/responsibilities`, {
+                displayName: form.get("displayName") ?? "",
+                email: optionalFormValue(form.get("email")),
+                responsibilities: splitFormList(form.get("responsibilities"))
+              })
+            : action === "createSupplier"
+              ? await post(`${orgBase}/suppliers`, {
+                  name: form.get("name") ?? "",
+                  criticality: optionalFormValue(form.get("criticality")) ?? "medium",
+                  services: splitFormList(form.get("services")),
+                  reviewCadenceMonths: numberFormValue(form.get("reviewCadenceMonths")) ?? 12
+                })
+              : action === "createAsset"
+                ? await post(`${orgBase}/assets`, {
+                    displayName: form.get("displayName") ?? "",
+                    assetType: optionalFormValue(form.get("assetType")) ?? "manual_system"
+                  })
+                : action === "createFinding"
+                  ? await post(`${orgBase}/findings`, {
+                      title: form.get("title") ?? "",
+                      severity: optionalFormValue(form.get("severity")) ?? "medium",
+                      sourceType: optionalFormValue(form.get("sourceType")) ?? "manual"
+                    })
+                  : action === "createRemediationPlan"
+                    ? await post(`${orgBase}/remediation-plans`, {
+                        objective: form.get("objective") ?? ""
+                      })
+                    : action === "createTask"
+                      ? await post(`${orgBase}/tasks`, {
+                          title: form.get("title") ?? "",
+                          priority: optionalFormValue(form.get("priority")) ?? "medium",
+                          dueDate: optionalFormValue(form.get("dueDate"))
+                        })
+                      : action === "createIncident"
+                        ? await post(`${orgBase}/incidents`, {
+                            title: form.get("title") ?? "",
+                            awarenessTime: optionalFormValue(form.get("awarenessTime"))
+                          })
+                        : action === "createRisk"
+                          ? await post(`${orgBase}/risks`, {
+                              statement: form.get("statement") ?? "",
+                              inherentScore: numberFormValue(form.get("inherentScore")) ?? 3,
+                              residualScore: numberFormValue(form.get("residualScore")) ?? 2,
+                              treatment: optionalFormValue(form.get("treatment")) ?? "mitigate"
+                            })
+                          : action === "createPolicy"
+                            ? await post(`${orgBase}/policies`, {
+                                title: form.get("title") ?? "",
+                                reviewDueAt: optionalFormValue(form.get("reviewDueAt"))
+                              })
+                            : action === "createSupplierReview"
+                              ? await post(`${orgBase}/supplier-reviews`, {
+                                  supplierId: form.get("supplierId") ?? "",
+                                  reviewDueAt: optionalFormValue(form.get("reviewDueAt"))
+                                })
+                              : action === "createPolicyReview"
+                                ? await post(`${orgBase}/policy-reviews`, {
+                                    policyDocumentId: form.get("policyDocumentId") ?? "",
+                                    reviewDueAt: optionalFormValue(form.get("reviewDueAt"))
+                                  })
+                                : action === "createGovernanceActivity"
+                                  ? await post(`${orgBase}/governance-activities`, {
+                                      title: form.get("title") ?? "",
+                                      activityType: optionalFormValue(form.get("activityType")) ?? "management_review",
+                                      dueAt: optionalFormValue(form.get("dueAt"))
+                                    })
+                                  : action === "createTrainingRecord"
+                                    ? await post(`${orgBase}/training-records`, {
+                                        subject: form.get("subject") ?? "",
+                                        dueAt: optionalFormValue(form.get("dueAt"))
+                                      })
+                                    : action === "createRetentionPolicy"
+                                      ? await post(`${orgBase}/retention-policies`, {
+                                          name: form.get("name") ?? "",
+                                          retentionClass: optionalFormValue(form.get("retentionClass")) ?? "evidence",
+                                          retainForDays: numberFormValue(form.get("retainForDays")) ?? 365,
+                                          legalHoldDefault: booleanFormValue(form, "legalHoldDefault")
+                                        })
+                                      : action === "createFileObject"
+                                        ? await post(`${orgBase}/file-objects`, {
+                                            filename: form.get("filename") ?? "",
+                                            mimeType: form.get("mimeType") ?? "application/octet-stream",
+                                            sizeBytes: numberFormValue(form.get("sizeBytes")) ?? 0,
+                                            checksumSha256: form.get("checksumSha256") ?? "",
+                                            storage: {
+                                              provider: "product_v1_manual",
+                                              key: form.get("storageKey") ?? ""
+                                            },
+                                            retentionClass: optionalFormValue(form.get("retentionClass")) ?? "evidence"
+                                          })
+                                        : action === "createReportSnapshot"
+                                          ? await post(`${orgBase}/report-snapshots`, {
+                                              templateKey: optionalFormValue(form.get("templateKey")) ?? "nis2",
+                                              locale: optionalFormValue(form.get("locale")) ?? "en",
+                                              sourceReferences: splitFormList(form.get("sourceReferences")),
+                                              content: {
+                                                source: "product_v1_web_console"
+                                              }
+                                            })
+                                          : action === "runMicrosoft365Sync"
+                                            ? await post(`${orgBase}/connectors/microsoft365/sync-runs`, {
+                                                requestedModules: splitFormList(form.get("requestedModules"))
+                                              })
+                                            : { statusCode: 400 };
+
+  return {
+    message: apiSucceeded(result.statusCode) ? productV1SuccessMessage(action) : productV1FailureMessage(action, result.statusCode)
+  };
+};
+
+const productV1SuccessMessage = (action: string): string =>
+  ({
+    createAsset: "Asset added.",
+    createBusinessService: "Business service added.",
+    createFileObject: "File metadata registered.",
+    createFinding: "Finding added.",
+    createGovernanceActivity: "Governance activity added.",
+    createIncident: "Incident declared.",
+    createPolicy: "Policy added.",
+    createPolicyReview: "Policy review scheduled.",
+    createRemediationPlan: "Remediation plan added.",
+    createReportSnapshot: "Report snapshot requested.",
+    createResponsibility: "Responsibility added.",
+    createRetentionPolicy: "Retention policy added.",
+    createRisk: "Risk added.",
+    createSupplier: "Supplier added.",
+    createSupplierReview: "Supplier review scheduled.",
+    createTask: "Task added.",
+    createTrainingRecord: "Training assigned.",
+    launchSetup: "Setup launch readiness evaluated.",
+    runMicrosoft365Sync: "Microsoft 365 sync requested.",
+    saveSetupStep: "Setup step saved."
+  })[action] ?? "Product v1 action completed.";
+
+const productV1FailureMessage = (action: string, statusCode: number): string =>
+  `Product v1 action ${action || "request"} was not completed (${statusCode}).`;
+
+const splitFormList = (value: string | null): string[] =>
+  optionalFormValue(value)
+    ?.split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean) ?? [];
+
+const booleanFormValue = (form: URLSearchParams, key: string): boolean => form.getAll(key).includes("true");
 
 const loadPartnerConsoleModel = async (input: {
   actionMessage?: string | null;

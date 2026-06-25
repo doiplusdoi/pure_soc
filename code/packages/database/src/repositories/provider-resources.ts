@@ -28,6 +28,7 @@ type DelegateArgs = Record<string, unknown>;
 
 interface ProviderDelegate {
   create(args: DelegateArgs): Promise<Record<string, unknown>>;
+  deleteMany?(args: DelegateArgs): Promise<{ count: number }>;
   findFirst(args: DelegateArgs): Promise<Record<string, unknown> | null>;
   findMany(args?: DelegateArgs): Promise<Array<Record<string, unknown>>>;
   findUnique(args: DelegateArgs): Promise<Record<string, unknown> | null>;
@@ -241,6 +242,22 @@ export class PrismaProviderResourceStore implements ProviderResourceStore {
     });
 
     return rows.map(fromCredentialRow);
+  }
+
+  async deleteCredentialsForConnection(organizationId: string, providerConnectionId: string): Promise<number> {
+    await this.getConnectionForOrganization(organizationId, providerConnectionId);
+    if (!this.client.providerCredential.deleteMany) {
+      throw new Error("Provider credential delegate does not support deleteMany.");
+    }
+
+    const result = await this.client.providerCredential.deleteMany({
+      where: {
+        organizationId,
+        providerConnectionId
+      }
+    });
+
+    return result.count;
   }
 
   async upsertPermissionBundle(input: ProviderPermissionBundleInput): Promise<ProviderPermissionBundleRecord> {

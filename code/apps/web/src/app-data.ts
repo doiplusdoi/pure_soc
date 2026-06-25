@@ -89,6 +89,60 @@ export interface RuntimeSessionSurface {
   };
 }
 
+export type ProductV1ConsoleSection =
+  | "overview"
+  | "setup"
+  | "business"
+  | "security"
+  | "incidents"
+  | "risk"
+  | "governance"
+  | "evidence"
+  | "reports"
+  | "connectors"
+  | "events";
+
+export interface ProductV1ConsoleModel {
+  actionMessage?: string | null;
+  errorMessage?: string | null;
+  organization: {
+    id: string;
+    name: string;
+    legalName?: string | null;
+    primaryCountryCode?: string | null;
+    roles: string[];
+  };
+  session: RuntimeSessionSurface;
+  section: ProductV1ConsoleSection;
+  setup: Record<string, unknown> | null;
+  countryPacks: Array<Record<string, unknown>>;
+  providerCapabilities: Array<Record<string, unknown>>;
+  reportTemplates: Array<Record<string, unknown>>;
+  resources: {
+    assets: Array<Record<string, unknown>>;
+    attestations: Array<Record<string, unknown>>;
+    businessServices: Array<Record<string, unknown>>;
+    fileObjects: Array<Record<string, unknown>>;
+    findings: Array<Record<string, unknown>>;
+    governanceActivities: Array<Record<string, unknown>>;
+    governanceCalendarEvents: Array<Record<string, unknown>>;
+    incidents: Array<Record<string, unknown>>;
+    internalEvents: Array<Record<string, unknown>>;
+    people: Array<Record<string, unknown>>;
+    policies: Array<Record<string, unknown>>;
+    policyAcknowledgements: Array<Record<string, unknown>>;
+    policyReviews: Array<Record<string, unknown>>;
+    remediationPlans: Array<Record<string, unknown>>;
+    reportSnapshots: Array<Record<string, unknown>>;
+    retentionPolicies: Array<Record<string, unknown>>;
+    risks: Array<Record<string, unknown>>;
+    supplierReviews: Array<Record<string, unknown>>;
+    suppliers: Array<Record<string, unknown>>;
+    tasks: Array<Record<string, unknown>>;
+    trainingRecords: Array<Record<string, unknown>>;
+  };
+}
+
 export interface EvidenceScannerSurface {
   detail: string;
   engine: string;

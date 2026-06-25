@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
+import { createServer, type IncomingMessage, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
-import type { Server } from "node:http";
 import { describe, expect, it } from "vitest";
 
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
@@ -39,6 +39,14 @@ const waitForListening = async (server: Server): Promise<void> => {
     server.once("listening", resolve);
     server.once("error", reject);
   });
+};
+
+const readRequestJson = async <T>(request: IncomingMessage): Promise<T> => {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return JSON.parse(Buffer.concat(chunks).toString("utf8")) as T;
 };
 
 describe("web dashboard reports operational UI", () => {
@@ -153,6 +161,12 @@ describe("web dashboard reports operational UI", () => {
       expect(oldConnector.status).toBe(303);
       expect(oldConnector.headers.get("location")).toBe("/connectors/microsoft365");
 
+      const oldConnectorWithMessage = await fetch(`${baseUrl}/providers/microsoft365?message=Consent%20complete`, {
+        redirect: "manual"
+      });
+      expect(oldConnectorWithMessage.status).toBe(303);
+      expect(oldConnectorWithMessage.headers.get("location")).toBe("/connectors/microsoft365?message=Consent%20complete");
+
       const oldOnboarding = await fetch(`${baseUrl}/onboarding/nis2?country=RO`, { redirect: "manual" });
       expect(oldOnboarding.status).toBe(303);
       expect(oldOnboarding.headers.get("location")).toBe("/onboarding?country=RO");
@@ -160,9 +174,335 @@ describe("web dashboard reports operational UI", () => {
       const nestedConnector = await fetch(`${baseUrl}/onboarding/romania/connector`, { redirect: "manual" });
       expect(nestedConnector.status).toBe(303);
       expect(nestedConnector.headers.get("location")).toBe("/microsoft365");
+
+      const appRoot = await fetch(`${baseUrl}/app`, { redirect: "manual" });
+      expect(appRoot.status).toBe(303);
+      expect(appRoot.headers.get("location")).toBe("/dashboard");
+
+      const appSetup = await fetch(`${baseUrl}/app/setup/microsoft365`, { redirect: "manual" });
+      expect(appSetup.status).toBe(303);
+      expect(appSetup.headers.get("location")).toBe("/connectors/microsoft365");
+
+      const appPartner = await fetch(`${baseUrl}/app/partner/partner_demo/customers`, { redirect: "manual" });
+      expect(appPartner.status).toBe(303);
+      expect(appPartner.headers.get("location")).toBe("/customers?partnerId=partner_demo");
     } finally {
       await new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("renders organization-scoped app routes from product v1 APIs", async () => {
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "GET" && url.pathname === "/api/v1/me") {
+        response.end(
+          JSON.stringify({
+            user: { id: "user_owner", email: "owner@example.test", displayName: "Owner" },
+            session: { activeOrganizationId: "org_demo" }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/v1/organizations") {
+        response.end(
+          JSON.stringify({
+            data: [
+              {
+                id: "org_demo",
+                name: "Asterion Tools",
+                legalName: "Asterion Tools SRL",
+                primaryCountryCode: "RO",
+                roles: ["owner"]
+              }
+            ],
+            page: { limit: 100, nextCursor: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/v1/country-packs") {
+        response.end(
+          JSON.stringify({
+            data: [{ countryCode: "RO", reviewStatus: "review_required", legalActivationBlocked: true }],
+            page: { limit: 20, nextCursor: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/v1/report-templates") {
+        response.end(
+          JSON.stringify({
+            data: [{ templateKey: "nis2", supportedFormats: ["json"], pdfStatus: "blocked" }],
+            page: { limit: 25, nextCursor: null }
+          })
+        );
+        return;
+      }
+
+      const orgResource = /^\/api\/v1\/organizations\/org_demo\/([^/]+(?:\/[^/]+)?)$/.exec(url.pathname);
+      if (request.method === "GET" && orgResource) {
+        const resource = orgResource[1];
+        if (resource === "setup") {
+          response.end(
+            JSON.stringify({
+              setup: {
+                organizationId: "org_demo",
+                status: "IN_PROGRESS",
+                currentStep: "services",
+                completedSteps: ["organization", "jurisdiction"],
+                stepData: {},
+                updatedAt: "2026-06-24T09:00:00.000Z"
+              }
+            })
+          );
+          return;
+        }
+
+        const rows: Record<string, unknown[]> = {
+          findings: [
+            {
+              id: "finding_1",
+              title: "Password spray investigation",
+              severity: "high",
+              status: "open",
+              sourceType: "provider"
+            }
+          ],
+          "internal-events": [
+            {
+              id: "event_1",
+              eventType: "product_v1.findings.created",
+              aggregateType: "findings",
+              aggregateId: "finding_1",
+              outboxStatus: "pending",
+              attempts: 0
+            }
+          ],
+          tasks: [{ id: "task_1", title: "Confirm conditional access", priority: "high", status: "TODO" }]
+        };
+        response.end(JSON.stringify({ data: rows[resource] ?? [], page: { limit: 25, nextCursor: null } }));
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/app/o/org_demo/security/findings`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(response.headers.get("location")).toBeNull();
+      expect(html).toContain('data-ui-smoke="product-v1-console"');
+      expect(html).toContain("Asterion Tools");
+      expect(html).toContain("org_demo");
+      expect(html).toContain("Password spray investigation");
+      expect(html).toContain("Confirm conditional access");
+      expect(html).toContain("/app/o/org_demo/security/findings");
+      expect(html).toContain("1 pending events");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("forwards product v1 app form creates to organization-scoped v1 endpoints", async () => {
+    let createdBody: Record<string, unknown> | undefined;
+    const apiServer = createServer(async (request, response) => {
+      response.setHeader("content-type", "application/json");
+      if (request.method === "POST" && request.url === "/api/v1/organizations/org_demo/business-services") {
+        createdBody = await readRequestJson<Record<string, unknown>>(request);
+        response.statusCode = 201;
+        response.end(JSON.stringify({ businessService: { id: "service_1", ...createdBody } }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/app/o/org_demo/services`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          cookie: "puresoc_session=test"
+        },
+        body: new URLSearchParams({
+          _action: "createBusinessService",
+          criticality: "critical",
+          name: "Payments"
+        }),
+        redirect: "manual"
+      });
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toBe("/app/o/org_demo/services?message=Business%20service%20added.");
+      expect(createdBody).toEqual({ criticality: "critical", name: "Payments" });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("surfaces product v1 organization-scope rejection on app routes", async () => {
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "GET" && url.pathname === "/api/v1/me") {
+        response.end(
+          JSON.stringify({
+            user: { id: "user_owner", email: "owner@example.test", displayName: "Owner" },
+            session: { activeOrganizationId: "org_allowed" }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/v1/organizations") {
+        response.end(
+          JSON.stringify({
+            data: [{ id: "org_allowed", name: "Allowed Workspace", roles: ["owner"] }],
+            page: { limit: 100, nextCursor: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/v1/organizations/org_forbidden/setup") {
+        response.statusCode = 403;
+        response.end(JSON.stringify({ error: { code: "forbidden" } }));
+        return;
+      }
+
+      response.end(JSON.stringify({ data: [], page: { limit: 25, nextCursor: null } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/app/o/org_forbidden/risks`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(403);
+      expect(response.headers.get("location")).toBeNull();
+      expect(html).toContain("Access blocked for this organization route");
+      expect(html).toContain("org_forbidden");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("starts product Microsoft 365 consent with the provider callback redirect URI", async () => {
+    let receivedBody:
+      | {
+          redirectUri?: string;
+          requestedPermissionBundles?: string[];
+        }
+      | undefined;
+    const apiServer = createServer(async (request, response) => {
+      if (request.method === "POST" && request.url === "/api/connectors/microsoft365/connect") {
+        receivedBody = await readRequestJson<typeof receivedBody>(request);
+        response.statusCode = 201;
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            state: "state_product_connect",
+            url: "https://login.microsoftonline.com/organizations/v2.0/adminconsent?state=state_product_connect"
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end("not found");
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/connectors/microsoft365/connect`, {
+        method: "POST",
+        redirect: "manual",
+        headers: {
+          cookie: "puresoc_session=test",
+          "x-forwarded-host": "demo.puresoc.example",
+          "x-forwarded-proto": "https"
+        }
+      });
+
+      expect(response.status).toBe(303);
+      expect(response.headers.get("location")).toContain("https://login.microsoftonline.com/organizations/v2.0/adminconsent");
+      expect(receivedBody).toEqual({
+        redirectUri: "https://demo.puresoc.example/providers/microsoft365/callback",
+        requestedPermissionBundles: ["m365_read_baseline", "m365_security_read", "m365_intune_read"]
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
       });
     }
   });

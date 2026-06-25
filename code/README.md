@@ -37,6 +37,19 @@ PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=
 PURESOC_PROVIDER_TOKEN_KEY=
 ```
 
+For the controlled live Microsoft partner demo, follow `../docs/live-microsoft-partner-demo-runbook.md` and force read-only live connector mode with secret-managed values:
+
+```sh
+PURESOC_CONNECTOR_MICROSOFT365_MODE=live
+PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=<secret-managed>
+PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=<secret-managed>
+PURESOC_PROVIDER_TOKEN_KEY=<secret-managed>
+PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED=false
+PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=false
+```
+
+Register the Microsoft connector redirect URI exactly as `<PURESOC_DEMO_URL>/providers/microsoft365/callback`. The product connector page at `/connectors/microsoft365` starts consent with that callback URL; the older `/providers/microsoft365` route redirects back to the product page after consent.
+
 `PURESOC_PROVIDER_TOKEN_KEY` is not a login token. It is the server-side encryption key for Microsoft OAuth tokens stored after a customer tenant grants admin consent. Generate it with `openssl rand -hex 32` and keep it stable across restarts; changing it without a planned rotation makes existing Microsoft credential envelopes unreadable. If you force `PURESOC_CONNECTOR_MICROSOFT365_MODE=live`, startup fails fast until the client ID, client secret, and provider-token key are all configured.
 
 ## Drift Checks

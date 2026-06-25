@@ -120,6 +120,8 @@ import { NotificationApiService } from "../notifications/service";
 import { InMemoryPartnerRepository } from "../partners/memory-repository";
 import { RepositoryBackedPartnerPortfolioReader } from "../partners/portfolio";
 import { PartnerService, type PartnerRepository } from "../partners/service";
+import { InMemoryProductV1Repository, ProductV1Service, type ProductV1Repository } from "../product-v1/service";
+import { PrismaProductV1Repository } from "../product-v1/prisma-repository";
 
 export interface ApiPersistenceRuntime {
   mode: PureSocConfig["app"]["persistenceMode"];
@@ -264,6 +266,7 @@ export interface ApiServices {
   notificationDelivery: NotificationService;
   actionsRepository: RemediationActionRepository;
   actions: ActionApiService;
+  productV1: ProductV1Service;
 }
 
 export const createApiServices = (
@@ -463,6 +466,7 @@ export const createApiServices = (
     notifications: notificationDelivery,
     now: options.now
   });
+  const productV1 = new ProductV1Service(runtimeRepositories.productV1Repository, { now: options.now });
 
   const rbacRepository = createPartnerAwareRbacRepository({
     baseRepository: runtimeRepositories.identityRepository,
@@ -505,7 +509,8 @@ export const createApiServices = (
     notificationRepository: runtimeRepositories.notificationRepository,
     notificationDelivery,
     actionsRepository: runtimeRepositories.actionsRepository,
-    actions
+    actions,
+    productV1
   };
 };
 
@@ -529,6 +534,7 @@ interface RuntimeRepositorySet {
   providerResourceStore: InMemoryProviderResourceStore | PrismaProviderResourceStore;
   providerConsentStateStore: ProviderConsentStateStore;
   oidcAuthorizationStateStore: OidcAuthorizationStateStore;
+  productV1Repository: ProductV1Repository;
 }
 
 type RuntimeAuditSink = InMemoryAuditSink | PrismaAuditSink;
@@ -614,6 +620,7 @@ const createRuntimeRepositories = (input: {
           "remediation_actions",
           "notification_drafts",
           "notification_channels_logs_deadlines",
+          "product_v1_contract_state",
           "nis2_onboarding_classification",
           "ro_nis2_onboarding_classification",
           "stored_analysis_reports_dashboards",
@@ -636,7 +643,8 @@ const createRuntimeRepositories = (input: {
       partnerRepository: new InMemoryPartnerRepository(input.memoryRepositories.identityRepository),
       providerResourceStore: new InMemoryProviderResourceStore({ now: input.now }),
       providerConsentStateStore: new InMemoryProviderConsentStateStore({ now: input.now }),
-      oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore()
+      oidcAuthorizationStateStore: new InMemoryOidcAuthorizationStateStore(),
+      productV1Repository: new InMemoryProductV1Repository()
     };
   }
 
@@ -658,6 +666,7 @@ const createRuntimeRepositories = (input: {
         "remediation_actions",
         "notification_drafts",
         "notification_channels_logs_deadlines",
+        "product_v1_contract_state",
         "nis2_onboarding_classification",
         "ro_nis2_onboarding_classification",
         "provider_connections_and_telemetry",
@@ -685,7 +694,8 @@ const createRuntimeRepositories = (input: {
     providerConsentStateStore: new PrismaProviderConsentStateStore(prismaClient as never, { now: input.now }),
     oidcAuthorizationStateStore: new PrismaOidcAuthorizationStateStore(prismaClient as never, {
       codeVerifierEncryptionKey: input.config.auth.socialLogin.transientStateEncryptionKey
-    })
+    }),
+    productV1Repository: new PrismaProductV1Repository(prismaClient as never)
   };
 };
 

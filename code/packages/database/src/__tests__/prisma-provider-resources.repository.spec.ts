@@ -279,6 +279,50 @@ describe("Prisma provider resource store", () => {
       code: "cross_organization_provider_resource"
     });
   });
+
+  it("deletes stored credentials for a provider connection without removing historical connection state", async () => {
+    const client = new FakePrismaProviderResourceClient();
+    const store = new PrismaProviderResourceStore(client as unknown as PrismaProviderResourceClient, {
+      now: () => NOW,
+      idFactory: createIdFactory([
+        CONNECTION_ID,
+        "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+        "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+      ])
+    });
+    const connection = await store.createConnection({
+      id: CONNECTION_ID,
+      organizationId: ORG_A,
+      providerKey: "microsoft365",
+      displayName: "Microsoft 365"
+    });
+    await store.upsertCredential({
+      organizationId: ORG_A,
+      providerConnectionId: connection.id,
+      providerKey: "microsoft365",
+      credentialType: "oauth_token",
+      encryptedPayload: "encrypted-oauth-token",
+      rotationRequired: false
+    });
+    await store.upsertCredential({
+      organizationId: ORG_A,
+      providerConnectionId: connection.id,
+      providerKey: "microsoft365",
+      credentialType: "certificate",
+      encryptedPayload: "encrypted-certificate",
+      rotationRequired: false
+    });
+
+    await expect(store.deleteCredentialsForConnection(ORG_A, connection.id)).resolves.toBe(2);
+    await expect(store.listCredentials(ORG_A, connection.id)).resolves.toEqual([]);
+    await expect(store.getConnectionForOrganization(ORG_A, connection.id)).resolves.toMatchObject({
+      id: CONNECTION_ID,
+      status: "connected"
+    });
+    await expect(store.deleteCredentialsForConnection(ORG_B, connection.id)).rejects.toMatchObject({
+      code: "cross_organization_provider_resource"
+    });
+  });
 });
 
 class FakePrismaProviderResourceClient {
@@ -336,6 +380,16 @@ class FakeDelegate {
 
     Object.assign(row, materialize(input.data, false));
     return row;
+  }
+
+  async deleteMany(input: { where: Record<string, unknown> }): Promise<{ count: number }> {
+    const before = this.rows.length;
+    for (let index = this.rows.length - 1; index >= 0; index -= 1) {
+      if (matchesWhere(this.rows[index] ?? {}, input.where)) {
+        this.rows.splice(index, 1);
+      }
+    }
+    return { count: before - this.rows.length };
   }
 }
 

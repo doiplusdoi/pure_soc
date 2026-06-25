@@ -21,6 +21,12 @@ Use this folder for durable architecture decisions. Keep ADRs short and link to 
 - ADR-015: Internal Readiness Scoring Calibration
 - ADR-016: i18n And Country-Pack Notification Drafts
 - ADR-017: Runtime Stack Deviations
+- ADR-018: Partner Tenant Access
+- ADR-019: Country-Pack Demo Scope
+- ADR-020: Report Versioning Demo
+- ADR-021: Microsoft Consent And Demo Mode
+- ADR-022: Product V1 Compatibility Layer
+- ADR-023: Product V1 Report Snapshot Artifacts
 
 ## Template
 
