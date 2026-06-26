@@ -604,20 +604,21 @@ export const renderProductMvpShell = (
 
 const productNavItems: Array<{
   href: string;
+  group: "Workspace" | "Readiness" | "Operations" | "Admin";
   icon: string;
   label: string;
   route: ProductMvpRoute;
   partnerOnly?: boolean;
 }> = [
-  { href: "/dashboard", icon: "DB", label: "Dashboard", route: "dashboard" },
-  { href: "/customers", icon: "CU", label: "Customers", route: "customers", partnerOnly: true },
-  { href: "/onboarding", icon: "ON", label: "Readiness", route: "onboarding" },
-  { href: "/gap-analyzer", icon: "GA", label: "Gap Analyzer", route: "gap_analyzer" },
-  { href: "/microsoft365", icon: "M3", label: "Microsoft 365", route: "microsoft365" },
-  { href: "/remediation", icon: "RM", label: "Remediation", route: "remediation" },
-  { href: "/evidence", icon: "EV", label: "Evidence", route: "evidence" },
-  { href: "/reports", icon: "RP", label: "Reports", route: "reports" },
-  { href: "/settings", icon: "ST", label: "Settings", route: "settings" }
+  { href: "/dashboard", group: "Workspace", icon: "DB", label: "Dashboard", route: "dashboard" },
+  { href: "/customers", group: "Workspace", icon: "CU", label: "Customers", route: "customers", partnerOnly: true },
+  { href: "/onboarding", group: "Readiness", icon: "RD", label: "Readiness", route: "onboarding" },
+  { href: "/gap-analyzer", group: "Readiness", icon: "GA", label: "Gap Analyzer", route: "gap_analyzer" },
+  { href: "/microsoft365", group: "Readiness", icon: "M3", label: "Microsoft 365", route: "microsoft365" },
+  { href: "/remediation", group: "Operations", icon: "RM", label: "Remediation", route: "remediation" },
+  { href: "/evidence", group: "Operations", icon: "EV", label: "Evidence", route: "evidence" },
+  { href: "/reports", group: "Operations", icon: "RP", label: "Reports", route: "reports" },
+  { href: "/settings", group: "Admin", icon: "ST", label: "Settings", route: "settings" }
 ];
 
 const productRouteTitle = (route: ProductMvpRoute): string =>
@@ -625,6 +626,8 @@ const productRouteTitle = (route: ProductMvpRoute): string =>
 
 const renderProductSidebar = (model: ProductMvpShellModel): string => {
   const showCustomers = model.customers.length > 0 || ["customers"].includes(model.activeRoute);
+  const navItems = productNavItems.filter((item) => !item.partnerOnly || showCustomers);
+  let currentGroup = "";
   return [
     '<aside class="ps-sidebar" aria-label="Primary navigation">',
     '<div class="ps-brand">',
@@ -634,16 +637,19 @@ const renderProductSidebar = (model: ProductMvpShellModel): string => {
     )} workspace</span></div>`,
     "</div>",
     '<nav class="ps-nav">',
-    ...productNavItems
-      .filter((item) => !item.partnerOnly || showCustomers)
-      .map(
-        (item) =>
-          `<a class="ps-nav__link" href="${escapeHtml(item.href)}"${
-            item.route === model.activeRoute ? ' aria-current="page"' : ""
-          } data-ui-action="open-${escapeHtml(item.route)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
-            item.icon
-          )}</span><span>${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
-      ),
+    ...navItems.flatMap((item) => {
+      const groupMarker =
+        item.group === currentGroup ? [] : [`<span class="ps-nav__group">${escapeHtml(item.group)}</span>`];
+      currentGroup = item.group;
+      return [
+        ...groupMarker,
+        `<a class="ps-nav__link" href="${escapeHtml(item.href)}"${
+          item.route === model.activeRoute ? ' aria-current="page"' : ""
+        } data-ui-action="open-${escapeHtml(item.route)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
+          item.icon
+        )}</span><span class="ps-nav__label">${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
+      ];
+    }),
     "</nav>",
     '<div class="ps-sidebar__footer">',
     `<a class="ps-command ps-command--primary" href="${escapeHtml(model.dashboard.nextAction.href)}" data-ui-action="primary-next-action">${escapeHtml(
@@ -1267,7 +1273,7 @@ const renderProductV1Sidebar = (model: ProductV1ConsoleModel): string => [
         item.section === model.section ? ' aria-current="page"' : ""
       } data-ui-action="open-product-v1-${escapeHtml(item.section)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
         item.label.slice(0, 2).toUpperCase()
-      )}</span><span>${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
+      )}</span><span class="ps-nav__label">${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
   ),
   "</nav>",
   '<div class="ps-sidebar__footer">',
@@ -3910,7 +3916,7 @@ const renderSidebar = (model: OperationalConsoleModel, copy: OperationalConsoleC
       (item, index) =>
         `<a class="ps-nav__link" href="${item.href}"${index === 0 ? ' aria-current="page"' : ""} data-ui-action="${item.action}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
           item.icon
-        )}</span><span>${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
+        )}</span><span class="ps-nav__label">${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
     ),
     "</nav>",
     '<div class="ps-sidebar__footer">',
