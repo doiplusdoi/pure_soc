@@ -681,6 +681,37 @@ a {
   font-weight: 800;
 }
 
+.ps-metric {
+  margin: 0;
+  color: var(--ps-color-ink);
+  font-size: 1.35rem;
+  line-height: 1.2;
+  font-weight: 800;
+}
+
+.ps-kv-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.ps-kv-grid div {
+  min-width: 0;
+}
+
+.ps-kv-grid dt {
+  color: var(--ps-color-muted);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.ps-kv-grid dd {
+  margin: 0.15rem 0 0;
+  color: var(--ps-color-ink);
+  font-weight: 750;
+}
+
 .ps-page-hero {
   display: flex;
   align-items: flex-start;
@@ -1959,6 +1990,7 @@ a {
   .ps-nav,
   .ps-dashboard-grid,
   .ps-dashboard-secondary-grid,
+  .ps-kv-grid,
   .ps-roadmap-grid,
   .ps-workflow-stage,
   .ps-connector-shell {

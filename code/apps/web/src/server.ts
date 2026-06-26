@@ -2980,6 +2980,13 @@ const loadProductMvpShellModel = async (input: {
       : null;
 
   if (input.route === "microsoft365") {
+    details.microsoft365Health = await loadMicrosoft365HealthSurface({
+      apiBaseUrl: input.apiBaseUrl,
+      cookie: input.cookie,
+      generatedAt: dashboard.body.dashboard.lastSync ?? "No sync yet",
+      organizationId: session.session.activeOrganizationId
+    });
+
     const findings = await apiJson<ProductMicrosoft365FindingsWebResponse>(input.apiBaseUrl, "/api/microsoft365/findings", {
       method: "GET",
       cookie: input.cookie

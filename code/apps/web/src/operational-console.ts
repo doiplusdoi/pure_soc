@@ -163,6 +163,7 @@ export interface ProductMvpShellModel {
     evidence?: Array<Record<string, unknown>>;
     findings?: Array<Record<string, unknown>>;
     gaps?: Array<Record<string, unknown>>;
+    microsoft365Health?: Microsoft365HealthSurface;
     recommendations?: Array<Record<string, unknown>>;
     remediationActions?: Array<Record<string, unknown>>;
     reports?: Array<Record<string, unknown>>;
@@ -903,21 +904,150 @@ const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
   renderProductRecommendations(model.details?.recommendations ?? model.dashboard.recommendations)
 ].join("");
 
-const renderProductMicrosoft365Page = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({
-    eyebrow: "Security posture",
-    title: "Microsoft 365",
-    status: model.dashboard.microsoft365.connectionId ? "connected" : "not connected",
-    primaryAction: { href: model.dashboard.microsoft365.connectionId ? "/connectors/microsoft365" : "/connectors/microsoft365", label: model.dashboard.microsoft365.connectionId ? "Manage connection" : "Connect Microsoft 365" }
-  }),
-  '<section class="ps-grid">',
-  renderProductScoreCard("Connection", model.dashboard.microsoft365.connectionId ? "Connected" : "Not connected", model.dashboard.microsoft365.tenantName),
-  renderProductScoreCard("Last sync", model.dashboard.lastSync ? formatTimestamp(model.dashboard.lastSync) : "No sync yet", "Read-only modules"),
-  renderProductScoreCard("Remediation", "Approval required", "No dashboard execution"),
-  "</section>",
-  renderProductFindingTable(model.details?.findings ?? []),
-  '<p class="ps-stack-top"><a class="ps-command" href="/connectors/microsoft365">Open connector settings</a></p>'
+const renderProductMicrosoft365Page = (model: ProductMvpShellModel): string => {
+  const microsoft365 = productMicrosoft365Health(model);
+  const moduleSummary = summarizeMicrosoft365Modules(microsoft365.modules);
+  return [
+    renderProductPageHeader({
+      eyebrow: "Security posture",
+      title: "Microsoft 365",
+      status: microsoft365.providerConnectionId ? "connected" : "not connected",
+      primaryAction: { href: "/connectors/microsoft365", label: microsoft365.providerConnectionId ? "Manage connection" : "Connect Microsoft 365" }
+    }),
+    '<section class="ps-grid">',
+    renderProductScoreCard("Connection", microsoft365.providerConnectionId ? "Connected" : "Not connected", microsoft365.tenantDisplayName),
+    renderProductScoreCard("Last sync", readableMicrosoft365Time(microsoft365.lastSyncAt), "Read-only modules"),
+    renderProductScoreCard("Remediation", "Approval required", microsoft365.writeEnabled ? "Write scope recorded, execution gated" : "No dashboard execution"),
+    "</section>",
+    renderProductMicrosoft365TenantIntelligence(microsoft365, moduleSummary),
+    renderProductMicrosoft365ModuleTable(microsoft365),
+    renderProductFindingTable(model.details?.findings ?? []),
+    '<p class="ps-stack-top"><a class="ps-command" href="/connectors/microsoft365">Open connector settings</a></p>'
+  ].join("");
+};
+
+const productMicrosoft365Health = (model: ProductMvpShellModel): Microsoft365HealthSurface =>
+  model.details?.microsoft365Health ?? {
+    providerConnectionId: model.dashboard.microsoft365.connectionId,
+    status: providerStatusToOperationalStatus(model.dashboard.microsoft365.status),
+    tenantDisplayName: model.dashboard.microsoft365.tenantName,
+    tenantId: model.dashboard.microsoft365.connectionId ?? "tenant OAuth not connected",
+    lastSyncAt: model.dashboard.microsoft365.lastSyncAt ?? model.dashboard.lastSync ?? "No sync yet",
+    permissionBundles: [model.dashboard.microsoft365.connectionId ? "bundle metadata pending" : "tenant OAuth consent required"],
+    modules: [],
+    writeEnabled: model.dashboard.microsoft365.writeEnabled,
+    connectorMode: model.dashboard.microsoft365.connectionId ? "tenant_oauth_provider_connection" : "not_connected"
+  };
+
+const renderProductMicrosoft365TenantIntelligence = (
+  microsoft365: Microsoft365HealthSurface,
+  moduleSummary: Microsoft365ModuleSummary
+): string => [
+  '<section class="ps-grid ps-stack-top" aria-label="Microsoft 365 tenant intelligence">',
+  '<article class="ps-panel">',
+  '<div class="ps-section__header ps-section__header--flat">',
+  '<div><h2 class="ps-panel__title">Tenant intelligence</h2><p class="ps-muted">Organization-owned Microsoft tenant metadata from the provider connection and latest module health.</p></div>',
+  renderStatusPill({ label: microsoft365.status.replaceAll("_", " "), tone: toneForStatus(microsoft365.status) }),
+  "</div>",
+  '<dl class="ps-kv-grid">',
+  renderKeyValue("Tenant", microsoft365.tenantDisplayName),
+  renderKeyValue("Tenant ID", microsoft365.tenantId),
+  renderKeyValue("Connector mode", microsoft365.connectorMode),
+  renderKeyValue("Permission scope", microsoft365.permissionBundles.join(", ")),
+  "</dl>",
+  "</article>",
+  '<article class="ps-panel">',
+  '<h2 class="ps-panel__title">Module coverage</h2>',
+  `<p class="ps-metric">${escapeHtml(moduleCoverageText(moduleSummary))}</p>`,
+  '<p class="ps-muted">Read modules ready. Missing permissions, licenses, and unsupported endpoints stay visible as module health.</p>',
+  '<div class="ps-chip-row">',
+  renderStatusPill({ label: `${moduleSummary.attention} attention`, tone: moduleSummary.attention > 0 ? "warning" : "neutral" }),
+  renderStatusPill({ label: `${moduleSummary.blocked} blocked`, tone: moduleSummary.blocked > 0 ? "danger" : "neutral" }),
+  "</div>",
+  "</article>",
+  renderProductMicrosoft365DataProtectionPanel(microsoft365),
+  "</section>"
 ].join("");
+
+const renderProductMicrosoft365DataProtectionPanel = (microsoft365: Microsoft365HealthSurface): string => {
+  const dataProtectionModules = ["purview-posture", "exchange-posture", "sharepoint-posture", "teams-posture"];
+  const modules = dataProtectionModules
+    .map((moduleKey) => microsoft365.modules.find((module) => module.moduleKey === moduleKey))
+    .filter((module): module is Microsoft365ModuleSurface => Boolean(module));
+  const purview = modules.find((module) => module.moduleKey === "purview-posture");
+  const primary = purview ?? modules[0];
+
+  return [
+    '<article class="ps-panel">',
+    '<h2 class="ps-panel__title">Purview and data protection</h2>',
+    primary
+      ? renderStatusPill({ label: primary.status.replaceAll("_", " "), tone: toneForStatus(primary.status) })
+      : renderStatusPill({ label: microsoft365.providerConnectionId ? "not synced" : "not connected", tone: "warning" }),
+    `<p class="ps-muted">${escapeHtml(
+      primary?.coverage ??
+        (microsoft365.providerConnectionId
+          ? "Purview, DLP, retention, sensitivity labels, Exchange, SharePoint, and Teams posture have no stored module result yet."
+          : "Connect Microsoft 365 before PureSOC can record Purview or collaboration posture.")
+    )}</p>`,
+    '<div class="ps-chip-row">',
+    renderSourceChip({ label: "Source", detail: primary?.sourceQuery ?? "provider_sync_modules:purview-posture,deferred" }),
+    renderStatusPill({ label: "read-only", tone: "info" }),
+    "</div>",
+    "</article>"
+  ].join("");
+};
+
+const renderProductMicrosoft365ModuleTable = (microsoft365: Microsoft365HealthSurface): string =>
+  renderDataTable<Microsoft365ModuleSurface>(
+    "Microsoft 365 tenant modules",
+    [
+      { header: "Module", render: (module) => `<strong>${escapeHtml(module.label)}</strong><br><span class="ps-muted">${escapeHtml(module.moduleKey)}</span>` },
+      { header: "Status", render: (module) => renderStatusPill({ label: module.status.replaceAll("_", " "), tone: toneForStatus(module.status) }) },
+      { header: "Signal", render: (module) => escapeHtml(module.coverage) },
+      { header: "Last sync", render: (module) => escapeHtml(module.lastSyncAt ? readableMicrosoft365Time(module.lastSyncAt) : "pending") }
+    ],
+    microsoft365.modules
+  );
+
+interface Microsoft365ModuleSummary {
+  attention: number;
+  blocked: number;
+  ready: number;
+  total: number;
+}
+
+const summarizeMicrosoft365Modules = (modules: readonly Microsoft365ModuleSurface[]): Microsoft365ModuleSummary => {
+  const total = modules.length;
+  const ready = modules.filter((module) => module.status === "ready").length;
+  const blocked = modules.filter((module) => module.status === "blocked").length;
+  const attention = modules.filter((module) => !["ready", "in_progress", "blocked"].includes(module.status)).length;
+  return { attention, blocked, ready, total };
+};
+
+const moduleCoverageText = (summary: Microsoft365ModuleSummary): string =>
+  summary.total === 0 ? "No module data" : `${summary.ready}/${summary.total}`;
+
+const renderKeyValue = (label: string, value: string): string =>
+  `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
+
+const readableMicrosoft365Time = (value: string | null | undefined): string =>
+  value && /^\d{4}-\d{2}-\d{2}T/.test(value) ? formatTimestamp(value) : value || "No sync yet";
+
+const providerStatusToOperationalStatus = (status: string): OperationalStatus => {
+  if (status === "connected" || status === "succeeded") {
+    return "ready";
+  }
+  if (status === "pending" || status === "running") {
+    return "in_progress";
+  }
+  if (status === "revoked" || status === "failed" || status === "revoked_consent") {
+    return "blocked";
+  }
+  if (status === "not_connected" || status === "degraded") {
+    return "attention";
+  }
+  return "attention";
+};
 
 const renderProductConnectorsPage = (model: ProductMvpShellModel): string => [
   renderProductPageHeader({

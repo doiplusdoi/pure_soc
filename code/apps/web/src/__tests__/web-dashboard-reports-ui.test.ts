@@ -144,6 +144,63 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toContain("context message");
   });
 
+  it("renders Microsoft 365 tenant intelligence with module and Purview posture status", () => {
+    const html = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "microsoft365",
+      dashboard: {
+        ...productShellModel().dashboard,
+        microsoft365: {
+          status: "connected",
+          connectionId: "conn_m365",
+          tenantName: "Contoso Tenant",
+          lastSyncAt: "2026-06-26T12:37:59.247Z",
+          writeEnabled: false
+        },
+        lastSync: "2026-06-26T12:37:59.247Z"
+      },
+      details: {
+        microsoft365Health: {
+          providerConnectionId: "conn_m365",
+          status: "ready",
+          tenantDisplayName: "Contoso Tenant",
+          tenantId: "cbbc0e5f-2393-42d3-b992-98d4c465b6bd",
+          lastSyncAt: "2026-06-26T12:37:59.247Z",
+          permissionBundles: ["m365_read_baseline", "m365_security_read missing"],
+          writeEnabled: false,
+          connectorMode: "auto->fixture:partner_demo",
+          modules: [
+            {
+              moduleKey: "tenant-profile",
+              label: "Tenant Profile",
+              status: "ready",
+              coverage: "Latest read-only connector module status.",
+              lastSyncAt: "2026-06-26T12:37:59.247Z",
+              sourceQuery: "provider_sync_modules:tenant-profile,latest"
+            },
+            {
+              moduleKey: "purview-posture",
+              label: "Purview Posture",
+              status: "attention",
+              coverage: "Purview DLP and retention posture has no stored read-only signal yet.",
+              sourceQuery: "provider_sync_modules:purview-posture,deferred"
+            }
+          ]
+        },
+        findings: []
+      }
+    });
+
+    expect(html).toContain("Tenant intelligence");
+    expect(html).toContain("cbbc0e5f-2393-42d3-b992-98d4c465b6bd");
+    expect(html).toContain("m365_read_baseline, m365_security_read missing");
+    expect(html).toContain("Module coverage");
+    expect(html).toContain("1/2");
+    expect(html).toContain("Purview and data protection");
+    expect(html).toContain("Purview DLP and retention posture has no stored read-only signal yet.");
+    expect(html).toContain("Microsoft 365 tenant modules");
+  });
+
   it("renders product report actions as branded PDF exports and exposes logo upload on onboarding", () => {
     const reportsHtml = renderProductMvpShell({
       ...productShellModel(),
