@@ -917,7 +917,7 @@ const renderProductMicrosoft365Page = (model: ProductMvpShellModel): string => {
     '<section class="ps-grid">',
     renderProductScoreCard("Connection", microsoft365.providerConnectionId ? "Connected" : "Not connected", microsoft365.tenantDisplayName),
     renderProductScoreCard("Last sync", readableMicrosoft365Time(microsoft365.lastSyncAt), "Read-only modules"),
-    renderProductScoreCard("Remediation", "Approval required", microsoft365.writeEnabled ? "Write scope recorded, execution gated" : "No dashboard execution"),
+    renderProductScoreCard("Remediation", "Write gated", microsoft365.writeEnabled ? "Write scope recorded, execution gated" : "Read-only connector"),
     "</section>",
     renderProductMicrosoft365TenantIntelligence(microsoft365, moduleSummary),
     renderProductMicrosoft365ModuleTable(microsoft365),

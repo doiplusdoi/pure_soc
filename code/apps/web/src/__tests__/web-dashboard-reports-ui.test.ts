@@ -206,7 +206,17 @@ describe("web dashboard reports operational UI", () => {
             }
           ]
         },
-        findings: []
+        findings: [
+          {
+            id: "finding_graph_permission",
+            title: "Tenant Profile Graph permission missing",
+            severity: "low",
+            status: "open",
+            resourceType: null,
+            resourceDisplayName: "Tenant Profile",
+            recommendation: "Add Organization.Read.All and Domain.Read.All to the PureSOC Microsoft Graph app permissions, then grant admin consent again."
+          }
+        ]
       }
     });
 
@@ -218,6 +228,10 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("Purview and data protection");
     expect(html).toContain("Purview DLP and retention posture has no stored read-only signal yet.");
     expect(html).toContain("Microsoft 365 tenant modules");
+    expect(html).toContain("Write gated");
+    expect(html).toContain("Read-only connector");
+    expect(html).toContain("Tenant Profile Graph permission missing");
+    expect(html).toContain("Tenant Profile");
   });
 
   it("renders product report actions as branded PDF exports and exposes logo upload on onboarding", () => {

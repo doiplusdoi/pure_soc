@@ -97,6 +97,8 @@ Status: Resolved 2026-04-30 for PLAN_M12 read-only module permission revalidatio
 
 2026-06-26 update: The consent path now accepts known Microsoft 365 write bundles and write app roles returned by `/.default`, records them as permission metadata, and no longer performs the first tenant-profile Graph read before persisting the provider connection and encrypted credential. A Graph 403 during tenant-profile sync is stored as module health (`missing_permission`) and degrades the connection instead of failing the admin-consent callback. Provider write execution is still not enabled by consent alone; live tenant proof remains pending.
 
+2026-06-26 update: Microsoft 365 read-only sync now persists module-health provider findings for missing Graph permissions, missing licenses, unsupported APIs, revoked consent, throttling, partial syncs, and failed modules, and resolves stale module-health findings when a later module sync succeeds. This makes live Graph permission failures visible in the Microsoft findings table while keeping unsupported collaboration/Purview modules and provider writes gated.
+
 ### GAP-008: Evidence Metadata, Access, And Export Model Needs ADR
 
 Severity: High

@@ -294,6 +294,7 @@ describe("microsoft365 API consent and health service", () => {
       redirectUri: "https://app.example.test/providers/microsoft365/callback"
     });
     const health = await service.getHealth("org_1", completed.connection.id);
+    const findings = await store.listFindings("org_1", completed.connection.id);
 
     expect(completed.connection.writeEnabled).toBe(false);
     expect(completed.permissionBundles.find((bundle) => bundle.bundleKey === "m365_remediation_write")).toMatchObject({
@@ -308,6 +309,23 @@ describe("microsoft365 API consent and health service", () => {
     expect(health.moduleStatuses.find((module) => module.moduleKey === "tenant-profile")?.status).toBe(
       "missing_permission"
     );
+    expect(completed.tenantProfileSync.findings).toEqual([
+      expect.objectContaining({
+        findingKey: "microsoft365.module_health.tenant-profile.missing_permission",
+        title: "Tenant Profile Graph permission missing",
+        status: "open",
+        severity: "low"
+      })
+    ]);
+    expect(findings).toEqual([
+      expect.objectContaining({
+        findingKey: "microsoft365.module_health.tenant-profile.missing_permission",
+        evidence: expect.objectContaining({
+          moduleStatus: "missing_permission",
+          recommendation: expect.stringContaining("grant admin consent again")
+        })
+      })
+    ]);
   });
 
   it("does not burn pending Microsoft consent state for the wrong workspace session", async () => {
