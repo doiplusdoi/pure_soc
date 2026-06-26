@@ -147,6 +147,10 @@ describe("report renderer", () => {
     expect(html).toContain('<meta name="puresoc-legal-caveat"');
     expect(html).toContain('class="report-logo"');
     expect(html).toContain("Asterion Tools SRL");
+    expect(html).toContain("Priority actions");
+    expect(html).toContain("Report versions");
+    expect(html).toContain("Readiness</span><strong>0 / 100");
+    expect(html).toContain("source-chip");
     expect(html).toContain("Control list");
     expect(html).toContain("NIS2-EU-MFA");
     expect(extractLegalCaveat(html)).toBe(PURESOC_LEGAL_CAVEAT);

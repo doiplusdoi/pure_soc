@@ -78,6 +78,8 @@ const wrapReportHtml = (input: {
   const logo = isSafeReportLogoDataUrl(logoDataUrl) ? logoDataUrl : undefined;
   const reportType = readString(input.reportData, "reportType") ?? "report";
   const jurisdiction = readString(input.reportData, "jurisdiction") ?? "EU";
+  const generatedLabel = formatDateTime(generatedAt);
+  const reportSubtitle = readReportSubtitle(reportType);
   const logoMark = logo
     ? `<img class="report-logo" src="${escapeHtmlAttribute(logo)}" alt="${escapeHtmlAttribute(organizationLabel)} logo">`
     : `<span class="report-logo-fallback">${escapeHtml(companyInitials(organizationLabel))}</span>`;
@@ -96,13 +98,19 @@ const wrapReportHtml = (input: {
     "</head>",
     "<body>",
     '<main class="report-shell">',
-    `<header class="report-header"><div class="report-brand-block">${logoMark}<div><p class="eyebrow">PureSOC internal readiness</p><h1>${escapeHtml(
-      input.title
-    )}</h1><p class="report-org-name">${escapeHtml(organizationLabel)}</p></div></div><dl><div><dt>Workspace ID</dt><dd><code>${escapeHtml(
-      organizationId
-    )}</code></dd></div><div><dt>Jurisdiction</dt><dd>${escapeHtml(
+    '<header class="report-hero">',
+    `<div class="report-topline"><span>PureSOC / ${escapeHtml(reportType.replaceAll("_", " "))}</span></div>`,
+    '<div class="report-hero__body">',
+    `<div class="report-hero__copy"><p class="eyebrow">Internal readiness / ${escapeHtml(
       jurisdiction
-    )}</dd></div><div><dt>Generated</dt><dd>${escapeHtml(formatDateTime(generatedAt))}</dd></div></dl></header>`,
+    )}</p><h1>${escapeHtml(input.title)}</h1><p class="report-subtitle">${escapeHtml(reportSubtitle)}</p></div>`,
+    `<dl class="report-meta-card"><div class="report-meta-card__brand">${logoMark}<div><dt>Organization</dt><dd>${escapeHtml(
+      organizationLabel
+    )}</dd></div></div><div><dt>Workspace ID</dt><dd><code>${escapeHtml(
+      organizationId
+    )}</code></dd></div><div><dt>Generated</dt><dd>${escapeHtml(generatedLabel)}</dd></div></dl>`,
+    "</div>",
+    "</header>",
     input.body,
     `<footer class="report-footer"><span>${escapeHtml(legalCaveat)}</span><span>PureSOC</span>${
       input.reportHash ? `<span>Report hash ${escapeHtml(input.reportHash)}</span>` : ""
@@ -153,19 +161,13 @@ const renderGapReport = (report: InternalReadinessReport): string => {
   const gapsByControl = new Map(report.gaps.map((gap) => [gap.controlId, gap]));
 
   return [
-    '<section class="summary-band">',
-    renderStat("Controls", report.controlResults.length),
-    renderStat("Open gaps", report.gaps.length),
-    renderStat("Evidence artifacts", report.evidence.length),
+    renderReportMetrics(report),
+    '<section class="report-main-grid">',
+    renderPriorityActions(report),
+    renderReportVersions(report),
     "</section>",
-    renderConceptSummary(report),
     renderCalibrationSummary(report),
     renderVerifiedEvidenceComparison(report),
-    '<section><h2>Top 3 gaps</h2>',
-    report.gaps.length > 0
-      ? `<ol class="gap-list">${[...report.gaps].sort(compareGaps).slice(0, 3).map((gap) => `<li>${renderGapInline(gap)}</li>`).join("")}</ol>`
-      : '<p class="empty">No gaps in this stored analysis.</p>',
-    "</section>",
     '<section><h2>Control list</h2><table><thead><tr><th>Control</th><th>Status</th><th>Severity</th><th>Evidence</th><th>Summary</th></tr></thead><tbody>',
     report.controlResults
       .map((control) => {
@@ -180,6 +182,89 @@ const renderGapReport = (report: InternalReadinessReport): string => {
       .join("\n"),
     "</tbody></table></section>",
     renderSourceReferences(report.sourceReferences)
+  ].join("\n");
+};
+
+const renderReportMetrics = (report: InternalReadinessReport): string => {
+  const priorityGapCount = report.concepts.priority.criticalGapCount + report.concepts.priority.highGapCount;
+  return [
+    '<section class="report-metrics" aria-label="Report summary">',
+    renderMetricCard("Applicability", report.concepts.applicability.result.replaceAll("_", " "), "blue"),
+    renderMetricCard("Readiness", `${report.concepts.readiness.value} / 100`, "green"),
+    renderMetricCard("Evidence confidence", `${report.concepts.evidenceConfidence.value}%`, "amber"),
+    renderMetricCard("Priority gaps", priorityGapCount || report.gaps.length, "rose"),
+    "</section>"
+  ].join("\n");
+};
+
+const renderMetricCard = (label: string, value: string | number, tone: "amber" | "blue" | "green" | "rose"): string =>
+  `<article class="metric-card metric-card--${tone}"><span class="metric-card__label"><i></i>${escapeHtml(
+    label
+  )}</span><strong>${escapeHtml(String(value))}</strong></article>`;
+
+const renderPriorityActions = (report: InternalReadinessReport): string => {
+  const sortedGaps = [...report.gaps].sort(compareGaps).slice(0, 4);
+  return [
+    '<article class="priority-panel">',
+    '<div class="priority-panel__header"><h2>Priority actions</h2><span>Source</span></div>',
+    sortedGaps.length > 0
+      ? `<div class="priority-list">${sortedGaps.map((gap, index) => renderPriorityActionRow(gap, index)).join("")}</div>`
+      : '<p class="empty">No priority gaps in this stored analysis.</p>',
+    "</article>"
+  ].join("\n");
+};
+
+const renderPriorityActionRow = (gap: ReportGapSummary, index: number): string => {
+  const source = sourceLabelForGap(gap);
+  const action = gap.recommendedActions[0] ?? gap.summary;
+  return [
+    '<div class="priority-row">',
+    `<span class="priority-index priority-index--${escapeHtml(gap.severity)}">${index + 1}</span>`,
+    `<strong>${escapeHtml(action)}</strong>`,
+    renderSeverityBadge(gap.severity),
+    `<span class="source-chip source-chip--${escapeHtml(source.tone)}">${escapeHtml(source.label)}</span>`,
+    "</div>"
+  ].join("");
+};
+
+const renderReportVersions = (report: InternalReadinessReport): string => {
+  const reportVersion = report.version.reportVersion;
+  const hasVerifiedEvidence = Boolean(report.verifiedEvidence);
+  const items = [
+    {
+      current: reportVersion === 1,
+      label: "V1",
+      status: reportVersion === 1 ? "Current" : "Recorded",
+      title: "Business baseline"
+    },
+    {
+      current: reportVersion === 2,
+      label: "V2",
+      status: hasVerifiedEvidence ? "Verified evidence" : "Awaiting evidence",
+      title: "Microsoft evidence"
+    },
+    {
+      current: false,
+      label: "V3",
+      status: "Planned",
+      title: "After remediation"
+    }
+  ];
+
+  return [
+    '<aside class="version-panel" aria-label="Report versions">',
+    "<h2>Report versions</h2>",
+    '<ol class="version-list">',
+    items
+      .map(
+        (item) =>
+          `<li class="${item.current ? "current" : ""}"><span>${escapeHtml(item.label)}</span><div><strong>${escapeHtml(
+            item.title
+          )}</strong><small>${escapeHtml(item.status)}</small></div></li>`
+      )
+      .join(""),
+    "</ol>",
+    "</aside>"
   ].join("\n");
 };
 
@@ -407,6 +492,40 @@ const compareGaps = (left: ReportGapSummary, right: ReportGapSummary): number =>
 const severityWeight = (severity: ReportGapSummary["severity"]): number =>
   ({ critical: 4, high: 3, medium: 2, low: 1 })[severity];
 
+const sourceLabelForGap = (gap: ReportGapSummary): { label: string; tone: string } => {
+  const provenance = gap.provenance ?? [];
+  if (
+    provenance.includes("verified_through_microsoft") ||
+    provenance.includes("unavailable_permission") ||
+    provenance.includes("unavailable_product_or_license")
+  ) {
+    return { label: "M365", tone: "m365" };
+  }
+  if (provenance.includes("uploaded_evidence")) {
+    return { label: "Evidence", tone: "evidence" };
+  }
+  if (provenance.includes("declared_by_customer") || provenance.includes("inferred_by_rule")) {
+    return { label: "Business", tone: "business" };
+  }
+  if (gap.missingEvidence.length > 0) {
+    return { label: "Missing", tone: "missing" };
+  }
+  return { label: gap.jurisdiction, tone: "jurisdiction" };
+};
+
+const readReportSubtitle = (reportType: string): string => {
+  if (reportType === "internal_readiness") {
+    return "The report separates known facts, evidence confidence, legal applicability and next priority.";
+  }
+  if (reportType === "romania_notification_draft") {
+    return "A source-mapped draft for internal review before any authority submission.";
+  }
+  if (reportType === "evidence_package") {
+    return "Evidence files, source references and hashes are collected for review without public storage links.";
+  }
+  return "A PureSOC internal readiness output with source references and conservative claims.";
+};
+
 const readLegalCaveat = (reportData: PdfReportTemplateData): string =>
   typeof (reportData as { legalCaveat?: unknown }).legalCaveat === "string"
     ? (reportData as { legalCaveat: string }).legalCaveat
@@ -477,57 +596,98 @@ const companyInitials = (value: string): string => {
 
 const reportCss = `
 * { box-sizing: border-box; }
-html { color: #17202a; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-body { margin: 0; background: #f6f8fb; font-size: 12px; line-height: 1.45; }
-.report-shell { background: #fbfcff; border-top: 7px solid #124f9f; min-height: 100vh; padding: 24px 30px 52px; }
-.report-header { align-items: start; border-bottom: 1px solid #c9d3df; display: flex; gap: 22px; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; }
-.report-brand-block { align-items: center; display: flex; gap: 14px; min-width: 0; }
-.report-logo, .report-logo-fallback { border: 1px solid #d3dbe6; border-radius: 8px; display: block; flex: 0 0 auto; height: 54px; width: 54px; }
-.report-logo { background: #f8fafc; object-fit: contain; padding: 5px; }
-.report-logo-fallback { align-items: center; background: #e9f2ff; color: #124f9f; display: flex; font-size: 17px; font-weight: 900; justify-content: center; }
-.report-header h1 { font-size: 28px; letter-spacing: 0; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
-.report-org-name { color: #405064; font-size: 12px; font-weight: 800; margin: 7px 0 0; overflow-wrap: anywhere; }
-.report-header dl { background: #f2f6fb; border: 1px solid #d8e0ea; border-radius: 8px; display: grid; gap: 7px; margin: 0; min-width: 190px; padding: 10px 12px; }
-.report-header dt { color: #5d6975; font-size: 10px; text-transform: uppercase; }
-.report-header dd { font-weight: 700; margin: 0; overflow-wrap: anywhere; }
-.eyebrow { color: #5d6975; font-size: 10px; font-weight: 800; margin: 0 0 6px; text-transform: uppercase; }
-h2 { font-size: 15px; margin: 20px 0 8px; }
+html { color: oklch(23% 0.035 255); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+body { margin: 0; background: oklch(96.5% 0.006 255); font-size: 12px; line-height: 1.45; }
+.report-shell { background: oklch(98.8% 0.005 255); min-height: 100vh; padding: 30px 34px 54px; }
+.report-hero { margin-bottom: 24px; }
+.report-topline { border-top: 1px solid oklch(87% 0.017 255); color: oklch(58% 0.045 255); font-size: 10px; font-weight: 900; padding-top: 10px; text-transform: uppercase; }
+.report-hero__body { align-items: start; display: grid; gap: 26px; grid-template-columns: minmax(0, 1fr) 220px; padding-top: 46px; }
+.report-hero__copy { min-width: 0; }
+.report-hero h1 { color: oklch(20% 0.06 260); font-size: 38px; letter-spacing: 0; line-height: 1.05; margin: 0; max-width: 760px; overflow-wrap: anywhere; }
+.report-subtitle { color: oklch(50% 0.045 255); font-size: 16px; font-weight: 700; line-height: 1.4; margin: 16px 0 0; max-width: 680px; }
+.report-meta-card { background: oklch(97% 0.009 255); border: 1px solid oklch(86% 0.022 255); border-radius: 8px; display: grid; gap: 10px; margin: 0; padding: 13px; }
+.report-meta-card__brand { align-items: center; display: grid; gap: 11px; grid-template-columns: 46px minmax(0, 1fr); }
+.report-logo, .report-logo-fallback { border: 1px solid oklch(85% 0.02 255); border-radius: 8px; display: block; flex: 0 0 auto; height: 46px; width: 46px; }
+.report-logo { background: oklch(99% 0.004 255); object-fit: contain; padding: 5px; }
+.report-logo-fallback { align-items: center; background: oklch(94% 0.035 258); color: oklch(43% 0.17 258); display: flex; font-size: 15px; font-weight: 900; justify-content: center; }
+.report-meta-card dt { color: oklch(53% 0.035 255); font-size: 9px; font-weight: 900; text-transform: uppercase; }
+.report-meta-card dd { color: oklch(25% 0.04 255); font-weight: 800; margin: 2px 0 0; overflow-wrap: anywhere; }
+.eyebrow { color: oklch(54% 0.16 258); font-size: 11px; font-weight: 900; margin: 0 0 14px; text-transform: uppercase; }
+h2 { color: oklch(20% 0.055 260); font-size: 19px; letter-spacing: 0; line-height: 1.2; margin: 22px 0 10px; }
 table { border-collapse: collapse; width: 100%; }
-th, td { border-bottom: 1px solid #d9dee3; padding: 7px 8px; text-align: left; vertical-align: top; }
-th { background: #eef3f8; color: #39424e; font-size: 10px; text-transform: uppercase; }
+th, td { border-bottom: 1px solid oklch(89% 0.011 255); padding: 7px 8px; text-align: left; vertical-align: top; }
+th { background: oklch(95% 0.012 255); color: oklch(38% 0.035 255); font-size: 10px; text-transform: uppercase; }
 code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; overflow-wrap: anywhere; }
 .exec-grid { display: grid; gap: 14px; grid-template-columns: 0.9fr 1.3fr; }
-.score-card { border: 2px solid #17202a; border-radius: 8px; min-height: 190px; padding: 18px; }
+.score-card { border: 2px solid oklch(23% 0.035 255); border-radius: 8px; min-height: 190px; padding: 18px; }
 .score-card span, .score-card small { display: block; font-weight: 700; text-transform: uppercase; }
 .score-card strong { display: block; font-size: 78px; line-height: 0.95; margin: 18px 0 10px; }
-.score-card.success { background: #e7f7ef; border-color: #1d7a43; color: #185b34; }
-.score-card.warning { background: #fff4d4; border-color: #a66b00; color: #6f4700; }
-.score-card.danger { background: #ffe8e4; border-color: #ba3329; color: #85251e; }
-.traffic-card, .fine-box { background: #f9fbfe; border: 1px solid #cdd5dd; border-radius: 8px; padding: 14px; }
-.traffic-row { align-items: center; border-top: 1px solid #e2e6ea; display: grid; gap: 10px; grid-template-columns: 16px 1fr auto; padding: 10px 0; }
+.score-card.success { background: oklch(95% 0.04 155); border-color: oklch(50% 0.14 155); color: oklch(34% 0.1 155); }
+.score-card.warning { background: oklch(96% 0.05 78); border-color: oklch(58% 0.13 75); color: oklch(38% 0.095 75); }
+.score-card.danger { background: oklch(95% 0.045 22); border-color: oklch(54% 0.18 22); color: oklch(36% 0.13 22); }
+.traffic-card, .fine-box { background: oklch(99% 0.004 255); border: 1px solid oklch(86% 0.018 255); border-radius: 8px; padding: 14px; }
+.traffic-row { align-items: center; border-top: 1px solid oklch(90% 0.01 255); display: grid; gap: 10px; grid-template-columns: 16px 1fr auto; padding: 10px 0; }
 .traffic-row:first-of-type { border-top: 0; }
 .light { border-radius: 999px; display: inline-block; height: 13px; width: 13px; }
-.light.success { background: #1f9d55; }
-.light.warning { background: #f2b600; }
-.light.danger { background: #d13d35; }
-.summary-band, .three-column-stats { display: grid; gap: 10px; grid-template-columns: repeat(3, 1fr); margin: 12px 0 18px; }
-.stat { background: #f7f9fb; border: 1px solid #d9dee3; border-radius: 8px; padding: 10px 12px; }
-.stat span { color: #5d6975; display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; }
-.stat strong { display: block; font-size: 18px; margin-top: 3px; }
+.light.success { background: oklch(60% 0.16 155); }
+.light.warning { background: oklch(75% 0.15 78); }
+.light.danger { background: oklch(61% 0.2 22); }
+.report-metrics { display: grid; gap: 16px; grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0 0 20px; }
+.metric-card { background: oklch(99% 0.004 255); border: 1px solid oklch(86% 0.018 255); border-radius: 8px; min-height: 92px; padding: 15px 16px; }
+.metric-card__label { align-items: center; color: oklch(51% 0.04 255); display: flex; font-size: 11px; font-weight: 900; gap: 10px; margin-bottom: 18px; }
+.metric-card__label i { border-radius: 999px; display: inline-block; height: 9px; outline: 5px solid oklch(96% 0.02 255); width: 9px; }
+.metric-card strong { color: oklch(20% 0.055 260); display: block; font-size: 24px; line-height: 1.1; overflow-wrap: anywhere; }
+.metric-card--blue i { background: oklch(62% 0.19 258); outline-color: oklch(94% 0.04 258); }
+.metric-card--green i { background: oklch(62% 0.15 155); outline-color: oklch(94% 0.04 155); }
+.metric-card--amber i { background: oklch(75% 0.15 70); outline-color: oklch(96% 0.04 70); }
+.metric-card--rose i { background: oklch(64% 0.19 18); outline-color: oklch(95% 0.04 18); }
+.report-main-grid { align-items: stretch; display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr) 220px; margin: 16px 0 24px; }
+.priority-panel { background: oklch(99% 0.004 255); border: 1px solid oklch(86% 0.018 255); border-radius: 8px; padding: 22px 24px; }
+.priority-panel__header { align-items: center; display: flex; justify-content: space-between; margin-bottom: 10px; }
+.priority-panel__header h2, .version-panel h2 { margin: 0; }
+.priority-panel__header span { color: oklch(58% 0.045 255); font-size: 10px; font-weight: 900; text-transform: uppercase; }
+.priority-list { display: grid; }
+.priority-row { align-items: center; border-top: 1px solid oklch(90% 0.01 255); display: grid; gap: 12px; grid-template-columns: 24px minmax(0, 1fr) 82px 88px; min-height: 43px; }
+.priority-row:first-child { border-top: 0; }
+.priority-row strong { color: oklch(27% 0.045 255); font-size: 13px; line-height: 1.3; }
+.priority-index { align-items: center; border-radius: 999px; display: flex; font-size: 10px; font-weight: 900; height: 20px; justify-content: center; width: 20px; }
+.priority-index--critical { background: oklch(95% 0.045 18); color: oklch(55% 0.2 18); }
+.priority-index--high { background: oklch(96% 0.05 60); color: oklch(61% 0.16 55); }
+.priority-index--medium { background: oklch(96% 0.045 90); color: oklch(48% 0.11 90); }
+.priority-index--low { background: oklch(94% 0.04 155); color: oklch(44% 0.12 155); }
+.version-panel { background: oklch(20% 0.06 260); border-radius: 8px; color: oklch(98% 0.006 255); padding: 24px; }
+.version-panel h2 { color: oklch(98% 0.006 255); font-size: 20px; }
+.version-list { list-style: none; margin: 22px 0 0; padding: 0; }
+.version-list li { display: grid; gap: 12px; grid-template-columns: 34px minmax(0, 1fr); padding-bottom: 18px; position: relative; }
+.version-list li::before { background: oklch(42% 0.08 258); bottom: -2px; content: ""; left: 15px; position: absolute; top: 30px; width: 1px; }
+.version-list li:last-child { padding-bottom: 0; }
+.version-list li:last-child::before { display: none; }
+.version-list span { align-items: center; background: oklch(36% 0.12 258); border-radius: 999px; color: oklch(96% 0.012 255); display: flex; font-size: 10px; font-weight: 900; height: 31px; justify-content: center; width: 31px; }
+.version-list li.current span { background: oklch(62% 0.19 258); }
+.version-list strong { color: oklch(98% 0.006 255); display: block; font-size: 13px; line-height: 1.25; }
+.version-list small { color: oklch(76% 0.035 255); display: block; font-size: 11px; font-weight: 700; margin-top: 3px; }
+.summary-band, .three-column-stats { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 12px 0 18px; }
+.stat { background: oklch(98% 0.006 255); border: 1px solid oklch(88% 0.012 255); border-radius: 8px; padding: 10px 12px; }
+.stat span { color: oklch(53% 0.035 255); display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+.stat strong { color: oklch(27% 0.04 255); display: block; font-size: 18px; margin-top: 3px; }
 .badge { border-radius: 999px; display: inline-block; font-size: 10px; font-weight: 800; padding: 2px 7px; text-transform: uppercase; white-space: nowrap; }
-.badge.critical, .badge.danger { background: #ffe9e6; color: #98231c; }
-.badge.high { background: #ffe8c2; color: #8c4a00; }
-.badge.medium, .badge.warning { background: #fff5d7; color: #6f4700; }
-.badge.low, .badge.success { background: #e8f7ef; color: #185b34; }
+.badge.critical, .badge.danger { background: oklch(95% 0.045 18); color: oklch(55% 0.2 18); }
+.badge.high { background: oklch(95% 0.055 55); color: oklch(58% 0.16 55); }
+.badge.medium, .badge.warning { background: oklch(96% 0.045 88); color: oklch(45% 0.11 88); }
+.badge.low, .badge.success { background: oklch(94% 0.04 155); color: oklch(40% 0.12 155); }
+.source-chip { border-radius: 999px; display: inline-block; font-size: 10px; font-weight: 900; padding: 6px 10px; text-align: center; text-transform: uppercase; white-space: nowrap; }
+.source-chip--m365 { background: oklch(93% 0.04 258); color: oklch(50% 0.19 258); }
+.source-chip--business, .source-chip--evidence { background: oklch(94% 0.04 155); color: oklch(43% 0.13 155); }
+.source-chip--missing, .source-chip--jurisdiction { background: oklch(92% 0.01 255); color: oklch(48% 0.035 255); }
 .gap-list { margin: 0; padding-left: 18px; }
 .gap-list li { margin-bottom: 7px; }
 .source-list { columns: 2; list-style: none; margin: 0; padding: 0; }
 .source-list li { break-inside: avoid; margin-bottom: 6px; }
-.empty { color: #5d6975; font-style: italic; }
-.fine-box { background: #eef6ff; border-color: #9fc5ef; margin: 18px 0; }
+.empty { color: oklch(53% 0.035 255); font-style: italic; }
+.fine-box { background: oklch(96% 0.025 250); border-color: oklch(78% 0.06 250); margin: 18px 0; }
 .fine-box h2 { margin-top: 0; }
-.calibration-box, .verified-box { border: 1px solid #b7c7d5; border-radius: 8px; margin: 18px 0; padding: 14px; }
+.calibration-box, .verified-box { background: oklch(99% 0.004 255); border: 1px solid oklch(84% 0.022 255); border-radius: 8px; margin: 18px 0; padding: 16px; }
 .calibration-box h2:first-child, .verified-box h2:first-child { margin-top: 0; }
-.report-footer { border-top: 1px solid #cdd5dd; color: #5d6975; display: grid; gap: 6px; grid-template-columns: 1fr auto auto; margin-top: 26px; padding-top: 10px; }
+.report-footer { border-top: 1px solid oklch(86% 0.018 255); color: oklch(53% 0.035 255); display: grid; gap: 6px; grid-template-columns: 1fr auto auto; margin-top: 26px; padding-top: 10px; }
 @page { margin: 18mm 13mm 20mm; }
 `;
