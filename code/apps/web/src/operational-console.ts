@@ -1086,19 +1086,142 @@ const renderProductConnectorsPage = (model: ProductMvpShellModel): string => [
     : ""
 ].join("");
 
-const renderProductRemediationPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({ eyebrow: "Action center", title: "Remediation", status: "approval gated" }),
-  renderDataTable<Record<string, unknown>>(
-    "Remediation actions",
+interface ProductRemediationBacklogRow {
+  id: string;
+  recommendedAction: string;
+  severity: string;
+  source: string;
+  status: string;
+  summary: string;
+  title: string;
+  type: "gap" | "recommendation";
+}
+
+const renderProductRemediationPage = (model: ProductMvpShellModel): string => {
+  const actions = model.details?.remediationActions ?? [];
+  const detailsGaps = model.details?.gaps;
+  const detailsRecommendations = model.details?.recommendations;
+  const gaps = detailsGaps && detailsGaps.length > 0 ? detailsGaps : model.dashboard.gaps.recent;
+  const recommendations =
+    detailsRecommendations && detailsRecommendations.length > 0 ? detailsRecommendations : model.dashboard.recommendations;
+  const backlog = buildProductRemediationBacklog(gaps, recommendations);
+
+  return [
+    renderProductPageHeader({ eyebrow: "Action center", title: "Remediation", status: "approval gated" }),
+    '<section class="ps-grid ps-grid--dense" aria-label="Remediation analysis summary">',
+    renderProductScoreCard("Analyzed gaps", String(model.dashboard.gaps.open), `${model.dashboard.gaps.critical} critical`),
+    renderProductScoreCard("Recommendations", String(recommendations.length), "from stored readiness analysis"),
+    renderProductScoreCard("Execution boundary", "Gated", "preview, approval, snapshots, verification, evidence"),
+    "</section>",
+    renderProductRemediationSafetyPanel({ actionsCount: actions.length, backlogCount: backlog.length }),
+    renderProductRemediationBacklog(backlog),
+    renderDataTable<Record<string, unknown>>(
+      "Approval action runs",
+      [
+        {
+          header: "Action",
+          render: (row) =>
+            `<strong>${escapeHtml(String(row.title ?? "Action"))}</strong><br><span class="ps-muted">${escapeHtml(
+              String(row.expectedChange ?? "")
+            )}</span>`
+        },
+        {
+          header: "Risk",
+          render: (row) =>
+            renderStatusPill({
+              label: String(row.risk ?? "medium"),
+              tone: toneForSeverity(String(row.risk ?? "medium") as ActionableSeverity)
+            })
+        },
+        {
+          header: "Approval",
+          render: (row) =>
+            renderStatusPill({ label: String(row.approvalState ?? "not requested").replaceAll("_", " "), tone: "info" })
+        },
+        { header: "Execution", render: (row) => escapeHtml(String(row.executionState ?? "draft").replaceAll("_", " ")) }
+      ],
+      actions
+    )
+  ].join("");
+};
+
+const renderProductRemediationSafetyPanel = (input: { actionsCount: number; backlogCount: number }): string => [
+  '<section class="ps-panel ps-stack-top" aria-labelledby="remediation-safety-title">',
+  '<div class="ps-section__header ps-section__header--flat">',
+  '<div><h2 class="ps-panel__title" id="remediation-safety-title">Remediation focus from analyzed gaps</h2><p class="ps-muted">Use this queue to assign owners and collect evidence before any provider-impacting action is considered.</p></div>',
+  renderStatusPill({ label: "provider writes gated", tone: "warning" }),
+  "</div>",
+  '<div class="ps-grid ps-grid--dense">',
+  renderProductRemediationFact("Backlog", `${input.backlogCount} gap-based items`, "From the latest analyzer output and recommendation snapshot."),
+  renderProductRemediationFact("Approval queue", `${input.actionsCount} action runs`, "Only created action runs can move through preview and approval."),
+  renderProductRemediationFact("Current mode", "Manual or guided", "Execution remains blocked until safety gates and evidence are complete."),
+  "</div>",
+  "</section>"
+].join("");
+
+const renderProductRemediationFact = (label: string, value: string, detail: string): string =>
+  `<div class="ps-fact"><span class="ps-source-detail">${escapeHtml(label)}</span><p class="ps-metric">${escapeHtml(
+    value
+  )}</p><p class="ps-muted">${escapeHtml(detail)}</p></div>`;
+
+const renderProductRemediationBacklog = (backlog: ProductRemediationBacklogRow[]): string => [
+  renderDataTable<ProductRemediationBacklogRow>(
+    "Gap-derived remediation backlog",
     [
-      { header: "Action", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Action"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.expectedChange ?? ""))}</span>` },
-      { header: "Risk", render: (row) => renderStatusPill({ label: String(row.risk ?? "medium"), tone: toneForSeverity(String(row.risk ?? "medium") as ActionableSeverity) }) },
-      { header: "Approval", render: (row) => renderStatusPill({ label: String(row.approvalState ?? "not requested").replaceAll("_", " "), tone: "info" }) },
-      { header: "Execution", render: (row) => escapeHtml(String(row.executionState ?? "draft").replaceAll("_", " ")) }
+      {
+        header: "Gap or recommendation",
+        render: (row) =>
+          `<strong>${escapeHtml(row.title)}</strong><br><span class="ps-muted">${escapeHtml(row.summary)}</span>`
+      },
+      {
+        header: "Priority",
+        render: (row) =>
+          renderStatusPill({
+            label: row.severity,
+            tone: toneForSeverity(row.severity as ActionableSeverity)
+          })
+      },
+      { header: "Recommended next step", render: (row) => escapeHtml(row.recommendedAction) },
+      {
+        header: "Source",
+        render: (row) =>
+          `${renderStatusPill({ label: row.type, tone: row.type === "gap" ? "warning" : "info" })}<br><span class="ps-muted">${escapeHtml(
+            `${row.source} - ${row.status}`
+          )}</span>`
+      }
     ],
-    model.details?.remediationActions ?? []
+    backlog
   )
 ].join("");
+
+const buildProductRemediationBacklog = (
+  gaps: Array<Record<string, unknown>>,
+  recommendations: Array<Record<string, unknown>>
+): ProductRemediationBacklogRow[] => {
+  const gapRows = gaps.map((gap, index) => ({
+    id: String(gap.id ?? `gap_${index}`),
+    recommendedAction: String(gap.recommendedAction ?? "Assign an owner, confirm evidence required, and plan the manual remediation step."),
+    severity: String(gap.severity ?? "medium"),
+    source: String(gap.source ?? "readiness_engine"),
+    status: String(gap.status ?? "open").replaceAll("_", " "),
+    summary: String(gap.businessImpact ?? gap.summary ?? "This gap reduces confidence in the readiness baseline."),
+    title: String(gap.title ?? "Readiness gap"),
+    type: "gap" as const
+  }));
+
+  const recommendationRows = recommendations.map((recommendation, index) => ({
+    id: String(recommendation.id ?? `recommendation_${index}`),
+    recommendedAction: String(recommendation.summary ?? "Review and assign this recommendation."),
+    severity: String(recommendation.priority ?? recommendation.severity ?? "medium"),
+    source: String(recommendation.controlArea ?? recommendation.controlId ?? "recommendation_snapshot"),
+    status: String(recommendation.actionType ?? recommendation.effort ?? "review").replaceAll("_", " "),
+    summary: String(recommendation.summary ?? "Recommended from the latest readiness analysis."),
+    title: String(recommendation.title ?? "Recommended action"),
+    type: "recommendation" as const
+  }));
+
+  return [...gapRows, ...recommendationRows].slice(0, 8);
+};
 
 const renderProductEvidencePage = (model: ProductMvpShellModel): string => [
   renderProductPageHeader({ eyebrow: "Evidence library", title: "Evidence", status: `${(model.details?.evidence ?? model.dashboard.evidence).length} items` }),

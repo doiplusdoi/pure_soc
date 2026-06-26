@@ -2956,7 +2956,7 @@ const loadProductMvpShellModel = async (input: {
     connectors: connectors.statusCode === 200 ? connectors.body.connectors ?? [] : []
   };
 
-  if (input.route === "gap_analyzer") {
+  if (input.route === "gap_analyzer" || input.route === "remediation") {
     const [gaps, recommendations] = await Promise.all([
       apiJson<ProductGapsWebResponse>(input.apiBaseUrl, "/api/gaps", {
         method: "GET",

@@ -144,6 +144,25 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toContain("context message");
   });
 
+  it("renders remediation guidance from analyzed gaps before action runs exist", () => {
+    const html = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "remediation"
+    });
+
+    expect(html).toContain("Remediation focus from analyzed gaps");
+    expect(html).toContain("Analyzed gaps");
+    expect(html).toContain("1 critical");
+    expect(html).toContain("provider writes gated");
+    expect(html).toContain("Gap-derived remediation backlog");
+    expect(html).toContain("MFA coverage is incomplete");
+    expect(html).toContain("Accounts remain easier to compromise.");
+    expect(html).toContain("Assign an owner, confirm evidence required");
+    expect(html).toContain("Approval action runs");
+    expect(html).toContain("No records");
+    expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
   it("renders Microsoft 365 tenant intelligence with module and Purview posture status", () => {
     const html = renderProductMvpShell({
       ...productShellModel(),
