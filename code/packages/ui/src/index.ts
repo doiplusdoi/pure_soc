@@ -1680,6 +1680,36 @@ a {
   resize: vertical;
 }
 
+.ps-field--logo {
+  align-items: start;
+  grid-template-columns: 5rem minmax(0, 1fr);
+}
+
+.ps-field--logo label,
+.ps-field--logo .ps-help,
+.ps-field--logo input[type="file"],
+.ps-field--logo input[type="hidden"] {
+  grid-column: 1 / -1;
+}
+
+.ps-logo-preview {
+  width: 5rem;
+  height: 3.25rem;
+  border: 1px solid var(--ps-color-border);
+  border-radius: var(--ps-radius-sm);
+  background: var(--ps-color-panel-subtle);
+  object-fit: contain;
+  padding: 0.35rem;
+}
+
+.ps-logo-preview--empty {
+  display: inline-grid;
+  place-items: center;
+  color: var(--ps-color-muted);
+  font-size: 0.75rem;
+  font-weight: 800;
+}
+
 .ps-field--checkbox {
   display: flex;
   align-items: center;

@@ -48,6 +48,7 @@ export const createOrganizationRoute = async (
       legalName: optionalString(body, "legalName"),
       primaryCountryCode: optionalCountryCode(body, "primaryCountryCode"),
       headquartersCountryCode: optionalCountryCode(body, "headquartersCountryCode"),
+      logoDataUrl: optionalString(body, "logoDataUrl"),
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })

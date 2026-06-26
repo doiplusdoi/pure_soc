@@ -55,6 +55,11 @@ describe("report renderer", () => {
         legalCaveatMessageKey: "puresoc.legal_caveat.internal_readiness.v1",
         legalCaveatReviewStatus: "source_approved",
         locale: "en",
+        reportBranding: {
+          organizationName: "Asterion Tools",
+          legalName: "Asterion Tools SRL",
+          logoDataUrl: "data:image/png;base64,iVBORw0KGgo="
+        },
         version: {
           immutable: true,
           inputSnapshot: {
@@ -140,6 +145,8 @@ describe("report renderer", () => {
     });
 
     expect(html).toContain('<meta name="puresoc-legal-caveat"');
+    expect(html).toContain('class="report-logo"');
+    expect(html).toContain("Asterion Tools SRL");
     expect(html).toContain("Control list");
     expect(html).toContain("NIS2-EU-MFA");
     expect(extractLegalCaveat(html)).toBe(PURESOC_LEGAL_CAVEAT);

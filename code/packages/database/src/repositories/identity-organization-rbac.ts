@@ -132,6 +132,7 @@ export interface OrganizationRecordContract {
   defaultLocale: string;
   primaryCountryCode?: string | null;
   headquartersCountryCode?: string | null;
+  logoDataUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -439,6 +440,7 @@ export class PrismaIdentityOrganizationRbacRepository {
     legalName?: string | null;
     primaryCountryCode?: string | null;
     headquartersCountryCode?: string | null;
+    logoDataUrl?: string | null;
     updatedAt: Date;
   }): Promise<OrganizationRecordContract> {
     const row = await this.client.organization.update({
@@ -452,6 +454,7 @@ export class PrismaIdentityOrganizationRbacRepository {
         ...(input.headquartersCountryCode !== undefined
           ? { headquartersCountryCode: input.headquartersCountryCode }
           : {}),
+        ...(input.logoDataUrl !== undefined ? { logoDataUrl: input.logoDataUrl } : {}),
         updatedAt: input.updatedAt
       }
     });
@@ -852,6 +855,7 @@ type OrganizationRow = {
   defaultLocale: string;
   primaryCountryCode?: string | null;
   headquartersCountryCode?: string | null;
+  logoDataUrl?: string | null;
   createdAt: Date | string;
   updatedAt: Date | string;
 };
@@ -971,6 +975,7 @@ const toOrganizationCreate = (organization: OrganizationRecordContract) => ({
   defaultLocale: organization.defaultLocale,
   primaryCountryCode: organization.primaryCountryCode ?? null,
   headquartersCountryCode: organization.headquartersCountryCode ?? null,
+  logoDataUrl: organization.logoDataUrl ?? null,
   createdAt: organization.createdAt,
   updatedAt: organization.updatedAt
 });
@@ -1073,6 +1078,7 @@ const fromOrganizationRow = (row: OrganizationRow): OrganizationRecordContract =
   defaultLocale: row.defaultLocale,
   primaryCountryCode: row.primaryCountryCode ?? null,
   headquartersCountryCode: row.headquartersCountryCode ?? null,
+  logoDataUrl: row.logoDataUrl ?? null,
   createdAt: toDate(row.createdAt),
   updatedAt: toDate(row.updatedAt)
 });

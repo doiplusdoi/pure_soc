@@ -1,4 +1,5 @@
 import type { Nis2CountryPackDefinition } from "@puresoc/country-packs-core";
+import type { ReportBranding } from "@puresoc/reports";
 import type { ApiServices } from "../../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../../http";
 import { requireOrganizationRole } from "../../rbac";
@@ -166,6 +167,7 @@ export const buildOrganizationNis2OnboardingReportRoute = async (
     actorUserId,
     assessmentId: prepared.assessmentId,
     versionContext: prepared.versionContext,
+    reportBranding: await loadReportBranding(organizationId, actorUserId, services),
     ipAddress: context.ipAddress,
     userAgent: context.userAgent
   });
@@ -220,6 +222,24 @@ const readSessionUserId = async (cookieHeader: string | undefined, services: Api
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
   const session = await services.localAuth.getSession(sessionToken ?? "");
   return session.user.id;
+};
+
+const loadReportBranding = async (
+  organizationId: string,
+  actorUserId: string,
+  services: ApiServices
+): Promise<ReportBranding | undefined> => {
+  const organization = (await services.identityRepository.listOrganizationsForUser(actorUserId)).find(
+    (row) => row.organization.id === organizationId
+  )?.organization;
+
+  return organization
+    ? {
+        organizationName: organization.name,
+        legalName: organization.legalName ?? null,
+        logoDataUrl: organization.logoDataUrl ?? null
+      }
+    : undefined;
 };
 
 const toCountryPackResponse = (pack: Nis2CountryPackDefinition) => ({

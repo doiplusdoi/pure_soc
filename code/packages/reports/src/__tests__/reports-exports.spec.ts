@@ -42,6 +42,11 @@ describe("reports exports stable JSON contracts", () => {
       countryPackVersion: "2026.06.demo",
       onboardingSchemaVersion: "puresoc.nis2.onboarding.v1",
       analysisRecordedAt: "2026-04-30T09:00:00.000Z",
+      reportBranding: {
+        organizationName: "Asterion Tools",
+        legalName: "Asterion Tools SRL",
+        logoDataUrl: "data:image/png;base64,iVBORw0KGgo="
+      },
       controlResults: [
         {
           organizationId: "org_reports",
@@ -95,6 +100,11 @@ describe("reports exports stable JSON contracts", () => {
     expect(report.legalCaveatRequestedLocale).toBeUndefined();
     expect(report.legalCaveatReviewStatus).toBe("source_approved");
     expect(report.locale).toBe("en");
+    expect(report.reportBranding).toEqual({
+      organizationName: "Asterion Tools",
+      legalName: "Asterion Tools SRL",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo="
+    });
     expect(report.version).toMatchObject({
       countryPackVersion: "2026.06.demo",
       calibrationReviewStatus: "requires_product_legal_review",

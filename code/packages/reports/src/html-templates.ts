@@ -3,6 +3,7 @@ import type {
   InternalReadinessReport,
   ReportControlResultSummary,
   ReportEvidenceSummary,
+  ReportBranding,
   ReportGapSummary,
   RomaniaNotificationDraftExport
 } from "./report.types";
@@ -71,8 +72,15 @@ const wrapReportHtml = (input: {
   const legalCaveat = readLegalCaveat(input.reportData);
   const generatedAt = readString(input.reportData, "generatedAt") ?? new Date(0).toISOString();
   const organizationId = readString(input.reportData, "organizationId") ?? "unknown";
+  const branding = readReportBranding(input.reportData);
+  const organizationLabel = branding?.legalName ?? branding?.organizationName ?? organizationId;
+  const logoDataUrl = branding?.logoDataUrl;
+  const logo = isSafeReportLogoDataUrl(logoDataUrl) ? logoDataUrl : undefined;
   const reportType = readString(input.reportData, "reportType") ?? "report";
   const jurisdiction = readString(input.reportData, "jurisdiction") ?? "EU";
+  const logoMark = logo
+    ? `<img class="report-logo" src="${escapeHtmlAttribute(logo)}" alt="${escapeHtmlAttribute(organizationLabel)} logo">`
+    : `<span class="report-logo-fallback">${escapeHtml(companyInitials(organizationLabel))}</span>`;
 
   return [
     "<!doctype html>",
@@ -88,9 +96,11 @@ const wrapReportHtml = (input: {
     "</head>",
     "<body>",
     '<main class="report-shell">',
-    `<header class="report-header"><div><p class="eyebrow">PureSOC internal readiness</p><h1>${escapeHtml(
+    `<header class="report-header"><div class="report-brand-block">${logoMark}<div><p class="eyebrow">PureSOC internal readiness</p><h1>${escapeHtml(
       input.title
-    )}</h1></div><dl><div><dt>Organization</dt><dd>${escapeHtml(organizationId)}</dd></div><div><dt>Jurisdiction</dt><dd>${escapeHtml(
+    )}</h1><p class="report-org-name">${escapeHtml(organizationLabel)}</p></div></div><dl><div><dt>Workspace ID</dt><dd><code>${escapeHtml(
+      organizationId
+    )}</code></dd></div><div><dt>Jurisdiction</dt><dd>${escapeHtml(
       jurisdiction
     )}</dd></div><div><dt>Generated</dt><dd>${escapeHtml(formatDateTime(generatedAt))}</dd></div></dl></header>`,
     input.body,
@@ -404,6 +414,20 @@ const readLegalCaveat = (reportData: PdfReportTemplateData): string =>
       ? ((reportData as { manifest: { legalCaveat: string } }).manifest.legalCaveat)
     : "PureSOC internal readiness output is not a legal opinion.";
 
+const readReportBranding = (reportData: PdfReportTemplateData): ReportBranding | undefined => {
+  const branding = (reportData as { reportBranding?: unknown }).reportBranding;
+  if (!branding || typeof branding !== "object" || Array.isArray(branding)) {
+    return undefined;
+  }
+
+  const record = branding as Record<string, unknown>;
+  return {
+    organizationName: typeof record.organizationName === "string" ? record.organizationName : undefined,
+    legalName: typeof record.legalName === "string" || record.legalName === null ? record.legalName : undefined,
+    logoDataUrl: typeof record.logoDataUrl === "string" || record.logoDataUrl === null ? record.logoDataUrl : undefined
+  };
+};
+
 const readString = (value: unknown, key: string): string | undefined =>
   value && typeof value === "object" && typeof (value as Record<string, unknown>)[key] === "string"
     ? ((value as Record<string, unknown>)[key] as string)
@@ -436,30 +460,50 @@ const escapeHtml = (value: string): string =>
 
 const escapeHtmlAttribute = escapeHtml;
 
+const isSafeReportLogoDataUrl = (value: string | null | undefined): value is string =>
+  typeof value === "string" && /^data:image\/(?:png|jpeg|webp);base64,[a-z0-9+/=]+$/i.test(value);
+
+const companyInitials = (value: string): string => {
+  const letters = value
+    .split(/\s+/)
+    .map((part) => part[0])
+    .filter(Boolean)
+    .join("")
+    .slice(0, 2)
+    .toUpperCase();
+
+  return letters || "PS";
+};
+
 const reportCss = `
 * { box-sizing: border-box; }
 html { color: #17202a; font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
-body { margin: 0; background: #fff; font-size: 12px; line-height: 1.45; }
-.report-shell { padding: 22px 28px 52px; }
-.report-header { align-items: start; border-bottom: 2px solid #17202a; display: flex; gap: 20px; justify-content: space-between; margin-bottom: 18px; padding-bottom: 14px; }
-.report-header h1 { font-size: 28px; letter-spacing: 0; line-height: 1.1; margin: 0; }
-.report-header dl { display: grid; gap: 7px; margin: 0; min-width: 180px; }
+body { margin: 0; background: #f6f8fb; font-size: 12px; line-height: 1.45; }
+.report-shell { background: #fbfcff; border-top: 7px solid #124f9f; min-height: 100vh; padding: 24px 30px 52px; }
+.report-header { align-items: start; border-bottom: 1px solid #c9d3df; display: flex; gap: 22px; justify-content: space-between; margin-bottom: 20px; padding-bottom: 16px; }
+.report-brand-block { align-items: center; display: flex; gap: 14px; min-width: 0; }
+.report-logo, .report-logo-fallback { border: 1px solid #d3dbe6; border-radius: 8px; display: block; flex: 0 0 auto; height: 54px; width: 54px; }
+.report-logo { background: #f8fafc; object-fit: contain; padding: 5px; }
+.report-logo-fallback { align-items: center; background: #e9f2ff; color: #124f9f; display: flex; font-size: 17px; font-weight: 900; justify-content: center; }
+.report-header h1 { font-size: 28px; letter-spacing: 0; line-height: 1.1; margin: 0; overflow-wrap: anywhere; }
+.report-org-name { color: #405064; font-size: 12px; font-weight: 800; margin: 7px 0 0; overflow-wrap: anywhere; }
+.report-header dl { background: #f2f6fb; border: 1px solid #d8e0ea; border-radius: 8px; display: grid; gap: 7px; margin: 0; min-width: 190px; padding: 10px 12px; }
 .report-header dt { color: #5d6975; font-size: 10px; text-transform: uppercase; }
-.report-header dd { font-weight: 700; margin: 0; }
+.report-header dd { font-weight: 700; margin: 0; overflow-wrap: anywhere; }
 .eyebrow { color: #5d6975; font-size: 10px; font-weight: 800; margin: 0 0 6px; text-transform: uppercase; }
 h2 { font-size: 15px; margin: 20px 0 8px; }
 table { border-collapse: collapse; width: 100%; }
 th, td { border-bottom: 1px solid #d9dee3; padding: 7px 8px; text-align: left; vertical-align: top; }
-th { background: #f2f5f8; color: #39424e; font-size: 10px; text-transform: uppercase; }
+th { background: #eef3f8; color: #39424e; font-size: 10px; text-transform: uppercase; }
 code { font-family: "SFMono-Regular", Consolas, monospace; font-size: 10px; overflow-wrap: anywhere; }
 .exec-grid { display: grid; gap: 14px; grid-template-columns: 0.9fr 1.3fr; }
 .score-card { border: 2px solid #17202a; border-radius: 8px; min-height: 190px; padding: 18px; }
 .score-card span, .score-card small { display: block; font-weight: 700; text-transform: uppercase; }
 .score-card strong { display: block; font-size: 78px; line-height: 0.95; margin: 18px 0 10px; }
-.score-card.success { background: #e8f7ef; border-color: #1d7a43; color: #185b34; }
-.score-card.warning { background: #fff5d7; border-color: #a66b00; color: #6f4700; }
-.score-card.danger { background: #ffe9e6; border-color: #ba3329; color: #85251e; }
-.traffic-card, .fine-box { border: 1px solid #cdd5dd; border-radius: 8px; padding: 14px; }
+.score-card.success { background: #e7f7ef; border-color: #1d7a43; color: #185b34; }
+.score-card.warning { background: #fff4d4; border-color: #a66b00; color: #6f4700; }
+.score-card.danger { background: #ffe8e4; border-color: #ba3329; color: #85251e; }
+.traffic-card, .fine-box { background: #f9fbfe; border: 1px solid #cdd5dd; border-radius: 8px; padding: 14px; }
 .traffic-row { align-items: center; border-top: 1px solid #e2e6ea; display: grid; gap: 10px; grid-template-columns: 16px 1fr auto; padding: 10px 0; }
 .traffic-row:first-of-type { border-top: 0; }
 .light { border-radius: 999px; display: inline-block; height: 13px; width: 13px; }

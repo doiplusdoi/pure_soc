@@ -58,6 +58,7 @@ describe("web dashboard reports operational UI", () => {
         id: "org_demo",
         name: "Asterion Tools",
         legalName: "Asterion Tools SRL",
+        logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
         countryCode: "RO",
         billingStatus: "none"
       },
@@ -141,6 +142,38 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toContain("Dashboard Snapshot Required");
     expect(html).not.toContain("provider_connection_oauth");
     expect(html).not.toContain("context message");
+  });
+
+  it("renders product report actions as branded PDF exports and exposes logo upload on onboarding", () => {
+    const reportsHtml = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "reports",
+      details: {
+        reports: [
+          {
+            title: "NIS2 Gap Report",
+            format: "application/pdf",
+            status: "ready",
+            downloadHref: "/reports/generated/report_1/pdf?format=pdf"
+          }
+        ]
+      }
+    });
+
+    expect(reportsHtml).toContain("Create readiness PDF");
+    expect(reportsHtml).toContain("Create gap PDF");
+    expect(reportsHtml).toContain("Create posture PDF");
+    expect(reportsHtml).toContain("Download PDF");
+    expect(reportsHtml).toContain("application/pdf");
+
+    const onboardingHtml = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "onboarding"
+    });
+
+    expect(onboardingHtml).toContain("Company logo");
+    expect(onboardingHtml).toContain('name="logoDataUrl"');
+    expect(onboardingHtml).toContain("data:image/png;base64,iVBORw0KGgo=");
   });
 
   it("redirects old fragmented product routes to canonical MVP routes", async () => {

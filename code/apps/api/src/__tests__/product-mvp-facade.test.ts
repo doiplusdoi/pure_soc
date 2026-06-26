@@ -140,15 +140,17 @@ describe("product MVP facade routes", () => {
       {
         name: "Asterion Cloud Services",
         legalName: "Asterion Cloud Services SRL",
-        countryCode: "DE"
+        countryCode: "DE",
+        logoDataUrl: "data:image/png;base64,iVBORw0KGgo="
       },
       cookie
     );
     expect(workspacePatch.status).toBe(200);
     await expect(
-      readJson<{ organization: { name: string; primaryCountryCode: string } }>(workspacePatch)
+      readJson<{ organization: { logoDataUrl: string; name: string; primaryCountryCode: string } }>(workspacePatch)
     ).resolves.toMatchObject({
       organization: {
+        logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
         name: "Asterion Cloud Services",
         primaryCountryCode: "DE"
       }
@@ -242,7 +244,28 @@ describe("product MVP facade routes", () => {
 
     const report = await postJson("/api/reports/nis2-summary", {}, cookie);
     expect(report.status).toBe(201);
-    const reportBody = await readJson<{ report: { id: string } }>(report);
+    const reportBody = await readJson<{
+      report: {
+        id: string;
+        reportType: string;
+        reportData: {
+          reportBranding?: {
+            legalName?: string | null;
+            logoDataUrl?: string | null;
+            organizationName?: string;
+          };
+        };
+      };
+      pdf: { body?: unknown; mimeType: string };
+    }>(report);
+    expect(reportBody.report.reportType).toBe("executive_summary");
+    expect(reportBody.report.reportData.reportBranding).toMatchObject({
+      legalName: "Asterion Cloud Services SRL",
+      logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
+      organizationName: "Asterion Cloud Services"
+    });
+    expect(reportBody.pdf).toMatchObject({ mimeType: "application/pdf" });
+    expect(reportBody.pdf.body).toBeUndefined();
     const reportDownload = await fetch(`${baseUrl}/api/reports/${reportBody.report.id}/download`, {
       headers: { cookie }
     });

@@ -119,6 +119,10 @@ describe("database schema groups", () => {
     expect(fieldLine("readiness_plan_items", "dueDate")).toContain("@db.Date");
   });
 
+  it("stores optional organization branding for generated reports", () => {
+    expect(fieldLine("organizations", "logoDataUrl")).toContain('@map("logo_data_url")');
+  });
+
   it("stores exact compliance result-set snapshots for repository reloads", () => {
     expect(modelBlocks.get("compliance_result_snapshots")).toContain('@map("organization_id")');
     expect(fieldLine("compliance_result_snapshots", "resultSetJson")).toContain("Json");

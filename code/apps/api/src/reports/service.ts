@@ -29,6 +29,7 @@ import {
   type InternalReadinessReportTriggerType,
   type InternalReadinessReport,
   type InternalReadinessVerifiedObservation,
+  type ReportBranding,
   type RomaniaNotificationDraftExport,
   type PdfReportTemplate,
   type StoredRomaniaNotificationDraftInput
@@ -102,10 +103,26 @@ const generatedReportPdfConfig = (
 ): { filename: string; template: PdfReportTemplate; title: string } => {
   if (report.reportData.reportType === "internal_readiness") {
     const version = report.reportData.version.reportVersion;
+    if (report.reportType === "executive_summary") {
+      return {
+        filename: `puresoc-readiness-summary-v${version}-${report.id}.pdf`,
+        template: "executive_summary",
+        title: `NIS2 Readiness Summary v${version}`
+      };
+    }
+
+    if (report.reportType === "provider_posture") {
+      return {
+        filename: `puresoc-microsoft365-posture-v${version}-${report.id}.pdf`,
+        template: "gap_report",
+        title: `Microsoft 365 Posture Report v${version}`
+      };
+    }
+
     return {
       filename: `puresoc-internal-readiness-v${version}-${report.id}.pdf`,
       template: "gap_report",
-      title: `NIS2 Internal Readiness Report v${version}`
+      title: report.reportType === "gap_report" ? `NIS2 Gap Report v${version}` : `NIS2 Internal Readiness Report v${version}`
     };
   }
 
@@ -162,6 +179,7 @@ export class ReportApiService {
     assessmentId: string;
     actorUserId: string;
     versionContext?: InternalReadinessReportVersionContext;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{ report: GeneratedReportRecord; exportJson: string }> {
@@ -178,6 +196,7 @@ export class ReportApiService {
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
       evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding,
       ...input.versionContext
     });
     const report = await this.persistReport({
@@ -197,6 +216,60 @@ export class ReportApiService {
     };
   }
 
+  async buildInternalReadinessPdfReport(input: {
+    organizationId: string;
+    assessmentId: string;
+    actorUserId: string;
+    reportType: "executive_summary" | "provider_posture";
+    template: "executive_summary" | "gap_report";
+    title: string;
+    filenamePrefix: string;
+    versionContext?: InternalReadinessReportVersionContext;
+    reportBranding?: ReportBranding;
+    ipAddress?: string | null;
+    userAgent?: string | null;
+  }): Promise<{
+    report: GeneratedReportRecord;
+    pdf: {
+      filename: string;
+      mimeType: string;
+      contentHashSha256: string;
+      body: Uint8Array;
+    };
+    pdfArtifactId?: string;
+  }> {
+    const analysis = await this.requireStoredAnalysis(input.organizationId, input.assessmentId);
+    const reportData = buildInternalReadinessReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      jurisdiction: analysis.jurisdiction,
+      generatedAt: this.now().toISOString(),
+      catalogVersion: analysis.catalogVersion,
+      analysisRecordedAt: analysis.recordedAt,
+      controlResults: analysis.results,
+      gaps: analysis.gaps,
+      recommendations: analysis.recommendations,
+      readinessPlan: analysis.readinessPlan,
+      evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding,
+      ...input.versionContext
+    });
+
+    return this.persistPdfReport({
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      reportType: input.reportType,
+      jurisdiction: analysis.jurisdiction,
+      reportData,
+      template: input.template,
+      filename: `${input.filenamePrefix}-${input.assessmentId}.pdf`,
+      title: input.title,
+      createdBy: input.actorUserId,
+      ipAddress: input.ipAddress,
+      userAgent: input.userAgent
+    });
+  }
+
   async buildMicrosoft365VerifiedInternalReadinessReport(input: {
     organizationId: string;
     actorUserId: string;
@@ -204,6 +277,7 @@ export class ReportApiService {
     providerConnectionId: string;
     assessmentId?: string;
     versionContext?: InternalReadinessReportVersionContext;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{ report: GeneratedReportRecord; exportJson: string }> {
@@ -260,6 +334,7 @@ export class ReportApiService {
       recommendations,
       readinessPlan: analysis.readinessPlan,
       evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding,
       methodologyVersion: "puresoc.readiness.verified-microsoft.v1",
       ...input.versionContext,
       previousReportId: input.previousReportId,
@@ -290,6 +365,7 @@ export class ReportApiService {
     assessmentId: string;
     actorUserId: string;
     versionContext?: InternalReadinessReportVersionContext;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -311,6 +387,7 @@ export class ReportApiService {
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
       evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding,
       ...input.versionContext
     });
     const report = await this.persistReport({
@@ -359,6 +436,7 @@ export class ReportApiService {
     assessmentId: string;
     actorUserId: string;
     versionContext?: InternalReadinessReportVersionContext;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -380,6 +458,7 @@ export class ReportApiService {
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
       evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding,
       ...input.versionContext
     });
     const evidencePackageLimits = normalizeEvidencePackageLimits(this.evidencePackageLimits);
@@ -447,6 +526,7 @@ export class ReportApiService {
     organizationId: string;
     actorUserId: string;
     draft: StoredRomaniaNotificationDraftInput;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{ report: GeneratedReportRecord; exportJson: string }> {
@@ -456,6 +536,7 @@ export class ReportApiService {
 
     const reportData = buildRomaniaNotificationDraftExport({
       ...input.draft,
+      reportBranding: input.reportBranding ?? input.draft.reportBranding,
       generatedAt: input.draft.generatedAt ?? this.now().toISOString()
     });
     const report = await this.persistReport({
@@ -479,6 +560,7 @@ export class ReportApiService {
     organizationId: string;
     assessmentId?: string;
     actorUserId: string;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -505,7 +587,8 @@ export class ReportApiService {
       gaps: analysis.gaps,
       recommendations: analysis.recommendations,
       readinessPlan: analysis.readinessPlan,
-      evidence: analysis.evidenceArtifacts
+      evidence: analysis.evidenceArtifacts,
+      reportBranding: input.reportBranding
     });
 
     return this.persistPdfReport({
@@ -527,6 +610,7 @@ export class ReportApiService {
     organizationId: string;
     actorUserId: string;
     draft: StoredRomaniaNotificationDraftInput;
+    reportBranding?: ReportBranding;
     ipAddress?: string | null;
     userAgent?: string | null;
   }): Promise<{
@@ -545,6 +629,7 @@ export class ReportApiService {
 
     const reportData = buildRomaniaNotificationDraftExport({
       ...input.draft,
+      reportBranding: input.reportBranding ?? input.draft.reportBranding,
       generatedAt: input.draft.generatedAt ?? this.now().toISOString()
     });
 
@@ -745,7 +830,7 @@ export class ReportApiService {
     reportType: string;
     jurisdiction?: string;
     reportData: InternalReadinessReport | RomaniaNotificationDraftExport;
-    template: "gap_report" | "romania_notification_draft";
+    template: PdfReportTemplate;
     filename: string;
     title: string;
     createdBy: string;

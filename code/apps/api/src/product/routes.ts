@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 
 import { AuthError, type PureSocRoleKey } from "@puresoc/auth-core";
 import type { ComplianceStatus } from "@puresoc/compliance-core";
+import type { ReportBranding } from "@puresoc/reports";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import type { ApiServices } from "../auth/services";
 import { listNis2CountryPacksRoute, getNis2CountryPackRoute } from "../compliance/nis2/routes";
@@ -46,6 +47,16 @@ const requireActiveWorkspace = async (
     organizationId
   };
 };
+
+const reportBrandingForOrganization = (organization: {
+  name: string;
+  legalName?: string | null;
+  logoDataUrl?: string | null;
+}): ReportBranding => ({
+  organizationName: organization.name,
+  legalName: organization.legalName ?? null,
+  logoDataUrl: organization.logoDataUrl ?? null
+});
 
 const safeString = (body: Record<string, unknown>, key: string): string | undefined => {
   const value = body[key];
@@ -168,13 +179,35 @@ const recommendationView = (recommendation: Record<string, unknown>) => ({
   summary: String(recommendation.summary ?? recommendation.description ?? "Review and assign this recommendation.")
 });
 
-const reportView = (artifact: Record<string, unknown>) => ({
-  id: String(artifact.id ?? ""),
-  title: String(artifact.title ?? "Generated report"),
-  format: String(artifact.mimeType ?? "application/json"),
-  status: "ready",
-  createdAt: String(artifact.createdAt ?? ""),
-  downloadHref: `/reports/generated/${encodeURIComponent(String(artifact.id ?? ""))}/pdf?format=pdf`
+const reportView = (artifact: Record<string, unknown>) => {
+  const links = Array.isArray(artifact.links) ? (artifact.links as Array<Record<string, unknown>>) : [];
+  const linkedReportId = links.find(
+    (link) => link.targetType === "report" && typeof link.targetId === "string"
+  )?.targetId;
+  const reportId = String(linkedReportId ?? artifact.id ?? "");
+
+  return {
+    id: String(artifact.id ?? ""),
+    title: String(artifact.title ?? "Generated report"),
+    format: String(artifact.mimeType ?? "application/pdf"),
+    status: "ready",
+    createdAt: String(artifact.createdAt ?? ""),
+    downloadHref: `/reports/generated/${encodeURIComponent(reportId)}/pdf?format=pdf`
+  };
+};
+
+const pdfReportCreationView = (result: {
+  report: unknown;
+  pdf: { filename: string; mimeType: string; contentHashSha256: string; body: Uint8Array };
+  pdfArtifactId?: string;
+}) => ({
+  report: result.report,
+  pdf: {
+    filename: result.pdf.filename,
+    mimeType: result.pdf.mimeType,
+    contentHashSha256: result.pdf.contentHashSha256
+  },
+  pdfArtifactId: result.pdfArtifactId
 });
 
 const complianceStatuses = new Set<ComplianceStatus>([
@@ -240,6 +273,7 @@ export const productDashboardRoute = async (
           id: organization.id,
           name: organization.name,
           legalName: organization.legalName ?? null,
+          logoDataUrl: organization.logoDataUrl ?? null,
           countryCode: organization.primaryCountryCode ?? "RO",
           billingStatus: organization.billingStatus
         },
@@ -311,6 +345,7 @@ export const productListWorkspacesRoute = async (
         id: row.organization.id,
         name: row.organization.name,
         legalName: row.organization.legalName ?? null,
+        logoDataUrl: row.organization.logoDataUrl ?? null,
         countryCode: row.organization.primaryCountryCode ?? null,
         billingStatus: row.organization.billingStatus,
         membershipStatus: row.membership.status,
@@ -335,6 +370,7 @@ export const productCreateWorkspaceRoute = async (
       name: requireBodyString(body, "name", "Workspace name"),
       legalName: safeString(body, "legalName") ?? null,
       primaryCountryCode: safeString(body, "countryCode") ?? safeString(body, "primaryCountryCode") ?? "RO",
+      logoDataUrl: safeString(body, "logoDataUrl") ?? null,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -360,6 +396,7 @@ export const productGetWorkspaceRoute = async (
         id: workspace.organization.id,
         name: workspace.organization.name,
         legalName: workspace.organization.legalName ?? null,
+        logoDataUrl: workspace.organization.logoDataUrl ?? null,
         countryCode: workspace.organization.primaryCountryCode ?? null,
         billingStatus: workspace.organization.billingStatus,
         membershipStatus: workspace.membership.status,
@@ -389,7 +426,8 @@ export const productUpdateWorkspaceRoute = async (
     name: safeString(body, "name"),
     legalName: optionalNullableString(body, "legalName"),
     primaryCountryCode: optionalNullableString(body, "countryCode") ?? optionalNullableString(body, "primaryCountryCode"),
-    headquartersCountryCode: optionalNullableString(body, "headquartersCountryCode")
+    headquartersCountryCode: optionalNullableString(body, "headquartersCountryCode"),
+    logoDataUrl: optionalNullableString(body, "logoDataUrl")
   };
   if (Object.values(patch).every((value) => value === undefined)) {
     throw new AuthError("invalid_request", "At least one workspace field must be provided.", 400);
@@ -1151,7 +1189,7 @@ export const productCreateReportRoute = async (
   context: ProductWriteContext,
   services: ApiServices
 ): Promise<JsonResult> => {
-  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, [
+  const { session, organization, organizationId } = await requireActiveWorkspace(cookieHeader, services, [
     "owner",
     "org_admin",
     "compliance_manager",
@@ -1162,31 +1200,44 @@ export const productCreateReportRoute = async (
     throw new AuthError("invalid_request", "Run the gap analyzer before generating reports.", 400);
   }
 
-  if (reportKind === "gap-list") {
-    return {
-      statusCode: 201,
-      body: await services.reports.buildInternalReadinessCsvExport({
-        organizationId,
-        actorUserId: session.user.id,
-        assessmentId,
-        ipAddress: context.ipAddress,
-        userAgent: context.userAgent
-      })
-    };
-  }
+  const reportBranding = reportBrandingForOrganization(organization);
 
-  return {
-    statusCode: 201,
-    body: await services.reports.buildInternalReadinessReport({
+  if (reportKind === "gap-list") {
+    const result = await services.reports.buildGapReportPdf({
       organizationId,
       actorUserId: session.user.id,
       assessmentId,
-      versionContext: {
-        triggerType: reportKind === "m365-posture" ? "microsoft_sync_completed" : "onboarding_completed"
-      },
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
-    })
+    });
+
+    return {
+      statusCode: 201,
+      body: pdfReportCreationView(result)
+    };
+  }
+
+  const isPostureReport = reportKind === "m365-posture";
+  const result = await services.reports.buildInternalReadinessPdfReport({
+    organizationId,
+    actorUserId: session.user.id,
+    assessmentId,
+    reportType: isPostureReport ? "provider_posture" : "executive_summary",
+    template: isPostureReport ? "gap_report" : "executive_summary",
+    title: isPostureReport ? "Microsoft 365 Posture Report" : "NIS2 Readiness Summary",
+    filenamePrefix: isPostureReport ? "puresoc-microsoft365-posture" : "puresoc-readiness-summary",
+    reportBranding,
+    versionContext: {
+      triggerType: isPostureReport ? "microsoft_sync_completed" : "onboarding_completed"
+    },
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent
+  });
+
+  return {
+    statusCode: 201,
+    body: pdfReportCreationView(result)
   };
 };
 

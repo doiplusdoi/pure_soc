@@ -243,7 +243,8 @@ describe("auth organization rbac audit session integration", () => {
         name: "  Public Workspace  ",
         legalName: "  Public Workspace SRL  ",
         primaryCountryCode: " ro ",
-        headquartersCountryCode: "de"
+        headquartersCountryCode: "de",
+        logoDataUrl: " data:image/png;base64,iVBORw0KGgo= "
       },
       owner.cookie
     );
@@ -253,6 +254,7 @@ describe("auth organization rbac audit session integration", () => {
         organization: {
           headquartersCountryCode: string;
           legalName: string;
+          logoDataUrl: string;
           name: string;
           primaryCountryCode: string;
         };
@@ -261,6 +263,7 @@ describe("auth organization rbac audit session integration", () => {
       organization: {
         headquartersCountryCode: "DE",
         legalName: "Public Workspace SRL",
+        logoDataUrl: "data:image/png;base64,iVBORw0KGgo=",
         name: "Public Workspace",
         primaryCountryCode: "RO"
       }
@@ -275,6 +278,17 @@ describe("auth organization rbac audit session integration", () => {
       owner.cookie
     );
     expect(invalidCountryResponse.status).toBe(400);
+
+    const invalidLogoResponse = await postJson(
+      "/organizations",
+      {
+        name: "Invalid Logo",
+        primaryCountryCode: "RO",
+        logoDataUrl: "data:text/html;base64,PHNjcmlwdD4="
+      },
+      owner.cookie
+    );
+    expect(invalidLogoResponse.status).toBe(400);
 
     const blankNameResponse = await postJson(
       "/organizations",

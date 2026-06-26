@@ -246,6 +246,7 @@ export class InMemoryIdentityOrganizationRbacRepository
     legalName?: string | null;
     primaryCountryCode?: string | null;
     headquartersCountryCode?: string | null;
+    logoDataUrl?: string | null;
     updatedAt: Date;
   }): Promise<OrganizationRecord> {
     const organization = this.organizations.get(input.organizationId);
@@ -261,6 +262,7 @@ export class InMemoryIdentityOrganizationRbacRepository
       ...(input.headquartersCountryCode !== undefined
         ? { headquartersCountryCode: input.headquartersCountryCode }
         : {}),
+      ...(input.logoDataUrl !== undefined ? { logoDataUrl: input.logoDataUrl } : {}),
       updatedAt: input.updatedAt
     };
     this.organizations.set(input.organizationId, updated);

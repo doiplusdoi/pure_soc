@@ -110,6 +110,7 @@ export interface ProductMvpShellModel {
       id: string;
       name: string;
       legalName?: string | null;
+      logoDataUrl?: string | null;
       countryCode: string;
       billingStatus: string;
     };
@@ -590,6 +591,7 @@ export const renderProductMvpShell = (
     "</head>",
     '<body class="ps-body">',
     content,
+    renderCompanyLogoUploadScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -818,6 +820,7 @@ const renderProductOnboardingPage = (model: ProductMvpShellModel): string => [
   renderSelect("countryCode", "Country pack", model.dashboard.countryPack.selected, [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]], "", true),
   renderTextInput("sector", "Main sector", "", true),
   renderTextInput("employeeCount", "Employee count", "", false, "number", "", ['min="0"', 'inputmode="numeric"']),
+  renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo" }),
   renderSelect(
     "microsoft365Usage",
     "Microsoft 365 usage",
@@ -934,22 +937,98 @@ const renderProductEvidencePage = (model: ProductMvpShellModel): string => [
 const renderProductReportsPage = (model: ProductMvpShellModel): string => [
   renderProductPageHeader({ eyebrow: "Reports and exports", title: "Reports", status: "draft reports allowed" }),
   '<section class="ps-grid">',
-  renderReportActionCard("NIS2 readiness summary", "/reports/nis2-summary", "PDF-ready internal readiness summary."),
-  renderReportActionCard("Gap list", "/reports/gap-list", "CSV export for gap review."),
-  renderReportActionCard("Microsoft 365 posture", "/reports/m365-posture", "Security posture summary after connector sync."),
+  renderReportActionCard(
+    "NIS2 readiness summary",
+    "/reports/nis2-summary",
+    "Branded PDF for internal readiness review.",
+    "Create readiness PDF"
+  ),
+  renderReportActionCard(
+    "Gap report",
+    "/reports/gap-list",
+    "Branded PDF with prioritized gaps and evidence status.",
+    "Create gap PDF"
+  ),
+  renderReportActionCard(
+    "Microsoft 365 posture",
+    "/reports/m365-posture",
+    "Branded PDF after connector sync.",
+    "Create posture PDF"
+  ),
   "</section>",
   renderProductReportCards(model.details?.reports ?? model.dashboard.reports)
 ].join("");
 
-const renderReportActionCard = (title: string, action: string, summary: string): string => [
+const renderReportActionCard = (title: string, action: string, summary: string, actionLabel: string): string => [
   '<article class="ps-panel">',
   `<h2 class="ps-panel__title">${escapeHtml(title)}</h2>`,
   `<p class="ps-muted">${escapeHtml(summary)}</p>`,
   `<form class="ps-form" action="${escapeHtml(action)}" method="post">`,
-  renderCommandButton({ label: "Generate", ariaLabel: `Generate ${title}`, tone: "primary", type: "submit" }),
+  renderCommandButton({ label: actionLabel, ariaLabel: actionLabel, tone: "primary", type: "submit" }),
   "</form>",
   "</article>"
 ].join("");
+
+const renderCompanyLogoUpload = (input: { currentLogoDataUrl?: string | null; fieldId: string }): string => {
+  const currentLogo = input.currentLogoDataUrl ?? "";
+  const fileInputId = `${input.fieldId}-file`;
+  const hiddenInputId = `${input.fieldId}-data`;
+  return [
+    '<div class="ps-field ps-field--logo ps-field--full" data-logo-upload>',
+    `<label for="${escapeHtml(fileInputId)}">Company logo</label>`,
+    currentLogo
+      ? `<img class="ps-logo-preview" src="${escapeHtml(currentLogo)}" alt="Current company logo" data-logo-preview>`
+      : '<span class="ps-logo-preview ps-logo-preview--empty" data-logo-preview>No logo</span>',
+    `<input id="${escapeHtml(fileInputId)}" type="file" accept="image/png,image/jpeg,image/webp" data-logo-file-input>`,
+    `<input id="${escapeHtml(hiddenInputId)}" type="hidden" name="logoDataUrl" value="${escapeHtml(currentLogo)}" data-logo-data-url>`,
+    '<span class="ps-help">PNG, JPEG, or WebP under 34 KB. Used on generated PDF reports.</span>',
+    "</div>"
+  ].join("");
+};
+
+const renderCompanyLogoUploadScript = (): string => `
+<script>
+(() => {
+  const maxLogoBytes = 34000;
+  document.querySelectorAll("[data-logo-upload]").forEach((field) => {
+    const fileInput = field.querySelector("[data-logo-file-input]");
+    const hiddenInput = field.querySelector("[data-logo-data-url]");
+    const preview = field.querySelector("[data-logo-preview]");
+    if (!fileInput || !hiddenInput || !preview) {
+      return;
+    }
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files && fileInput.files[0];
+      if (!file) {
+        return;
+      }
+      if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > maxLogoBytes) {
+        fileInput.value = "";
+        fileInput.setCustomValidity("Use a PNG, JPEG, or WebP logo under 34 KB.");
+        fileInput.reportValidity();
+        fileInput.setCustomValidity("");
+        return;
+      }
+      const reader = new FileReader();
+      reader.addEventListener("load", () => {
+        const result = typeof reader.result === "string" ? reader.result : "";
+        hiddenInput.value = result;
+        if (preview instanceof HTMLImageElement) {
+          preview.src = result;
+        } else {
+          const image = document.createElement("img");
+          image.className = "ps-logo-preview";
+          image.alt = "Selected company logo";
+          image.dataset.logoPreview = "";
+          image.src = result;
+          preview.replaceWith(image);
+        }
+      });
+      reader.readAsDataURL(file);
+    });
+  });
+})();
+</script>`;
 
 const renderProductSettingsPage = (model: ProductMvpShellModel): string => [
   renderProductPageHeader({ eyebrow: "Workspace settings", title: "Settings", status: model.dashboard.workspace.billingStatus }),
@@ -1022,13 +1101,13 @@ const renderProductEvidenceList = (items: Array<Record<string, unknown>>): strin
 
 const renderProductReportCards = (reports: Array<Record<string, unknown>>): string => [
   '<section class="ps-grid ps-stack-top" aria-label="Generated reports">',
-  reports.length === 0 ? '<article class="ps-panel"><h2 class="ps-panel__title">No reports yet</h2><p class="ps-muted">Generate a draft report after running the gap analyzer.</p></article>' : "",
+  reports.length === 0 ? '<article class="ps-panel"><h2 class="ps-panel__title">No reports yet</h2><p class="ps-muted">Create a branded PDF report after running the gap analyzer.</p></article>' : "",
   ...reports.map((report) => [
     '<article class="ps-panel">',
     `<h2 class="ps-panel__title">${escapeHtml(String(report.title ?? "Report"))}</h2>`,
     renderStatusPill({ label: String(report.status ?? "ready"), tone: "success" }),
     `<p class="ps-muted">${escapeHtml(String(report.format ?? "export"))}</p>`,
-    report.downloadHref ? `<p><a class="ps-command" href="${escapeHtml(String(report.downloadHref))}">Download</a></p>` : "",
+    report.downloadHref ? `<p><a class="ps-command" href="${escapeHtml(String(report.downloadHref))}">Download PDF</a></p>` : "",
     "</article>"
   ].join("")),
   "</section>"
@@ -1116,6 +1195,7 @@ export const renderProductV1ConsoleScreen = (
     "</head>",
     '<body class="ps-body">',
     content,
+    renderCompanyLogoUploadScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -1837,6 +1917,7 @@ export const renderMicrosoft365ConnectorPage = (
     "</head>",
     '<body class="ps-body">',
     content,
+    renderCompanyLogoUploadScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -2446,6 +2527,7 @@ export const renderWorkspaceSelectionScreen = (
     '<div class="ps-field"><label for="name">Workspace name</label><input id="name" name="name" type="text" required><span class="ps-help">Use a short operational name, for example the business unit or legal entity.</span></div>',
     '<div class="ps-field"><label for="legalName">Legal name</label><input id="legalName" name="legalName" type="text"><span class="ps-help">Optional now. The NIS2 wizard asks for the legal name later.</span></div>',
     '<div class="ps-field"><label for="primaryCountryCode">Primary country</label><input id="primaryCountryCode" name="primaryCountryCode" type="text" value="RO" maxlength="2" pattern="[A-Za-z]{2}" autocapitalize="characters" spellcheck="false" required><span class="ps-help">Two-letter ISO code. Use RO for the Romania NIS2 route.</span></div>',
+    renderCompanyLogoUpload({ fieldId: "workspace-create-logo" }),
     renderCommandButton({ label: "Create workspace", ariaLabel: "Create local workspace", tone: "primary", type: "submit" }),
     "</form>",
     "</article>",
@@ -2470,6 +2552,7 @@ export const renderWorkspaceSelectionScreen = (
     "</head>",
     '<body class="ps-body">',
     content,
+    renderCompanyLogoUploadScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -2519,6 +2602,7 @@ export const renderRomaniaOnboardingRoute = (
     '<body class="ps-body">',
     content,
     renderRomaniaServiceSearchScript(),
+    renderCompanyLogoUploadScript(),
     "</body>",
     "</html>"
   ].join("");
@@ -3037,6 +3121,7 @@ const renderRomaniaCompanyForm = (model: RomaniaOnboardingRouteModel): string =>
     ),
     renderTextInput("websiteUrl", "Website URL", answerText(model, "contact.websiteUrl"), false),
     renderTextInput("email", "Organization email", answerText(model, "contact.email"), true, "email", "This contact appears in local notification draft metadata."),
+    renderCompanyLogoUpload({ fieldId: "romania-company-logo" }),
     "</div>",
     "</fieldset>"
     ].join("")

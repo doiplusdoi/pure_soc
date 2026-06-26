@@ -18,6 +18,7 @@ export {
   type EvidencePackageBundleFileSummary,
   type EvidencePackageLimitSummary,
   type ReportControlResultSummary,
+  type ReportBranding,
   type ReportEvidenceSummary,
   type ReportExportFormat,
   type ReportGapSummary,

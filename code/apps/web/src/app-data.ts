@@ -158,6 +158,7 @@ export interface EvidenceScannerSurface {
 export interface WorkspaceSelectionOrganizationSurface {
   id: string;
   name: string;
+  logoDataUrl?: string | null;
   primaryCountryCode: string | null;
   billingStatus: string;
   membershipStatus: string;

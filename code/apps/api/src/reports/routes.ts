@@ -1,6 +1,6 @@
 import { AuthError } from "@puresoc/auth-core";
 import type { NotificationDraftPayloadEnvelopeContract } from "@puresoc/database";
-import type { StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
+import type { ReportBranding, StoredRomaniaNotificationDraftInput } from "@puresoc/reports";
 import type { ApiServices } from "../auth/services";
 import { parseCookies, sessionCookieName, type BinaryResult, type JsonResult, type RequestContext } from "../http";
 import { requireOrganizationRole } from "../rbac/index";
@@ -10,6 +10,25 @@ const readSessionUserId = async (cookieHeader: string | undefined, services: Api
   const sessionToken = parseCookies(cookieHeader)[sessionCookieName];
   const session = await services.localAuth.getSession(sessionToken ?? "");
   return session.user.id;
+};
+
+const loadReportBranding = async (
+  organizationId: string,
+  actorUserId: string,
+  services: ApiServices
+): Promise<ReportBranding | undefined> => {
+  const organization = (await services.identityRepository.listOrganizationsForUser(actorUserId)).find(
+    (row) => row.organization.id === organizationId
+  )?.organization;
+  if (!organization) {
+    return undefined;
+  }
+
+  return {
+    organizationName: organization.name,
+    legalName: organization.legalName ?? null,
+    logoDataUrl: organization.logoDataUrl ?? null
+  };
 };
 
 export const buildInternalReadinessReportRoute = async (
@@ -26,6 +45,7 @@ export const buildInternalReadinessReportRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   return {
     statusCode: 201,
@@ -34,6 +54,7 @@ export const buildInternalReadinessReportRoute = async (
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
       versionContext: parseInternalReadinessReportVersionContext(body),
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -54,6 +75,7 @@ export const buildMicrosoft365VerifiedInternalReadinessReportRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   return {
     statusCode: 201,
@@ -64,6 +86,7 @@ export const buildMicrosoft365VerifiedInternalReadinessReportRoute = async (
       providerConnectionId: requireString(body, "providerConnectionId"),
       assessmentId: optionalString(body.assessmentId),
       versionContext: parseInternalReadinessReportVersionContext(body),
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -84,6 +107,7 @@ export const buildInternalReadinessCsvExportRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   return {
     statusCode: 201,
@@ -92,6 +116,7 @@ export const buildInternalReadinessCsvExportRoute = async (
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
       versionContext: parseInternalReadinessReportVersionContext(body),
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -112,6 +137,7 @@ export const buildInternalReadinessEvidencePackageRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   return {
     statusCode: 201,
@@ -120,6 +146,7 @@ export const buildInternalReadinessEvidencePackageRoute = async (
       actorUserId,
       assessmentId: requireString(body, "assessmentId"),
       versionContext: parseInternalReadinessReportVersionContext(body),
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -140,6 +167,7 @@ export const buildRomaniaNotificationDraftReportRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   return {
     statusCode: 201,
@@ -147,6 +175,7 @@ export const buildRomaniaNotificationDraftReportRoute = async (
       organizationId,
       actorUserId,
       draft: parseRomaniaDraft(organizationId, body),
+      reportBranding,
       ipAddress: context.ipAddress,
       userAgent: context.userAgent
     })
@@ -172,11 +201,13 @@ export const downloadGapReportPdfRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   const result = await services.reports.buildGapReportPdf({
     organizationId,
     actorUserId,
     assessmentId: searchParams.get("assessmentId") ?? undefined,
+    reportBranding,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent
   });
@@ -235,6 +266,7 @@ export const downloadRomaniaNotificationDraftPdfRoute = async (
     organizationId,
     allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
   });
+  const reportBranding = await loadReportBranding(organizationId, actorUserId, services);
 
   const notificationDraftId = searchParams.get("notificationDraftId");
   const notificationDraft = notificationDraftId
@@ -265,6 +297,7 @@ export const downloadRomaniaNotificationDraftPdfRoute = async (
       notificationDraftId: notificationDraft.notificationDraft.id,
       status: notificationDraft.notificationDraft.status
     }),
+    reportBranding,
     ipAddress: context.ipAddress,
     userAgent: context.userAgent
   });

@@ -101,6 +101,7 @@ interface OrganizationListResponse {
       id: string;
       name: string;
       billingStatus: string;
+      logoDataUrl?: string | null;
       primaryCountryCode?: string | null;
     };
     roleKeys: string[];
@@ -1188,6 +1189,10 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
 
     if (request.method === "POST" && url.pathname === "/onboarding") {
       const form = await readFormBody(request);
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
       const saved = await apiJson<unknown>(apiBaseUrl, "/api/onboarding/answers", {
         method: "PUT",
         cookie: request.headers.cookie,
@@ -1218,12 +1223,28 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           }
         }
       });
+      const logoPatch =
+        session.statusCode === 200 && session.body.session.activeOrganizationId
+          ? await patchWorkspaceBrandingFromForm({
+              apiBaseUrl,
+              cookie: request.headers.cookie,
+              form,
+              legalName: optionalFormValue(form.get("legalName")),
+              organizationId: session.body.session.activeOrganizationId,
+              origin: apiRequestOrigin,
+              primaryCountryCode: optionalFormValue(form.get("countryCode")) ?? "RO"
+            })
+          : { statusCode: 204 };
 
       response.statusCode = 303;
       response.setHeader(
         "location",
         `/gap-analyzer?message=${encodeURIComponent(
-          apiSucceeded(saved.statusCode) ? "Readiness onboarding saved." : "Onboarding was not saved. Check required fields."
+          apiSucceeded(saved.statusCode) && apiSucceeded(logoPatch.statusCode)
+            ? "Readiness onboarding saved."
+            : apiSucceeded(saved.statusCode)
+              ? "Onboarding saved, but the workspace logo was not updated."
+              : "Onboarding was not saved. Check required fields."
         )}`
       );
       response.end();
@@ -2400,7 +2421,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         body: {
           name: form.get("name") ?? "",
           legalName: optionalFormValue(form.get("legalName")),
-          primaryCountryCode: optionalFormValue(form.get("primaryCountryCode")) ?? "RO"
+          primaryCountryCode: optionalFormValue(form.get("primaryCountryCode")) ?? "RO",
+          logoDataUrl: optionalFormValue(form.get("logoDataUrl"))
         }
       });
 
@@ -2824,6 +2846,38 @@ const webRequestErrorMessage = (error: unknown): string =>
 
 const optionalFormValue = (value: string | null): string | null =>
   typeof value === "string" && value.length > 0 ? value : null;
+
+const patchWorkspaceBrandingFromForm = async (input: {
+  apiBaseUrl: string;
+  cookie?: string;
+  form: URLSearchParams;
+  legalName?: string | null;
+  organizationId: string;
+  origin?: string;
+  primaryCountryCode?: string | null;
+}): Promise<{ statusCode: number }> => {
+  const logoDataUrl = optionalFormValue(input.form.get("logoDataUrl"));
+  const body: Record<string, unknown> = {};
+  if (input.legalName) {
+    body.legalName = input.legalName;
+  }
+  if (input.primaryCountryCode) {
+    body.primaryCountryCode = input.primaryCountryCode;
+  }
+  if (logoDataUrl) {
+    body.logoDataUrl = logoDataUrl;
+  }
+  if (Object.keys(body).length === 0) {
+    return { statusCode: 204 };
+  }
+
+  return apiJson<unknown>(input.apiBaseUrl, `/api/workspaces/${encodeURIComponent(input.organizationId)}`, {
+    method: "PATCH",
+    cookie: input.cookie,
+    origin: input.origin,
+    body
+  });
+};
 
 const numberFormValue = (value: string | null): number | undefined => {
   if (!value || value.trim().length === 0) {
@@ -3810,6 +3864,7 @@ const loadWorkspaceSelectionModel = async (input: {
     .map((item) => ({
       id: item.organization.id,
       name: item.organization.name,
+      logoDataUrl: item.organization.logoDataUrl ?? null,
       primaryCountryCode: item.organization.primaryCountryCode ?? null,
       billingStatus: item.organization.billingStatus,
       membershipStatus: item.membership.status,
@@ -3961,6 +4016,7 @@ const resolveActiveOrganizationSurface = async (
   return {
     id: activeOrganizationId,
     name: active?.name ?? null,
+    logoDataUrl: active?.logoDataUrl ?? null,
     primaryCountryCode: active?.primaryCountryCode ?? null,
     subscriptionStatus: active?.billingStatus ?? null
   };
@@ -4320,9 +4376,21 @@ const handleRomaniaWorkflowPost = async (input: {
         }
       }
     );
+    const logoPatch = await patchWorkspaceBrandingFromForm({
+      apiBaseUrl: input.apiBaseUrl,
+      cookie: input.cookie,
+      form,
+      legalName: optionalFormValue(form.get("legalName")),
+      organizationId: input.organizationId,
+      origin: input.origin,
+      primaryCountryCode: "RO"
+    });
     const nextScreen = form.get("nextScreen");
     return {
-      message: messageForRomaniaAction(input.path, saved.statusCode),
+      message:
+        apiSucceeded(saved.statusCode) && !apiSucceeded(logoPatch.statusCode)
+          ? "Romania onboarding progress saved, but the workspace logo was not updated."
+          : messageForRomaniaAction(input.path, saved.statusCode),
       screen: isRomaniaOnboardingScreen(nextScreen) ? nextScreen : "company"
     };
   }

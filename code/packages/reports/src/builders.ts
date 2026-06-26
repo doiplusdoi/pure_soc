@@ -13,6 +13,7 @@ import type {
   InternalReadinessVerifiedObservation,
   InternalReadinessReportVersionMetadata,
   InternalReadinessCsvTableName,
+  ReportBranding,
   ReportControlResultSummary,
   ReportEvidenceSummary,
   ReportGapSummary,
@@ -137,6 +138,7 @@ export interface BuildInternalReadinessReportInput {
   calibration?: InternalReadinessCalibrationMetadata;
   verifiedEvidence?: BuildInternalReadinessVerifiedEvidenceInput;
   previousReport?: InternalReadinessReport;
+  reportBranding?: ReportBranding;
   controlResults: readonly StoredAnalysisControlResult[];
   gaps: readonly StoredAnalysisGap[];
   recommendations?: readonly StoredAnalysisRecommendation[];
@@ -169,6 +171,7 @@ export interface StoredRomaniaNotificationDraftInput {
   notificationDraftId?: string;
   generatedAt?: string;
   locale?: string | null;
+  reportBranding?: ReportBranding;
 }
 
 export const buildInternalReadinessReport = (
@@ -261,6 +264,7 @@ export const buildInternalReadinessReport = (
     legalCaveatRequestedLocale: legalCaveat.requestedLocale,
     legalCaveatReviewStatus: legalCaveat.reviewStatus,
     locale,
+    reportBranding: normalizeReportBranding(input.reportBranding),
     version,
     concepts,
     calibration,
@@ -713,6 +717,7 @@ export const buildRomaniaNotificationDraftExport = (
     legalCaveatRequestedLocale: legalCaveat.requestedLocale,
     legalCaveatReviewStatus: legalCaveat.reviewStatus,
     locale,
+    reportBranding: normalizeReportBranding(input.reportBranding),
     status: input.status,
     payload: stableClone(input.payload),
     sourceMappedFields,
@@ -1043,6 +1048,29 @@ const normalizeSourceReference = (reference: ReportSourceReferenceLike): ReportS
     fieldKey: reference.fieldKey,
     label: reference.label
   }) as ReportSourceReference;
+
+const normalizeReportBranding = (branding: ReportBranding | undefined): ReportBranding | undefined => {
+  if (!branding) {
+    return undefined;
+  }
+
+  const normalized = stripUndefined({
+    organizationName: normalizeBrandingText(branding.organizationName),
+    legalName: branding.legalName === null ? null : normalizeBrandingText(branding.legalName),
+    logoDataUrl: branding.logoDataUrl === null ? null : normalizeBrandingText(branding.logoDataUrl)
+  });
+
+  return Object.keys(normalized).length > 0 ? (normalized as ReportBranding) : undefined;
+};
+
+const normalizeBrandingText = (value: string | null | undefined): string | undefined => {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 const assertTenantBoundary = (organizationId: string, records: readonly { organizationId?: string }[]): void => {
   const crossTenantRecord = records.find((record) => record.organizationId && record.organizationId !== organizationId);

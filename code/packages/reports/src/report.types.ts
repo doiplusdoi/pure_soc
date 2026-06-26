@@ -29,6 +29,12 @@ export type InternalReadinessCsvTableName =
   | "evidence"
   | "source_references";
 
+export interface ReportBranding {
+  organizationName?: string;
+  legalName?: string | null;
+  logoDataUrl?: string | null;
+}
+
 export interface ReportSourceReference extends SourceReference {
   title?: string;
   jurisdiction: string;
@@ -283,6 +289,7 @@ export interface InternalReadinessReport {
   legalCaveatRequestedLocale?: string;
   legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
+  reportBranding?: ReportBranding;
   version: InternalReadinessReportVersionMetadata;
   concepts: InternalReadinessReportConcepts;
   calibration: InternalReadinessCalibrationMetadata;
@@ -316,6 +323,7 @@ export interface RomaniaNotificationDraftExport {
   legalCaveatRequestedLocale?: string;
   legalCaveatReviewStatus?: PureSocMessageReviewStatus;
   locale: PureSocLocale;
+  reportBranding?: ReportBranding;
   status: "draft" | "ready_for_review" | "exported" | "superseded";
   payload: Record<string, unknown>;
   sourceMappedFields: Array<{

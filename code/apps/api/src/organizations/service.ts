@@ -22,6 +22,7 @@ export interface OrganizationRecord {
   defaultLocale: string;
   primaryCountryCode?: string | null;
   headquartersCountryCode?: string | null;
+  logoDataUrl?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -32,6 +33,7 @@ export interface CreateOrganizationInput {
   legalName?: string | null;
   primaryCountryCode?: string | null;
   headquartersCountryCode?: string | null;
+  logoDataUrl?: string | null;
   ipAddress?: string | null;
   userAgent?: string | null;
 }
@@ -89,6 +91,7 @@ export interface OrganizationRepository {
     legalName?: string | null;
     primaryCountryCode?: string | null;
     headquartersCountryCode?: string | null;
+    logoDataUrl?: string | null;
     updatedAt: Date;
   }): Promise<OrganizationRecord>;
   addOrganizationMember(input: OrganizationMembershipRecord): Promise<OrganizationMembershipRecord>;
@@ -147,6 +150,7 @@ export class OrganizationService {
       defaultLocale: "en",
       primaryCountryCode: input.primaryCountryCode ?? null,
       headquartersCountryCode: input.headquartersCountryCode ?? null,
+      logoDataUrl: normalizeOrganizationLogoDataUrl(input.logoDataUrl),
       createdAt: now,
       updatedAt: now
     });
@@ -227,6 +231,7 @@ export class OrganizationService {
       defaultLocale: "en",
       primaryCountryCode: input.primaryCountryCode ?? null,
       headquartersCountryCode: input.headquartersCountryCode ?? null,
+      logoDataUrl: normalizeOrganizationLogoDataUrl(input.logoDataUrl),
       createdAt: now,
       updatedAt: now
     });
@@ -259,15 +264,18 @@ export class OrganizationService {
     legalName?: string | null;
     primaryCountryCode?: string | null;
     headquartersCountryCode?: string | null;
+    logoDataUrl?: string | null;
     ipAddress?: string | null;
     userAgent?: string | null;
   }) {
+    const logoDataUrl = normalizeOrganizationLogoDataUrl(input.logoDataUrl);
     const updated = await this.repository.updateOrganization({
       organizationId: input.organizationId,
       name: input.name,
       legalName: input.legalName,
       primaryCountryCode: input.primaryCountryCode,
       headquartersCountryCode: input.headquartersCountryCode,
+      logoDataUrl,
       updatedAt: this.now()
     });
 
@@ -283,7 +291,9 @@ export class OrganizationService {
         name: updated.name,
         legalName: updated.legalName,
         primaryCountryCode: updated.primaryCountryCode,
-        headquartersCountryCode: updated.headquartersCountryCode
+        headquartersCountryCode: updated.headquartersCountryCode,
+        logoConfigured: Boolean(updated.logoDataUrl),
+        logoMimeType: logoMimeType(updated.logoDataUrl)
       }
     });
 
@@ -500,6 +510,7 @@ export class OrganizationService {
       defaultLocale: organization.defaultLocale,
       primaryCountryCode: organization.primaryCountryCode ?? null,
       headquartersCountryCode: organization.headquartersCountryCode ?? null,
+      logoDataUrl: organization.logoDataUrl ?? null,
       createdAt: organization.createdAt.toISOString(),
       updatedAt: organization.updatedAt.toISOString()
     };
@@ -536,3 +547,30 @@ const inviteableOrganizationRoleKeys: PureSocRoleKey[] = [
   "auditor",
   "billing_admin"
 ];
+
+const maxOrganizationLogoDataUrlBytes = 48_000;
+const organizationLogoPattern = /^data:image\/(png|jpeg|webp);base64,[a-z0-9+/=]+$/i;
+
+export const normalizeOrganizationLogoDataUrl = (value: string | null | undefined): string | null | undefined => {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null || value.trim().length === 0) {
+    return null;
+  }
+
+  const normalized = value.trim();
+  if (!organizationLogoPattern.test(normalized)) {
+    throw new AuthError("invalid_request", "Company logo must be a PNG, JPEG, or WebP data URL.", 400);
+  }
+  if (Buffer.byteLength(normalized, "utf8") > maxOrganizationLogoDataUrlBytes) {
+    throw new AuthError("invalid_request", "Company logo must be smaller than 48 KB after encoding.", 400);
+  }
+
+  return normalized;
+};
+
+const logoMimeType = (value: string | null | undefined): string | null => {
+  const match = /^data:(image\/(?:png|jpeg|webp));base64,/i.exec(value ?? "");
+  return match?.[1].toLowerCase() ?? null;
+};
