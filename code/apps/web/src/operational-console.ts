@@ -105,6 +105,11 @@ export interface ProductMvpShellModel {
   actionMessage?: string | null;
   activeRoute: ProductMvpRoute;
   customers: Array<Record<string, unknown>>;
+  onboarding?: {
+    answers: Record<string, unknown>;
+    countryCode: string;
+    progress?: Record<string, unknown> | null;
+  };
   dashboard: {
     workspace: {
       id: string;
@@ -815,21 +820,51 @@ const renderProductOnboardingPage = (model: ProductMvpShellModel): string => [
   '<form class="ps-panel ps-form ps-form--wide" action="/onboarding" method="post" data-ui-action="save-business-onboarding">',
   '<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title">Company profile</h2><p class="ps-muted">Start with the business facts needed for a draft baseline.</p></div></div>',
   '<div class="ps-form-grid">',
-  renderTextInput("legalName", "Legal name", model.dashboard.workspace.legalName ?? model.dashboard.workspace.name, true),
-  renderTextInput("primaryContactEmail", "Primary contact email", "", true, "email"),
-  renderSelect("countryCode", "Country pack", model.dashboard.countryPack.selected, [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]], "", true),
-  renderTextInput("sector", "Main sector", "", true),
-  renderTextInput("employeeCount", "Employee count", "", false, "number", "", ['min="0"', 'inputmode="numeric"']),
+  renderTextInput(
+    "legalName",
+    "Legal name",
+    productOnboardingAnswerText(model, "company.legalName", model.dashboard.workspace.legalName ?? model.dashboard.workspace.name),
+    true
+  ),
+  renderTextInput("primaryContactEmail", "Primary contact email", productOnboardingAnswerText(model, "contacts.primaryEmail"), true, "email"),
+  renderSelect(
+    "countryCode",
+    "Country pack",
+    productOnboardingAnswerText(
+      model,
+      "company.countryCode",
+      model.onboarding?.countryCode ?? model.dashboard.countryPack.selected
+    ),
+    [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]],
+    "",
+    true
+  ),
+  renderTextInput("sector", "Main sector", productOnboardingAnswerText(model, "business.sector"), true),
+  renderTextInput(
+    "employeeCount",
+    "Employee count",
+    productOnboardingAnswerText(model, "business.employeeCount"),
+    false,
+    "number",
+    "",
+    ['min="0"', 'inputmode="numeric"']
+  ),
   renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo" }),
   renderSelect(
     "microsoft365Usage",
     "Microsoft 365 usage",
-    "",
+    productOnboardingAnswerText(model, "dependencies.microsoft365Usage"),
     [["", "Choose usage"], ["not_connected", "Not connected yet"], ["email_collaboration", "Email and collaboration"], ["identity_devices_security", "Identity, devices, and security"]],
     "",
     true
   ),
-  renderTextarea("securityPractices", "Existing security practices", "", "Mention MFA, backups, incident response, supplier reviews, or known gaps.", "ps-field--full"),
+  renderTextarea(
+    "securityPractices",
+    "Existing security practices",
+    productOnboardingAnswerText(model, "governance.securityPractices"),
+    "Mention MFA, backups, incident response, supplier reviews, or known gaps.",
+    "ps-field--full"
+  ),
   "</div>",
   '<div class="ps-command-row">',
   renderCommandButton({ label: "Save onboarding", ariaLabel: "Save readiness onboarding", tone: "primary", type: "submit" }),
@@ -838,6 +873,14 @@ const renderProductOnboardingPage = (model: ProductMvpShellModel): string => [
   '<aside class="ps-panel ps-panel--quiet"><h2 class="ps-panel__title">Progress</h2><ol class="ps-step-list"><li><span class="ps-step-list__number">1</span><div><strong>Company profile</strong><span>Current step</span></div></li><li><span class="ps-step-list__number">2</span><div><strong>Gap analyzer</strong><span>Runs after save</span></div></li><li><span class="ps-step-list__number">3</span><div><strong>Microsoft 365</strong><span>Optional confidence boost</span></div></li></ol></aside>',
   "</section>"
 ].join("");
+
+const productOnboardingAnswerText = (model: ProductMvpShellModel, path: string, fallback = ""): string => {
+  const value = valueAtPath(model.onboarding?.answers ?? {}, path);
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return typeof value === "string" && value.length > 0 ? value : fallback;
+};
 
 const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
   renderProductPageHeader({

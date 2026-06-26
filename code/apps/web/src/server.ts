@@ -292,6 +292,12 @@ interface ProductConnectorsWebResponse {
   connectors: NonNullable<ProductMvpShellModel["details"]>["connectors"];
 }
 
+interface ProductOnboardingAnswersWebResponse {
+  answers: Record<string, unknown>;
+  countryCode: string;
+  progress?: Record<string, unknown> | null;
+}
+
 interface ProductGapsWebResponse {
   gaps: NonNullable<ProductMvpShellModel["details"]>["gaps"];
 }
@@ -2965,6 +2971,14 @@ const loadProductMvpShellModel = async (input: {
     details.recommendations = recommendations.statusCode === 200 ? recommendations.body.recommendations ?? [] : [];
   }
 
+  const onboarding =
+    input.route === "onboarding"
+      ? await apiJson<ProductOnboardingAnswersWebResponse>(input.apiBaseUrl, "/api/onboarding/answers", {
+          method: "GET",
+          cookie: input.cookie
+        }).catch(() => null)
+      : null;
+
   if (input.route === "microsoft365") {
     const findings = await apiJson<ProductMicrosoft365FindingsWebResponse>(input.apiBaseUrl, "/api/microsoft365/findings", {
       method: "GET",
@@ -3003,6 +3017,14 @@ const loadProductMvpShellModel = async (input: {
     customers: customers.statusCode === 200 ? customers.body.customers ?? [] : [],
     dashboard: dashboard.body.dashboard,
     details,
+    onboarding:
+      onboarding?.statusCode === 200
+        ? {
+            answers: onboarding.body.answers ?? {},
+            countryCode: onboarding.body.countryCode,
+            progress: onboarding.body.progress ?? null
+          }
+        : undefined,
     session
   };
 };

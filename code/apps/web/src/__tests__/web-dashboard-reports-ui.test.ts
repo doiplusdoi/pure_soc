@@ -176,6 +176,119 @@ describe("web dashboard reports operational UI", () => {
     expect(onboardingHtml).toContain("data:image/png;base64,iVBORw0KGgo=");
   });
 
+  it("renders saved product onboarding answers back into the GUI form", () => {
+    const html = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "onboarding",
+      onboarding: {
+        countryCode: "PL",
+        answers: {
+          company: { legalName: "Saved Legal SRL", countryCode: "PL" },
+          contacts: { primaryEmail: "saved@example.test" },
+          business: { sector: "managed services", employeeCount: 27 },
+          dependencies: { microsoft365Usage: "identity_devices_security" },
+          governance: { securityPractices: "MFA, backups, supplier reviews" }
+        },
+        progress: { id: "progress_1" }
+      }
+    });
+
+    expect(html).toContain('name="legalName" type="text" value="Saved Legal SRL"');
+    expect(html).toContain('name="primaryContactEmail" type="email" value="saved@example.test"');
+    expect(html).toContain('<option value="PL" selected>Poland</option>');
+    expect(html).toContain('name="sector" type="text" value="managed services"');
+    expect(html).toContain('name="employeeCount" type="number" value="27"');
+    expect(html).toContain('<option value="identity_devices_security" selected>Identity, devices, and security</option>');
+    expect(html).toContain("MFA, backups, supplier reviews");
+  });
+
+  it("loads saved product onboarding answers when serving the onboarding route", async () => {
+    let onboardingAnswersRequested = false;
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "GET" && url.pathname === "/auth/session") {
+        response.end(
+          JSON.stringify({
+            user: { id: "user_owner", email: "owner@example.test", displayName: "Owner" },
+            session: { activeOrganizationId: "org_demo" }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/dashboard") {
+        response.end(JSON.stringify({ dashboard: productShellModel().dashboard }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/customers") {
+        response.end(JSON.stringify({ customers: [] }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/connectors") {
+        response.end(JSON.stringify({ connectors: [] }));
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/onboarding/answers") {
+        onboardingAnswersRequested = true;
+        response.end(
+          JSON.stringify({
+            countryCode: "DE",
+            answers: {
+              company: { legalName: "Persisted GmbH", countryCode: "DE" },
+              contacts: { primaryEmail: "security@persisted.example" },
+              business: { sector: "digital infrastructure", employeeCount: 64 },
+              dependencies: { microsoft365Usage: "email_collaboration" },
+              governance: { securityPractices: "MFA enforced and backups reviewed" }
+            },
+            progress: { id: "progress_1" }
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${webAddress.port}`;
+
+    try {
+      const response = await fetch(`${baseUrl}/onboarding`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const html = await response.text();
+
+      expect(response.status).toBe(200);
+      expect(onboardingAnswersRequested).toBe(true);
+      expect(html).toContain('name="legalName" type="text" value="Persisted GmbH"');
+      expect(html).toContain('name="primaryContactEmail" type="email" value="security@persisted.example"');
+      expect(html).toContain('<option value="DE" selected>Germany</option>');
+      expect(html).toContain('name="employeeCount" type="number" value="64"');
+      expect(html).toContain('<option value="email_collaboration" selected>Email and collaboration</option>');
+      expect(html).toContain("MFA enforced and backups reviewed");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("redirects old fragmented product routes to canonical MVP routes", async () => {
     const server = startWebServer(0, {
       apiBaseUrl: "http://127.0.0.1:9",
