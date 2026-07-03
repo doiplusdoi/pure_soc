@@ -380,6 +380,21 @@ export interface Nis2CountryPackQuestionSurface {
   sourceIds: readonly string[];
 }
 
+export interface Nis2CountryPackOperationalDifferenceSurface {
+  area:
+    | "authority_routing"
+    | "classification"
+    | "implementation_timeline"
+    | "incident_reporting"
+    | "registration"
+    | "security_obligations";
+  key: string;
+  reviewStatus: "active" | "reviewed" | "review_required" | "source_identified";
+  sourceIds: readonly string[];
+  summary: string;
+  title: string;
+}
+
 export interface Nis2CountryPackDefinitionSurface {
   countryCode: string;
   displayName: string;
@@ -392,6 +407,7 @@ export interface Nis2CountryPackDefinitionSurface {
   officialSources: readonly Nis2CountryPackSourceSurface[];
   nationalTerminology: Record<string, string>;
   registrationGuidance: readonly string[];
+  operationalDifferences?: readonly Nis2CountryPackOperationalDifferenceSurface[];
   sectorRules: readonly string[];
   sizeThresholds: readonly string[];
   specialInclusionRules: readonly string[];

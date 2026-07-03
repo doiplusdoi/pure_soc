@@ -296,6 +296,13 @@ interface ProductOnboardingAnswersWebResponse {
   answers: Record<string, unknown>;
   countryCode: string;
   progress?: Record<string, unknown> | null;
+  schema?: Record<string, unknown> | null;
+}
+
+interface ProductOnboardingSchemaWebResponse extends Record<string, unknown> {
+  country: string;
+  fields: Array<Record<string, unknown>>;
+  screens: Array<Record<string, unknown>>;
 }
 
 interface ProductGapsWebResponse {
@@ -352,6 +359,17 @@ const productRouteByPath = new Map<string, ProductMvpRoute>([
   ["/connectors", "connectors"],
   ["/connectors/microsoft365", "connectors_microsoft365"],
   ["/onboarding", "onboarding"],
+  ["/onboarding/company", "onboarding"],
+  ["/onboarding/locations", "onboarding"],
+  ["/onboarding/contacts", "onboarding"],
+  ["/onboarding/size", "onboarding"],
+  ["/onboarding/services", "onboarding"],
+  ["/onboarding/country-scope", "onboarding"],
+  ["/onboarding/systems", "onboarding"],
+  ["/onboarding/providers", "onboarding"],
+  ["/onboarding/security-baseline", "onboarding"],
+  ["/onboarding/evidence", "onboarding"],
+  ["/onboarding/review", "onboarding"],
   ["/remediation", "remediation"],
   ["/reports", "reports"],
   ["/settings", "settings"]
@@ -485,6 +503,14 @@ const productV1SectionPath = (section: ProductV1ConsoleSection): string =>
     notifications: "notifications",
     events: "audit"
   })[section];
+
+const onboardingScreenFromPath = (pathname: string): string | undefined => {
+  if (pathname === "/onboarding") {
+    return undefined;
+  }
+  const match = /^\/onboarding\/([^/]+)$/.exec(pathname);
+  return match?.[1];
+};
 
 const appRouteRedirectTarget = (pathname: string): string | null => {
   if (pathname === "/app") {
@@ -869,6 +895,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         actionMessage: url.searchParams.get("message"),
         apiBaseUrl,
         cookie: request.headers.cookie,
+        onboardingCountry: url.searchParams.get("country"),
+        onboardingScreen: onboardingScreenFromPath(url.pathname) ?? url.searchParams.get("screen") ?? undefined,
         route: productRoute,
         session: session.body
       });
@@ -1193,40 +1221,28 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       resolvePublicRequestOrigin(request, port);
     const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
 
-    if (request.method === "POST" && url.pathname === "/onboarding") {
+    if (request.method === "POST" && (url.pathname === "/onboarding" || /^\/onboarding\/[^/]+$/.test(url.pathname))) {
       const form = await readFormBody(request);
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
         method: "GET",
         cookie: request.headers.cookie
       });
+      const currentScreen = optionalFormValue(form.get("currentScreen")) ?? onboardingScreenFromPath(url.pathname) ?? "company";
+      const nextScreen = optionalFormValue(form.get("nextScreen")) ?? currentScreen;
+      const countryCode =
+        optionalFormValue(form.get("company.countryCode")) ?? optionalFormValue(form.get("countryCode")) ?? "RO";
+      const action = optionalFormValue(form.get("_action")) ?? "save";
+      const answers = answersFromOnboardingForm(form);
       const saved = await apiJson<unknown>(apiBaseUrl, "/api/onboarding/answers", {
         method: "PUT",
         cookie: request.headers.cookie,
         origin: apiRequestOrigin,
         body: {
-          countryCode: optionalFormValue(form.get("countryCode")) ?? "RO",
-          currentScreen: "company_profile",
+          countryCode,
+          currentScreen,
           status: "in_progress",
-          completedScreens: ["company_profile"],
-          answers: {
-            company: {
-              legalName: form.get("legalName") ?? "",
-              countryCode: optionalFormValue(form.get("countryCode")) ?? "RO"
-            },
-            contacts: {
-              primaryEmail: form.get("primaryContactEmail") ?? ""
-            },
-            business: {
-              sector: form.get("sector") ?? "",
-              employeeCount: numberFormValue(form.get("employeeCount"))
-            },
-            dependencies: {
-              microsoft365Usage: form.get("microsoft365Usage") ?? ""
-            },
-            governance: {
-              securityPractices: form.get("securityPractices") ?? ""
-            }
-          }
+          completedScreens: [...new Set([...form.getAll("completedScreens").map(String), currentScreen])],
+          answers
         }
       });
       const logoPatch =
@@ -1235,23 +1251,46 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
               apiBaseUrl,
               cookie: request.headers.cookie,
               form,
-              legalName: optionalFormValue(form.get("legalName")),
+              legalName: optionalFormValue(form.get("company.legalName")),
               organizationId: session.body.session.activeOrganizationId,
               origin: apiRequestOrigin,
-              primaryCountryCode: optionalFormValue(form.get("countryCode")) ?? "RO"
+              primaryCountryCode: countryCode
             })
           : { statusCode: 204 };
+      const completed =
+        apiSucceeded(saved.statusCode) && (action === "complete" || action === "run")
+          ? await apiJson<unknown>(apiBaseUrl, "/api/onboarding/complete", {
+              method: "POST",
+              cookie: request.headers.cookie,
+              origin: apiRequestOrigin,
+              body: {}
+            })
+          : { statusCode: 204 };
+      const analyzer =
+        apiSucceeded(saved.statusCode) && apiSucceeded(completed.statusCode) && action === "run"
+          ? await apiJson<unknown>(apiBaseUrl, "/api/readiness/run", {
+              method: "POST",
+              cookie: request.headers.cookie,
+              origin: apiRequestOrigin,
+              body: {}
+            })
+          : { statusCode: 204 };
+      const redirectTarget =
+        action === "run" && apiSucceeded(analyzer.statusCode)
+          ? "/gap-analyzer"
+          : `/onboarding/${encodeURIComponent(nextScreen)}?country=${encodeURIComponent(countryCode)}`;
+      const message = (() => {
+        if (!apiSucceeded(saved.statusCode)) return "Onboarding was not saved. Check required fields.";
+        if (!apiSucceeded(logoPatch.statusCode)) return "Onboarding saved, but workspace identity was not updated.";
+        if (action === "run") return apiSucceeded(analyzer.statusCode) ? "Readiness analyzer completed." : "Run analyzer needs saved required answers first.";
+        if (action === "complete") return apiSucceeded(completed.statusCode) ? "Classification generated from saved answers." : "Classification needs more saved answers.";
+        return "Readiness onboarding saved.";
+      })();
 
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/gap-analyzer?message=${encodeURIComponent(
-          apiSucceeded(saved.statusCode) && apiSucceeded(logoPatch.statusCode)
-            ? "Readiness onboarding saved."
-            : apiSucceeded(saved.statusCode)
-              ? "Onboarding saved, but the workspace logo was not updated."
-              : "Onboarding was not saved. Check required fields."
-        )}`
+        `${redirectTarget}${redirectTarget.includes("?") ? "&" : "?"}message=${encodeURIComponent(message)}`
       );
       response.end();
       return;
@@ -2893,6 +2932,48 @@ const numberFormValue = (value: string | null): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
+const answersFromOnboardingForm = (form: URLSearchParams): Record<string, unknown> => {
+  const answers: Record<string, unknown> = {};
+  const skipped = new Set(["_action", "completedScreens", "currentScreen", "nextScreen", "logoDataUrl"]);
+  const fieldNames = [...new Set([...form.keys()].filter((key) => !skipped.has(key)))];
+
+  for (const fieldName of fieldNames) {
+    const values = form
+      .getAll(fieldName)
+      .map((value) => value.trim())
+      .filter((value) => value.length > 0);
+    if (values.length === 0) {
+      continue;
+    }
+    const value = values.length > 1 ? values : normalizeOnboardingFormValue(fieldName, values[0] ?? "");
+    setAnswerPath(answers, fieldName === "countryCode" ? "company.countryCode" : fieldName, value);
+  }
+
+  return answers;
+};
+
+const normalizeOnboardingFormValue = (fieldName: string, value: string): string | number | boolean => {
+  if (value === "true") return true;
+  if (value === "false") return false;
+  if (/(\.|^)(employeeCount|annualTurnoverEur|balanceSheetTotalEur)$/.test(fieldName)) {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : value;
+  }
+  return value;
+};
+
+const setAnswerPath = (answers: Record<string, unknown>, fieldPath: string, value: unknown): void => {
+  const parts = fieldPath.split(".");
+  let current = answers;
+  for (const part of parts.slice(0, -1)) {
+    if (!current[part] || typeof current[part] !== "object" || Array.isArray(current[part])) {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, unknown>;
+  }
+  current[parts[parts.length - 1] ?? fieldPath] = value;
+};
+
 const sendHtml = (response: { statusCode: number; setHeader: (name: string, value: string) => void; end: (body: string) => void }, html: string, statusCode = 200) => {
   response.statusCode = statusCode;
   response.setHeader("content-type", "text/html; charset=utf-8");
@@ -2915,6 +2996,8 @@ const loadProductMvpShellModel = async (input: {
   actionMessage?: string | null;
   apiBaseUrl: string;
   cookie?: string;
+  onboardingCountry?: string | null;
+  onboardingScreen?: string;
   route: ProductMvpRoute;
   session?: RuntimeSessionSurface;
 }): Promise<ProductMvpShellModel | null> => {
@@ -2978,6 +3061,22 @@ const loadProductMvpShellModel = async (input: {
           cookie: input.cookie
         }).catch(() => null)
       : null;
+  const selectedOnboardingCountry =
+    input.onboardingCountry ??
+    (onboarding?.statusCode === 200 ? onboarding.body.countryCode : undefined) ??
+    dashboard.body.dashboard.workspace.countryCode ??
+    dashboard.body.dashboard.countryPack.selected;
+  const onboardingSchema =
+    input.route === "onboarding"
+      ? await apiJson<ProductOnboardingSchemaWebResponse>(
+          input.apiBaseUrl,
+          `/api/onboarding/schema?country=${encodeURIComponent(selectedOnboardingCountry)}`,
+          {
+            method: "GET",
+            cookie: input.cookie
+          }
+        ).catch(() => null)
+      : null;
 
   if (input.route === "microsoft365") {
     details.microsoft365Health = await loadMicrosoft365HealthSurface({
@@ -3028,8 +3127,13 @@ const loadProductMvpShellModel = async (input: {
       onboarding?.statusCode === 200
         ? {
             answers: onboarding.body.answers ?? {},
-            countryCode: onboarding.body.countryCode,
-            progress: onboarding.body.progress ?? null
+            countryCode: selectedOnboardingCountry,
+            progress: onboarding.body.progress ?? null,
+            schema: onboardingSchema?.statusCode === 200 ? onboardingSchema.body : (onboarding.body.schema ?? null),
+            selectedScreen:
+              input.onboardingScreen ??
+              (typeof onboarding.body.progress?.["currentScreen"] === "string" ? onboarding.body.progress["currentScreen"] : undefined) ??
+              "company"
           }
         : undefined,
     session

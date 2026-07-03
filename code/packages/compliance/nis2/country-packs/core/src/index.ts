@@ -29,6 +29,34 @@ export {
   type PureSocLocale
 } from "@puresoc/shared";
 
+export {
+  buildCommonNis2OnboardingCountryPack,
+  nis2CommonOnboardingFieldDefinitions,
+  nis2CommonOnboardingScreens,
+  requiredFieldKeysForPack,
+  requiredFieldKeysForScreen,
+  sanitizeNis2OnboardingContractForCustomer,
+  type Nis2CountryPackOnboardingContract,
+  type Nis2CountrySpecificQuestion,
+  type Nis2OnboardingClassificationAdapter,
+  type Nis2OnboardingClassificationAdapterKey,
+  type Nis2OnboardingCountryCode,
+  type Nis2OnboardingFieldDefinition,
+  type Nis2OnboardingFieldOption,
+  type Nis2OnboardingFieldType,
+  type Nis2OnboardingNotificationDraftCapabilities,
+  type Nis2OnboardingRequiredPolicy,
+  type Nis2OnboardingScreenDefinition,
+  type Nis2OnboardingServiceCatalog,
+  type Nis2OnboardingServiceCatalogOption,
+  type Nis2OnboardingSourceReviewStatus,
+  type Nis2OnboardingValidationHints
+} from "./onboarding-model";
+export {
+  buildNis2CountryPackOnboardingRegistry,
+  type Nis2CountryPackOnboardingRegistry
+} from "./country-pack-registry";
+
 export type EuCountryCode =
   | "AT"
   | "BE"
@@ -603,6 +631,29 @@ export interface Nis2CountryPackClassificationRule {
   sourceIds: readonly string[];
 }
 
+export type Nis2CountryPackOperationalDifferenceArea =
+  | "authority_routing"
+  | "classification"
+  | "implementation_timeline"
+  | "incident_reporting"
+  | "registration"
+  | "security_obligations";
+
+export type Nis2CountryPackOperationalDifferenceReviewStatus =
+  | "active"
+  | "reviewed"
+  | "review_required"
+  | "source_identified";
+
+export interface Nis2CountryPackOperationalDifference {
+  area: Nis2CountryPackOperationalDifferenceArea;
+  key: string;
+  reviewStatus: Nis2CountryPackOperationalDifferenceReviewStatus;
+  sourceIds: readonly string[];
+  summary: string;
+  title: string;
+}
+
 export interface Nis2CountryPackDefinition {
   countryCode: EuCountryCode | "EU";
   displayName: string;
@@ -615,6 +666,7 @@ export interface Nis2CountryPackDefinition {
   officialSources: readonly Nis2OfficialSourceReference[];
   nationalTerminology: Record<string, string>;
   registrationGuidance: readonly string[];
+  operationalDifferences: readonly Nis2CountryPackOperationalDifference[];
   sectorRules: readonly string[];
   sizeThresholds: readonly string[];
   specialInclusionRules: readonly string[];
@@ -680,6 +732,7 @@ export const euNis2BasePack: Nis2CountryPackDefinition = {
     importantEntity: "Important entity"
   },
   registrationGuidance: ["Use the active Member State country pack for national registration paths."],
+  operationalDifferences: [],
   sectorRules: [
     "energy",
     "transport",
@@ -750,15 +803,15 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
       id: "pl-ksc-amendment-overview-2026",
       title: "KSC amendment overview",
       url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa",
-      retrievedAt: "2026-06-19",
+      retrievedAt: "2026-07-02",
       trustLevel: "primary",
-      notes: "Gov.pl overview dated 2026-04-14 says the amendment entered into force on 2026-04-03 and describes registration deadlines."
+      notes: "Gov.pl overview dated 2026-04-14 says the amendment entered into force on 2026-04-03 and describes registration, adaptation, and audit deadlines."
     },
     {
       id: "pl-ksc-covered-entities-2026",
       title: "KSC covered entities guidance",
       url: "https://www.gov.pl/web/cyfryzacja/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---kogo-obejmuje",
-      retrievedAt: "2026-06-19",
+      retrievedAt: "2026-07-02",
       trustLevel: "primary",
       notes: "Gov.pl guidance dated 2026-04-20 describes sectors and 12-month adaptation period."
     },
@@ -766,7 +819,7 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
       id: "pl-ksc-self-identification-2026",
       title: "KSC self-identification guidance",
       url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---jak-dokonac-samoidentyfikacji",
-      retrievedAt: "2026-06-19",
+      retrievedAt: "2026-07-02",
       trustLevel: "primary",
       notes: "Gov.pl guidance dated 2026-04-27 describes activity, PKD, and size as self-identification inputs."
     },
@@ -774,9 +827,17 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
       id: "pl-ksc-self-registration-2026",
       title: "KSC self-registration guidance",
       url: "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa-ksc---uruchamiamy-samorejestracje-w-wykazie-podmiotow-kluczowych-i-podmiotow-waznych-sprawdz-jak-dokonac-wpisu",
-      retrievedAt: "2026-06-19",
+      retrievedAt: "2026-07-02",
       trustLevel: "primary",
       notes: "Gov.pl guidance dated 2026-05-07 describes self-registration in Wykaz KSC."
+    },
+    {
+      id: "pl-ksc-act-consolidated-2026",
+      title: "Act on the national cybersecurity system, consolidated text",
+      url: "https://isap.sejm.gov.pl/isap.nsf/download.xsp/WDU20180001560/U/D20181560Lj.pdf",
+      retrievedAt: "2026-07-02",
+      trustLevel: "primary",
+      notes: "ISAP/Kancelaria Sejmu consolidated text dated 2026-03-24. Stored as source metadata only until legal review activates national logic."
     }
   ],
   nationalTerminology: {
@@ -785,12 +846,94 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
     register: "Wykaz KSC"
   },
   registrationGuidance: [
-    "Demo guidance: entities use self-identification and, where applicable, Wykaz KSC/S46 registration.",
+    "Demo guidance: entities use self-identification and, where applicable, Wykaz KSC in System S46 registration.",
+    "Self-registration is source-mapped as a May 7, 2026 to October 3, 2026 operational window, with statutory timing still requiring legal review.",
     "Do not treat this pack as legal advice until reviewed and activated."
   ],
-  sectorRules: ["telecommunications", "food", "manufacturing", "ict_service_management", "digital_infrastructure", "public_administration"],
-  sizeThresholds: ["Use micro, small, medium, and large thresholds from official Polish self-identification guidance; group and partner enterprises may affect size."],
-  specialInclusionRules: ["Telecommunications providers and public entities can require special handling. Legal review is required."],
+  operationalDifferences: [
+    {
+      area: "implementation_timeline",
+      key: "pl.ksc.effective_and_transition_dates",
+      title: "KSC amendment date and transition obligations",
+      summary:
+        "Poland's KSC amendment entered into force on 2026-04-03. Existing qualifying entities are source-mapped with a 12-month SZBI adaptation path and a first-audit path for key entities, both still review-required in PureSOC.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-amendment-overview-2026"]
+    },
+    {
+      area: "registration",
+      key: "pl.ksc.wykaz_registration_window",
+      title: "Wykaz KSC/S46 registration route",
+      summary:
+        "Self-registration in Wykaz KSC is available for applicable non-ex-officio entities from 2026-05-07 through 2026-10-03; the consolidated Act also contains a six-month application rule after criteria are met.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-self-registration-2026", "pl-ksc-act-consolidated-2026"]
+    },
+    {
+      area: "registration",
+      key: "pl.ksc.ex_officio_registration",
+      title: "Ex officio entries use a different path",
+      summary:
+        "Public entities, telecommunications entrepreneurs, trust service providers, and former key-service operators are identified as ex-officio entry groups and should not be modeled as ordinary self-registration-only customers.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-self-identification-2026", "pl-ksc-self-registration-2026"]
+    },
+    {
+      area: "classification",
+      key: "pl.ksc.self_identification_inputs",
+      title: "Self-identification depends on activity, PKD, size, and Art. 5",
+      summary:
+        "Polish guidance tells entities to evaluate real activity first, use PKD only as support, include linked and partner enterprises in size, and then analyze Art. 5 special cases.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-self-identification-2026", "pl-ksc-act-consolidated-2026"]
+    },
+    {
+      area: "classification",
+      key: "pl.ksc.telecom_all_sizes",
+      title: "Telecommunications has explicit all-size handling",
+      summary:
+        "Polish guidance marks telecommunications entrepreneurs as subject to the Act regardless of size, with medium/large and small/micro routes mapped differently in the demo classifier.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-self-identification-2026"]
+    },
+    {
+      area: "incident_reporting",
+      key: "pl.ksc.s46_csirt_routing",
+      title: "Wykaz KSC data feeds CSIRT and authority routing",
+      summary:
+        "Wykaz KSC/S46 is source-mapped as the collaboration and incident-obligation route, with data available to CSIRT MON, CSIRT NASK, CSIRT GOV, sector CSIRTs, and competent authorities.",
+      reviewStatus: "review_required",
+      sourceIds: ["pl-ksc-self-registration-2026", "pl-ksc-act-consolidated-2026"]
+    }
+  ],
+  sectorRules: [
+    "telecommunications",
+    "energy",
+    "transport",
+    "banking_financial_market_infrastructure",
+    "health",
+    "drinking_water",
+    "waste_water",
+    "digital_infrastructure",
+    "ict_service_management",
+    "space",
+    "public_administration",
+    "postal_services",
+    "waste_management",
+    "chemicals",
+    "food",
+    "manufacturing",
+    "digital_providers",
+    "research"
+  ],
+  sizeThresholds: [
+    "Use micro, small, medium, and large thresholds from official Polish self-identification guidance; group and partner enterprises may affect size.",
+    "Telecommunications entrepreneurs are source-mapped as subject to the Act regardless of size, with legal review still required."
+  ],
+  specialInclusionRules: [
+    "Telecommunications providers and public entities can require special handling.",
+    "Art. 5 may include entities regardless of ordinary size thresholds. Legal review is required."
+  ],
   dynamicQuestions: [
     {
       key: "pl.ksc.pkd_or_activity",
@@ -808,8 +951,14 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
       key: "pl.ksc.self_registration_path",
       label: "Is the customer already entered in Wykaz KSC or expected to self-register?",
       answerType: "choice",
-      choices: ["already_entered", "self_registration_expected", "office_entry_expected", "unknown"],
+      choices: ["already_entered", "self_registration_expected", "ex_officio_entry_expected", "not_expected", "unknown"],
       sourceIds: ["pl-ksc-self-registration-2026"]
+    },
+    {
+      key: "pl.ksc.art5_special_case",
+      label: "Could Art. 5 or a sector-specific rule include the customer outside ordinary size logic?",
+      answerType: "boolean",
+      sourceIds: ["pl-ksc-self-identification-2026", "pl-ksc-act-consolidated-2026"]
     }
   ],
   classificationRules: [
@@ -821,6 +970,21 @@ export const polandNis2DemoCountryPack: Nis2CountryPackDefinition = {
       confidence: "medium",
       legalReviewRequired: true,
       match: {
+        maxEmployees: 49,
+        telecomProvider: true
+      },
+      sourceIds: ["pl-ksc-self-identification-2026"]
+    },
+    {
+      id: "pl-demo-telecom-medium-large-key",
+      version: "2026.06",
+      outcome: "likely_essential_entity",
+      plainLanguage:
+        "Polish guidance maps medium and large telecommunications entrepreneurs to the key-entity path, but the demo pack still requires legal review before activation.",
+      confidence: "medium",
+      legalReviewRequired: true,
+      match: {
+        minEmployees: 50,
         telecomProvider: true
       },
       sourceIds: ["pl-ksc-self-identification-2026"]
@@ -867,9 +1031,9 @@ export const germanyNis2DemoCountryPack: Nis2CountryPackDefinition = {
       id: "de-bsi-portal-nis2-registration",
       title: "BSI portal NIS-2 registration information",
       url: "https://mip2.bsi.bund.de/en/info-nis2-registrierung/",
-      retrievedAt: "2026-06-19",
+      retrievedAt: "2026-07-02",
       trustLevel: "primary",
-      notes: "BSI portal page says registration/reporting requirements apply when the implementation act comes into force and identifies the BSI portal as the registration route."
+      notes: "BSI portal page says requirements apply from 2025-12-06, NIS-2 registration is exclusively through the BSI portal, and MIP2 is not the NIS-2 registration route."
     },
     {
       id: "de-bsi-registration-instructions",
@@ -878,33 +1042,129 @@ export const germanyNis2DemoCountryPack: Nis2CountryPackDefinition = {
       retrievedAt: "2026-06-19",
       trustLevel: "primary",
       notes: "Official BSI registration-instruction source metadata retained for reviewed implementation."
+    },
+    {
+      id: "de-mip2-faq-2026",
+      title: "BSI MIP2 FAQ",
+      url: "https://mip2.bsi.bund.de/en/faq/",
+      retrievedAt: "2026-07-02",
+      trustLevel: "primary",
+      notes: "Official BSI MIP2 FAQ metadata for KRITIS/federal transition behaviors and portal limitations."
+    },
+    {
+      id: "de-mip2-reporting-points-2026",
+      title: "BSI MIP2 reporting points overview",
+      url: "https://mip2.bsi.bund.de/en/meldestellen-uebersicht/",
+      retrievedAt: "2026-07-02",
+      trustLevel: "primary",
+      notes: "Official BSI MIP2 reporting-point overview. NIS-2 BSI Portal route remains distinct from MIP2."
+    },
+    {
+      id: "de-ec-nis2-country-page-2025",
+      title: "European Commission NIS2 implementation in Germany",
+      url: "https://digital-strategy.ec.europa.eu/en/policies/nis2-directive-germany",
+      retrievedAt: "2026-07-02",
+      trustLevel: "secondary",
+      notes: "Commission country page was last updated on 2025-07-07 and is retained for authority contact metadata, not as current German operational law."
     }
   ],
   nationalTerminology: {
     essentialEntity: "Besonders wichtige Einrichtung",
     importantEntity: "Wichtige Einrichtung",
-    portal: "BSI portal"
+    bsiPortal: "BSI Portal",
+    mip2: "MIP2"
   },
   registrationGuidance: [
-    "Demo guidance: use BSI portal information for registration and reporting flow discovery.",
+    "Demo guidance: NIS-2 registration and reporting for covered companies and public authorities is source-mapped to the BSI Portal, not MIP2.",
+    "MIP2 remains relevant for KRITIS operators and federal authorities during transition workflows.",
     "This pack does not submit registrations or reports."
   ],
-  sectorRules: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "public_administration", "health"],
-  sizeThresholds: ["Use German implementation-act size and sector rules after legal review."],
-  specialInclusionRules: ["Public authorities, KRITIS operators, and portal transition rules require separate review."],
+  operationalDifferences: [
+    {
+      area: "implementation_timeline",
+      key: "de.nis2.implementation_act_effective",
+      title: "Implementation Act effective date",
+      summary:
+        "The BSI portal source says NIS-2 implementation requirements apply from 2025-12-06. PureSOC keeps this as demo metadata until German legal review activates the pack.",
+      reviewStatus: "review_required",
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      area: "registration",
+      key: "de.bsi.portal_exclusive_registration",
+      title: "NIS-2 registration is through BSI Portal",
+      summary:
+        "BSI states that NIS-2 registration is carried out exclusively via the BSI Portal provided for that purpose and not via MIP2.",
+      reviewStatus: "review_required",
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      area: "incident_reporting",
+      key: "de.bsi.portal_reporting_route",
+      title: "BSI Portal is the general NIS-2 reporting route",
+      summary:
+        "The BSI Portal source covers companies and public authorities for security-incident reports, while non-covered companies may voluntarily report incidents there.",
+      reviewStatus: "review_required",
+      sourceIds: ["de-bsi-portal-nis2-registration"]
+    },
+    {
+      area: "authority_routing",
+      key: "de.mip2.kritis_federal_transition",
+      title: "KRITIS and federal authorities keep MIP2 transition paths",
+      summary:
+        "KRITIS operators and federal authorities continue using MIP2 as their primary reporting route during the transition; duplicate reporting via BSI Portal is not required.",
+      reviewStatus: "review_required",
+      sourceIds: ["de-bsi-portal-nis2-registration", "de-mip2-reporting-points-2026"]
+    },
+    {
+      area: "authority_routing",
+      key: "de.ec.bsi_single_authority_metadata",
+      title: "BSI is the main authority contact in Commission metadata",
+      summary:
+        "The European Commission country page lists BSI as single point of contact, competent authority for OES/DSPs, and national CSIRT, but the page is stale and not sufficient for current operational rules.",
+      reviewStatus: "source_identified",
+      sourceIds: ["de-ec-nis2-country-page-2025"]
+    }
+  ],
+  sectorRules: [
+    "energy",
+    "transport",
+    "finance",
+    "health",
+    "drinking_water",
+    "waste_water",
+    "digital_infrastructure",
+    "ict_service_management",
+    "space",
+    "public_administration",
+    "postal_services",
+    "waste_management",
+    "chemicals",
+    "food",
+    "manufacturing",
+    "digital_providers",
+    "research"
+  ],
+  sizeThresholds: [
+    "Use German implementation-act size and sector rules after legal review.",
+    "PureSOC does not currently encode German 'important' versus 'especially important' thresholds as active logic."
+  ],
+  specialInclusionRules: [
+    "Public authorities, KRITIS operators, federal authority routes, and BSI Portal/MIP2 transition rules require separate review."
+  ],
   dynamicQuestions: [
     {
       key: "de.bsi.portal_route",
-      label: "Does the customer expect to use the BSI portal for NIS-2 registration or reporting?",
+      label: "Does the customer expect to use the BSI Portal for NIS-2 registration or reporting?",
       answerType: "choice",
       choices: ["yes", "no", "unknown"],
       sourceIds: ["de-bsi-portal-nis2-registration"]
     },
     {
       key: "de.bsi.kritis_or_public",
-      label: "Is the customer a KRITIS operator, federal authority, or public authority?",
+      label: "Is the customer a KRITIS operator, federal authority, or public authority with a transition route?",
       answerType: "boolean",
-      sourceIds: ["de-bsi-portal-nis2-registration"]
+      sourceIds: ["de-bsi-portal-nis2-registration", "de-mip2-reporting-points-2026"]
     },
     {
       key: "de.bsi.sector",
@@ -912,6 +1172,13 @@ export const germanyNis2DemoCountryPack: Nis2CountryPackDefinition = {
       answerType: "choice",
       choices: ["food", "manufacturing", "ict_service_management", "digital_infrastructure", "health", "public_administration", "other_or_unknown"],
       sourceIds: ["de-bsi-regulated-companies"]
+    },
+    {
+      key: "de.bsi.bsi_portal_or_mip2",
+      label: "Is the operational route BSI Portal, MIP2 KRITIS/federal transition, or still unknown?",
+      answerType: "choice",
+      choices: ["bsi_portal", "mip2_kritis_or_federal", "unknown"],
+      sourceIds: ["de-bsi-portal-nis2-registration", "de-mip2-faq-2026"]
     }
   ],
   classificationRules: [
@@ -1002,6 +1269,17 @@ export const validateNis2CountryPackDefinition = (
           code: "missing_source",
           message: `Rule ${rule.id} references missing source ${sourceId}.`,
           path: `$.classificationRules.${rule.id}.sourceIds`
+        });
+      }
+    }
+  }
+  for (const difference of pack.operationalDifferences) {
+    for (const sourceId of difference.sourceIds) {
+      if (!sourceIds.has(sourceId)) {
+        issues.push({
+          code: "missing_source",
+          message: `Operational difference ${difference.key} references missing source ${sourceId}.`,
+          path: `$.operationalDifferences.${difference.key}.sourceIds`
         });
       }
     }

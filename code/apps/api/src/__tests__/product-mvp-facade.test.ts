@@ -132,6 +132,77 @@ describe("product MVP facade routes", () => {
     };
   };
 
+  const completeCommonAnswers = (countryCode: "PL" | "DE") => ({
+    company: { legalName: `${countryCode} Example Ltd`, countryCode },
+    locations: { headquartersCountry: countryCode, headquartersCity: countryCode === "PL" ? "Warsaw" : "Berlin" },
+    contacts: {
+      primaryName: "Primary Owner",
+      primaryEmail: "owner@example.test",
+      securityName: "Security Owner",
+      securityEmail: "security@example.test"
+    },
+    business: {
+      sector: countryCode === "PL" ? "food" : "public_administration",
+      mainProductsServices: "Operational services for customers and public stakeholders.",
+      countriesServed: [countryCode],
+      employeeCount: countryCode === "PL" ? 72 : 180
+    },
+    size: { sizeCategory: "medium", legalStructure: "standalone" },
+    scope: {
+      activities: [countryCode === "PL" ? "food" : "public_administration"],
+      publicAdministration: countryCode === "DE",
+      telecomProvider: false
+    },
+    systems: { systemsDescription: "Identity, collaboration, line-of-business systems, and public web properties." },
+    providers: { microsoft365Usage: "identity_devices_security" },
+    dependencies: {
+      backupArrangements: "implemented encrypted backups with restore tests",
+      businessContinuity: "implemented continuity plan",
+      criticalSuppliers: ["Microsoft 365"],
+      incidentResponse: "implemented incident response runbook"
+    },
+    governance: {
+      identityControls: "implemented least-privilege access reviews",
+      mfa: "implemented",
+      riskManagement: "implemented annual cyber risk review",
+      supplyChainSecurity: "implemented supplier review"
+    },
+    review: { legalCaveatAcknowledged: true }
+  });
+
+  const completeRomaniaAnswers = () => ({
+    ...completeCommonAnswers("PL"),
+    company: { legalName: "Asterion Cloud Services SRL", countryCode: "RO" },
+    locations: { headquartersCountry: "RO", headquartersCity: "Bucharest" },
+    business: {
+      sector: "digital_infrastructure",
+      mainProductsServices: "Cloud operations and managed digital infrastructure services.",
+      countriesServed: ["RO"],
+      employeeCount: 120
+    },
+    size: { sizeCategory: "medium", legalStructure: "standalone" },
+    selectedServiceTypeCodes: ["108004"],
+    scope: { publicAdministration: false, telecomProvider: false },
+    relationship: {
+      criticalEntityInRomaniaLaw294: false,
+      establishedInRomania: true,
+      mainOfficeInRomania: true,
+      providesServicesInAnotherEuMemberState: false,
+      providesServicesInRomania: true,
+      publicAdministrationEstablishedByRomania: false
+    },
+    article9: {
+      nationalOrRegionalCriticality: false,
+      publicSafetySecurityOrHealthImpact: "medium",
+      soleProviderEssentialService: false,
+      systemicRisk: "medium"
+    },
+    systems: {
+      systemsDescription: "Cloud platform, identity tenant, collaboration, and customer support systems.",
+      publicIpRanges: ["203.0.113.0/28"]
+    }
+  });
+
   it("serves a product dashboard for a fresh workspace and then updates persisted workspace, gap, and report state", async () => {
     const { cookie, organizationId } = await registerLoginAndSelectWorkspace();
 
@@ -190,7 +261,7 @@ describe("product MVP facade routes", () => {
           company: { legalName: "Asterion Cloud Services SRL", countryCode: "DE" },
           contacts: { primaryEmail: "security@example.test" },
           business: { sector: "digital_services", employeeCount: 42 },
-          dependencies: { microsoft365Usage: "email_collaboration" }
+          providers: { microsoft365Usage: "email_collaboration" }
         }
       },
       cookie
@@ -199,12 +270,39 @@ describe("product MVP facade routes", () => {
     const savedBody = await readJson<{ progress: { assessmentId: string } }>(saved);
     expect(savedBody.progress.assessmentId).toMatch(uuidPattern);
 
+    const reloaded = await fetch(`${baseUrl}/api/onboarding/answers`, {
+      headers: { cookie }
+    });
+    expect(reloaded.status).toBe(200);
+    const reloadedBody = await readJson<{
+      answers: { providers?: { microsoft365Usage?: string } };
+      countryCode: string;
+      schema: { countryPack: { classificationAdapter: { key: string } } };
+    }>(reloaded);
+    expect(reloadedBody).toMatchObject({
+      answers: {
+        providers: {
+          microsoft365Usage: "email_collaboration"
+        }
+      },
+      countryCode: "DE"
+    });
+    expect(JSON.stringify(reloadedBody.schema)).not.toContain("workbook");
+
     const run = await postJson("/api/readiness/run", {}, cookie);
     expect(run.status).toBe(201);
     const runBody = await readJson<{ assessmentId: string; gaps: Array<{ id: string }>; recommendations: unknown[] }>(run);
     expect(runBody.assessmentId).toMatch(uuidPattern);
     expect(runBody.assessmentId).toBe(savedBody.progress.assessmentId);
     expect(runBody.gaps.length).toBeGreaterThan(0);
+    expect(runBody.gaps.map((gap) => gap.id)).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("missing-company-data"),
+        expect.stringContaining("missing-country-scope"),
+        expect.stringContaining("microsoft365-not-connected"),
+        expect.stringContaining("national-personalization-incomplete")
+      ])
+    );
     expect(runBody.recommendations.length).toBeGreaterThan(0);
 
     const gapPatch = await patchJson(
@@ -313,6 +411,141 @@ describe("product MVP facade routes", () => {
       ])
     );
     expect(JSON.stringify(connectorsBody)).not.toContain("provider_connection_oauth");
+  });
+
+  it("serves customer-safe onboarding schemas for RO, PL, and DE", async () => {
+    const bannedTerms = [
+      "xlsx",
+      "xls",
+      "workbook",
+      "sheet",
+      "cell",
+      "sourceMapId",
+      "Date entitate",
+      "Evaluare entitate",
+      "Algoritm clasificare",
+      "importer"
+    ];
+
+    for (const country of ["RO", "PL", "DE"]) {
+      const response = await fetch(`${baseUrl}/api/onboarding/schema?country=${country}`);
+      expect(response.status).toBe(200);
+      const body = await readJson<{
+        countryPack: { classificationAdapter: { key: string }; sourceReviewStatus: string };
+        fields: Array<{ key: string }>;
+        screens: Array<{ key: string; routePath: string }>;
+        serviceCatalog: { options: Array<{ code: string }> };
+      }>(response);
+      expect(body.screens.map((screen) => screen.key)).toEqual([
+        "company",
+        "locations",
+        "contacts",
+        "size",
+        "services",
+        "country-scope",
+        "systems",
+        "providers",
+        "security-baseline",
+        "evidence",
+        "review"
+      ]);
+      expect(body.fields.map((field) => field.key)).toEqual(expect.arrayContaining(["company.legalName", "providers.microsoft365Usage"]));
+      expect(body.countryPack.sourceReviewStatus).toBe("review_required");
+      expect(body.countryPack.classificationAdapter.key).toBe(country === "RO" ? "country_specific" : "common_structured");
+      if (country === "RO") {
+        expect(body.fields.map((field) => field.key)).toContain("selectedServiceTypeCodes");
+        expect(body.serviceCatalog.options.length).toBeGreaterThan(0);
+      }
+
+      const serialized = JSON.stringify(body);
+      for (const term of bannedTerms) {
+        expect(serialized).not.toContain(term);
+      }
+    }
+  });
+
+  it("routes product onboarding completion through the RO classifier and common PL/DE classifiers", async () => {
+    const { cookie, organizationId } = await registerLoginAndSelectWorkspace();
+
+    const saveAndComplete = async (countryCode: "RO" | "PL" | "DE", answers: Record<string, unknown>) => {
+      const workspacePatch = await patchJson(
+        `/api/workspaces/${organizationId}`,
+        {
+          countryCode,
+          legalName: `${countryCode} Example Ltd`
+        },
+        cookie
+      );
+      expect(workspacePatch.status).toBe(200);
+
+      const saved = await putJson(
+        "/api/onboarding/answers",
+        {
+          answers,
+          countryCode,
+          currentScreen: "review",
+          completedScreens: [
+            "company",
+            "locations",
+            "contacts",
+            "size",
+            "services",
+            "country-scope",
+            "systems",
+            "providers",
+            "security-baseline",
+            "evidence",
+            "review"
+          ]
+        },
+        cookie
+      );
+      expect(saved.status).toBe(200);
+
+      const completed = await postJson("/api/onboarding/complete", {}, cookie);
+      expect(completed.status).toBe(201);
+      return readJson<{
+        classification: { result: string; sourceVersion?: string };
+        classificationRun: { countryCode: string; input: Record<string, unknown>; result: string; sourceVersion: string };
+      }>(completed);
+    };
+
+    const ro = await saveAndComplete("RO", completeRomaniaAnswers());
+    expect(ro.classificationRun.countryCode).toBe("RO");
+    expect(ro.classificationRun.input).toMatchObject({
+      selectedServiceTypeCodes: ["108004"],
+      sizeCategory: "medium",
+      relationship: {
+        establishedInRomania: true,
+        providesServicesInRomania: true
+      }
+    });
+    expect(ro.classification.sourceVersion).toContain("puresoc.nis2.country_onboarding.v2");
+    expect(ro.classificationRun.sourceVersion).toContain("puresoc.nis2.country_onboarding.v2");
+
+    const pl = await saveAndComplete("PL", completeCommonAnswers("PL"));
+    expect(pl.classificationRun).toMatchObject({
+      countryCode: "PL",
+      result: "possibly_in_scope"
+    });
+    expect(pl.classificationRun.input).toMatchObject({
+      employeeCount: 72,
+      publicAdministration: false,
+      sector: "food",
+      services: ["food"]
+    });
+
+    const de = await saveAndComplete("DE", completeCommonAnswers("DE"));
+    expect(de.classificationRun).toMatchObject({
+      countryCode: "DE",
+      result: "possibly_in_scope"
+    });
+    expect(de.classificationRun.input).toMatchObject({
+      employeeCount: 180,
+      publicAdministration: true,
+      sector: "public_administration",
+      services: ["public_administration"]
+    });
   });
 
   it("supports Microsoft local disconnect and product remediation lifecycle aliases without fake execution success", async () => {

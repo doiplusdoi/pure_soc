@@ -109,6 +109,8 @@ export interface ProductMvpShellModel {
     answers: Record<string, unknown>;
     countryCode: string;
     progress?: Record<string, unknown> | null;
+    schema?: Record<string, unknown> | null;
+    selectedScreen?: string;
   };
   dashboard: {
     workspace: {
@@ -817,69 +819,298 @@ const renderProductReadinessAreas = (model: ProductMvpShellModel): string => {
   ].join("");
 };
 
-const renderProductOnboardingPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({
-    eyebrow: "Business onboarding",
-    title: "Readiness",
-    status: "autosave"
-  }),
-  '<section class="ps-layout-with-aside">',
-  '<form class="ps-panel ps-form ps-form--wide" action="/onboarding" method="post" data-ui-action="save-business-onboarding">',
-  '<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title">Company profile</h2><p class="ps-muted">Start with the business facts needed for a draft baseline.</p></div></div>',
-  '<div class="ps-form-grid">',
-  renderTextInput(
-    "legalName",
-    "Legal name",
-    productOnboardingAnswerText(model, "company.legalName", model.dashboard.workspace.legalName ?? model.dashboard.workspace.name),
-    true
-  ),
-  renderTextInput("primaryContactEmail", "Primary contact email", productOnboardingAnswerText(model, "contacts.primaryEmail"), true, "email"),
-  renderSelect(
-    "countryCode",
+const renderProductOnboardingPage = (model: ProductMvpShellModel): string => {
+  const schema = productOnboardingSchema(model);
+  const screens = productOnboardingScreens(schema);
+  const fields = productOnboardingFields(schema);
+  const selectedScreenKey = productSelectedOnboardingScreen(model, screens);
+  const selectedScreen = screens.find((screen) => screen.key === selectedScreenKey) ?? screens[0];
+  const selectedIndex = Math.max(0, screens.findIndex((screen) => screen.key === selectedScreen?.key));
+  const nextScreen = screens[Math.min(selectedIndex + 1, screens.length - 1)]?.key ?? selectedScreen?.key ?? "review";
+  const screenFields = fields.filter((field) => field.screenKey === selectedScreen?.key && field.key !== "company.countryCode");
+  const missing = productOnboardingMissingFields(model);
+  const completedScreens = productOnboardingCompletedScreens(model);
+  const countryPack = productOnboardingCountryPack(schema);
+
+  return [
+    renderProductPageHeader({
+      eyebrow: "Readiness input",
+      title: "Onboarding",
+      status: countryPack.sourceReviewStatus.replaceAll("_", " ")
+    }),
+    '<section class="ps-layout-with-aside">',
+    '<aside class="ps-panel ps-panel--quiet" aria-labelledby="onboarding-progress-title">',
+    '<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title" id="onboarding-progress-title">Progress</h2><p class="ps-muted">Save each screen in small chunks.</p></div></div>',
+    '<ol class="ps-step-list">',
+    ...screens.map((screen, index) => {
+      const isSelected = screen.key === selectedScreen?.key;
+      const screenMissing = productMissingForScreen(screen, fields, missing);
+      const complete = completedScreens.includes(screen.key) && screenMissing.length === 0;
+      return `<li${isSelected ? ' aria-current="step"' : ""}><span class="ps-step-list__number">${index + 1}</span><div><strong><a href="${escapeHtml(
+        screen.routePath
+      )}?country=${escapeHtml(model.onboarding?.countryCode ?? model.dashboard.countryPack.selected)}">${escapeHtml(
+        screen.title
+      )}</a></strong><span>${escapeHtml(complete ? "Complete" : screenMissing.length > 0 ? `${screenMissing.length} required` : "Ready to save")}</span></div></li>`;
+    }),
+    "</ol>",
+    "</aside>",
+    '<form class="ps-panel ps-form ps-form--wide" action="/onboarding" method="post" data-ui-action="save-readiness-onboarding-screen">',
+    `<input type="hidden" name="currentScreen" value="${escapeHtml(selectedScreen?.key ?? "company")}">`,
+    `<input type="hidden" name="nextScreen" value="${escapeHtml(nextScreen)}">`,
+    ...completedScreens.map((screen) => `<input type="hidden" name="completedScreens" value="${escapeHtml(screen)}">`),
+    '<div class="ps-section__header ps-section__header--flat">',
+    `<div><h2 class="ps-panel__title">${escapeHtml(selectedScreen?.title ?? "Onboarding")}</h2><p class="ps-muted">${escapeHtml(
+      selectedScreen?.summary ?? "Capture readiness inputs."
+    )}</p></div>`,
+    renderStatusPill({ label: countryPack.safeSourceSummary, tone: countryPack.sourceReviewStatus === "active" ? "success" : "warning" }),
+    "</div>",
+    '<div class="ps-form-grid">',
+    renderProductOnboardingCountrySelector(model, schema),
+    ...(selectedScreen?.key === "company"
+      ? [renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo" })]
+      : []),
+    ...screenFields.map((field) => renderProductOnboardingField(model, field, missing.includes(field.key))),
+    "</div>",
+    selectedScreen?.key === "review" ? renderProductOnboardingReviewSummary(fields, screens, missing) : "",
+    '<div class="ps-command-row">',
+    renderCommandButton({ label: "Save screen", ariaLabel: "Save onboarding screen", tone: "primary", type: "submit" }),
+    selectedScreen?.key === "review"
+      ? '<button class="ps-command" type="submit" name="_action" value="complete">Run classification</button><button class="ps-command ps-command--primary" type="submit" name="_action" value="run">Run analyzer</button>'
+      : "",
+    '<a class="ps-command" href="/microsoft365">Providers</a>',
+    '<a class="ps-command" href="/evidence">Evidence</a>',
+    "</div>",
+    "</form>",
+    "</section>",
+    renderLegalCaveat(model.dashboard.legalCaveat)
+  ].join("");
+};
+
+interface ProductOnboardingScreenSurface {
+  key: string;
+  routePath: string;
+  summary: string;
+  title: string;
+  requiredFieldPaths?: string[];
+}
+
+interface ProductOnboardingFieldSurface {
+  fallbackLabel: string;
+  key: string;
+  options?: Array<{ label: string; value: string }>;
+  requiredPolicy: string;
+  screenKey: string;
+  type: string;
+  validationHints?: {
+    helpText?: string;
+    min?: number;
+    placeholder?: string;
+  };
+}
+
+const productOnboardingSchema = (model: ProductMvpShellModel): Record<string, unknown> =>
+  model.onboarding?.schema && typeof model.onboarding.schema === "object" ? model.onboarding.schema : {};
+
+const productOnboardingScreens = (schema: Record<string, unknown>): ProductOnboardingScreenSurface[] => {
+  const screens = Array.isArray(schema.screens) ? schema.screens : [];
+  return screens
+    .filter((screen): screen is Record<string, unknown> => Boolean(screen && typeof screen === "object"))
+    .map((screen) => ({
+      key: String(screen.key ?? "company"),
+      routePath: String(screen.routePath ?? `/onboarding/${String(screen.key ?? "company")}`),
+      summary: String(screen.summary ?? ""),
+      title: String(screen.title ?? screen.label ?? screen.key ?? "Onboarding"),
+      requiredFieldPaths: Array.isArray(screen.requiredFieldPaths)
+        ? screen.requiredFieldPaths.filter((field): field is string => typeof field === "string")
+        : []
+    }));
+};
+
+const productOnboardingFields = (schema: Record<string, unknown>): ProductOnboardingFieldSurface[] => {
+  const fields = Array.isArray(schema.fields) ? schema.fields : [];
+  return fields
+    .filter((field): field is Record<string, unknown> => Boolean(field && typeof field === "object"))
+    .map((field) => ({
+      fallbackLabel: String(field.fallbackLabel ?? field.key ?? "Field"),
+      key: String(field.key ?? ""),
+      options: Array.isArray(field.options)
+        ? field.options
+            .filter((option): option is Record<string, unknown> => Boolean(option && typeof option === "object"))
+            .map((option) => ({ label: String(option.label ?? option.value ?? ""), value: String(option.value ?? "") }))
+        : undefined,
+      requiredPolicy: String(field.requiredPolicy ?? "optional"),
+      screenKey: String(field.screenKey ?? "company"),
+      type: String(field.type ?? "text"),
+      validationHints:
+        field.validationHints && typeof field.validationHints === "object"
+          ? (field.validationHints as ProductOnboardingFieldSurface["validationHints"])
+          : undefined
+    }))
+    .filter((field) => field.key.length > 0);
+};
+
+const productOnboardingCountryPack = (schema: Record<string, unknown>) => {
+  const countryPack =
+    schema.countryPack && typeof schema.countryPack === "object" ? (schema.countryPack as Record<string, unknown>) : {};
+  return {
+    safeSourceSummary: String(countryPack.safeSourceSummary ?? "Source-backed country pack. Review required."),
+    sourceReviewStatus: String(countryPack.sourceReviewStatus ?? "review_required")
+  };
+};
+
+const productSelectedOnboardingScreen = (
+  model: ProductMvpShellModel,
+  screens: readonly ProductOnboardingScreenSurface[]
+): string => {
+  const selected = model.onboarding?.selectedScreen;
+  if (selected && screens.some((screen) => screen.key === selected)) {
+    return selected;
+  }
+  const current = model.onboarding?.progress?.["currentScreen"];
+  if (typeof current === "string" && screens.some((screen) => screen.key === current)) {
+    return current;
+  }
+  return screens[0]?.key ?? "company";
+};
+
+const productOnboardingMissingFields = (model: ProductMvpShellModel): string[] => {
+  const missing = model.onboarding?.progress?.["missingRequiredFields"];
+  return Array.isArray(missing) ? missing.filter((field): field is string => typeof field === "string") : [];
+};
+
+const productOnboardingCompletedScreens = (model: ProductMvpShellModel): string[] => {
+  const completed = model.onboarding?.progress?.["completedScreens"];
+  return Array.isArray(completed) ? completed.filter((screen): screen is string => typeof screen === "string") : [];
+};
+
+const productMissingForScreen = (
+  screen: ProductOnboardingScreenSurface,
+  fields: readonly ProductOnboardingFieldSurface[],
+  missing: readonly string[]
+): string[] => {
+  const fieldKeys = new Set(fields.filter((field) => field.screenKey === screen.key).map((field) => field.key));
+  return missing.filter((field) => fieldKeys.has(field));
+};
+
+const renderProductOnboardingCountrySelector = (model: ProductMvpShellModel, schema: Record<string, unknown>): string => {
+  const available = Array.isArray(schema.availableCountries)
+    ? schema.availableCountries
+        .filter((country): country is Record<string, unknown> => Boolean(country && typeof country === "object"))
+        .map((country) => [String(country.countryCode ?? ""), String(country.displayName ?? country.countryCode ?? "")] as const)
+    : ([
+        ["RO", "Romania"],
+        ["PL", "Poland"],
+        ["DE", "Germany"]
+      ] as Array<readonly [string, string]>);
+
+  return renderSelect(
+    "company.countryCode",
     "Country pack",
-    productOnboardingAnswerText(
-      model,
-      "company.countryCode",
-      model.onboarding?.countryCode ?? model.dashboard.countryPack.selected
+    productOnboardingAnswerText(model, "company.countryCode", model.onboarding?.countryCode ?? model.dashboard.countryPack.selected),
+    [["", "Choose country"], ...available],
+    "The selected country controls the national questions and classifier.",
+    true
+  );
+};
+
+const renderProductOnboardingField = (
+  model: ProductMvpShellModel,
+  field: ProductOnboardingFieldSurface,
+  isMissing: boolean
+): string => {
+  const required = field.requiredPolicy === "required";
+  const help = field.validationHints?.helpText ?? (isMissing ? "Required for analyzer readiness." : "");
+  const value = productOnboardingAnswerText(model, field.key);
+  const label = field.fallbackLabel;
+
+  if (field.type === "textarea") {
+    return renderTextarea(field.key, label, value, help, "ps-field--full");
+  }
+  if (field.type === "select") {
+    return renderSelect(
+      field.key,
+      label,
+      value,
+      [["", "Choose"], ...(field.options ?? []).map((option) => [option.value, option.label] as const)],
+      help,
+      required
+    );
+  }
+  if (field.type === "multi_select") {
+    return renderProductMultiSelect(field, productOnboardingAnswerValues(model, field.key), help, required);
+  }
+  if (field.type === "boolean") {
+    return renderSelect(
+      field.key,
+      label,
+      value,
+      [
+        ["", "Choose"],
+        ["true", "Yes"],
+        ["false", "No"]
+      ],
+      help,
+      required
+    );
+  }
+  const inputType = field.type === "email" ? "email" : field.type === "number" ? "number" : "text";
+  const attributes = [
+    field.validationHints?.min !== undefined ? `min="${escapeHtml(String(field.validationHints.min))}"` : "",
+    field.validationHints?.placeholder ? `placeholder="${escapeHtml(field.validationHints.placeholder)}"` : ""
+  ].filter(Boolean);
+  return renderTextInput(field.key, label, value, required, inputType, help, attributes);
+};
+
+const renderProductMultiSelect = (
+  field: ProductOnboardingFieldSurface,
+  values: readonly string[],
+  help: string,
+  required: boolean
+): string => {
+  const fieldId = escapeHtml(field.key);
+  const selected = new Set(values);
+  const options = field.options ?? [];
+  const size = Math.min(8, Math.max(4, options.length));
+  return [
+    `<div class="ps-field ps-field--full" data-wizard-question="${fieldId}"><label for="${fieldId}">${escapeHtml(
+      field.fallbackLabel
+    )}</label><select id="${fieldId}" name="${fieldId}" multiple size="${size}"${required ? " required" : ""}>`,
+    ...options.map(
+      (option) =>
+        `<option value="${escapeHtml(option.value)}"${selected.has(option.value) ? " selected" : ""}>${escapeHtml(
+          option.label
+        )}</option>`
     ),
-    [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]],
-    "",
-    true
-  ),
-  renderTextInput("sector", "Main sector", productOnboardingAnswerText(model, "business.sector"), true),
-  renderTextInput(
-    "employeeCount",
-    "Employee count",
-    productOnboardingAnswerText(model, "business.employeeCount"),
-    false,
-    "number",
-    "",
-    ['min="0"', 'inputmode="numeric"']
-  ),
-  renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo" }),
-  renderSelect(
-    "microsoft365Usage",
-    "Microsoft 365 usage",
-    productOnboardingAnswerText(model, "dependencies.microsoft365Usage"),
-    [["", "Choose usage"], ["not_connected", "Not connected yet"], ["email_collaboration", "Email and collaboration"], ["identity_devices_security", "Identity, devices, and security"]],
-    "",
-    true
-  ),
-  renderTextarea(
-    "securityPractices",
-    "Existing security practices",
-    productOnboardingAnswerText(model, "governance.securityPractices"),
-    "Mention MFA, backups, incident response, supplier reviews, or known gaps.",
-    "ps-field--full"
-  ),
-  "</div>",
-  '<div class="ps-command-row">',
-  renderCommandButton({ label: "Save onboarding", ariaLabel: "Save readiness onboarding", tone: "primary", type: "submit" }),
-  "</div>",
-  "</form>",
-  '<aside class="ps-panel ps-panel--quiet"><h2 class="ps-panel__title">Progress</h2><ol class="ps-step-list"><li><span class="ps-step-list__number">1</span><div><strong>Company profile</strong><span>Current step</span></div></li><li><span class="ps-step-list__number">2</span><div><strong>Gap analyzer</strong><span>Runs after save</span></div></li><li><span class="ps-step-list__number">3</span><div><strong>Microsoft 365</strong><span>Optional confidence boost</span></div></li></ol></aside>',
-  "</section>"
-].join("");
+    `</select>${help ? `<span class="ps-help">${escapeHtml(help)}</span>` : ""}</div>`
+  ].join("");
+};
+
+const renderProductOnboardingReviewSummary = (
+  fields: readonly ProductOnboardingFieldSurface[],
+  screens: readonly ProductOnboardingScreenSurface[],
+  missing: readonly string[]
+): string => {
+  const missingLabels = missing.map((fieldKey) => fields.find((field) => field.key === fieldKey)?.fallbackLabel ?? fieldKey);
+  return [
+    '<section class="ps-panel ps-panel--quiet ps-stack-top" aria-labelledby="onboarding-review-title">',
+    '<div class="ps-section__header ps-section__header--flat">',
+    '<div><h3 class="ps-panel__title" id="onboarding-review-title">Analyzer readiness</h3><p class="ps-muted">The analyzer can run with partial data, but missing required fields remain visible as gaps.</p></div>',
+    renderStatusPill({ label: `${missing.length} required missing`, tone: missing.length > 0 ? "warning" : "success" }),
+    "</div>",
+    missingLabels.length > 0
+      ? `<ul class="ps-list">${missingLabels.slice(0, 12).map((label) => `<li>${escapeHtml(label)}</li>`).join("")}</ul>`
+      : '<p class="ps-muted">Required onboarding fields are complete for the selected country.</p>',
+    '<div class="ps-chip-row">',
+    ...screens.map((screen) =>
+      renderStatusPill({
+        label: `${screen.title}: ${productMissingForScreen(screen, fields, missing).length} missing`,
+        tone: productMissingForScreen(screen, fields, missing).length > 0 ? "warning" : "success"
+      })
+    ),
+    "</div>",
+    "</section>"
+  ].join("");
+};
 
 const productOnboardingAnswerText = (model: ProductMvpShellModel, path: string, fallback = ""): string => {
   const value = valueAtPath(model.onboarding?.answers ?? {}, path);
@@ -887,6 +1118,14 @@ const productOnboardingAnswerText = (model: ProductMvpShellModel, path: string, 
     return String(value);
   }
   return typeof value === "string" && value.length > 0 ? value : fallback;
+};
+
+const productOnboardingAnswerValues = (model: ProductMvpShellModel, path: string): string[] => {
+  const value = valueAtPath(model.onboarding?.answers ?? {}, path);
+  if (Array.isArray(value)) {
+    return value.map(String);
+  }
+  return typeof value === "string" && value.length > 0 ? [value] : [];
 };
 
 const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
@@ -2415,6 +2654,7 @@ export const renderNis2CountryAwareOnboardingScreen = (
     renderCountryAwareWorkflowStepper(model),
     renderCountryPackClassificationResult(model),
     renderCountryPackDynamicQuestions(pack),
+    renderCountryPackOperationalDifferences(pack),
     renderCountryPackSources(pack),
     "</div>",
     "</section>",
@@ -2770,6 +3010,37 @@ const renderCountryPackDynamicQuestions = (pack: Nis2CountryPackDefinitionSurfac
     ],
     pack.dynamicQuestions
   );
+
+const renderCountryPackOperationalDifferences = (pack: Nis2CountryPackDefinitionSurface): string => {
+  const differences = pack.operationalDifferences ?? [];
+  if (differences.length === 0) {
+    return "";
+  }
+
+  return renderDataTable<NonNullable<Nis2CountryPackDefinitionSurface["operationalDifferences"]>[number]>(
+    "Country-specific operational differences",
+    [
+      {
+        header: "Area",
+        render: (difference) => renderStatusPill({ label: difference.area.replaceAll("_", " "), tone: "info" })
+      },
+      {
+        header: "Difference",
+        render: (difference) =>
+          `<strong>${escapeHtml(difference.title)}</strong><br><span class="ps-muted">${escapeHtml(difference.summary)}</span>`
+      },
+      {
+        header: "Review",
+        render: (difference) =>
+          `${renderStatusPill({
+            label: difference.reviewStatus.replaceAll("_", " "),
+            tone: difference.reviewStatus === "active" || difference.reviewStatus === "reviewed" ? "success" : "warning"
+          })}<br><span class="ps-muted">${escapeHtml(difference.sourceIds.join(", "))}</span>`
+      }
+    ],
+    differences
+  );
+};
 
 const renderCountryPackSources = (pack: Nis2CountryPackDefinitionSurface): string =>
   renderDataTable<Nis2CountryPackDefinitionSurface["officialSources"][number]>(

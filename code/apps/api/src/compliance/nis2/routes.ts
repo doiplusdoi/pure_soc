@@ -80,6 +80,7 @@ const toCountryPackResponse = (pack: Nis2CountryPackDefinition) => ({
   officialSources: pack.officialSources,
   nationalTerminology: pack.nationalTerminology,
   registrationGuidance: pack.registrationGuidance,
+  operationalDifferences: pack.operationalDifferences,
   sectorRules: pack.sectorRules,
   sizeThresholds: pack.sizeThresholds,
   specialInclusionRules: pack.specialInclusionRules,

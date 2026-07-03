@@ -2284,7 +2284,7 @@ function assertProductMvpOnboardingRoute(html, seeded) {
   record("onboarding_route_html_is_nonblank", html.length > 8_000, String(html.length));
   record("onboarding_route_uses_product_mvp_shell", html.includes('data-ui-smoke="product-mvp-shell"'));
   record("onboarding_route_context_is_explicit", text.includes(seeded.selectedOrganization.name));
-  record("onboarding_route_readiness_page_visible", text.includes("Readiness") && text.includes("Company profile"));
+  record("onboarding_route_readiness_page_visible", text.includes("Readiness") && text.includes("Company identity"));
   record("onboarding_route_posts_to_compatibility_onboarding", html.includes('action="/onboarding"'));
   record("onboarding_route_hides_legacy_romania_debug_terms", !/Excel|workbook|source map|raw trace|roNis2OnboardingSchema|Notification form!|Entity assessment!/i.test(text));
   record("onboarding_route_no_dnsc_direct_submit_command", !/submit\s+(to\s+)?dnsc/i.test(text));

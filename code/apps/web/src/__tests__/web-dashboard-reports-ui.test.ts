@@ -50,6 +50,69 @@ const readRequestJson = async <T>(request: IncomingMessage): Promise<T> => {
 };
 
 describe("web dashboard reports operational UI", () => {
+  const customerOnboardingBannedTerms = [
+    "xlsx",
+    "xls",
+    "workbook",
+    "sheet",
+    "cell",
+    "sourceMapId",
+    "Date entitate",
+    "Evaluare entitate",
+    "Algoritm clasificare",
+    "importer"
+  ];
+
+  const productOnboardingSchemaFixture = (countryCode = "RO") => ({
+    country: countryCode,
+    availableCountries: [
+      { countryCode: "RO", displayName: "Romania", sourceReviewStatus: "review_required", status: "demo" },
+      { countryCode: "PL", displayName: "Poland", sourceReviewStatus: "review_required", status: "demo" },
+      { countryCode: "DE", displayName: "Germany", sourceReviewStatus: "review_required", status: "demo" }
+    ],
+    countryPack: {
+      countryCode,
+      displayName: countryCode === "DE" ? "Germany" : countryCode === "PL" ? "Poland" : "Romania",
+      packVersion: "2026.06.demo",
+      safeSourceSummary: "Source-backed country pack. Review required.",
+      sourceReviewStatus: "review_required",
+      status: "demo"
+    },
+    screens: [
+      { key: "company", routePath: "/onboarding/company", title: "Company identity", summary: "Legal identity.", requiredFieldPaths: ["company.legalName"] },
+      { key: "locations", routePath: "/onboarding/locations", title: "Locations and jurisdiction", summary: "Jurisdiction data.", requiredFieldPaths: ["locations.headquartersCountry"] },
+      { key: "contacts", routePath: "/onboarding/contacts", title: "Contacts and responsibility", summary: "Owner contacts.", requiredFieldPaths: ["contacts.primaryEmail"] },
+      { key: "size", routePath: "/onboarding/size", title: "Size and legal structure", summary: "Size signals.", requiredFieldPaths: ["business.employeeCount"] },
+      { key: "services", routePath: "/onboarding/services", title: "Sectors and services", summary: "Service selections.", requiredFieldPaths: ["scope.activities"] },
+      { key: "country-scope", routePath: "/onboarding/country-scope", title: "Country-specific scope", summary: "National questions.", requiredFieldPaths: ["scope.publicAdministration"] },
+      { key: "systems", routePath: "/onboarding/systems", title: "Systems and public IPs", summary: "Critical systems.", requiredFieldPaths: ["systems.systemsDescription"] },
+      { key: "providers", routePath: "/onboarding/providers", title: "Providers and connectors", summary: "Provider usage.", requiredFieldPaths: ["providers.microsoft365Usage"] },
+      { key: "security-baseline", routePath: "/onboarding/security-baseline", title: "Security baseline", summary: "Manual declarations.", requiredFieldPaths: ["governance.identityControls"] },
+      { key: "evidence", routePath: "/onboarding/evidence", title: "Evidence and documents", summary: "Evidence notes.", requiredFieldPaths: [] },
+      { key: "review", routePath: "/onboarding/review", title: "Review and run analyzer", summary: "Review and run.", requiredFieldPaths: ["review.legalCaveatAcknowledged"] }
+    ],
+    fields: [
+      { key: "company.legalName", fallbackLabel: "Company legal name", screenKey: "company", type: "text", requiredPolicy: "required" },
+      { key: "contacts.primaryEmail", fallbackLabel: "Primary contact email", screenKey: "contacts", type: "email", requiredPolicy: "required" },
+      { key: "business.sector", fallbackLabel: "Primary sector", screenKey: "services", type: "text", requiredPolicy: "required" },
+      { key: "business.employeeCount", fallbackLabel: "Employee count", screenKey: "size", type: "number", requiredPolicy: "required" },
+      {
+        key: "providers.microsoft365Usage",
+        fallbackLabel: "Microsoft 365 usage",
+        screenKey: "providers",
+        type: "select",
+        requiredPolicy: "required",
+        options: [
+          { value: "not_connected", label: "Not connected yet" },
+          { value: "email_collaboration", label: "Email and collaboration" },
+          { value: "identity_devices_security", label: "Identity, devices, and security" }
+        ]
+      },
+      { key: "governance.identityControls", fallbackLabel: "Identity and access controls", screenKey: "security-baseline", type: "textarea", requiredPolicy: "required" },
+      { key: "review.legalCaveatAcknowledged", fallbackLabel: "Internal-readiness caveat acknowledged", screenKey: "review", type: "boolean", requiredPolicy: "required" }
+    ]
+  });
+
   const productShellModel = () => ({
     activeRoute: "dashboard" as const,
     customers: [],
@@ -112,6 +175,18 @@ describe("web dashboard reports operational UI", () => {
       legalCaveat: PURESOC_LEGAL_CAVEAT
     },
     details: {},
+    onboarding: {
+      answers: {
+        company: { countryCode: "RO", legalName: "Asterion Tools SRL" }
+      },
+      countryCode: "RO",
+      progress: {
+        completedScreens: [],
+        currentScreen: "company",
+        missingRequiredFields: ["contacts.primaryEmail"]
+      },
+      schema: productOnboardingSchemaFixture("RO")
+    },
     session: {
       user: {
         id: "user_demo",
@@ -276,20 +351,82 @@ describe("web dashboard reports operational UI", () => {
           company: { legalName: "Saved Legal SRL", countryCode: "PL" },
           contacts: { primaryEmail: "saved@example.test" },
           business: { sector: "managed services", employeeCount: 27 },
-          dependencies: { microsoft365Usage: "identity_devices_security" },
-          governance: { securityPractices: "MFA, backups, supplier reviews" }
+          providers: { microsoft365Usage: "identity_devices_security" },
+          governance: { identityControls: "MFA, backups, supplier reviews" }
         },
-        progress: { id: "progress_1" }
+        progress: { completedScreens: ["company"], currentScreen: "company", id: "progress_1", missingRequiredFields: [] },
+        schema: productOnboardingSchemaFixture("PL"),
+        selectedScreen: "company"
       }
     });
 
-    expect(html).toContain('name="legalName" type="text" value="Saved Legal SRL"');
-    expect(html).toContain('name="primaryContactEmail" type="email" value="saved@example.test"');
+    expect(html).toContain('name="company.legalName" type="text" value="Saved Legal SRL"');
     expect(html).toContain('<option value="PL" selected>Poland</option>');
-    expect(html).toContain('name="sector" type="text" value="managed services"');
-    expect(html).toContain('name="employeeCount" type="number" value="27"');
-    expect(html).toContain('<option value="identity_devices_security" selected>Identity, devices, and security</option>');
-    expect(html).toContain("MFA, backups, supplier reviews");
+
+    const contactsHtml = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "onboarding",
+      onboarding: {
+        countryCode: "PL",
+        answers: {
+          company: { legalName: "Saved Legal SRL", countryCode: "PL" },
+          contacts: { primaryEmail: "saved@example.test" }
+        },
+        progress: { completedScreens: ["company"], currentScreen: "contacts", id: "progress_1", missingRequiredFields: [] },
+        schema: productOnboardingSchemaFixture("PL"),
+        selectedScreen: "contacts"
+      }
+    });
+    expect(contactsHtml).toContain('name="contacts.primaryEmail" type="email" value="saved@example.test"');
+
+    const providersHtml = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "onboarding",
+      onboarding: {
+        countryCode: "PL",
+        answers: {
+          company: { countryCode: "PL" },
+          providers: { microsoft365Usage: "identity_devices_security" }
+        },
+        progress: { completedScreens: ["company"], currentScreen: "providers", id: "progress_1", missingRequiredFields: [] },
+        schema: productOnboardingSchemaFixture("PL"),
+        selectedScreen: "providers"
+      }
+    });
+    expect(providersHtml).toContain('<option value="identity_devices_security" selected>Identity, devices, and security</option>');
+  });
+
+  it("renders onboarding subpages without source implementation terms or DNSC submission controls", () => {
+    for (const selectedScreen of ["company", "contacts", "providers", "review"]) {
+      const html = renderProductMvpShell(
+        {
+          ...productShellModel(),
+          activeRoute: "onboarding",
+          onboarding: {
+            countryCode: "RO",
+            answers: {
+              company: { countryCode: "RO", legalName: "Safe Source SRL" },
+              contacts: { primaryEmail: "owner@example.test" },
+              providers: { microsoft365Usage: "email_collaboration" }
+            },
+            progress: {
+              completedScreens: ["company"],
+              currentScreen: selectedScreen,
+              missingRequiredFields: ["review.legalCaveatAcknowledged"]
+            },
+            schema: productOnboardingSchemaFixture("RO"),
+            selectedScreen
+          }
+        },
+        { includeDocumentShell: false }
+      );
+
+      expect(html).toContain('data-ui-action="save-readiness-onboarding-screen"');
+      expect(html).not.toMatch(/DNSC submission|Submit to DNSC|direct submission/i);
+      for (const term of customerOnboardingBannedTerms) {
+        expect(html).not.toContain(term);
+      }
+    }
   });
 
   it("loads saved product onboarding answers when serving the onboarding route", async () => {
@@ -332,12 +469,18 @@ describe("web dashboard reports operational UI", () => {
               company: { legalName: "Persisted GmbH", countryCode: "DE" },
               contacts: { primaryEmail: "security@persisted.example" },
               business: { sector: "digital infrastructure", employeeCount: 64 },
-              dependencies: { microsoft365Usage: "email_collaboration" },
-              governance: { securityPractices: "MFA enforced and backups reviewed" }
+              providers: { microsoft365Usage: "email_collaboration" },
+              governance: { identityControls: "MFA enforced and backups reviewed" }
             },
+            schema: productOnboardingSchemaFixture("DE"),
             progress: { id: "progress_1" }
           })
         );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/api/onboarding/schema") {
+        response.end(JSON.stringify(productOnboardingSchemaFixture(url.searchParams.get("country") ?? "DE")));
         return;
       }
 
@@ -363,12 +506,8 @@ describe("web dashboard reports operational UI", () => {
 
       expect(response.status).toBe(200);
       expect(onboardingAnswersRequested).toBe(true);
-      expect(html).toContain('name="legalName" type="text" value="Persisted GmbH"');
-      expect(html).toContain('name="primaryContactEmail" type="email" value="security@persisted.example"');
+      expect(html).toContain('name="company.legalName" type="text" value="Persisted GmbH"');
       expect(html).toContain('<option value="DE" selected>Germany</option>');
-      expect(html).toContain('name="employeeCount" type="number" value="64"');
-      expect(html).toContain('<option value="email_collaboration" selected>Email and collaboration</option>');
-      expect(html).toContain("MFA enforced and backups reviewed");
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));

@@ -28,6 +28,7 @@ describe("NIS2 country-pack API routes", () => {
       countryPacks: Array<{
         countryCode: string;
         displayName: string;
+        operationalDifferences: Array<{ area: string; key: string; reviewStatus: string }>;
         officialSources: Array<{ url: string }>;
         status: string;
       }>;
@@ -43,6 +44,29 @@ describe("NIS2 country-pack API routes", () => {
     });
     expect(body.countryPacks.find((pack) => pack.countryCode === "PL")?.officialSources.map((source) => source.url)).toContain(
       "https://www.gov.pl/web/baza-wiedzy/nowelizacja-ustawy-o-krajowym-systemie-cyberbezpieczenstwa"
+    );
+    expect(body.countryPacks.find((pack) => pack.countryCode === "PL")?.operationalDifferences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          area: "registration",
+          key: "pl.ksc.wykaz_registration_window",
+          reviewStatus: "review_required"
+        })
+      ])
+    );
+    expect(body.countryPacks.find((pack) => pack.countryCode === "DE")?.operationalDifferences).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          area: "registration",
+          key: "de.bsi.portal_exclusive_registration",
+          reviewStatus: "review_required"
+        }),
+        expect.objectContaining({
+          area: "authority_routing",
+          key: "de.mip2.kritis_federal_transition",
+          reviewStatus: "review_required"
+        })
+      ])
     );
   });
 

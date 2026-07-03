@@ -93,7 +93,7 @@ describe("country-aware NIS2 onboarding API routes", () => {
             legalName: "Pierogi Cloud Sp. z o.o."
           }
         },
-        currentScreen: "company_contacts"
+        currentScreen: "company"
       },
       owner.cookie
     );
@@ -108,7 +108,7 @@ describe("country-aware NIS2 onboarding API routes", () => {
       basePath,
       {
         answers: completePolandAnswers(),
-        currentScreen: "review_generate"
+        currentScreen: "review"
       },
       owner.cookie
     );
@@ -123,7 +123,7 @@ describe("country-aware NIS2 onboarding API routes", () => {
       };
     };
     expect(saveBody.progress.countryCode).toBe("PL");
-    expect(saveBody.progress.completedScreens).toHaveLength(6);
+    expect(saveBody.progress.completedScreens).toHaveLength(11);
     expect(saveBody.progress.missingRequiredFields).toEqual([]);
 
     const rejectedReopen = await fetch(`${baseUrl}${basePath}`, {
@@ -176,7 +176,7 @@ describe("country-aware NIS2 onboarding API routes", () => {
         triggerType: "onboarding_completed"
       }
     });
-    expect(reportBody.report.reportData.version.onboardingSchemaVersion).toContain("puresoc.nis2.country_onboarding.v1");
+    expect(reportBody.report.reportData.version.onboardingSchemaVersion).toContain("puresoc.nis2.country_onboarding.v2");
     expect(services.auditSink.findByAction("nis2.onboarding.saved")).toHaveLength(2);
     expect(services.auditSink.findByAction("nis2.classification.created")).toHaveLength(1);
     expect(services.auditSink.findByAction("nis2.onboarding.report.generated")).toHaveLength(1);
@@ -191,7 +191,7 @@ describe("country-aware NIS2 onboarding API routes", () => {
       basePath,
       {
         answers: completePolandAnswers(),
-        currentScreen: "review_generate"
+        currentScreen: "review"
       },
       owner.cookie
     );
@@ -218,11 +218,16 @@ const completePolandAnswers = () => ({
     legalName: "Pierogi Cloud Sp. z o.o.",
     countryCode: "PL"
   },
+  locations: {
+    headquartersCountry: "PL",
+    headquartersCity: "Warsaw"
+  },
   contacts: {
     primaryName: "Ada Nowak",
     primaryEmail: "ada@pierogi-cloud.example",
     securityName: "Jan Security",
-    securityEmail: "security@pierogi-cloud.example"
+    securityEmail: "security@pierogi-cloud.example",
+    managementOwnerName: "Marta Owner"
   },
   business: {
     sector: "food",
@@ -230,13 +235,23 @@ const completePolandAnswers = () => ({
     countriesServed: ["PL", "DE"],
     employeeCount: 72
   },
+  size: {
+    sizeCategory: "medium",
+    legalStructure: "standalone"
+  },
   scope: {
     activities: ["food"],
     publicAdministration: false,
     telecomProvider: false
   },
+  systems: {
+    systemsDescription: "Customer platform, identity tenant, collaboration, and logistics integrations.",
+    publicIpRanges: ["203.0.113.0/28"]
+  },
+  providers: {
+    microsoft365Usage: "identity_devices_security"
+  },
   dependencies: {
-    microsoft365Usage: "used_for_identity_devices_security",
     criticalSuppliers: ["Microsoft 365", "regional logistics SaaS"],
     backupArrangements: "implemented encrypted backups with quarterly restore tests",
     businessContinuity: "implemented continuity plan reviewed by management",

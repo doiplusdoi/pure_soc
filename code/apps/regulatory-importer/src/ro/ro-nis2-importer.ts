@@ -44,6 +44,43 @@ export const REQUIRED_RO_NIS2_SHEETS = [
   "Ajutor",
   "Algoritm clasificare"
 ] as const;
+type RoNis2CanonicalSheetName = (typeof REQUIRED_RO_NIS2_SHEETS)[number];
+
+export interface RoNis2WorkbookProfile {
+  canonicalSheetNames: Record<RoNis2CanonicalSheetName, readonly string[]>;
+  detectedVersion: string;
+  profileKey: "ro_nis2_v2_1_english" | "ro_nis2_v2_3_romanian";
+  sourceTitle: string;
+}
+
+export const RO_NIS2_WORKBOOK_PROFILES: readonly RoNis2WorkbookProfile[] = [
+  {
+    canonicalSheetNames: {
+      "Entity data": ["Entity data"],
+      "Entity assessment": ["Entity assessment"],
+      "Notification form": ["Notification form"],
+      Liste: ["Liste"],
+      Ajutor: ["Ajutor"],
+      "Algoritm clasificare": ["Algoritm clasificare"]
+    },
+    detectedVersion: "v2.1_eng_45915",
+    profileKey: "ro_nis2_v2_1_english",
+    sourceTitle: "NIS2@RO Tool workbook v2.1"
+  },
+  {
+    canonicalSheetNames: {
+      "Entity data": ["Date entitate"],
+      "Entity assessment": ["Evaluare entitate"],
+      "Notification form": ["Formular notificare"],
+      Liste: ["Liste"],
+      Ajutor: ["Ajutor"],
+      "Algoritm clasificare": ["Algoritm clasificare"]
+    },
+    detectedVersion: "v2.3_46066",
+    profileKey: "ro_nis2_v2_3_romanian",
+    sourceTitle: "NIS2@RO source workbook v2.3"
+  }
+] as const;
 
 const DEFAULT_WORKBOOK_PATH = join(process.cwd(), "data/regulatory/countries/ro", RO_NIS2_SOURCE_WORKBOOK);
 const DEFAULT_OUTPUT_DIRECTORY = join(process.cwd(), "data/regulatory/countries/ro");
@@ -57,6 +94,11 @@ interface RequiredSheetValidation {
   missing: string[];
   passed: boolean;
   present: string[];
+}
+
+interface DetectedRoWorkbookProfile {
+  profile: RoNis2WorkbookProfile;
+  sheetByCanonicalName: Record<RoNis2CanonicalSheetName, string>;
 }
 
 interface ListeEntityType {
@@ -105,6 +147,7 @@ class SourceMapBuilder {
 export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2GeneratedArtifacts => {
   const workbookPath = options.workbookPath ?? DEFAULT_WORKBOOK_PATH;
   const workbook = readXlsxWorkbook(workbookPath);
+  const detectedProfile = detectRoNis2WorkbookProfile(workbook.sheetNames);
   const requiredSheetValidation = validateRoRequiredSheetNames(workbook.sheetNames);
 
   if (!requiredSheetValidation.passed) {
@@ -112,12 +155,17 @@ export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2Generat
   }
 
   const sourceMapBuilder = new SourceMapBuilder();
-  const entityData = requireSheet(workbook, "Entity data");
-  const entityAssessment = requireSheet(workbook, "Entity assessment");
-  const notificationForm = requireSheet(workbook, "Notification form");
-  const liste = requireSheet(workbook, "Liste");
-  const algorithm = requireSheet(workbook, "Algoritm clasificare");
+  const normalizer = valueNormalizerForProfile(detectedProfile.profile);
+  const entityData = normalizeSheet(requireSheet(workbook, detectedProfile.sheetByCanonicalName["Entity data"]), normalizer);
+  const entityAssessment = normalizeSheet(requireSheet(workbook, detectedProfile.sheetByCanonicalName["Entity assessment"]), normalizer);
+  const notificationForm = normalizeSheet(requireSheet(workbook, detectedProfile.sheetByCanonicalName["Notification form"]), normalizer);
+  const liste = normalizeSheet(requireSheet(workbook, detectedProfile.sheetByCanonicalName.Liste), normalizer);
+  const algorithm = normalizeSheet(requireSheet(workbook, detectedProfile.sheetByCanonicalName["Algoritm clasificare"]), normalizer);
   const workbookVersions = extractWorkbookVersions(entityData, entityAssessment);
+  const detectedVersion =
+    detectedProfile.profile.profileKey === "ro_nis2_v2_3_romanian"
+      ? detectSourceVersion(detectedProfile.profile, workbookVersions)
+      : undefined;
   const workbookHash = sha256File(workbookPath);
   const serviceCatalog = extractServiceCatalog(liste, entityAssessment, sourceMapBuilder);
   const classificationRules = extractClassificationRules(algorithm, sourceMapBuilder);
@@ -140,6 +188,7 @@ export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2Generat
     entityFields: extractEntityFields(entityData, sourceMapBuilder),
     frameworkKey: "nis2",
     generatedBy: "apps/regulatory-importer/src/ro",
+    detectedVersion,
     guidance: extractGuidance(liste, entityAssessment, sourceMapBuilder),
     helperLists: extractHelperLists(liste, sourceMapBuilder),
     jurisdiction: "RO",
@@ -157,7 +206,7 @@ export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2Generat
       contentHashSha256: workbookHash,
       localFilePath: `data/regulatory/countries/ro/${sourceWorkbook}`,
       sourceType: "internal_excel_seed",
-      title: "NIS2@RO Tool workbook v2.1",
+      title: detectedProfile.profile.sourceTitle,
       trustLevel: "internal_seed"
     },
     validationStatus: "validated",
@@ -182,6 +231,7 @@ export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2Generat
     },
     mappings: sourceMapBuilder.mappings,
     schemaVersion: RO_NIS2_SCHEMA_VERSION,
+    detectedVersion,
     sourceWorkbook,
     sourceWorkbookHashSha256: workbookHash,
     workbookVersions
@@ -189,6 +239,7 @@ export const importRoNis2Workbook = (options: ImportOptions = {}): RoNis2Generat
 
   const report: RoNis2ImportReport = {
     country: "ro",
+    detectedVersion,
     limitations: [
       "The importer preserves workbook formulas and cached values but does not recalculate Excel formulas.",
       "Workbook data-validation/drop-down metadata is represented through visible helper tables and source-mapped cells.",
@@ -230,14 +281,80 @@ export const writeRoNis2GeneratedArtifacts = (options: ImportOptions = {}): RoNi
 };
 
 export const validateRoRequiredSheetNames = (sheetNames: readonly string[]): RequiredSheetValidation => {
-  const present = REQUIRED_RO_NIS2_SHEETS.filter((sheet) => sheetNames.includes(sheet));
-  const missing = REQUIRED_RO_NIS2_SHEETS.filter((sheet) => !sheetNames.includes(sheet));
+  const profile = detectRoNis2WorkbookProfile(sheetNames, { throwOnMissing: false });
+  const present = REQUIRED_RO_NIS2_SHEETS.flatMap((sheet) => {
+    const actualName = profile?.sheetByCanonicalName[sheet];
+    return actualName ? [actualName] : [];
+  });
+  const missing = REQUIRED_RO_NIS2_SHEETS.filter((sheet) => !profile?.sheetByCanonicalName[sheet]);
 
   return {
     missing,
     passed: missing.length === 0,
     present
   };
+};
+
+export const detectRoNis2WorkbookProfile = (
+  sheetNames: readonly string[],
+  options: { throwOnMissing?: boolean } = {}
+): DetectedRoWorkbookProfile => {
+  const throwOnMissing = options.throwOnMissing ?? true;
+  const sheetNameSet = new Set(sheetNames);
+  const candidates = RO_NIS2_WORKBOOK_PROFILES.map((profile) => {
+    const sheetByCanonicalName = Object.fromEntries(
+      REQUIRED_RO_NIS2_SHEETS.map((canonicalName) => [
+        canonicalName,
+        profile.canonicalSheetNames[canonicalName].find((sheetName) => sheetNameSet.has(sheetName))
+      ])
+    ) as Record<RoNis2CanonicalSheetName, string | undefined>;
+    const presentCount = Object.values(sheetByCanonicalName).filter(Boolean).length;
+
+    return {
+      profile,
+      presentCount,
+      sheetByCanonicalName
+    };
+  }).sort((left, right) => right.presentCount - left.presentCount);
+  const best = candidates[0];
+  if (!best || best.presentCount === 0) {
+    if (throwOnMissing) {
+      throw new Error("Romania NIS2 workbook profile could not be detected.");
+    }
+    return {
+      profile: RO_NIS2_WORKBOOK_PROFILES[0]!,
+      sheetByCanonicalName: {} as Record<RoNis2CanonicalSheetName, string>
+    };
+  }
+
+  const missing = REQUIRED_RO_NIS2_SHEETS.filter((canonicalName) => !best.sheetByCanonicalName[canonicalName]);
+  if (missing.length > 0 && throwOnMissing) {
+    throw new Error(`Romania NIS2 workbook is missing required sheets: ${missing.join(", ")}`);
+  }
+
+  return {
+    profile: best.profile,
+    sheetByCanonicalName: best.sheetByCanonicalName as Record<RoNis2CanonicalSheetName, string>
+  };
+};
+
+export const normalizeRoNis2WorkbookValue = (value: string): string => {
+  const normalized = normalizeWhitespace(value);
+  const canonical = normalized.normalize("NFKC").toLocaleLowerCase("ro-RO");
+  const mapped = new Map<string, string>([
+    ["da", "yes"],
+    ["nu", "no"],
+    ["selectați", ""],
+    ["selectati", ""],
+    ["mică și micro", "small_micro"],
+    ["mica si micro", "small_micro"],
+    ["mijlocie", "medium"],
+    ["mare", "large"],
+    ["mediu", "medium"],
+    ["ridicat", "high"]
+  ]).get(canonical);
+
+  return mapped ?? normalized;
 };
 
 export const stableStringify = (value: unknown): string => `${stableJson(value, 0)}\n`;
@@ -272,13 +389,13 @@ const extractEntityFields = (sheet: XlsxSheet, sourceMap: SourceMapBuilder): RoN
     const alternatePromptCell = `D${row}`;
     const prompt = normalizeWhitespace(sheet.getCell(promptCell));
     const alternatePrompt = normalizeWhitespace(sheet.getCell(alternatePromptCell));
-    const label = prompt === "Select" && alternatePrompt ? alternatePrompt : prompt;
+    const label = isUnsetPlaceholder(prompt) && alternatePrompt ? alternatePrompt : prompt;
 
     if (!label || isSectionHeading(label)) {
       return [];
     }
 
-    const answerCell = prompt === "Select" && alternatePrompt ? promptCell : alternatePromptCell;
+    const answerCell = isUnsetPlaceholder(prompt) && alternatePrompt ? promptCell : alternatePromptCell;
     const key = uniqueWorkbookKey("entity_field", label, row);
     const sourceMapId = sourceMap.add(
       "entity_fields",
@@ -458,12 +575,12 @@ const extractServiceOptions = (
     }
 
     const subsector = pickSubsector(subsectorsByLabel.get(normalizeKey(label)) ?? [], currentSectorCode);
-    if (subsector && response !== "No") {
+    if (subsector && !isNoValue(response)) {
       currentSubsectorCode = subsector.code;
       return [];
     }
 
-    if (response !== "No") {
+    if (!isNoValue(response)) {
       return [];
     }
 
@@ -870,7 +987,45 @@ const requireSheet = (workbook: XlsxWorkbook, name: string): XlsxSheet => {
   return sheet;
 };
 
+const normalizeSheet = (sheet: XlsxSheet, normalizeValue: (value: string) => string): XlsxSheet => {
+  if (normalizeValue("") === "") {
+    const probe = "Da";
+    if (normalizeValue(probe) === probe) {
+      return sheet;
+    }
+  }
+
+  const cells = new Map(
+    [...sheet.cells.entries()].map(([ref, cell]) => [
+      ref,
+      {
+        ...cell,
+        value: normalizeValue(cell.value)
+      }
+    ])
+  );
+
+  return {
+    ...sheet,
+    cells,
+    getCell(ref: string) {
+      return cells.get(ref)?.value ?? "";
+    },
+    getFormula(ref: string) {
+      return cells.get(ref)?.formula;
+    }
+  };
+};
+
+const valueNormalizerForProfile = (profile: RoNis2WorkbookProfile): ((value: string) => string) =>
+  profile.profileKey === "ro_nis2_v2_3_romanian" ? normalizeRoNis2WorkbookValue : normalizeWhitespace;
+
 const parseVersion = (value: string): string => normalizeWhitespace(value.replace(/^(Versiunea|Version):\s*/i, ""));
+
+const detectSourceVersion = (profile: RoNis2WorkbookProfile, versions: RoNis2WorkbookVersions): string => {
+  const version = [versions.entityData, versions.entityAssessment].find((candidate) => /v2\.3_46066/i.test(candidate));
+  return version ? version.toLowerCase() : profile.detectedVersion;
+};
 
 const buildPackVersion = (versions: RoNis2WorkbookVersions): string =>
   `ro-nis2-${slugify(versions.entityData)}-${slugify(versions.entityAssessment)}`;
@@ -880,6 +1035,11 @@ const sha256File = (path: string): string => createHash("sha256").update(readFil
 const uniqueWorkbookKey = (prefix: string, label: string, row: number): string => `${prefix}_${row}_${slugify(label)}`;
 
 const normalizeWhitespace = (value: string): string => value.replace(/\s+/g, " ").trim();
+
+const isNoValue = (value: string): boolean => ["No", "Nu", "no"].includes(value) || normalizeRoNis2WorkbookValue(value) === "no";
+
+const isUnsetPlaceholder = (value: string): boolean =>
+  value === "Select" || value === "Selectați" || normalizeRoNis2WorkbookValue(value) === "";
 
 const normalizeKey = (value: string): string => slugify(value).replace(/^providers?_of_/, "").replace(/_providers?$/, "");
 

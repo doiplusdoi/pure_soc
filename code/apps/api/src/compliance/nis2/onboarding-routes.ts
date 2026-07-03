@@ -1,11 +1,13 @@
 import type { Nis2CountryPackDefinition } from "@puresoc/country-packs-core";
+import { requiredFieldKeysForScreen } from "@puresoc/country-packs-core";
 import type { ReportBranding } from "@puresoc/reports";
 import type { ApiServices } from "../../auth/services";
 import { parseCookies, sessionCookieName, type JsonResult, type RequestContext } from "../../http";
 import { requireOrganizationRole } from "../../rbac";
 import {
   findNis2CountryPackDefinition,
-  nis2CountryOnboardingScreens
+  findNis2OnboardingCountryPack,
+  toCustomerOnboardingCountryPack
 } from "./onboarding-service";
 
 export const getOrganizationNis2OnboardingRoute = async (
@@ -22,6 +24,7 @@ export const getOrganizationNis2OnboardingRoute = async (
     allowedRoles: ["owner", "org_admin", "compliance_manager", "auditor"]
   });
   const countryPack = findNis2CountryPackDefinition(countryCode);
+  const onboardingPack = findNis2OnboardingCountryPack(countryPack.countryCode);
   const state = await services.nis2Onboarding.getReadinessState({
     countryCode: countryPack.countryCode,
     organizationId
@@ -40,7 +43,14 @@ export const getOrganizationNis2OnboardingRoute = async (
             ? "Country pack is available for production readiness workflows."
             : "Country pack logic remains demo/legal-review gated; output is for internal readiness only."
       },
-      screens: nis2CountryOnboardingScreens
+      onboardingContract: toCustomerOnboardingCountryPack(countryPack.countryCode),
+      screens: onboardingPack.onboardingScreens.map((screen) => ({
+        key: screen.key,
+        label: screen.title,
+        routePath: screen.routePath,
+        summary: screen.summary,
+        requiredFieldPaths: requiredFieldKeysForScreen(onboardingPack, screen.key)
+      }))
     }
   };
 };
@@ -254,6 +264,7 @@ const toCountryPackResponse = (pack: Nis2CountryPackDefinition) => ({
   officialSources: pack.officialSources,
   nationalTerminology: pack.nationalTerminology,
   registrationGuidance: pack.registrationGuidance,
+  operationalDifferences: pack.operationalDifferences,
   sectorRules: pack.sectorRules,
   sizeThresholds: pack.sizeThresholds,
   specialInclusionRules: pack.specialInclusionRules,

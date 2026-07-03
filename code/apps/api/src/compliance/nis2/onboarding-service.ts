@@ -3,14 +3,30 @@ import { randomUUID } from "node:crypto";
 import { AuthError } from "@puresoc/auth-core";
 import type { ComplianceControlResult, ComplianceGap, ReadinessPlan, SourceReference } from "@puresoc/compliance-core";
 import {
+  buildCommonNis2OnboardingCountryPack,
+  buildNis2CountryPackOnboardingRegistry,
   classifyWithNis2CountryPack,
-  demoCountryPackDefinitions,
+  germanyNis2DemoCountryPack,
+  nis2CommonOnboardingScreens,
+  polandNis2DemoCountryPack,
+  requiredFieldKeysForPack,
+  requiredFieldKeysForScreen,
+  sanitizeNis2OnboardingContractForCustomer,
+  type Nis2CountryPackOnboardingContract,
   type Nis2CountryPackClassificationInput,
   type Nis2CountryPackDefinition,
   type Nis2CountryPackStructuredClassification,
   type Nis2OfficialSourceReference
 } from "@puresoc/country-packs-core";
-import { romaniaNis2CountryPackDefinition } from "@puresoc/country-pack-ro";
+import {
+  classifyRoNis2Entity,
+  romaniaNis2CountryPackDefinition,
+  romaniaNis2OnboardingCountryPack,
+  type RoNis2Article9Input,
+  type RoNis2ClassificationInput,
+  type RoNis2EntitySize,
+  type RoNis2RelationshipInput
+} from "@puresoc/country-pack-ro";
 import type {
   Nis2ClassificationRunRecord,
   Nis2OnboardingProgressRecord,
@@ -20,81 +36,51 @@ import type {
 import { generateRecommendationSnapshot } from "@puresoc/recommendations";
 import type { InternalReadinessReportVersionContext } from "../../reports/service";
 
-export const NIS2_COUNTRY_ONBOARDING_SCHEMA_VERSION = "puresoc.nis2.country_onboarding.v1";
+export const NIS2_COUNTRY_ONBOARDING_SCHEMA_VERSION = "puresoc.nis2.country_onboarding.v2";
 
 export interface Nis2OnboardingScreenDefinition {
   key: string;
   label: string;
+  routePath: string;
   summary: string;
   requiredFieldPaths: readonly string[];
 }
 
-export const nis2CountryOnboardingScreens: readonly Nis2OnboardingScreenDefinition[] = [
-  {
-    key: "company_contacts",
-    label: "Company and contacts",
-    summary: "Legal identity, primary contact, and security owner.",
-    requiredFieldPaths: [
-      "company.legalName",
-      "company.countryCode",
-      "contacts.primaryName",
-      "contacts.primaryEmail",
-      "contacts.securityName",
-      "contacts.securityEmail"
-    ]
-  },
-  {
-    key: "business_profile",
-    label: "Business profile",
-    summary: "Sector, services, countries served, and approximate size.",
-    requiredFieldPaths: [
-      "business.sector",
-      "business.mainProductsServices",
-      "business.countriesServed",
-      "business.employeeCount"
-    ]
-  },
-  {
-    key: "nis2_scope",
-    label: "NIS2 scope",
-    summary: "Country-pack scope signals and preliminary applicability.",
-    requiredFieldPaths: ["scope.activities", "scope.publicAdministration", "scope.telecomProvider"]
-  },
-  {
-    key: "operational_dependencies",
-    label: "Operational dependencies",
-    summary: "Microsoft 365, cloud, suppliers, continuity, and incident handling context.",
-    requiredFieldPaths: [
-      "dependencies.microsoft365Usage",
-      "dependencies.criticalSuppliers",
-      "dependencies.backupArrangements",
-      "dependencies.businessContinuity",
-      "dependencies.incidentResponse"
-    ]
-  },
-  {
-    key: "governance_controls",
-    label: "Governance and controls",
-    summary: "Plain-language Article 21 control coverage.",
-    requiredFieldPaths: [
-      "governance.riskManagement",
-      "governance.identityControls",
-      "governance.mfa",
-      "governance.supplyChainSecurity"
-    ]
-  },
-  {
-    key: "review_generate",
-    label: "Review and assessment",
-    summary: "Assumptions, source caveat, and report trigger.",
-    requiredFieldPaths: ["review.legalCaveatAcknowledged"]
-  }
-];
+export const nis2CountryOnboardingScreens: readonly Nis2OnboardingScreenDefinition[] = nis2CommonOnboardingScreens.map(
+  (screen) => ({
+    key: screen.key,
+    label: screen.title,
+    routePath: screen.routePath,
+    summary: screen.summary,
+    requiredFieldPaths: []
+  })
+);
 
 export const nis2CountryPackDefinitions = [
-  ...demoCountryPackDefinitions,
+  polandNis2DemoCountryPack,
+  germanyNis2DemoCountryPack,
   romaniaNis2CountryPackDefinition
 ] satisfies readonly Nis2CountryPackDefinition[];
+
+export const nis2CountryPackOnboardingRegistry = buildNis2CountryPackOnboardingRegistry([
+  romaniaNis2OnboardingCountryPack,
+  buildCommonNis2OnboardingCountryPack(polandNis2DemoCountryPack, {
+    countryNotes: [
+      "Poland personalization is a demo pack.",
+      "Use the common EU baseline until a reviewed national pack is activated."
+    ],
+    safeSourceSummary: "Poland country personalization stub. Review required before external use.",
+    sourceReviewStatus: "review_required"
+  }),
+  buildCommonNis2OnboardingCountryPack(germanyNis2DemoCountryPack, {
+    countryNotes: [
+      "Germany personalization is a demo pack.",
+      "Use the common EU baseline until a reviewed national pack is activated."
+    ],
+    safeSourceSummary: "Germany country personalization stub. Review required before external use.",
+    sourceReviewStatus: "review_required"
+  })
+]);
 
 export interface Nis2OnboardingApiServiceOptions {
   now?: () => Date;
@@ -118,6 +104,11 @@ export interface Nis2OnboardingState {
   classificationRun: Nis2ClassificationRunRecord | null;
   progress: Nis2OnboardingProgressRecord | null;
 }
+
+export type Nis2OnboardingClassification = Nis2CountryPackStructuredClassification & {
+  countrySpecificResult?: Record<string, unknown>;
+  sourceVersion?: string;
+};
 
 export class Nis2OnboardingApiService {
   private readonly now: () => Date;
@@ -152,6 +143,7 @@ export class Nis2OnboardingApiService {
 
   async saveOnboardingProgress(input: SaveNis2OnboardingInput): Promise<Nis2OnboardingProgressRecord> {
     const countryPack = findNis2CountryPackDefinition(input.countryCode);
+    const onboardingPack = findNis2OnboardingCountryPack(countryPack.countryCode);
     const existing = input.onboardingProgressId
       ? await this.repository.findOnboardingProgressForOrganization({
           onboardingProgressId: input.onboardingProgressId,
@@ -171,9 +163,10 @@ export class Nis2OnboardingApiService {
       }
     };
     normalizeGovernanceAnswerKeys(answers);
-    const completedScreens = normalizeCompletedScreens(input.completedScreens) ?? inferCompletedScreens(answers);
-    const missingRequiredFields = missingRequiredFieldPaths(answers);
-    const currentScreen = normalizeCurrentScreen(input.currentScreen) ?? inferCurrentScreen(answers);
+    normalizeCountrySpecificAnswerAliases(answers, countryPack.countryCode);
+    const completedScreens = normalizeCompletedScreens(input.completedScreens, onboardingPack) ?? inferCompletedScreens(answers, onboardingPack);
+    const missingRequiredFields = missingRequiredFieldPaths(answers, onboardingPack);
+    const currentScreen = normalizeCurrentScreen(input.currentScreen, onboardingPack) ?? inferCurrentScreen(answers, onboardingPack);
 
     return this.repository.saveOnboardingProgress({
       id: existing?.id ?? randomUUID(),
@@ -186,7 +179,7 @@ export class Nis2OnboardingApiService {
       missingRequiredFields,
       savedBy: input.actorUserId,
       sourceReferences: countryPackSourceReferences(countryPack).map((source) => ({ ...source })),
-      sourceVersion: sourceVersionFor(countryPack),
+      sourceVersion: sourceVersionFor(countryPack, onboardingPack),
       status: normalizeStatus(input.status) ?? (missingRequiredFields.length === 0 ? "ready_for_report" : "in_progress"),
       createdAt: existing?.createdAt ?? nowIso,
       updatedAt: nowIso
@@ -198,17 +191,24 @@ export class Nis2OnboardingApiService {
     countryCode: string;
     organizationId: string;
   }): Promise<{
-    classification: Nis2CountryPackStructuredClassification;
+    classification: Nis2OnboardingClassification;
     classificationRun: Nis2ClassificationRunRecord;
     progress: Nis2OnboardingProgressRecord;
   }> {
     const countryPack = findNis2CountryPackDefinition(input.countryCode);
+    const onboardingPack = findNis2OnboardingCountryPack(countryPack.countryCode);
     const progress = await this.requireLatestProgress({
       countryCode: countryPack.countryCode,
       organizationId: input.organizationId
     });
-    const classificationInput = classificationInputFromAnswers(progress.answers);
-    const classification = classifyWithNis2CountryPack(countryPack, classificationInput);
+    const classificationInput =
+      onboardingPack.classificationAdapter.key === "ro_workbook_backed"
+        ? roClassificationInputFromAnswers(progress.answers)
+        : classificationInputFromAnswers(progress.answers);
+    const classification: Nis2OnboardingClassification =
+      onboardingPack.classificationAdapter.key === "ro_workbook_backed"
+        ? classifyRomaniaOnboarding(countryPack, classificationInput as RoNis2ClassificationInput)
+        : classifyWithNis2CountryPack(countryPack, classificationInput as Nis2CountryPackClassificationInput);
     const nowIso = this.now().toISOString();
     const classificationRun = await this.repository.saveClassificationRun({
       id: randomUUID(),
@@ -225,7 +225,7 @@ export class Nis2OnboardingApiService {
       matchedRules: [...classification.matchedRules],
       missingInformation: [...classification.missingInformation],
       legalBasisReferences: classification.legalBasisReferences.map(toStoredSourceReference),
-      sourceVersion: sourceVersionFor(countryPack),
+      sourceVersion: classification.sourceVersion ?? sourceVersionFor(countryPack, onboardingPack),
       classifiedAt: nowIso
     });
 
@@ -264,6 +264,7 @@ export class Nis2OnboardingApiService {
     versionContext: InternalReadinessReportVersionContext;
   }> {
     const countryPack = findNis2CountryPackDefinition(input.countryCode);
+    const onboardingPack = findNis2OnboardingCountryPack(countryPack.countryCode);
     let progress = await this.requireLatestProgress({
       countryCode: countryPack.countryCode,
       organizationId: input.organizationId
@@ -333,7 +334,7 @@ export class Nis2OnboardingApiService {
       organizationId: input.organizationId,
       assessmentId,
       jurisdiction: countryPack.countryCode,
-      catalogVersion: sourceVersionFor(countryPack),
+      catalogVersion: sourceVersionFor(countryPack, onboardingPack),
       recordedAt: nowIso,
       results: controls,
       gaps,
@@ -374,6 +375,20 @@ export const findNis2CountryPackDefinition = (countryCode: string): Nis2CountryP
 
   return countryPack;
 };
+
+export const findNis2OnboardingCountryPack = (countryCode: string): Nis2CountryPackOnboardingContract => {
+  try {
+    return nis2CountryPackOnboardingRegistry.require(countryCode);
+  } catch {
+    throw new AuthError("invalid_request", "NIS2 onboarding country pack was not found.", 404);
+  }
+};
+
+export const listSupportedNis2OnboardingCountryPacks = (): readonly Nis2CountryPackOnboardingContract[] =>
+  nis2CountryPackOnboardingRegistry.list();
+
+export const toCustomerOnboardingCountryPack = (countryCode: string) =>
+  sanitizeNis2OnboardingContractForCustomer(findNis2OnboardingCountryPack(countryCode));
 
 const buildDeclaredControlResults = (input: {
   answers: Record<string, unknown>;
@@ -555,12 +570,73 @@ const buildReadinessPlan = (input: {
   }))
 });
 
+const classifyRomaniaOnboarding = (
+  countryPack: Nis2CountryPackDefinition,
+  input: RoNis2ClassificationInput
+): Nis2OnboardingClassification => {
+  const classification = classifyRoNis2Entity(input);
+  const result = (() => {
+    if (classification.result === "essential_entity") return "likely_essential_entity";
+    if (classification.result === "important_entity") return "likely_important_entity";
+    if (classification.result === "out_of_scope" || classification.result === "voluntary_registration_possible") {
+      return "probably_outside_scope";
+    }
+    return "legal_review_required";
+  })();
+
+  return {
+    result,
+    matchedRules: [...classification.matchedRules],
+    legalBasisReferences: countryPack.officialSources,
+    assumptions: [
+      "Romania classification remains review required.",
+      "The classifier uses saved service, size, Romania relationship, Article 9, and Law 294 answers."
+    ],
+    missingInformation: [...classification.missingRequiredFields],
+    explanation:
+      classification.reasons.length > 0
+        ? classification.reasons.join(" ")
+        : "Romania source-backed classifier returned no explanatory reason for the current inputs.",
+    confidence: classification.result === "insufficient_data" ? "low" : "medium",
+    legalReviewRequired: true,
+    countrySpecificResult: {
+      article9Required: classification.article9Required,
+      notificationRecommended: classification.notificationRecommended,
+      result: classification.result
+    },
+    sourceVersion: `${NIS2_COUNTRY_ONBOARDING_SCHEMA_VERSION}; ${classification.sourceVersion}`
+  };
+};
+
 const classificationInputFromAnswers = (answers: Record<string, unknown>): Nis2CountryPackClassificationInput => ({
   employeeCount: numberAtPath(answers, "business.employeeCount"),
   publicAdministration: booleanAtPath(answers, "scope.publicAdministration"),
   sector: stringAtPath(answers, "business.sector") ?? stringAtPath(answers, "scope.sector"),
-  services: stringsAtPath(answers, "scope.activities"),
+  services: stringsAtPath(answers, "scope.activities").length > 0 ? stringsAtPath(answers, "scope.activities") : stringsAtPath(answers, "selectedServiceTypeCodes"),
   telecomProvider: booleanAtPath(answers, "scope.telecomProvider")
+});
+
+const roClassificationInputFromAnswers = (answers: Record<string, unknown>): RoNis2ClassificationInput => ({
+  article9: roArticle9InputFromAnswers(answers),
+  relationship: roRelationshipInputFromAnswers(answers),
+  selectedServiceTypeCodes: stringsAtPath(answers, "selectedServiceTypeCodes"),
+  sizeCategory: roSizeCategoryAtPath(answers, "size.sizeCategory")
+});
+
+const roRelationshipInputFromAnswers = (answers: Record<string, unknown>): RoNis2RelationshipInput => ({
+  criticalEntityInRomaniaLaw294: booleanAtPath(answers, "relationship.criticalEntityInRomaniaLaw294"),
+  establishedInRomania: booleanAtPath(answers, "relationship.establishedInRomania"),
+  mainOfficeInRomania: booleanAtPath(answers, "relationship.mainOfficeInRomania"),
+  providesServicesInAnotherEuMemberState: booleanAtPath(answers, "relationship.providesServicesInAnotherEuMemberState"),
+  providesServicesInRomania: booleanAtPath(answers, "relationship.providesServicesInRomania"),
+  publicAdministrationEstablishedByRomania: booleanAtPath(answers, "relationship.publicAdministrationEstablishedByRomania")
+});
+
+const roArticle9InputFromAnswers = (answers: Record<string, unknown>): RoNis2Article9Input => ({
+  nationalOrRegionalCriticality: booleanAtPath(answers, "article9.nationalOrRegionalCriticality"),
+  publicSafetySecurityOrHealthImpact: roImpactAtPath(answers, "article9.publicSafetySecurityOrHealthImpact"),
+  soleProviderEssentialService: booleanAtPath(answers, "article9.soleProviderEssentialService"),
+  systemicRisk: roImpactAtPath(answers, "article9.systemicRisk")
 });
 
 const countryPackSourceReferences = (pack: Nis2CountryPackDefinition): SourceReference[] =>
@@ -574,8 +650,11 @@ const toStoredSourceReference = (source: Nis2OfficialSourceReference): SourceRef
   sourceVersion: source.retrievedAt
 });
 
-const sourceVersionFor = (countryPack: Nis2CountryPackDefinition): string =>
-  `${NIS2_COUNTRY_ONBOARDING_SCHEMA_VERSION}; ${countryPack.countryCode} country pack ${countryPack.packVersion}`;
+const sourceVersionFor = (
+  countryPack: Nis2CountryPackDefinition,
+  onboardingPack = findNis2OnboardingCountryPack(countryPack.countryCode)
+): string =>
+  `${NIS2_COUNTRY_ONBOARDING_SCHEMA_VERSION}; ${countryPack.countryCode} country pack ${countryPack.packVersion}; ${onboardingPack.sourceReviewStatus}`;
 
 const statusFromDeclaredAnswer = (answers: readonly (string | undefined)[]): ComplianceControlResult["status"] => {
   const normalized = answers.join(" ").toLowerCase();
@@ -589,23 +668,29 @@ const statusFromDeclaredAnswer = (answers: readonly (string | undefined)[]): Com
   return "needs_evidence";
 };
 
-const inferCompletedScreens = (answers: Record<string, unknown>): string[] =>
-  nis2CountryOnboardingScreens
-    .filter((screen) => screen.requiredFieldPaths.every((fieldPath) => hasRequiredValueAtPath(answers, fieldPath)))
+const inferCompletedScreens = (
+  answers: Record<string, unknown>,
+  onboardingPack: Nis2CountryPackOnboardingContract
+): string[] =>
+  onboardingPack.onboardingScreens
+    .filter((screen) => requiredFieldKeysForScreen(onboardingPack, screen.key).every((fieldPath) => hasRequiredValueAtPath(answers, fieldPath)))
     .map((screen) => screen.key);
 
-const inferCurrentScreen = (answers: Record<string, unknown>): string => {
-  const nextScreen = nis2CountryOnboardingScreens.find((screen) =>
-    screen.requiredFieldPaths.some((fieldPath) => !hasRequiredValueAtPath(answers, fieldPath))
+const inferCurrentScreen = (
+  answers: Record<string, unknown>,
+  onboardingPack: Nis2CountryPackOnboardingContract
+): string => {
+  const nextScreen = onboardingPack.onboardingScreens.find((screen) =>
+    requiredFieldKeysForScreen(onboardingPack, screen.key).some((fieldPath) => !hasRequiredValueAtPath(answers, fieldPath))
   );
 
-  return nextScreen?.key ?? "review_generate";
+  return nextScreen?.key ?? "review";
 };
 
-const missingRequiredFieldPaths = (answers: Record<string, unknown>): string[] =>
-  nis2CountryOnboardingScreens.flatMap((screen) =>
-    screen.requiredFieldPaths.filter((fieldPath) => !hasRequiredValueAtPath(answers, fieldPath))
-  );
+const missingRequiredFieldPaths = (
+  answers: Record<string, unknown>,
+  onboardingPack: Nis2CountryPackOnboardingContract
+): string[] => requiredFieldKeysForPack(onboardingPack).filter((fieldPath) => !hasRequiredValueAtPath(answers, fieldPath));
 
 const normalizeAnswers = (value: Record<string, unknown>): Record<string, unknown> =>
   isRecord(value) ? (JSON.parse(JSON.stringify(value)) as Record<string, unknown>) : {};
@@ -621,16 +706,43 @@ const normalizeGovernanceAnswerKeys = (answers: Record<string, unknown>): void =
   delete governance.accessControl;
 };
 
-const normalizeCompletedScreens = (screens: string[] | undefined): string[] | undefined => {
+const normalizeCountrySpecificAnswerAliases = (answers: Record<string, unknown>, countryCode: string): void => {
+  if (countryCode !== "RO") {
+    return;
+  }
+
+  const selectedServices = stringsAtPath(answers, "selectedServiceTypeCodes");
+  if (selectedServices.length > 0 && stringsAtPath(answers, "scope.activities").length === 0) {
+    setPath(answers, "scope.activities", selectedServices);
+  }
+
+  const sizeCategory = stringAtPath(answers, "size.sizeCategory");
+  if (sizeCategory && !stringAtPath(answers, "business.sizeCategory")) {
+    setPath(answers, "business.sizeCategory", sizeCategory);
+  }
+
+  const publicIpRanges = stringsAtPath(answers, "systems.publicIpRanges");
+  if (publicIpRanges.length > 0 && stringsAtPath(answers, "network.publicIpRanges").length === 0) {
+    setPath(answers, "network.publicIpRanges", publicIpRanges);
+  }
+};
+
+const normalizeCompletedScreens = (
+  screens: string[] | undefined,
+  onboardingPack: Nis2CountryPackOnboardingContract
+): string[] | undefined => {
   if (!screens) {
     return undefined;
   }
-  const validScreens = new Set(nis2CountryOnboardingScreens.map((screen) => screen.key));
+  const validScreens = new Set(onboardingPack.onboardingScreens.map((screen) => screen.key));
   return screens.filter((screen) => validScreens.has(screen));
 };
 
-const normalizeCurrentScreen = (screen: string | undefined): string | undefined => {
-  const validScreens = new Set(nis2CountryOnboardingScreens.map((candidate) => candidate.key));
+const normalizeCurrentScreen = (
+  screen: string | undefined,
+  onboardingPack: Nis2CountryPackOnboardingContract
+): string | undefined => {
+  const validScreens = new Set(onboardingPack.onboardingScreens.map((candidate) => candidate.key));
   return screen && validScreens.has(screen) ? screen : undefined;
 };
 
@@ -685,14 +797,37 @@ const booleanAtPath = (value: Record<string, unknown>, fieldPath: string): boole
     return found;
   }
   if (typeof found === "string") {
-    if (found === "true" || found === "yes") {
+    const normalized = found.trim().toLowerCase();
+    if (normalized === "true" || normalized === "yes" || normalized === "da" || normalized === "1") {
       return true;
     }
-    if (found === "false" || found === "no") {
+    if (normalized === "false" || normalized === "no" || normalized === "nu" || normalized === "0") {
       return false;
     }
   }
 
+  return undefined;
+};
+
+const roSizeCategoryAtPath = (value: Record<string, unknown>, fieldPath: string): RoNis2EntitySize | undefined => {
+  const found = stringAtPath(value, fieldPath);
+  const normalized = found?.toLowerCase().normalize("NFKD").replace(/[\u0300-\u036f]/g, "");
+  if (!normalized) return undefined;
+  if (["small_micro", "small", "micro", "mica si micro", "mică și micro"].includes(normalized)) return "small_micro";
+  if (["medium", "mijlocie", "mediu"].includes(normalized)) return "medium";
+  if (["large", "mare"].includes(normalized)) return "large";
+  return undefined;
+};
+
+const roImpactAtPath = (
+  value: Record<string, unknown>,
+  fieldPath: string
+): NonNullable<RoNis2Article9Input["publicSafetySecurityOrHealthImpact"]> | undefined => {
+  const found = stringAtPath(value, fieldPath);
+  const normalized = found?.toLowerCase();
+  if (normalized === "low" || normalized === "medium" || normalized === "high") return normalized;
+  if (normalized === "mediu") return "medium";
+  if (normalized === "ridicat") return "high";
   return undefined;
 };
 
@@ -704,6 +839,18 @@ const getPath = (value: Record<string, unknown>, fieldPath: string): unknown =>
 
     return undefined;
   }, value);
+
+const setPath = (value: Record<string, unknown>, fieldPath: string, nextValue: unknown): void => {
+  const parts = fieldPath.split(".");
+  let current = value;
+  for (const part of parts.slice(0, -1)) {
+    if (!isRecord(current[part])) {
+      current[part] = {};
+    }
+    current = current[part] as Record<string, unknown>;
+  }
+  current[parts[parts.length - 1] ?? fieldPath] = nextValue;
+};
 
 const deepMerge = (left: Record<string, unknown>, right: Record<string, unknown>): Record<string, unknown> => {
   const output = JSON.parse(JSON.stringify(left)) as Record<string, unknown>;

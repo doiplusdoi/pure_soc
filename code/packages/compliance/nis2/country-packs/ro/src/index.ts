@@ -4,6 +4,7 @@ import {
   type CountryPackStatus,
   type Nis2CountryPackDefinition
 } from "@puresoc/country-packs-core";
+import { buildRomaniaNis2OnboardingCountryPack } from "./field-mapping";
 
 export const romaniaCountryPackStatus: CountryPackStatus = buildCountryPackStatus({
   countryCode: "RO",
@@ -56,6 +57,26 @@ export const romaniaNis2CountryPackDefinition: Nis2CountryPackDefinition = {
     "PureSOC generates readiness guidance and notification drafts only.",
     "Direct DNSC submission is not implemented."
   ],
+  operationalDifferences: [
+    {
+      area: "classification",
+      key: "ro.dnsc.workbook_classifier",
+      title: "Workbook-backed classifier",
+      summary:
+        "Romania uses the imported DNSC workbook for service, relationship-with-Romania, Article 9, and notification-draft signals; activation remains legal-review gated.",
+      reviewStatus: "review_required",
+      sourceIds: ["ro-dnsc-nis2-tool-v2-1", "ro-nis2-act-oug-155-2024-en-translation"]
+    },
+    {
+      area: "registration",
+      key: "ro.dnsc.notification_draft_only",
+      title: "Notification draft is local export only",
+      summary:
+        "PureSOC can build a source-mapped Romania notification draft from saved onboarding data, but it does not submit to DNSC or certify the result.",
+      reviewStatus: "review_required",
+      sourceIds: ["ro-dnsc-nis2-tool-v2-1", "ro-dnsc-home"]
+    }
+  ],
   sectorRules: ["digital_infrastructure", "ict_service_management", "health", "food", "manufacturing", "public_administration"],
   sizeThresholds: ["Romania size and relationship rules are imported from the DNSC workbook and remain review-required."],
   specialInclusionRules: ["Article 9 criticality, Romania establishment, and selected service types affect the current Romania classifier."],
@@ -97,6 +118,10 @@ export const romaniaNis2CountryPackDefinition: Nis2CountryPackDefinition = {
   },
   disclaimers: ["Romania pack status is demo/review-required. DNSC submission is not performed by PureSOC."]
 };
+
+export const romaniaNis2OnboardingCountryPack = buildRomaniaNis2OnboardingCountryPack(
+  romaniaNis2CountryPackDefinition
+);
 
 export {
   classifyRoNis2Entity,
@@ -148,6 +173,8 @@ export {
   type RoNis2PersonAnswers,
   type RoNis2SizeAnswers
 } from "./onboarding.schema";
+export { buildRomaniaNis2OnboardingCountryPack } from "./field-mapping";
+export type { Nis2CountryPackOnboardingContract } from "@puresoc/country-packs-core";
 export {
   roNis2NotificationMappings,
   roNis2ServiceCatalogGroups,

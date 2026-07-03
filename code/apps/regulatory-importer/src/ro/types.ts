@@ -28,6 +28,7 @@ export interface RoNis2GeneratedSourceMap {
   };
   mappings: RoNis2SourceMapEntry[];
   schemaVersion: string;
+  detectedVersion?: string;
   sourceWorkbook: string;
   sourceWorkbookHashSha256: string;
   workbookVersions: RoNis2WorkbookVersions;
@@ -166,6 +167,7 @@ export interface RoNis2Seed {
     relationshipWithRomania: RoNis2Question[];
   };
   schemaVersion: string;
+  detectedVersion?: string;
   serviceCatalog: {
     categories: RoNis2ServiceCategory[];
     options: RoNis2ServiceOption[];
@@ -189,6 +191,7 @@ export interface RoNis2Seed {
 
 export interface RoNis2ImportReport {
   country: "ro";
+  detectedVersion?: string;
   limitations: string[];
   requiredSheetValidation: {
     missing: string[];

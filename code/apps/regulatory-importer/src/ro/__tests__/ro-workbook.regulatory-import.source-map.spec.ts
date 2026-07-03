@@ -3,7 +3,9 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  detectRoNis2WorkbookProfile,
   importRoNis2Workbook,
+  normalizeRoNis2WorkbookValue,
   REQUIRED_RO_NIS2_SHEETS,
   RO_NIS2_SOURCE_MAP_THRESHOLD,
   stableStringify,
@@ -37,6 +39,35 @@ describe("regulatory-import ro-workbook source-map", () => {
       "Ajutor",
       "Algoritm clasificare"
     ]);
+  });
+
+  it("detects the Romanian v2.3 workbook profile and normalizes localized values", () => {
+    const romanianSheets = [
+      "Date entitate",
+      "Evaluare entitate",
+      "Formular notificare",
+      "Liste",
+      "Ajutor",
+      "Algoritm clasificare"
+    ];
+
+    expect(validateRoRequiredSheetNames(romanianSheets)).toMatchObject({
+      missing: [],
+      passed: true,
+      present: romanianSheets
+    });
+    expect(detectRoNis2WorkbookProfile(romanianSheets).profile).toMatchObject({
+      detectedVersion: "v2.3_46066",
+      profileKey: "ro_nis2_v2_3_romanian"
+    });
+    expect(normalizeRoNis2WorkbookValue("Da")).toBe("yes");
+    expect(normalizeRoNis2WorkbookValue("Nu")).toBe("no");
+    expect(normalizeRoNis2WorkbookValue("Selectați")).toBe("");
+    expect(normalizeRoNis2WorkbookValue("Mică și micro")).toBe("small_micro");
+    expect(normalizeRoNis2WorkbookValue("Mijlocie")).toBe("medium");
+    expect(normalizeRoNis2WorkbookValue("Mare")).toBe("large");
+    expect(normalizeRoNis2WorkbookValue("MEDIU")).toBe("medium");
+    expect(normalizeRoNis2WorkbookValue("RIDICAT")).toBe("high");
   });
 
   it("extracts key entity/contact/activity fields with source maps", () => {

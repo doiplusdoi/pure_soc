@@ -1,11 +1,16 @@
 import { randomUUID } from "node:crypto";
 
 import { AuthError, type PureSocRoleKey } from "@puresoc/auth-core";
-import type { ComplianceStatus } from "@puresoc/compliance-core";
+import { generateReadinessPlan, type ComplianceGap, type ComplianceStatus } from "@puresoc/compliance-core";
+import type { RecommendationContract } from "@puresoc/recommendations";
 import type { ReportBranding } from "@puresoc/reports";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
 import type { ApiServices } from "../auth/services";
 import { listNis2CountryPacksRoute, getNis2CountryPackRoute } from "../compliance/nis2/routes";
+import {
+  listSupportedNis2OnboardingCountryPacks,
+  toCustomerOnboardingCountryPack
+} from "../compliance/nis2/onboarding-service";
 import type { ApiResult, BinaryResult, JsonResult, RequestContext } from "../http";
 import { parseCookies, sessionCookieName } from "../http";
 import { requireOrganizationRole } from "../rbac";
@@ -569,25 +574,9 @@ export const productGetCountryPackRoute = async (countryCode: string): Promise<J
 
 export const productOnboardingSchemaRoute = async (query: URLSearchParams): Promise<JsonResult> => {
   const country = (query.get("country") ?? "RO").toUpperCase();
-  const pack = await getNis2CountryPackRoute(country);
   return {
     statusCode: 200,
-    body: {
-      country,
-      countryPack: (pack.body as { countryPack: unknown }).countryPack,
-      sections: [
-        "company_profile",
-        "contacts_responsibility",
-        "industry_services",
-        "size_structure",
-        "systems_data",
-        "security_practices",
-        "compliance_context",
-        "review"
-      ],
-      autosave: true,
-      maxFieldsPerStep: 7
-    }
+    body: customerOnboardingSchemaBody(country)
   };
 };
 
@@ -603,8 +592,52 @@ export const productGetOnboardingAnswersRoute = async (
     body: {
       countryCode,
       progress: state.progress,
-      answers: state.progress?.answers ?? {}
+      answers: state.progress?.answers ?? {},
+      schema: customerOnboardingSchemaBody(countryCode)
     }
+  };
+};
+
+const customerOnboardingSchemaBody = (country: string) => {
+  const onboardingPack = toCustomerOnboardingCountryPack(country);
+  return {
+    country: onboardingPack.countryCode,
+    availableCountries: listSupportedNis2OnboardingCountryPacks().map((pack) => ({
+      countryCode: pack.countryCode,
+      displayName: pack.displayName,
+      sourceReviewStatus: pack.sourceReviewStatus,
+      status: pack.status
+    })),
+    countryPack: {
+      countryCode: onboardingPack.countryCode,
+      displayName: onboardingPack.displayName,
+      packVersion: onboardingPack.packVersion,
+      safeSourceSummary: onboardingPack.safeSourceSummary,
+      sourceReviewStatus: onboardingPack.sourceReviewStatus,
+      status: onboardingPack.status,
+      supportedUiLanguages: onboardingPack.supportedUiLanguages,
+      countryNotes: onboardingPack.countryNotes,
+      classificationAdapter: {
+        ...onboardingPack.classificationAdapter,
+        key:
+          onboardingPack.classificationAdapter.key === "ro_workbook_backed"
+            ? "country_specific"
+            : onboardingPack.classificationAdapter.key
+      },
+      notificationDraftCapabilities: onboardingPack.notificationDraftCapabilities,
+      unsupportedFeatures: onboardingPack.unsupportedFeatures
+    },
+    countrySpecificQuestions: onboardingPack.countrySpecificQuestions,
+    fields: onboardingPack.fieldDefinitions,
+    screens: onboardingPack.onboardingScreens.map((screen) => ({
+      ...screen,
+      requiredFieldPaths: onboardingPack.fieldDefinitions
+        .filter((field) => field.screenKey === screen.key && field.requiredPolicy === "required")
+        .map((field) => field.key)
+    })),
+    serviceCatalog: onboardingPack.serviceCatalog,
+    autosave: true,
+    maxFieldsPerStep: 6
   };
 };
 
@@ -714,9 +747,15 @@ export const productRunReadinessRoute = async (
     countryCode,
     organizationId
   });
+  const classification = await services.nis2Onboarding.classifyLatestOnboarding({
+    actorUserId: session.user.id,
+    countryCode,
+    organizationId
+  });
   const assessmentId =
     optionalUuidString(body, "assessmentId", "Assessment ID") ??
     (isUuidString(progress.assessmentId) ? progress.assessmentId : randomUUID());
+  const evidence = await services.evidence.list(organizationId);
   const result = await services.compliance.evaluateAssessment({
     organizationId,
     assessmentId,
@@ -728,6 +767,41 @@ export const productRunReadinessRoute = async (
       countryPackStatus: countryCode === "RO" ? "review_required" : "demo",
       completeness: "partial"
     }
+  });
+  const productGaps = buildProductReadinessGaps({
+    assessmentId,
+    classificationRun: classification.classificationRun,
+    connection,
+    countryCode,
+    evidenceCount: evidence.length,
+    organizationId,
+    progress
+  });
+  const gaps = mergeGaps(result.gaps, productGaps);
+  const recommendations = mergeRecommendations(
+    result.recommendations as RecommendationContract[],
+    productGaps.map((gap) => recommendationFromProductGap(gap))
+  );
+  const readinessPlan = generateReadinessPlan({
+    organizationId,
+    assessmentId,
+    gaps,
+    recommendations,
+    defaultOwnerUserId: session.user.id,
+    generatedAt: new Date().toISOString(),
+    title: "NIS2 readiness plan"
+  });
+  await services.outputRepository.saveStoredAnalysis({
+    organizationId,
+    assessmentId,
+    jurisdiction: countryCode,
+    catalogVersion: result.catalogVersion,
+    recordedAt: new Date().toISOString(),
+    results: result.results,
+    gaps,
+    recommendations,
+    readinessPlan,
+    evidenceArtifacts: evidence
   });
   await services.dashboards.createReadinessSnapshot({
     organizationId,
@@ -743,8 +817,8 @@ export const productRunReadinessRoute = async (
     ipAddress: context.ipAddress,
     userAgent: context.userAgent,
     afterJson: {
-      gaps: result.gaps.length,
-      recommendations: result.recommendations.length,
+      gaps: gaps.length,
+      recommendations: recommendations.length,
       providerConnectionId: connection?.id ?? null
     }
   });
@@ -755,16 +829,212 @@ export const productRunReadinessRoute = async (
     body: {
       assessmentId,
       score: scoreFromAnalysis(storedAnalysis),
-      gaps: result.gaps.map((gap) => {
+      gaps: gaps.map((gap) => {
         const gapRecord = gap as unknown as Record<string, unknown>;
         return businessGapView(gapRecord, planItemForGap(storedAnalysis, gapRecord));
       }),
-      recommendations: result.recommendations.map((recommendation) =>
+      recommendations: recommendations.map((recommendation) =>
         recommendationView(recommendation as unknown as Record<string, unknown>)
       )
     }
   };
 };
+
+const buildProductReadinessGaps = (input: {
+  assessmentId: string;
+  classificationRun: { result: string; missingInformation: string[]; legalReviewRequired: boolean };
+  connection: Awaited<ReturnType<typeof primaryMicrosoftConnection>>;
+  countryCode: string;
+  evidenceCount: number;
+  organizationId: string;
+  progress: { answers: Record<string, unknown>; missingRequiredFields: string[]; sourceVersion: string };
+}): ComplianceGap[] => {
+  const gaps: ComplianceGap[] = [];
+  const sourceReferences = [
+    {
+      sourceRecordId: "puresoc-onboarding",
+      label: "Saved onboarding answers",
+      sourceVersion: input.progress.sourceVersion
+    }
+  ];
+  const addGap = (key: string, summary: string, recommendedAction: string, options: {
+    controlCode?: string;
+    controlId?: string;
+    severity?: ComplianceGap["severity"];
+    status?: ComplianceGap["status"];
+    missingEvidence?: string[];
+    warnings?: string[];
+  } = {}) => {
+    gaps.push({
+      id: `${input.assessmentId}:product:${key}:gap`,
+      organizationId: input.organizationId,
+      assessmentId: input.assessmentId,
+      jurisdiction: input.countryCode,
+      controlId: options.controlId ?? `product.${key}`,
+      controlCode: options.controlCode ?? `PURESOC-${key.toUpperCase().replace(/[^A-Z0-9]+/g, "-")}`,
+      status: options.status ?? "needs_evidence",
+      severity: options.severity ?? "medium",
+      confidence: "medium",
+      summary,
+      findingIds: [],
+      findings: [summary],
+      missingEvidence: options.missingEvidence ?? [],
+      recommendedActions: [recommendedAction],
+      providerSignals: [],
+      manualTaskIds: [],
+      manualTasks: [],
+      countryPackWarnings: options.warnings ?? [],
+      sourceReferences
+    });
+  };
+
+  if (input.progress.missingRequiredFields.some((field) => field.startsWith("company.") || field.startsWith("locations."))) {
+    addGap("missing-company-data", "Required company identity or jurisdiction data is incomplete.", "Complete the company and locations onboarding screens.");
+  }
+
+  if (
+    input.progress.missingRequiredFields.some((field) => field.startsWith("relationship.") || field.startsWith("article9.") || field.startsWith("scope."))
+  ) {
+    addGap("missing-country-scope", "Country-specific scoping answers are incomplete.", "Complete the country-specific scope screen.");
+  }
+
+  if (stringsAtPath(input.progress.answers, "scope.activities").length === 0 && stringsAtPath(input.progress.answers, "selectedServiceTypeCodes").length === 0) {
+    addGap("missing-service-selection", "No relevant NIS2 services have been selected.", "Select the services that best match the organization.");
+  }
+
+  if (
+    input.progress.missingRequiredFields.some(
+      (field) => field.startsWith("governance.") || field.startsWith("dependencies.backup") || field.startsWith("dependencies.business") || field.startsWith("dependencies.incident")
+    )
+  ) {
+    addGap("missing-security-baseline", "Security baseline declarations are incomplete.", "Complete governance, identity, backup, continuity, supplier, and incident-response declarations.", {
+      severity: "high"
+    });
+  }
+
+  if (input.evidenceCount === 0) {
+    addGap("missing-declared-control-evidence", "Declared controls do not have attached evidence yet.", "Attach policies, screenshots, exports, or review notes for declared controls.", {
+      missingEvidence: ["Declared control evidence"]
+    });
+  }
+
+  if (!input.connection) {
+    addGap("microsoft365-not-connected", "Microsoft 365 is not connected, so provider signals are unavailable.", "Connect Microsoft 365 read-only modules or keep the assessment marked as manual baseline only.", {
+      severity: "high",
+      status: "partial"
+    });
+  } else if (input.connection.status !== "connected") {
+    addGap("provider-module-health", "The Microsoft 365 connector is present but not fully healthy.", "Review connector module permissions, licenses, and latest sync health.", {
+      severity: "high",
+      status: "partial"
+    });
+  }
+
+  if (input.classificationRun.legalReviewRequired) {
+    addGap("country-pack-review-required", "The selected country pack is review required for external decisions.", "Use outputs as internal readiness support until the local country pack is reviewed.", {
+      controlId: "country-pack.review",
+      warnings: ["Country-pack legal review required."]
+    });
+  }
+
+  if (input.countryCode === "RO") {
+    if (input.classificationRun.missingInformation.includes("article9") || input.progress.missingRequiredFields.some((field) => field.startsWith("article9."))) {
+      addGap("ro-article9-missing", "Romania Article 9 answers are missing where they may affect classification.", "Complete Romania Article 9 scope answers before relying on the classification.");
+    }
+    if (!hasRequiredValueAtPath(input.progress.answers, "relationship.criticalEntityInRomaniaLaw294")) {
+      addGap("ro-law294-missing", "Romania Law 294 critical-entity answer is missing.", "Confirm whether the organization is identified as a critical entity under Romanian Law 294/2024.");
+    }
+    if (stringsAtPath(input.progress.answers, "systems.publicIpRanges").length === 0 && stringsAtPath(input.progress.answers, "network.publicIpRanges").length === 0) {
+      addGap("ro-public-ip-ranges-missing", "Public IP ranges are missing from the Romania readiness input.", "Add public IP ranges or document why they are not applicable.");
+    }
+    if (!hasRequiredValueAtPath(input.progress.answers, "contacts.securityName") || !hasRequiredValueAtPath(input.progress.answers, "contacts.securityEmail")) {
+      addGap("ro-security-contact-missing", "Responsible security contact details are incomplete.", "Add the responsible security contact before generating review outputs.");
+    }
+    addGap("ro-source-review-required", "Romania country-pack source review is required.", "Keep Romania outputs in internal review until source-derived logic is approved.", {
+      warnings: ["Romania country-pack source review required."]
+    });
+  }
+
+  if (input.countryCode === "PL" || input.countryCode === "DE") {
+    addGap("national-personalization-incomplete", `${input.countryCode} national personalization is incomplete.`, "Use the common EU baseline until a reviewed local pack is available.", {
+      warnings: ["Country-pack partial demo status."]
+    });
+  }
+
+  return gaps;
+};
+
+const mergeGaps = (left: readonly ComplianceGap[], right: readonly ComplianceGap[]): ComplianceGap[] => {
+  const byId = new Map<string, ComplianceGap>();
+  for (const gap of [...left, ...right]) {
+    byId.set(gap.id, gap);
+  }
+  return [...byId.values()];
+};
+
+const mergeRecommendations = (
+  left: readonly RecommendationContract[],
+  right: readonly RecommendationContract[]
+): RecommendationContract[] => {
+  const byId = new Map<string, RecommendationContract>();
+  for (const recommendation of [...left, ...right]) {
+    byId.set(recommendation.id, recommendation);
+  }
+  return [...byId.values()];
+};
+
+const recommendationFromProductGap = (gap: ComplianceGap): RecommendationContract => ({
+  id: `${gap.id}:recommendation`,
+  organizationId: gap.organizationId,
+  sourceFindingIds: gap.findingIds,
+  manualTaskIds: gap.manualTaskIds,
+  controlId: gap.controlId,
+  jurisdiction: gap.jurisdiction,
+  title: gap.recommendedActions[0] ?? "Review readiness gap",
+  summary: gap.summary,
+  severity: gap.severity,
+  confidence: gap.confidence,
+  recommendationType: gap.missingEvidence.length > 0 ? "evidence_upload" : "process",
+  automationMode: "manual",
+  requiredPermissions: [],
+  requiredLicense: [],
+  evidenceRequired: gap.missingEvidence.length > 0,
+  status: "proposed",
+  sourceReferences: gap.sourceReferences
+});
+
+const hasRequiredValueAtPath = (value: Record<string, unknown>, fieldPath: string): boolean => {
+  const found = getPath(value, fieldPath);
+  if (fieldPath === "review.legalCaveatAcknowledged") {
+    return found === true;
+  }
+  if (Array.isArray(found)) {
+    return found.length > 0;
+  }
+  return found !== undefined && found !== null && found !== "";
+};
+
+const stringsAtPath = (value: Record<string, unknown>, fieldPath: string): string[] => {
+  const found = getPath(value, fieldPath);
+  if (Array.isArray(found)) {
+    return found.filter((entry): entry is string => typeof entry === "string" && entry.trim().length > 0);
+  }
+  if (typeof found === "string" && found.trim().length > 0) {
+    return found
+      .split(/[\n,;]+/)
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
+  }
+  return [];
+};
+
+const getPath = (value: Record<string, unknown>, fieldPath: string): unknown =>
+  fieldPath.split(".").reduce<unknown>((current, part) => {
+    if (current && typeof current === "object" && part in current) {
+      return (current as Record<string, unknown>)[part];
+    }
+    return undefined;
+  }, value);
 
 export const productListGapsRoute = async (
   cookieHeader: string | undefined,
