@@ -4552,8 +4552,9 @@ function assertProductV1AppOrganizationRoute(html, seeded) {
   record("app_organization_route_html_is_nonblank", html.length > 8_000, String(html.length));
   record("app_organization_route_marker_present", html.includes('data-ui-smoke="product-v1-console"'));
   record("app_organization_route_context_is_explicit", text.includes(seeded.selectedOrganization.name));
-  record("app_organization_route_security_section_visible", text.includes("Security operations") && text.includes("Assets, findings, plans, and tasks"));
-  record("app_organization_route_uses_organization_scoped_forms", html.includes(`/app/o/${seeded.selectedOrganization.organizationId}/security`));
+  record("app_organization_route_security_section_visible", text.includes("Security operations") && text.includes("Findings"));
+  record("app_organization_route_security_subpages_visible", html.includes(`/app/o/${seeded.selectedOrganization.organizationId}/tasks`));
+  record("app_organization_route_uses_organization_scoped_forms", html.includes(`action="/app/o/${seeded.selectedOrganization.organizationId}/security/findings"`));
   assertProductV1AppRouteSafety(html, "app_organization_route");
 }
 

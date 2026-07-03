@@ -770,6 +770,8 @@ describe("web dashboard reports operational UI", () => {
         }
 
         const rows: Record<string, unknown[]> = {
+          assets: [{ id: "asset_1", displayName: "Firewall Cluster", assetType: "network", lifecycleState: "active" }],
+          "business-services": [{ id: "service_1", name: "Payments", criticality: "high", ownerPersonId: "person_1" }],
           findings: [
             {
               id: "finding_1",
@@ -777,6 +779,18 @@ describe("web dashboard reports operational UI", () => {
               severity: "high",
               status: "open",
               sourceType: "provider"
+            }
+          ],
+          policies: [{ id: "policy_1", title: "Access control policy", status: "draft" }],
+          "provider-capabilities": [
+            { id: "capability_1", moduleKey: "identity", capabilityKey: "users.read", state: "available" }
+          ],
+          responsibilities: [
+            {
+              id: "person_1",
+              displayName: "Dana Responsible",
+              email: "dana@example.test",
+              responsibilities: ["security_lead"]
             }
           ],
           "internal-events": [
@@ -800,6 +814,7 @@ describe("web dashboard reports operational UI", () => {
               updatedAt: "2026-06-24T09:00:00.000Z"
             }
           ],
+          suppliers: [{ id: "supplier_1", name: "Cloud Backup Ltd", criticality: "medium", services: ["backup"] }],
           tasks: [{ id: "task_1", title: "Confirm conditional access", priority: "high", status: "TODO" }]
         };
         response.end(JSON.stringify({ data: rows[resource] ?? [], page: { limit: 25, nextCursor: null } }));
@@ -831,10 +846,82 @@ describe("web dashboard reports operational UI", () => {
       expect(html).toContain('data-ui-smoke="product-v1-console"');
       expect(html).toContain("Asterion Tools");
       expect(html).toContain("org_demo");
+      expect(html).toContain("Findings");
+      expect(html).toContain("Add finding");
       expect(html).toContain("Password spray investigation");
-      expect(html).toContain("Confirm conditional access");
+      expect(html).not.toContain("Confirm conditional access");
       expect(html).toContain("/app/o/org_demo/security/findings");
+      expect(html).toContain("/app/o/org_demo/tasks");
       expect(html).toContain("1 pending events");
+
+      const tasksResponse = await fetch(`${baseUrl}/app/o/org_demo/tasks`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const tasksHtml = await tasksResponse.text();
+
+      expect(tasksResponse.status).toBe(200);
+      expect(tasksHtml).toContain("Tasks");
+      expect(tasksHtml).toContain("Add task");
+      expect(tasksHtml).toContain("Confirm conditional access");
+      expect(tasksHtml).toContain('action="/app/o/org_demo/tasks"');
+
+      const peopleResponse = await fetch(`${baseUrl}/app/o/org_demo/people`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const peopleHtml = await peopleResponse.text();
+
+      expect(peopleResponse.status).toBe(200);
+      expect(peopleHtml).toContain("People and responsibilities");
+      expect(peopleHtml).toContain("Add person");
+      expect(peopleHtml).toContain("Dana Responsible");
+      expect(peopleHtml).toContain('action="/app/o/org_demo/people"');
+
+      const systemsResponse = await fetch(`${baseUrl}/app/o/org_demo/systems`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const systemsHtml = await systemsResponse.text();
+
+      expect(systemsResponse.status).toBe(200);
+      expect(systemsHtml).toContain("Systems and assets");
+      expect(systemsHtml).toContain("Add asset");
+      expect(systemsHtml).toContain("Firewall Cluster");
+
+      const suppliersResponse = await fetch(`${baseUrl}/app/o/org_demo/suppliers`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const suppliersHtml = await suppliersResponse.text();
+
+      expect(suppliersResponse.status).toBe(200);
+      expect(suppliersHtml).toContain("Suppliers");
+      expect(suppliersHtml).toContain("Add supplier");
+      expect(suppliersHtml).toContain("Cloud Backup Ltd");
+
+      const policiesResponse = await fetch(`${baseUrl}/app/o/org_demo/policies`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const policiesHtml = await policiesResponse.text();
+
+      expect(policiesResponse.status).toBe(200);
+      expect(policiesHtml).toContain("Policies");
+      expect(policiesHtml).toContain("Add policy");
+      expect(policiesHtml).toContain("Access control policy");
+
+      const connectorResponse = await fetch(`${baseUrl}/app/o/org_demo/connectors/microsoft365`, {
+        headers: { cookie: "puresoc_session=test" },
+        redirect: "manual"
+      });
+      const connectorHtml = await connectorResponse.text();
+
+      expect(connectorResponse.status).toBe(200);
+      expect(connectorHtml).toContain("Microsoft 365 connector");
+      expect(connectorHtml).toContain("Queue sync");
+      expect(connectorHtml).toContain("users.read");
+      expect(connectorHtml).toContain('action="/app/o/org_demo/connectors/microsoft365"');
 
       const setupResponse = await fetch(`${baseUrl}/app/setup/microsoft365`, {
         headers: { cookie: "puresoc_session=test" },

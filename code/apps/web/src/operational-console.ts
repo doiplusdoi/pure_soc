@@ -618,6 +618,7 @@ const productNavItems: Array<{
   { href: "/onboarding", group: "Readiness", icon: "RD", label: "Readiness", route: "onboarding" },
   { href: "/gap-analyzer", group: "Readiness", icon: "GA", label: "Gap Analyzer", route: "gap_analyzer" },
   { href: "/microsoft365", group: "Readiness", icon: "M3", label: "Microsoft 365", route: "microsoft365" },
+  { href: "/connectors", group: "Operations", icon: "CN", label: "Connectors", route: "connectors" },
   { href: "/remediation", group: "Operations", icon: "RM", label: "Remediation", route: "remediation" },
   { href: "/evidence", group: "Operations", icon: "EV", label: "Evidence", route: "evidence" },
   { href: "/reports", group: "Operations", icon: "RP", label: "Reports", route: "reports" },
@@ -1288,42 +1289,59 @@ const providerStatusToOperationalStatus = (status: string): OperationalStatus =>
   return "attention";
 };
 
-const renderProductConnectorsPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({
-    eyebrow: "Data sources",
-    title: model.activeRoute === "connectors_microsoft365" ? "Microsoft 365 connector" : "Connectors",
-    status: "read-only first"
-  }),
-  '<section class="ps-grid">',
-  ...(model.details?.connectors ?? []).map((connector) => {
-    const providerKey = String(connector.providerKey ?? "");
-    const isMicrosoft = providerKey === "microsoft365";
-    return [
-      '<article class="ps-panel">',
-      `<h2 class="ps-panel__title">${escapeHtml(String(connector.name ?? providerKey))}</h2>`,
-      renderStatusPill({ label: String(connector.status ?? "not connected").replaceAll("_", " "), tone: connectorStatusTone(String(connector.status ?? "")) }),
-      `<p class="ps-muted">${escapeHtml(isMicrosoft ? "Read-only Microsoft Graph modules for identity, devices, email, and Secure Score." : "Planned data source.")}</p>`,
-      isMicrosoft
-        ? `<form class="ps-form" action="/connectors/microsoft365/connect" method="post" data-ui-action="connect-microsoft365"><input type="hidden" name="providerConnectionId" value="${escapeHtml(String(connector.connectionId ?? ""))}">${renderCommandButton({
-            label: connector.connectionId ? "Reconnect" : "Connect",
-            ariaLabel: "Connect Microsoft 365",
-            tone: "primary",
-            type: "submit"
-          })}</form>`
-        : renderStatusPill({ label: "coming later", tone: "neutral" }),
-      "</article>"
-    ].join("");
-  }),
-  "</section>",
-  model.activeRoute === "connectors_microsoft365"
-    ? '<article class="ps-panel ps-stack-top"><h2 class="ps-panel__title">Permissions</h2><p class="ps-muted">The MVP requests read permissions only. Remediation actions require preview, approval, audit, and rollback guidance before any execution path.</p><div class="ps-chip-row">' +
-      renderStatusPill({ label: "Baseline read", tone: "info" }) +
-      renderStatusPill({ label: "Security read", tone: "info" }) +
-      renderStatusPill({ label: "Intune read", tone: "info" }) +
-      renderStatusPill({ label: "Write actions require approval", tone: "warning" }) +
-      "</div></article>"
-    : ""
-].join("");
+const renderProductConnectorsPage = (model: ProductMvpShellModel): string => {
+  const connectors =
+    model.details?.connectors && model.details.connectors.length > 0
+      ? model.details.connectors
+      : [
+          {
+            connectionId: model.dashboard.microsoft365.connectionId,
+            name: "Microsoft 365",
+            providerKey: "microsoft365",
+            status: model.dashboard.microsoft365.status
+          }
+        ];
+
+  return [
+    renderProductPageHeader({
+      eyebrow: "Data sources",
+      title: model.activeRoute === "connectors_microsoft365" ? "Microsoft 365 connector" : "Connectors",
+      status: "read-only first"
+    }),
+    '<section class="ps-grid">',
+    ...connectors.map((connector) => {
+      const providerKey = String(connector.providerKey ?? "");
+      const isMicrosoft = providerKey === "microsoft365";
+      return [
+        '<article class="ps-panel">',
+        `<h2 class="ps-panel__title">${escapeHtml(String(connector.name ?? providerKey))}</h2>`,
+        renderStatusPill({
+          label: String(connector.status ?? "not connected").replaceAll("_", " "),
+          tone: connectorStatusTone(String(connector.status ?? ""))
+        }),
+        `<p class="ps-muted">${escapeHtml(isMicrosoft ? "Read-only Microsoft Graph modules for identity, devices, email, and Secure Score." : "Planned data source.")}</p>`,
+        isMicrosoft
+          ? `<form class="ps-form" action="/connectors/microsoft365/connect" method="post" data-ui-action="connect-microsoft365"><input type="hidden" name="providerConnectionId" value="${escapeHtml(String(connector.connectionId ?? ""))}">${renderCommandButton({
+              label: connector.connectionId ? "Reconnect" : "Connect",
+              ariaLabel: "Connect Microsoft 365",
+              tone: "primary",
+              type: "submit"
+            })}</form>`
+          : renderStatusPill({ label: "coming later", tone: "neutral" }),
+        "</article>"
+      ].join("");
+    }),
+    "</section>",
+    model.activeRoute === "connectors_microsoft365"
+      ? '<article class="ps-panel ps-stack-top"><h2 class="ps-panel__title">Permissions</h2><p class="ps-muted">The MVP starts with read permissions only. Remediation actions require preview, approval, audit, and rollback guidance before any execution path.</p><div class="ps-chip-row">' +
+        renderStatusPill({ label: "Baseline read", tone: "info" }) +
+        renderStatusPill({ label: "Security read", tone: "info" }) +
+        renderStatusPill({ label: "Intune read", tone: "info" }) +
+        renderStatusPill({ label: "Write actions require approval", tone: "warning" }) +
+        "</div></article>"
+      : ""
+  ].join("");
+};
 
 interface ProductRemediationBacklogRow {
   id: string;
@@ -1745,10 +1763,40 @@ export const renderProductV1ConsoleScreen = (
 const productV1SectionTitle = (section: ProductV1ConsoleSection): string =>
   productV1SectionItems.find((item) => item.section === section)?.label ?? "Overview";
 
+const encodeProductV1RouteTail = (routeTail: string): string =>
+  routeTail
+    .split("/")
+    .filter(Boolean)
+    .map((segment) => encodeURIComponent(segment))
+    .join("/");
+
+const productV1RouteHref = (organizationId: string, routeTail: string): string =>
+  `/app/o/${encodeURIComponent(organizationId)}/${encodeProductV1RouteTail(routeTail) || "overview"}`;
+
 const productV1SectionHref = (organizationId: string, section: ProductV1ConsoleSection): string => {
   const item = productV1SectionItems.find((candidate) => candidate.section === section) ?? productV1SectionItems[0];
-  return `/app/o/${encodeURIComponent(organizationId)}/${item.hrefTail}`;
+  return productV1RouteHref(organizationId, item.hrefTail);
 };
+
+const productV1CurrentHref = (model: ProductV1ConsoleModel): string =>
+  productV1RouteHref(model.organization.id, model.routeTail || "overview");
+
+const renderProductV1Subnav = (
+  model: ProductV1ConsoleModel,
+  ariaLabel: string,
+  items: Array<{ hrefTail: string; label: string }>
+): string => [
+  `<nav class="ps-command-row ps-stack-top" aria-label="${escapeHtml(ariaLabel)}">`,
+  ...items.map((item) => {
+    const selected = model.routeTail === item.hrefTail;
+    return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="${escapeHtml(
+      productV1RouteHref(model.organization.id, item.hrefTail)
+    )}"${selected ? ' aria-current="page"' : ""} data-ui-action="open-product-v1-${escapeHtml(
+      item.hrefTail.replaceAll("/", "-")
+    )}">${escapeHtml(item.label)}</a>`;
+  }),
+  "</nav>"
+].join("");
 
 const renderProductV1Sidebar = (model: ProductV1ConsoleModel): string => [
   '<aside class="ps-sidebar" aria-label="Product v1 navigation">',
@@ -1761,7 +1809,7 @@ const renderProductV1Sidebar = (model: ProductV1ConsoleModel): string => [
   '<nav class="ps-nav">',
   ...productV1SectionItems.map(
     (item) =>
-      `<a class="ps-nav__link" href="${escapeHtml(`/app/o/${model.organization.id}/${item.hrefTail}`)}"${
+      `<a class="ps-nav__link" href="${escapeHtml(productV1RouteHref(model.organization.id, item.hrefTail))}"${
         item.section === model.section ? ' aria-current="page"' : ""
       } data-ui-action="open-product-v1-${escapeHtml(item.section)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
         item.label.slice(0, 2).toUpperCase()
@@ -1887,95 +1935,195 @@ const renderProductV1CountryPackPanel = (model: ProductV1ConsoleModel): string =
   "</article>"
 ].join("");
 
-const renderProductV1SetupSection = (model: ProductV1ConsoleModel): string => [
-  renderProductV1Header(model, "Setup", "Launch readiness", setupStatus(model)),
-  '<section class="ps-layout-with-aside">',
-  `<form class="ps-panel ps-form ps-form--wide" action="${escapeHtml(productV1SectionHref(model.organization.id, "setup"))}" method="post" data-ui-action="save-product-v1-setup">`,
-  '<input type="hidden" name="_action" value="saveSetupStep">',
-  '<div class="ps-form-grid">',
-  renderSelect("step", "Setup step", String(fieldValue(model.setup, "currentStep") || "organization"), productV1SetupSteps.map((step) => [step, step] as const), "", true),
-  renderTextInput("owner", "Owner", "", false),
-  renderTextarea("summary", "Step notes", "", "Save the current evidence, assumptions, or launch blocker.", "ps-field--full"),
-  renderCheckbox("complete", "Mark this step complete", true),
-  "</div>",
-  '<div class="ps-command-row">',
-  renderCommandButton({ label: "Save step", ariaLabel: "Save setup step", tone: "primary", type: "submit" }),
-  "</div>",
-  "</form>",
-  '<aside class="ps-panel ps-panel--quiet"><h2 class="ps-panel__title">Step status</h2><ol class="ps-step-list">',
-  ...productV1SetupSteps.map((step, index) => {
-    const complete = completedSetupSteps(model).includes(step);
-    return `<li><span class="ps-step-list__number">${index + 1}</span><div><strong>${escapeHtml(step)}</strong><span>${escapeHtml(
-      complete ? "complete" : "open"
-    )}</span></div></li>`;
-  }),
-  "</ol>",
-  `<form class="ps-form ps-stack-top" action="${escapeHtml(productV1SectionHref(model.organization.id, "setup"))}" method="post" data-ui-action="launch-product-v1-setup">`,
-  '<input type="hidden" name="_action" value="launchSetup">',
-  renderCommandButton({ label: "Evaluate launch", ariaLabel: "Evaluate setup launch readiness", tone: "secondary", type: "submit" }),
-  "</form>",
-  "</aside>",
-  "</section>"
-].join("");
+const renderProductV1SetupSection = (model: ProductV1ConsoleModel): string => {
+  const activeStep = model.routeTail.startsWith("setup/")
+    ? model.routeTail.slice("setup/".length)
+    : String(fieldValue(model.setup, "currentStep") || "organization");
+  return [
+    renderProductV1Header(model, "Setup", "Launch readiness", setupStatus(model)),
+    '<section class="ps-layout-with-aside">',
+    `<form class="ps-panel ps-form ps-form--wide" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="save-product-v1-setup">`,
+    '<input type="hidden" name="_action" value="saveSetupStep">',
+    '<div class="ps-form-grid">',
+    ...[
+      renderSelect("step", "Setup step", activeStep, productV1SetupSteps.map((step) => [step, step] as const), "", true),
+      renderTextInput("owner", "Owner", "", false),
+      renderTextarea("summary", "Step notes", "", "Save the current evidence, assumptions, or launch blocker.", "ps-field--full"),
+      renderCheckbox("complete", "Mark this step complete", true)
+    ].map((field) => prefixGeneratedFieldIds(field, "saveSetupStep")),
+    "</div>",
+    '<div class="ps-command-row">',
+    renderCommandButton({ label: "Save step", ariaLabel: "Save setup step", tone: "primary", type: "submit" }),
+    "</div>",
+    "</form>",
+    '<aside class="ps-panel ps-panel--quiet"><h2 class="ps-panel__title">Step status</h2><ol class="ps-step-list">',
+    ...productV1SetupSteps.map((step, index) => {
+      const complete = completedSetupSteps(model).includes(step);
+      return `<li><span class="ps-step-list__number">${index + 1}</span><div><strong>${escapeHtml(step)}</strong><span>${escapeHtml(
+        complete ? "complete" : "open"
+      )}</span></div></li>`;
+    }),
+    "</ol>",
+    `<form class="ps-form ps-stack-top" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="launch-product-v1-setup">`,
+    '<input type="hidden" name="_action" value="launchSetup">',
+    renderCommandButton({ label: "Evaluate launch", ariaLabel: "Evaluate setup launch readiness", tone: "secondary", type: "submit" }),
+    "</form>",
+    "</aside>",
+    "</section>"
+  ].join("");
+};
 
-const renderProductV1BusinessSection = (model: ProductV1ConsoleModel): string => [
-  renderProductV1Header(model, "Business context", "Services, people, and suppliers", `${model.resources.businessServices.length} services`),
-  '<section class="ps-grid">',
-  renderV1CreateBusinessServiceForm(model),
-  renderV1CreatePersonForm(model),
-  renderV1CreateSupplierForm(model),
-  "</section>",
-  renderV1RecordsTable("Business services", model.resources.businessServices, ["name", "criticality", "ownerPersonId", "updatedAt"]),
-  renderV1RecordsTable("People and responsibilities", model.resources.people, ["displayName", "email", "responsibilities", "updatedAt"]),
-  renderV1RecordsTable("Suppliers", model.resources.suppliers, ["name", "criticality", "services", "reviewCadenceMonths"])
-].join("");
+const renderProductV1BusinessSection = (model: ProductV1ConsoleModel): string => {
+  const subnav = renderProductV1Subnav(model, "Business context pages", [
+    { hrefTail: "services", label: "Services" },
+    { hrefTail: "people", label: "People" },
+    { hrefTail: "systems", label: "Systems" },
+    { hrefTail: "suppliers", label: "Suppliers" }
+  ]);
+
+  if (model.routeTail === "people") {
+    return [
+      renderProductV1Header(model, "Business context", "People and responsibilities", `${model.resources.people.length} people`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderV1CreatePersonForm(model),
+      renderProductScoreCard("Services", String(model.resources.businessServices.length), "available for ownership mapping"),
+      "</section>",
+      renderV1RecordsTable("People and responsibilities", model.resources.people, ["displayName", "email", "responsibilities", "updatedAt"])
+    ].join("");
+  }
+
+  if (model.routeTail === "systems") {
+    return [
+      renderProductV1Header(model, "Business context", "Systems and assets", `${model.resources.assets.length} assets`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderV1CreateAssetForm(model),
+      renderProductScoreCard("Findings", String(model.resources.findings.length), "linked security work"),
+      "</section>",
+      renderV1RecordsTable("Systems and assets", model.resources.assets, ["displayName", "assetType", "source", "lifecycleState"])
+    ].join("");
+  }
+
+  if (model.routeTail === "suppliers") {
+    return [
+      renderProductV1Header(model, "Business context", "Suppliers", `${model.resources.suppliers.length} suppliers`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderV1CreateSupplierForm(model),
+      renderProductScoreCard("Supplier reviews", String(model.resources.supplierReviews.length), "scheduled governance checks"),
+      "</section>",
+      renderV1RecordsTable("Suppliers", model.resources.suppliers, ["name", "criticality", "services", "reviewCadenceMonths"])
+    ].join("");
+  }
+
+  return [
+    renderProductV1Header(model, "Business context", "Services", `${model.resources.businessServices.length} services`),
+    subnav,
+    '<section class="ps-grid ps-stack-top">',
+    renderV1CreateBusinessServiceForm(model),
+    renderProductScoreCard("People", String(model.resources.people.length), "responsibilities captured"),
+    "</section>",
+    renderV1RecordsTable("Business services", model.resources.businessServices, ["name", "criticality", "ownerPersonId", "updatedAt"])
+  ].join("");
+};
 
 const renderV1CreateBusinessServiceForm = (model: ProductV1ConsoleModel): string => [
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "business"))}" method="post" data-ui-action="create-product-v1-service">`,
+  `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="create-product-v1-service">`,
   '<input type="hidden" name="_action" value="createBusinessService">',
   '<h2 class="ps-panel__title">Add service</h2>',
-  renderTextInput("name", "Service name", "", true),
-  renderSelect("criticality", "Criticality", "high", severityOptions(), "", true),
+  ...[
+    renderTextInput("name", "Service name", "", true),
+    renderSelect("criticality", "Criticality", "high", severityOptions(), "", true)
+  ].map((field) => prefixGeneratedFieldIds(field, "createBusinessService")),
   renderCommandButton({ label: "Add service", ariaLabel: "Add business service", tone: "primary", type: "submit" }),
   "</form>"
 ].join("");
 
 const renderV1CreatePersonForm = (model: ProductV1ConsoleModel): string => [
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "business"))}" method="post" data-ui-action="create-product-v1-person">`,
+  `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="create-product-v1-person">`,
   '<input type="hidden" name="_action" value="createResponsibility">',
   '<h2 class="ps-panel__title">Add person</h2>',
-  renderTextInput("displayName", "Display name", "", true),
-  renderTextInput("email", "Email", "", false, "email"),
-  renderTextInput("responsibilities", "Responsibilities", "security_lead", true),
+  ...[
+    renderTextInput("displayName", "Display name", "", true),
+    renderTextInput("email", "Email", "", false, "email"),
+    renderTextInput("responsibilities", "Responsibilities", "security_lead", true)
+  ].map((field) => prefixGeneratedFieldIds(field, "createResponsibility")),
   renderCommandButton({ label: "Add person", ariaLabel: "Add responsibility", tone: "primary", type: "submit" }),
   "</form>"
 ].join("");
 
 const renderV1CreateSupplierForm = (model: ProductV1ConsoleModel): string => [
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "business"))}" method="post" data-ui-action="create-product-v1-supplier">`,
+  `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="create-product-v1-supplier">`,
   '<input type="hidden" name="_action" value="createSupplier">',
   '<h2 class="ps-panel__title">Add supplier</h2>',
-  renderTextInput("name", "Supplier name", "", true),
-  renderSelect("criticality", "Criticality", "medium", severityOptions(), "", true),
-  renderTextInput("services", "Supported services", "", false),
-  renderTextInput("reviewCadenceMonths", "Review cadence months", "12", true, "number", "", ['min="1"', 'inputmode="numeric"']),
+  ...[
+    renderTextInput("name", "Supplier name", "", true),
+    renderSelect("criticality", "Criticality", "medium", severityOptions(), "", true),
+    renderTextInput("services", "Supported services", "", false),
+    renderTextInput("reviewCadenceMonths", "Review cadence months", "12", true, "number", "", ['min="1"', 'inputmode="numeric"'])
+  ].map((field) => prefixGeneratedFieldIds(field, "createSupplier")),
   renderCommandButton({ label: "Add supplier", ariaLabel: "Add supplier", tone: "primary", type: "submit" }),
   "</form>"
 ].join("");
 
-const renderProductV1SecuritySection = (model: ProductV1ConsoleModel): string => [
-  renderProductV1Header(model, "Security operations", "Assets, findings, plans, and tasks", `${model.resources.findings.length} findings`),
-  '<section class="ps-grid">',
-  renderV1CreateAssetForm(model),
-  renderV1CreateFindingForm(model),
-  renderV1CreateRemediationForm(model),
-  renderV1CreateTaskForm(model),
-  "</section>",
-  renderV1RecordsTable("Assets", model.resources.assets, ["displayName", "assetType", "source", "lifecycleState"]),
-  renderV1RecordsTable("Findings", model.resources.findings, ["title", "severity", "status", "sourceType"]),
-  renderV1RecordsTable("Remediation plans", model.resources.remediationPlans, ["objective", "status", "ownerUserId", "updatedAt"]),
-  renderV1RecordsTable("Tasks", model.resources.tasks, ["title", "priority", "status", "dueDate"])
-].join("");
+const renderProductV1SecuritySection = (model: ProductV1ConsoleModel): string => {
+  const subnav = renderProductV1Subnav(model, "Security work pages", [
+    { hrefTail: "security", label: "Overview" },
+    { hrefTail: "security/findings", label: "Findings" },
+    { hrefTail: "remediation", label: "Remediation" },
+    { hrefTail: "tasks", label: "Tasks" }
+  ]);
+
+  if (model.routeTail === "remediation") {
+    return [
+      renderProductV1Header(model, "Security operations", "Remediation plans", `${model.resources.remediationPlans.length} plans`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderV1CreateRemediationForm(model),
+      renderProductScoreCard("Open findings", String(model.resources.findings.length), "available for plan scoping"),
+      "</section>",
+      renderV1RecordsTable("Remediation plans", model.resources.remediationPlans, ["objective", "status", "ownerUserId", "updatedAt"])
+    ].join("");
+  }
+
+  if (model.routeTail === "tasks") {
+    return [
+      renderProductV1Header(model, "Security operations", "Tasks", `${model.resources.tasks.length} tasks`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderV1CreateTaskForm(model),
+      renderProductScoreCard("Plans", String(model.resources.remediationPlans.length), "remediation workstreams"),
+      "</section>",
+      renderV1RecordsTable("Tasks", model.resources.tasks, ["title", "priority", "status", "dueDate"])
+    ].join("");
+  }
+
+  if (model.routeTail === "security") {
+    return [
+      renderProductV1Header(model, "Security operations", "Security work overview", `${model.resources.findings.length} findings`),
+      subnav,
+      '<section class="ps-grid ps-grid--dense ps-stack-top" aria-label="Security work summary">',
+      renderProductScoreCard("Assets", String(model.resources.assets.length), "systems in scope"),
+      renderProductScoreCard("Findings", String(model.resources.findings.length), "manual and provider signals"),
+      renderProductScoreCard("Plans", String(model.resources.remediationPlans.length), "approved local work"),
+      renderProductScoreCard("Tasks", String(model.resources.tasks.length), "owner-tracked work"),
+      "</section>",
+      renderV1RecordsTable("Findings", model.resources.findings, ["title", "severity", "status", "sourceType"]),
+      renderV1RecordsTable("Tasks", model.resources.tasks, ["title", "priority", "status", "dueDate"])
+    ].join("");
+  }
+
+  return [
+    renderProductV1Header(model, "Security operations", "Findings", `${model.resources.findings.length} findings`),
+    subnav,
+    '<section class="ps-grid ps-stack-top">',
+    renderV1CreateFindingForm(model),
+    renderProductScoreCard("Assets", String(model.resources.assets.length), "systems available for triage"),
+    "</section>",
+    renderV1RecordsTable("Findings", model.resources.findings, ["title", "severity", "status", "sourceType"])
+  ].join("");
+};
 
 const renderV1CreateAssetForm = (model: ProductV1ConsoleModel): string =>
   renderSmallV1CreateForm(model, "createAsset", "Add asset", [
@@ -2011,23 +2159,42 @@ const renderProductV1IncidentsSection = (model: ProductV1ConsoleModel): string =
   renderV1RecordsTable("Incident register", model.resources.incidents, ["title", "status", "awarenessTime", "reportingClock"])
 ].join("");
 
-const renderProductV1RiskSection = (model: ProductV1ConsoleModel): string => [
-  renderProductV1Header(model, "Risk and policy", "Risk register and policy lifecycle", `${model.resources.risks.length} risks`),
-  '<section class="ps-grid">',
-  renderSmallV1CreateForm(model, "createRisk", "Add risk", [
-    renderTextarea("statement", "Risk statement", "", "", "ps-field--full"),
-    renderTextInput("inherentScore", "Inherent score", "3", true, "number", "", ['min="1"', 'max="5"']),
-    renderTextInput("residualScore", "Residual score", "2", true, "number", "", ['min="1"', 'max="5"']),
-    renderSelect("treatment", "Treatment", "mitigate", [["mitigate", "Mitigate"], ["accept", "Accept"]], "", true)
-  ]),
-  renderSmallV1CreateForm(model, "createPolicy", "Add policy", [
-    renderTextInput("title", "Policy title", "", true),
-    renderTextInput("reviewDueAt", "Review due", "", false)
-  ]),
-  "</section>",
-  renderV1RecordsTable("Risks", model.resources.risks, ["statement", "state", "treatment", "residualScore"]),
-  renderV1RecordsTable("Policies", model.resources.policies, ["title", "status", "reviewDueAt", "updatedAt"])
-].join("");
+const renderProductV1RiskSection = (model: ProductV1ConsoleModel): string => {
+  const subnav = renderProductV1Subnav(model, "Risk and policy pages", [
+    { hrefTail: "risks", label: "Risks" },
+    { hrefTail: "policies", label: "Policies" }
+  ]);
+
+  if (model.routeTail === "policies") {
+    return [
+      renderProductV1Header(model, "Risk and policy", "Policies", `${model.resources.policies.length} policies`),
+      subnav,
+      '<section class="ps-grid ps-stack-top">',
+      renderSmallV1CreateForm(model, "createPolicy", "Add policy", [
+        renderTextInput("title", "Policy title", "", true),
+        renderTextInput("reviewDueAt", "Review due", "", false)
+      ]),
+      renderProductScoreCard("Policy reviews", String(model.resources.policyReviews.length), "scheduled review checks"),
+      "</section>",
+      renderV1RecordsTable("Policies", model.resources.policies, ["title", "status", "reviewDueAt", "updatedAt"])
+    ].join("");
+  }
+
+  return [
+    renderProductV1Header(model, "Risk and policy", "Risks", `${model.resources.risks.length} risks`),
+    subnav,
+    '<section class="ps-grid ps-stack-top">',
+    renderSmallV1CreateForm(model, "createRisk", "Add risk", [
+      renderTextarea("statement", "Risk statement", "", "", "ps-field--full"),
+      renderTextInput("inherentScore", "Inherent score", "3", true, "number", "", ['min="1"', 'max="5"']),
+      renderTextInput("residualScore", "Residual score", "2", true, "number", "", ['min="1"', 'max="5"']),
+      renderSelect("treatment", "Treatment", "mitigate", [["mitigate", "Mitigate"], ["accept", "Accept"]], "", true)
+    ]),
+    renderProductScoreCard("Policies", String(model.resources.policies.length), "documents available for control mapping"),
+    "</section>",
+    renderV1RecordsTable("Risks", model.resources.risks, ["statement", "state", "treatment", "residualScore"])
+  ].join("");
+};
 
 const renderProductV1GovernanceSection = (model: ProductV1ConsoleModel): string => [
   renderProductV1Header(model, "Governance", "Reviews, attestations, and training", `${model.resources.governanceActivities.length} activities`),
@@ -2082,12 +2249,14 @@ const renderProductV1EvidenceSection = (model: ProductV1ConsoleModel): string =>
 
 const renderProductV1ReportsSection = (model: ProductV1ConsoleModel): string => [
   renderProductV1Header(model, "Reports", "Immutable report snapshots", `${model.resources.reportSnapshots.length} snapshots`),
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "reports"))}" method="post" data-ui-action="create-product-v1-report-snapshot">`,
+  `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="create-product-v1-report-snapshot">`,
   '<input type="hidden" name="_action" value="createReportSnapshot">',
   '<div class="ps-form-grid">',
-  renderSelect("templateKey", "Template", "nis2", reportTemplateOptions(model), "", true),
-  renderSelect("locale", "Locale", "en", [["en", "English"], ["ro", "Romanian"], ["pl", "Polish"], ["de", "German"]], "", true),
-  renderTextInput("sourceReferences", "Source references", "eu-nis2-art-21", false),
+  ...[
+    renderSelect("templateKey", "Template", "nis2", reportTemplateOptions(model), "", true),
+    renderSelect("locale", "Locale", "en", [["en", "English"], ["ro", "Romanian"], ["pl", "Polish"], ["de", "German"]], "", true),
+    renderTextInput("sourceReferences", "Source references", "eu-nis2-art-21", false)
+  ].map((field) => prefixGeneratedFieldIds(field, "createReportSnapshot")),
   "</div>",
   renderCommandButton({ label: "Create snapshot", ariaLabel: "Create report snapshot", tone: "primary", type: "submit" }),
   "</form>",
@@ -2095,24 +2264,35 @@ const renderProductV1ReportsSection = (model: ProductV1ConsoleModel): string => 
   renderV1RecordsTable("Report snapshots", model.resources.reportSnapshots, ["templateKey", "locale", "status", "checksumSha256", "createdAt"])
 ].join("");
 
-const renderProductV1ConnectorsSection = (model: ProductV1ConsoleModel): string => [
-  renderProductV1Header(model, "Connectors", "Provider capabilities and safe operations", `${model.providerCapabilities.length} capabilities`),
-  '<section class="ps-grid">',
-  '<article class="ps-panel"><h2 class="ps-panel__title">Microsoft 365 safety boundary</h2><p class="ps-muted">Read-only sync can be requested when a connection exists. Provider writes stay disabled except zero-blast local records.</p><div class="ps-chip-row">' +
-    renderStatusPill({ label: "read-only", tone: "success" }) +
-    renderStatusPill({ label: "writes gated", tone: "warning" }) +
-    renderStatusPill({ label: "disconnect preserves history", tone: "info" }) +
-    "</div></article>",
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "connectors"))}" method="post" data-ui-action="run-product-v1-microsoft-sync">`,
-  '<input type="hidden" name="_action" value="runMicrosoft365Sync">',
-  '<h2 class="ps-panel__title">Request sync</h2>',
-  renderTextInput("requestedModules", "Modules", "", false),
-  renderCommandButton({ label: "Queue sync", ariaLabel: "Queue Microsoft 365 sync", tone: "primary", type: "submit" }),
-  "</form>",
-  "</section>",
-  renderV1RecordsTable("Provider capabilities", model.providerCapabilities, ["moduleKey", "capabilityKey", "state", "statusReason"]),
-  renderV1RecordsTable("Recent connector events", model.resources.internalEvents.filter((event) => String(event.eventType ?? "").includes("microsoft365")), ["eventType", "outboxStatus", "attempts", "createdAt"])
-].join("");
+const renderProductV1ConnectorsSection = (model: ProductV1ConsoleModel): string => {
+  const subnav = renderProductV1Subnav(model, "Connector pages", [
+    { hrefTail: "connectors", label: "Overview" },
+    { hrefTail: "connectors/microsoft365", label: "Microsoft 365" }
+  ]);
+  const microsoft365Events = model.resources.internalEvents.filter((event) =>
+    String(event.eventType ?? "").includes("microsoft365")
+  );
+
+  return [
+    renderProductV1Header(model, "Connectors", "Microsoft 365 connector", `${model.providerCapabilities.length} capabilities`),
+    subnav,
+    '<section class="ps-grid ps-stack-top">',
+    '<article class="ps-panel"><h2 class="ps-panel__title">Safety boundary</h2><p class="ps-muted">Baseline read-only sync can be requested when a connection exists. Provider writes remain gated until approval, preflight, snapshots, and verification exist.</p><div class="ps-chip-row">' +
+      renderStatusPill({ label: "read-only first", tone: "success" }) +
+      renderStatusPill({ label: "writes gated", tone: "warning" }) +
+      renderStatusPill({ label: "history retained", tone: "info" }) +
+      "</div></article>",
+    `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="run-product-v1-microsoft-sync">`,
+    '<input type="hidden" name="_action" value="runMicrosoft365Sync">',
+    '<h2 class="ps-panel__title">Request sync</h2>',
+    prefixGeneratedFieldIds(renderTextInput("requestedModules", "Modules", "", false), "runMicrosoft365Sync"),
+    renderCommandButton({ label: "Queue sync", ariaLabel: "Queue Microsoft 365 sync", tone: "primary", type: "submit" }),
+    "</form>",
+    "</section>",
+    renderV1RecordsTable("Provider capabilities", model.providerCapabilities, ["moduleKey", "capabilityKey", "state", "statusReason"]),
+    renderV1RecordsTable("Recent connector events", microsoft365Events, ["eventType", "outboxStatus", "attempts", "createdAt"])
+  ].join("");
+};
 
 const renderProductV1NotificationsSection = (model: ProductV1ConsoleModel): string => {
   const notifications = model.resources.notifications;
@@ -2150,25 +2330,27 @@ const renderV1CreateNotificationForm = (model: ProductV1ConsoleModel): string =>
 const renderV1NotificationPreferencesForm = (model: ProductV1ConsoleModel): string => {
   const preferences = model.notificationPreferences;
   return [
-    `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, "notifications"))}" method="post" data-ui-action="update-product-v1-notification-preferences">`,
+    `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="update-product-v1-notification-preferences">`,
     '<input type="hidden" name="_action" value="updateNotificationPreferences">',
     '<h2 class="ps-panel__title">Preferences</h2>',
     '<div class="ps-form-grid">',
-    renderSelect(
-      "digestFrequency",
-      "Digest",
-      String(fieldValue(preferences, "digestFrequency") ?? "off"),
-      [["daily", "Daily"], ["weekly", "Weekly"], ["off", "Off"]],
-      "",
-      true
-    ),
-    renderTextInput(
-      "suppressedCategories",
-      "Suppressed categories",
-      notificationSuppressedCategories(preferences).join(", "),
-      false
-    ),
-    renderTextInput("mutedUntil", "Muted until", String(fieldValue(preferences, "mutedUntil") ?? ""), false),
+    ...[
+      renderSelect(
+        "digestFrequency",
+        "Digest",
+        String(fieldValue(preferences, "digestFrequency") ?? "off"),
+        [["daily", "Daily"], ["weekly", "Weekly"], ["off", "Off"]],
+        "",
+        true
+      ),
+      renderTextInput(
+        "suppressedCategories",
+        "Suppressed categories",
+        notificationSuppressedCategories(preferences).join(", "),
+        false
+      ),
+      renderTextInput("mutedUntil", "Muted until", String(fieldValue(preferences, "mutedUntil") ?? ""), false)
+    ].map((field) => prefixGeneratedFieldIds(field, "updateNotificationPreferences")),
     "</div>",
     renderCommandButton({ label: "Save preferences", ariaLabel: "Save notification preferences", tone: "primary", type: "submit" }),
     "</form>"
@@ -2199,7 +2381,7 @@ const renderV1NotificationTable = (model: ProductV1ConsoleModel): string =>
   );
 
 const renderV1NotificationActions = (model: ProductV1ConsoleModel, notificationId: string, status: string): string => {
-  const actionPath = escapeHtml(productV1SectionHref(model.organization.id, "notifications"));
+  const actionPath = escapeHtml(productV1CurrentHref(model));
   const escapedId = escapeHtml(notificationId);
   return [
     status === "read"
@@ -2236,7 +2418,7 @@ const renderProductV1EventsSection = (model: ProductV1ConsoleModel): string => [
 ].join("");
 
 const renderSmallV1CreateForm = (model: ProductV1ConsoleModel, action: string, title: string, fields: string[]): string => [
-  `<form class="ps-panel ps-form" action="${escapeHtml(productV1SectionHref(model.organization.id, model.section))}" method="post" data-ui-action="${escapeHtml(action)}">`,
+  `<form class="ps-panel ps-form" action="${escapeHtml(productV1CurrentHref(model))}" method="post" data-ui-action="${escapeHtml(action)}">`,
   `<input type="hidden" name="_action" value="${escapeHtml(action)}">`,
   `<h2 class="ps-panel__title">${escapeHtml(title)}</h2>`,
   '<div class="ps-form-grid">',

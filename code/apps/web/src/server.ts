@@ -406,6 +406,7 @@ const productV1SectionByAppTail = new Map<string, ProductV1ConsoleSection>([
   ["overview", "overview"],
   ["dashboard", "overview"],
   ["setup", "setup"],
+  ["setup/microsoft365", "setup"],
   ["services", "business"],
   ["people", "business"],
   ["systems", "business"],
@@ -431,6 +432,7 @@ const productV1SectionByAppTail = new Map<string, ProductV1ConsoleSection>([
 
 interface ProductV1AppOrganizationRoute {
   organizationId: string;
+  routeTail: string;
   section: ProductV1ConsoleSection;
 }
 
@@ -458,10 +460,12 @@ const productV1AppOrganizationRoute = (pathname: string): ProductV1AppOrganizati
   if (!match) {
     return null;
   }
-  const tail = match[2] ?? "";
+  const tail = (match[2] ?? "").replace(/^\/+|\/+$/g, "");
+  const section = productV1SectionByAppTail.get(tail) ?? "overview";
   return {
     organizationId: decodeURIComponent(match[1] ?? ""),
-    section: productV1SectionByAppTail.get(tail) ?? "overview"
+    routeTail: productV1CanonicalRouteTail(tail, section),
+    section
   };
 };
 
@@ -503,6 +507,23 @@ const productV1SectionPath = (section: ProductV1ConsoleSection): string =>
     notifications: "notifications",
     events: "audit"
   })[section];
+
+const productV1RouteTailAliases = new Map<string, string>([
+  ["", "overview"],
+  ["dashboard", "overview"],
+  ["findings", "security/findings"],
+  ["risk", "risks"],
+  ["events", "audit"]
+]);
+
+const productV1CanonicalRouteTail = (routeTail: string, section: ProductV1ConsoleSection): string => {
+  const normalized = routeTail.replace(/^\/+|\/+$/g, "");
+  const alias = productV1RouteTailAliases.get(normalized);
+  if (alias) {
+    return alias;
+  }
+  return productV1SectionByAppTail.has(normalized) ? normalized : productV1SectionPath(section);
+};
 
 const onboardingScreenFromPath = (pathname: string): string | undefined => {
   if (pathname === "/onboarding") {
@@ -644,6 +665,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         apiBaseUrl,
         cookie: request.headers.cookie,
         organizationId: productV1AppRoute.organizationId,
+        routeTail: productV1AppRoute.routeTail,
         section: productV1AppRoute.section
       });
 
@@ -680,9 +702,9 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       response.statusCode = 303;
       response.setHeader(
         "location",
-        `/app/o/${encodeURIComponent(productV1AppRoute.organizationId)}/${productV1SectionPath(
-          productV1AppRoute.section
-        )}?message=${encodeURIComponent(result.message)}`
+        `/app/o/${encodeURIComponent(productV1AppRoute.organizationId)}/${productV1AppRoute.routeTail}?message=${encodeURIComponent(
+          result.message
+        )}`
       );
       response.end();
       return;
@@ -711,6 +733,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         apiBaseUrl,
         cookie: request.headers.cookie,
         organizationId: activeOrganizationId,
+        routeTail: productV1SetupRoute.step ? `setup/${productV1SetupRoute.step}` : "setup",
         section: "setup"
       });
 
@@ -3186,6 +3209,7 @@ const loadProductV1ConsoleModel = async (input: {
   apiBaseUrl: string;
   cookie?: string;
   organizationId: string;
+  routeTail: string;
   section: ProductV1ConsoleSection;
 }): Promise<ProductV1ConsoleModel | null> => {
   const session = await apiJson<ProductV1MeWebResponse>(input.apiBaseUrl, "/api/v1/me", {
@@ -3236,6 +3260,7 @@ const loadProductV1ConsoleModel = async (input: {
       providerCapabilities: [],
       reportTemplates: [],
       resources: emptyProductV1Resources(),
+      routeTail: productV1CanonicalRouteTail(input.routeTail, input.section),
       section: input.section,
       session: {
         user: session.body.user,
@@ -3344,6 +3369,7 @@ const loadProductV1ConsoleModel = async (input: {
       tasks,
       trainingRecords
     },
+    routeTail: productV1CanonicalRouteTail(input.routeTail, input.section),
     section: input.section,
     session: {
       user: session.body.user,

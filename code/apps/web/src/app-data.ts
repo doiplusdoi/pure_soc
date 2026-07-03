@@ -114,6 +114,7 @@ export interface ProductV1ConsoleModel {
     roles: string[];
   };
   session: RuntimeSessionSurface;
+  routeTail: string;
   section: ProductV1ConsoleSection;
   setup: Record<string, unknown> | null;
   countryPacks: Array<Record<string, unknown>>;
