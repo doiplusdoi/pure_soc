@@ -45,6 +45,12 @@ export {
 export { ProviderConnectionsService, type ProviderConnectionView } from "./provider-connections/service";
 export { requireOrganizationRole } from "./rbac/index";
 export {
+  PartnerAccountProvisioningService,
+  type PartnerAccountProvisioningServiceOptions,
+  type ProvisionPartnerAccountInput,
+  type ProvisionPartnerAccountResult
+} from "./operators/partner-account-provisioning";
+export {
   activateRegulatorySourceVersionRoute,
   listRegulatoryReviewTasksRoute,
   markRegulatoryReviewTaskReviewedRoute,

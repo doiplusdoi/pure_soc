@@ -29,6 +29,7 @@ Required live connector environment, managed outside git:
 PURESOC_CONNECTOR_MICROSOFT365_MODE=live
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=<secret-managed>
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=<secret-managed>
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
 PURESOC_PROVIDER_TOKEN_KEY=<secret-managed>
 PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED=false
 PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=false
@@ -54,10 +55,21 @@ Missing permissions, missing licenses, unsupported APIs, throttling, or revoked 
 
 If real email delivery is not configured, use one of these controlled postures:
 
-- Pre-create a controlled demo user and avoid broad public signup.
+- Pre-create a controlled partner-owner account with the operator command below and avoid broad public signup.
 - Restrict the deployed URL at the hosting layer to the meeting participants.
 
 Do not present open self-service registration as a launch-ready public signup posture until the email/invite/abuse controls in the gap register are closed.
+
+Run inside the deployed API container:
+
+```sh
+pnpm operator:provision-partner -- \
+  --email partner@example.com \
+  --display-name "Partner Owner" \
+  --partner-name "Partner Company"
+```
+
+The command prompts for a hidden password and returns no password. It creates a verified local account plus an active partner `owner` membership. See `docs/demo/POWER_USER_DEMO_GUIDE.md` for the full product-logic walkthrough.
 
 ## Preflight Commands
 
@@ -67,6 +79,7 @@ Run from `code/` unless noted.
 npm run lint
 npm test -- partner-tenant-access nis2-onboarding microsoft365 evidence-reports-dashboards-exports product
 npm run compose:config
+pnpm provider-token:smoke
 docker compose config
 docker compose up --build -d
 docker compose ps
@@ -91,8 +104,8 @@ Save sanitized smoke output in a private evidence location outside git.
 ## Manual Demo Flow
 
 1. Open `<PURESOC_DEMO_URL>`.
-2. Sign in with the controlled demo user.
-3. Create or select the Smartlytics partner record in the partner console.
+2. Sign in with the controlled partner account. A partner-only account should land on `/partners`.
+3. Confirm the Smartlytics partner record and owner role in the partner console.
 4. Create or select Contoso as the customer company.
 5. Enter Contoso with a clear reason in the tenant access session prompt.
 6. Complete NIS2 onboarding for Contoso.
@@ -117,5 +130,6 @@ Use "internal readiness", "evidence-backed posture", "read-only Microsoft 365 si
 - The hosting proxy must be verified to forward public host/proto headers so the Microsoft callback URL derives as HTTPS.
 - A controlled demo account or hosting-layer restriction must be in place if email delivery is not configured.
 - A real Microsoft connector client ID/secret, provider token key, and authorized tenant must be supplied privately.
+- A stable `PURESOC_PROVIDER_TOKEN_KEY_ID` must be supplied with the provider-token key; startup intentionally rejects key material without explicit version metadata.
 - The Microsoft live smoke must be selector-ready before running live Graph calls.
 - Product/legal review remains required before using legal copy or country-pack outputs as external compliance guidance.

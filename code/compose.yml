@@ -33,6 +33,7 @@ x-puresoc-microsoft365-connector-environment: &puresoc-microsoft365-connector-en
   PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: https://login.microsoftonline.com
   PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: https://graph.microsoft.com/v1.0
   PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false"
+  PURESOC_PROVIDER_TOKEN_KEY_ID: ${PURESOC_PROVIDER_TOKEN_KEY_ID:-}
   PURESOC_PROVIDER_TOKEN_KEY: ${PURESOC_PROVIDER_TOKEN_KEY:-}
 
 x-puresoc-social-login-environment: &puresoc-social-login-environment
@@ -256,6 +257,7 @@ services:
       PURESOC_APP_ENV: ${PURESOC_APP_ENV:-development}
       PURESOC_WEB_API_BASE_URL: "http://puresoc-api:3001"
       PURESOC_WEB_API_REQUEST_ORIGIN: "http://puresoc-web:3000"
+      PURESOC_WEB_DEFAULT_LOCALE: ${PURESOC_WEB_DEFAULT_LOCALE:-ro-RO}
       PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED: "false"
     ports:
       - "3000:3000"

@@ -547,15 +547,16 @@ describe("loadConfig", () => {
     });
   });
 
-  it("uses the live-current provider token key ID when only active key material is configured", () => {
+  it("requires an explicit provider token key ID when active key material is configured", () => {
     const config = loadConfig({
       env: {
         PURESOC_PROVIDER_TOKEN_KEY: "configured-provider-token-key-with-enough-entropy"
       }
     });
 
-    expect(config.connectors.providerTokenEncryptionKeyId).toBe("live-current");
+    expect(config.connectors.providerTokenEncryptionKeyId).toBe("");
     expect(config.connectors.providerTokenEncryptionKey).toBe("configured-provider-token-key-with-enough-entropy");
+    expect(collectStartupConfigIssues(config).map((issue) => issue.code)).toContain("provider_token_key_id_required");
   });
 
   it("fails explicit Microsoft 365 live mode safely when connector secrets are missing", () => {

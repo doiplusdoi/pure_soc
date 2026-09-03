@@ -29,6 +29,7 @@
     "evidence:smoke:runtime": "jiti scripts/evidence-runtime-smoke.ts",
     "stripe:smoke:test-mode": "jiti scripts/stripe-test-mode-smoke.ts",
     "provider-token:smoke": "jiti scripts/provider-token-rotation-smoke.ts",
+    "operator:provision-partner": "jiti scripts/provision-partner-account.ts",
     "demo:reset": "jiti scripts/seed.ts reset",
     "demo:seed": "jiti scripts/seed.ts seed",
     "demo:verify": "jiti scripts/seed.ts verify",

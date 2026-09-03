@@ -54,7 +54,7 @@ describe("i18n and country-pack notification model contracts", () => {
       requestedLocale: "ro-RO",
       resolvedLocale: "ro",
       reviewStatus: "demo_safe",
-      text: "Pregatire interna"
+      text: "Pregătire internă"
     });
     expect(message.text).not.toMatch(/certificat|legal/i);
   });

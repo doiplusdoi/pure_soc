@@ -47,6 +47,18 @@ import type {
   RuntimeSessionSurface,
   WorkspaceSelectionModel
 } from "./app-data";
+import {
+  localeLabel,
+  productCountryName,
+  productDataText,
+  productNextActionLabel,
+  productOnboardingFieldLabel,
+  productOnboardingOptionLabel,
+  productOnboardingScreenCopy,
+  productStatusText,
+  productText,
+  resolveProductLocale
+} from "./product-localization";
 
 export interface RenderOperationalConsoleOptions {
   includeDocumentShell?: boolean;
@@ -103,6 +115,7 @@ export type ProductMvpRoute =
 
 export interface ProductMvpShellModel {
   actionMessage?: string | null;
+  activeTenantAccess?: ActiveTenantAccessBannerSurface | null;
   activeRoute: ProductMvpRoute;
   customers: Array<Record<string, unknown>>;
   onboarding?: {
@@ -415,6 +428,7 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
     `<div><h1 class="ps-section__title" id="login-title">${escapeHtml(copy.signIn)}</h1><p class="ps-muted">${escapeHtml(
       copy.internalReadinessConsole
     )}</p></div>`,
+    renderLocaleSwitcher(copy.locale),
     renderStatusPill({ label: copy.apiSession, tone: "info" }),
     "</div>",
     '<div class="ps-section__body">',
@@ -431,8 +445,10 @@ export const renderLoginScreen = (options: RenderLoginScreenOptions | string = {
       : "",
     renderCommandButton({ label: copy.signIn, ariaLabel: `${copy.signIn} PureSOC`, tone: "primary", type: "submit" }),
     "</form>",
-    normalized.microsoftEntraEnabled === false ? "" : renderMicrosoftEntraSignInForm("Sign in with Microsoft"),
-    '<p class="ps-muted">Need a local account? <a class="ps-command" href="/register" data-ui-action="open-register">Register</a></p>',
+    normalized.microsoftEntraEnabled === false
+      ? ""
+      : renderMicrosoftEntraSignInForm(copy.locale === "ro" ? "Continuă cu Microsoft" : "Sign in with Microsoft"),
+    `<p class="ps-muted">${escapeHtml(copy.locale === "ro" ? "Aveți nevoie de un cont local?" : "Need a local account?")} <a class="ps-command" href="/register" data-ui-action="open-register">${escapeHtml(copy.locale === "ro" ? "Înregistrare" : "Register")}</a></p>`,
     "</div>",
     "</section>",
     "</main>",
@@ -569,16 +585,17 @@ export const renderProductMvpShell = (
   model: ProductMvpShellModel,
   options: RenderProductMvpShellOptions = {}
 ): string => {
-  const locale = resolvePureSocLocale(options.locale).locale;
+  const locale = resolveProductLocale(options.locale);
   const content = [
     '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
     '<div class="ps-shell ps-shell--product" data-ui-smoke="product-mvp-shell">',
-    renderProductSidebar(model),
+    renderProductSidebar(model, locale),
     '<main class="ps-main" id="content" tabindex="-1">',
-    renderProductTopbar(model),
+    renderProductTopbar(model, locale),
+    renderActiveTenantAccessBanner(model.activeTenantAccess, { locale }),
     '<div class="ps-content ps-content--product">',
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
-    renderProductActivePage(model),
+    renderProductActivePage(model, locale),
     "</div>",
     "</main>",
     "</div>"
@@ -594,7 +611,7 @@ export const renderProductMvpShell = (
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    `<title>${escapeHtml(productRouteTitle(model.activeRoute))} | PureSOC</title>`,
+    `<title>${escapeHtml(productRouteTitle(model.activeRoute, locale))} | PureSOC</title>`,
     `<style>${renderPureSocDesignSystemCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
@@ -625,25 +642,27 @@ const productNavItems: Array<{
   { href: "/settings", group: "Admin", icon: "ST", label: "Settings", route: "settings" }
 ];
 
-const productRouteTitle = (route: ProductMvpRoute): string =>
-  productNavItems.find((item) => item.route === route)?.label ?? "Dashboard";
+const productRouteTitle = (route: ProductMvpRoute, locale?: string | null): string =>
+  productText(locale, productNavItems.find((item) => item.route === route)?.label ?? "Dashboard");
 
-const renderProductSidebar = (model: ProductMvpShellModel): string => {
+const renderProductSidebar = (model: ProductMvpShellModel, locale?: string | null): string => {
   const showCustomers = model.customers.length > 0 || ["customers"].includes(model.activeRoute);
   const navItems = productNavItems.filter((item) => !item.partnerOnly || showCustomers);
   let currentGroup = "";
   return [
-    '<aside class="ps-sidebar" aria-label="Primary navigation">',
+    `<aside class="ps-sidebar" aria-label="${escapeHtml(productText(locale, "Primary navigation"))}">`,
     '<div class="ps-brand">',
     '<span class="ps-brand__mark" aria-hidden="true">PS</span>',
-    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">SMB security readiness</span><br><span class="ps-brand__meta">${escapeHtml(
+    `<div class="ps-brand__identity"><p class="ps-brand__name">PureSOC</p><span class="ps-brand__meta">${escapeHtml(
+      resolveProductLocale(locale) === "ro" ? "Pregătire de securitate pentru IMM-uri" : "SMB security readiness"
+    )}</span><br><span class="ps-brand__meta">${escapeHtml(
       model.dashboard.workspace.countryCode
-    )} workspace</span></div>`,
+    )} ${escapeHtml(resolveProductLocale(locale) === "ro" ? "spațiu de lucru" : "workspace")}</span></div>`,
     "</div>",
     '<nav class="ps-nav">',
     ...navItems.flatMap((item) => {
       const groupMarker =
-        item.group === currentGroup ? [] : [`<span class="ps-nav__group">${escapeHtml(item.group)}</span>`];
+        item.group === currentGroup ? [] : [`<span class="ps-nav__group">${escapeHtml(productText(locale, item.group))}</span>`];
       currentGroup = item.group;
       return [
         ...groupMarker,
@@ -651,24 +670,24 @@ const renderProductSidebar = (model: ProductMvpShellModel): string => {
           item.route === model.activeRoute ? ' aria-current="page"' : ""
         } data-ui-action="open-${escapeHtml(item.route)}"><span class="ps-nav__icon" aria-hidden="true">${escapeHtml(
           item.icon
-        )}</span><span class="ps-nav__label">${escapeHtml(item.label)}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
+        )}</span><span class="ps-nav__label">${escapeHtml(productText(locale, item.label))}</span><span class="ps-nav__chevron" aria-hidden="true">&rsaquo;</span></a>`
       ];
     }),
     "</nav>",
     '<div class="ps-sidebar__footer">',
     `<a class="ps-command ps-command--primary" href="${escapeHtml(model.dashboard.nextAction.href)}" data-ui-action="primary-next-action">${escapeHtml(
-      model.dashboard.nextAction.label
+      productNextActionLabel(locale, model.dashboard.nextAction.label)
     )}</a>`,
-    renderStatusPill({ label: model.dashboard.readiness.label, tone: "accent" }),
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "Pregătire internă PureSOC" : model.dashboard.readiness.label, tone: "accent" }),
     '<form class="ps-inline-form" action="/auth/logout" method="post" data-ui-action="sign-out">',
-    renderCommandButton({ label: "Sign out", ariaLabel: "Sign out of PureSOC", tone: "secondary", type: "submit" }),
+    renderCommandButton({ label: productText(locale, "Sign out"), ariaLabel: productText(locale, "Sign out"), tone: "secondary", type: "submit" }),
     "</form>",
     "</div>",
     "</aside>"
   ].join("");
 };
 
-const renderProductTopbar = (model: ProductMvpShellModel): string => [
+const renderProductTopbar = (model: ProductMvpShellModel, locale?: string | null): string => [
   '<header class="ps-topbar">',
   '<div class="ps-topbar__actions ps-topbar__actions--left">',
   `<a class="ps-command" href="/workspaces" data-ui-action="switch-workspace">${escapeHtml(model.dashboard.workspace.name)}</a>`,
@@ -683,44 +702,48 @@ const renderProductTopbar = (model: ProductMvpShellModel): string => [
   "</div>",
   '<div class="ps-topbar__actions">',
   renderStatusPill({
-    label: model.dashboard.microsoft365.connectionId ? "Microsoft 365 connected" : "Microsoft 365 not connected",
+    label: productText(locale, model.dashboard.microsoft365.connectionId ? "Microsoft 365 connected" : "Microsoft 365 not connected"),
     tone: model.dashboard.microsoft365.connectionId ? "success" : "warning"
   }),
-  renderStatusPill({ label: `${clampPercent(model.dashboard.readiness.score)}% readiness`, tone: "info" }),
+  renderStatusPill({
+    label: `${clampPercent(model.dashboard.readiness.score)}% ${resolveProductLocale(locale) === "ro" ? "pregătire" : "readiness"}`,
+    tone: "info"
+  }),
+  renderLocaleSwitcher(locale),
   `<span class="ps-muted">${escapeHtml(model.session.user.displayName ?? model.session.user.email)}</span>`,
   "</div>",
   "</header>"
 ].join("");
 
-const renderProductActivePage = (model: ProductMvpShellModel): string => {
+const renderProductActivePage = (model: ProductMvpShellModel, locale?: string | null): string => {
   if (model.activeRoute === "onboarding") {
-    return renderProductOnboardingPage(model);
+    return renderProductOnboardingPage(model, locale);
   }
   if (model.activeRoute === "gap_analyzer") {
-    return renderProductGapAnalyzerPage(model);
+    return renderProductGapAnalyzerPage(model, locale);
   }
   if (model.activeRoute === "microsoft365") {
-    return renderProductMicrosoft365Page(model);
+    return renderProductMicrosoft365Page(model, locale);
   }
   if (model.activeRoute === "connectors" || model.activeRoute === "connectors_microsoft365") {
-    return renderProductConnectorsPage(model);
+    return renderProductConnectorsPage(model, locale);
   }
   if (model.activeRoute === "remediation") {
-    return renderProductRemediationPage(model);
+    return renderProductRemediationPage(model, locale);
   }
   if (model.activeRoute === "evidence") {
-    return renderProductEvidencePage(model);
+    return renderProductEvidencePage(model, locale);
   }
   if (model.activeRoute === "reports") {
-    return renderProductReportsPage(model);
+    return renderProductReportsPage(model, locale);
   }
   if (model.activeRoute === "settings") {
-    return renderProductSettingsPage(model);
+    return renderProductSettingsPage(model, locale);
   }
   if (model.activeRoute === "customers") {
-    return renderProductCustomersPage(model);
+    return renderProductCustomersPage(model, locale);
   }
-  return renderProductDashboardPage(model);
+  return renderProductDashboardPage(model, locale);
 };
 
 const renderProductPageHeader = (input: {
@@ -744,27 +767,39 @@ const renderProductPageHeader = (input: {
   "</section>"
 ].join("");
 
-const renderProductDashboardPage = (model: ProductMvpShellModel): string => [
+const renderProductDashboardPage = (model: ProductMvpShellModel, locale?: string | null): string => [
   renderProductPageHeader({
-    eyebrow: "Workspace overview",
-    title: "Dashboard",
-    status: model.dashboard.countryPack.status.replaceAll("_", " "),
-    primaryAction: model.dashboard.nextAction
+    eyebrow: productText(locale, "Workspace overview"),
+    title: productText(locale, "Dashboard"),
+    status: productStatusText(locale, model.dashboard.countryPack.status),
+    primaryAction: { ...model.dashboard.nextAction, label: productNextActionLabel(locale, model.dashboard.nextAction.label) }
   }),
-  '<section class="ps-grid ps-grid--dense" aria-label="Dashboard summary">',
-  renderProductScoreCard("Readiness score", `${clampPercent(model.dashboard.readiness.score)}%`, model.dashboard.readiness.baselineState),
-  renderProductScoreCard("Critical gaps", String(model.dashboard.gaps.critical), `${model.dashboard.gaps.open} open gaps`),
-  renderProductScoreCard("Microsoft 365", model.dashboard.microsoft365.connectionId ? "Connected" : "Not connected", model.dashboard.microsoft365.tenantName),
-  renderProductScoreCard("Remediation", `${model.dashboard.remediation.approvalRequested} waiting`, "Remediation actions require approval"),
+  `<section class="ps-grid ps-grid--dense" aria-label="${escapeHtml(resolveProductLocale(locale) === "ro" ? "Rezumatul spațiului de lucru" : "Dashboard summary")}">`,
+  renderProductScoreCard(productText(locale, "Readiness score"), `${clampPercent(model.dashboard.readiness.score)}%`, productStatusText(locale, model.dashboard.readiness.baselineState)),
+  renderProductScoreCard(
+    productText(locale, "Critical gaps"),
+    String(model.dashboard.gaps.critical),
+    resolveProductLocale(locale) === "ro" ? `${model.dashboard.gaps.open} deficiențe deschise` : `${model.dashboard.gaps.open} open gaps`
+  ),
+  renderProductScoreCard(
+    "Microsoft 365",
+    productText(locale, model.dashboard.microsoft365.connectionId ? "Connected" : "Not connected"),
+    model.dashboard.microsoft365.tenantName
+  ),
+  renderProductScoreCard(
+    productText(locale, "Remediation"),
+    resolveProductLocale(locale) === "ro" ? `${model.dashboard.remediation.approvalRequested} în așteptare` : `${model.dashboard.remediation.approvalRequested} waiting`,
+    resolveProductLocale(locale) === "ro" ? "Acțiunile de remediere necesită aprobare" : "Remediation actions require approval"
+  ),
   "</section>",
   '<section class="ps-grid ps-stack-top">',
-  renderProductNextActionCard(model),
-  renderProductReadinessAreas(model),
+  renderProductNextActionCard(model, locale),
+  renderProductReadinessAreas(model, locale),
   "</section>",
   '<section class="ps-grid ps-stack-top">',
-  renderProductGapList(model.dashboard.gaps.recent),
-  renderProductEvidenceList(model.dashboard.evidence),
-  renderProductReportCards(model.dashboard.reports),
+  renderProductGapList(model.dashboard.gaps.recent, locale),
+  renderProductEvidenceList(model.dashboard.evidence, locale),
+  renderProductReportCards(model.dashboard.reports, locale),
   "</section>",
   renderLegalCaveat(model.dashboard.legalCaveat)
 ].join("");
@@ -774,20 +809,26 @@ const renderProductScoreCard = (label: string, value: string, detail: string): s
     value
   )}</p><p class="ps-muted">${escapeHtml(detail)}</p></article>`;
 
-const renderProductNextActionCard = (model: ProductMvpShellModel): string => [
+const renderProductNextActionCard = (model: ProductMvpShellModel, locale?: string | null): string => [
   '<article class="ps-panel" aria-labelledby="next-action-title">',
   '<div class="ps-section__header ps-section__header--flat">',
-  `<div><h2 class="ps-panel__title" id="next-action-title">Recommended next action</h2><p class="ps-muted">One step moves this workspace forward.</p></div>`,
-  renderStatusPill({ label: "guided", tone: "accent" }),
+  `<div><h2 class="ps-panel__title" id="next-action-title">${escapeHtml(productText(locale, "Recommended next action"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Un singur pas duce spațiul de lucru înainte." : "One step moves this workspace forward.")}</p></div>`,
+  renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "ghidat" : "guided", tone: "accent" }),
   "</div>",
-  `<p>${escapeHtml(nextActionCopy(model.dashboard.nextAction.label))}</p>`,
+  `<p>${escapeHtml(nextActionCopy(model.dashboard.nextAction.label, locale))}</p>`,
   `<p><a class="ps-command ps-command--primary" href="${escapeHtml(model.dashboard.nextAction.href)}">${escapeHtml(
-    model.dashboard.nextAction.label
+    productNextActionLabel(locale, model.dashboard.nextAction.label)
   )}</a></p>`,
   "</article>"
 ].join("");
 
-const nextActionCopy = (label: string): string => {
+const nextActionCopy = (label: string, locale?: string | null): string => {
+  if (resolveProductLocale(locale) === "ro") {
+    if (label.includes("onboarding")) return "Completați mai întâi contextul companiei. Acesta devine baza evaluării și a rapoartelor.";
+    if (label.includes("gap")) return "Rulați analiza folosind răspunsurile salvate. Microsoft 365 poate crește ulterior nivelul de încredere.";
+    if (label.includes("Microsoft")) return "Adăugați date Microsoft 365 în mod doar-citire pentru a verifica identitatea, dispozitivele și emailul.";
+    return "Revizuiți planul de remediere și atribuiți acțiunile cu cel mai ridicat risc.";
+  }
   if (label.includes("onboarding")) {
     return "Capture company context first. This creates the business baseline for readiness and reports.";
   }
@@ -800,18 +841,18 @@ const nextActionCopy = (label: string): string => {
   return "Review the remediation plan and assign the highest-risk actions.";
 };
 
-const renderProductReadinessAreas = (model: ProductMvpShellModel): string => {
+const renderProductReadinessAreas = (model: ProductMvpShellModel, locale?: string | null): string => {
   const areas = [
-    ["Business profile", model.dashboard.readiness.baselineState === "ready" ? "Ready" : "Draft"],
-    ["Country pack", `${model.dashboard.countryPack.selected} ${model.dashboard.countryPack.status.replaceAll("_", " ")}`],
-    ["Microsoft 365", model.dashboard.microsoft365.connectionId ? "Verified signals available" : "Manual baseline only"],
-    ["Evidence", `${model.dashboard.evidence.length} recent items`]
+    [productText(locale, "Business profile"), productStatusText(locale, model.dashboard.readiness.baselineState)],
+    [productText(locale, "Country pack"), `${model.dashboard.countryPack.selected} ${productStatusText(locale, model.dashboard.countryPack.status)}`],
+    ["Microsoft 365", productText(locale, model.dashboard.microsoft365.connectionId ? "Verified signals available" : "Manual baseline only")],
+    [productText(locale, "Evidence"), resolveProductLocale(locale) === "ro" ? `${model.dashboard.evidence.length} elemente recente` : `${model.dashboard.evidence.length} recent items`]
   ];
   return [
     '<article class="ps-panel" aria-labelledby="readiness-areas-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="readiness-areas-title">Readiness areas</h2><p class="ps-muted">Draft reports are allowed before every signal is connected.</p></div>',
-    renderStatusPill({ label: "business baseline", tone: "info" }),
+    `<div><h2 class="ps-panel__title" id="readiness-areas-title">${escapeHtml(productText(locale, "Readiness areas"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Rapoartele preliminare pot fi generate înainte de conectarea tuturor semnalelor." : "Draft reports are allowed before every signal is connected.")}</p></div>`,
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "context de afaceri" : "business baseline", tone: "info" }),
     "</div>",
     '<div class="ps-grid ps-grid--dense">',
     ...areas.map(([label, status]) => renderProductScoreCard(label, status, "")),
@@ -820,7 +861,7 @@ const renderProductReadinessAreas = (model: ProductMvpShellModel): string => {
   ].join("");
 };
 
-const renderProductOnboardingPage = (model: ProductMvpShellModel): string => {
+const renderProductOnboardingPage = (model: ProductMvpShellModel, locale?: string | null): string => {
   const schema = productOnboardingSchema(model);
   const screens = productOnboardingScreens(schema);
   const fields = productOnboardingFields(schema);
@@ -835,23 +876,30 @@ const renderProductOnboardingPage = (model: ProductMvpShellModel): string => {
 
   return [
     renderProductPageHeader({
-      eyebrow: "Readiness input",
-      title: "Onboarding",
-      status: countryPack.sourceReviewStatus.replaceAll("_", " ")
+      eyebrow: productText(locale, "Readiness input"),
+      title: productText(locale, "Onboarding"),
+      status: productStatusText(locale, countryPack.sourceReviewStatus)
     }),
     '<section class="ps-layout-with-aside">',
     '<aside class="ps-panel ps-panel--quiet" aria-labelledby="onboarding-progress-title">',
-    '<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title" id="onboarding-progress-title">Progress</h2><p class="ps-muted">Save each screen in small chunks.</p></div></div>',
+    `<div class="ps-section__header ps-section__header--flat"><div><h2 class="ps-panel__title" id="onboarding-progress-title">${escapeHtml(productText(locale, "Progress"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Salvați fiecare etapă pe măsură ce o completați." : "Save each screen in small chunks.")}</p></div></div>`,
     '<ol class="ps-step-list">',
     ...screens.map((screen, index) => {
       const isSelected = screen.key === selectedScreen?.key;
       const screenMissing = productMissingForScreen(screen, fields, missing);
       const complete = completedScreens.includes(screen.key) && screenMissing.length === 0;
+      const localizedScreen = productOnboardingScreenCopy(locale, screen);
       return `<li${isSelected ? ' aria-current="step"' : ""}><span class="ps-step-list__number">${index + 1}</span><div><strong><a href="${escapeHtml(
         screen.routePath
       )}?country=${escapeHtml(model.onboarding?.countryCode ?? model.dashboard.countryPack.selected)}">${escapeHtml(
-        screen.title
-      )}</a></strong><span>${escapeHtml(complete ? "Complete" : screenMissing.length > 0 ? `${screenMissing.length} required` : "Ready to save")}</span></div></li>`;
+        localizedScreen.title
+      )}</a></strong><span>${escapeHtml(
+        complete
+          ? productText(locale, "Complete")
+          : screenMissing.length > 0
+            ? resolveProductLocale(locale) === "ro" ? `${screenMissing.length} câmpuri obligatorii` : `${screenMissing.length} required`
+            : resolveProductLocale(locale) === "ro" ? "Pregătit pentru salvare" : "Ready to save"
+      )}</span></div></li>`;
     }),
     "</ol>",
     "</aside>",
@@ -860,26 +908,29 @@ const renderProductOnboardingPage = (model: ProductMvpShellModel): string => {
     `<input type="hidden" name="nextScreen" value="${escapeHtml(nextScreen)}">`,
     ...completedScreens.map((screen) => `<input type="hidden" name="completedScreens" value="${escapeHtml(screen)}">`),
     '<div class="ps-section__header ps-section__header--flat">',
-    `<div><h2 class="ps-panel__title">${escapeHtml(selectedScreen?.title ?? "Onboarding")}</h2><p class="ps-muted">${escapeHtml(
-      selectedScreen?.summary ?? "Capture readiness inputs."
+    `<div><h2 class="ps-panel__title">${escapeHtml(productOnboardingScreenCopy(locale, selectedScreen ?? { key: "company", title: "Onboarding", summary: "Capture readiness inputs." }).title)}</h2><p class="ps-muted">${escapeHtml(
+      productOnboardingScreenCopy(locale, selectedScreen ?? { key: "company", title: "Onboarding", summary: "Capture readiness inputs." }).summary
     )}</p></div>`,
-    renderStatusPill({ label: countryPack.safeSourceSummary, tone: countryPack.sourceReviewStatus === "active" ? "success" : "warning" }),
+    renderStatusPill({
+      label: resolveProductLocale(locale) === "ro" ? "Pachet România bazat pe surse, necesită revizuire" : countryPack.safeSourceSummary,
+      tone: countryPack.sourceReviewStatus === "active" ? "success" : "warning"
+    }),
     "</div>",
     '<div class="ps-form-grid">',
-    renderProductOnboardingCountrySelector(model, schema),
+    renderProductOnboardingCountrySelector(model, schema, locale),
     ...(selectedScreen?.key === "company"
-      ? [renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo" })]
+      ? [renderCompanyLogoUpload({ currentLogoDataUrl: model.dashboard.workspace.logoDataUrl, fieldId: "product-onboarding-logo", locale })]
       : []),
-    ...screenFields.map((field) => renderProductOnboardingField(model, field, missing.includes(field.key))),
+    ...screenFields.map((field) => renderProductOnboardingField(model, field, missing.includes(field.key), locale)),
     "</div>",
-    selectedScreen?.key === "review" ? renderProductOnboardingReviewSummary(fields, screens, missing) : "",
+    selectedScreen?.key === "review" ? renderProductOnboardingReviewSummary(fields, screens, missing, locale) : "",
     '<div class="ps-command-row">',
-    renderCommandButton({ label: "Save screen", ariaLabel: "Save onboarding screen", tone: "primary", type: "submit" }),
+    renderCommandButton({ label: productText(locale, "Save screen"), ariaLabel: productText(locale, "Save screen"), tone: "primary", type: "submit" }),
     selectedScreen?.key === "review"
-      ? '<button class="ps-command" type="submit" name="_action" value="complete">Run classification</button><button class="ps-command ps-command--primary" type="submit" name="_action" value="run">Run analyzer</button>'
+      ? `<button class="ps-command" type="submit" name="_action" value="complete">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Rulează încadrarea" : "Run classification")}</button><button class="ps-command ps-command--primary" type="submit" name="_action" value="run">${escapeHtml(productText(locale, "Run analyzer"))}</button>`
       : "",
-    '<a class="ps-command" href="/microsoft365">Providers</a>',
-    '<a class="ps-command" href="/evidence">Evidence</a>',
+    `<a class="ps-command" href="/microsoft365">${escapeHtml(productText(locale, "Providers"))}</a>`,
+    `<a class="ps-command" href="/evidence">${escapeHtml(productText(locale, "Evidence"))}</a>`,
     "</div>",
     "</form>",
     "</section>",
@@ -993,23 +1044,32 @@ const productMissingForScreen = (
   return missing.filter((field) => fieldKeys.has(field));
 };
 
-const renderProductOnboardingCountrySelector = (model: ProductMvpShellModel, schema: Record<string, unknown>): string => {
+const renderProductOnboardingCountrySelector = (
+  model: ProductMvpShellModel,
+  schema: Record<string, unknown>,
+  locale?: string | null
+): string => {
   const available = Array.isArray(schema.availableCountries)
     ? schema.availableCountries
         .filter((country): country is Record<string, unknown> => Boolean(country && typeof country === "object"))
-        .map((country) => [String(country.countryCode ?? ""), String(country.displayName ?? country.countryCode ?? "")] as const)
+        .map((country) => {
+          const countryCode = String(country.countryCode ?? "");
+          return [countryCode, productCountryName(locale, countryCode)] as const;
+        })
     : ([
-        ["RO", "Romania"],
-        ["PL", "Poland"],
-        ["DE", "Germany"]
+        ["RO", productCountryName(locale, "RO")],
+        ["PL", productCountryName(locale, "PL")],
+        ["DE", productCountryName(locale, "DE")]
       ] as Array<readonly [string, string]>);
 
   return renderSelect(
     "company.countryCode",
-    "Country pack",
+    productText(locale, "Country pack"),
     productOnboardingAnswerText(model, "company.countryCode", model.onboarding?.countryCode ?? model.dashboard.countryPack.selected),
-    [["", "Choose country"], ...available],
-    "The selected country controls the national questions and classifier.",
+    [["", productText(locale, "Choose country")], ...available],
+    resolveProductLocale(locale) === "ro"
+      ? "Țara selectată determină întrebările naționale și regulile de încadrare."
+      : "The selected country controls the national questions and classifier.",
     true
   );
 };
@@ -1017,12 +1077,19 @@ const renderProductOnboardingCountrySelector = (model: ProductMvpShellModel, sch
 const renderProductOnboardingField = (
   model: ProductMvpShellModel,
   field: ProductOnboardingFieldSurface,
-  isMissing: boolean
+  isMissing: boolean,
+  locale?: string | null
 ): string => {
   const required = field.requiredPolicy === "required";
-  const help = field.validationHints?.helpText ?? (isMissing ? "Required for analyzer readiness." : "");
+  const help =
+    field.validationHints?.helpText ??
+    (isMissing
+      ? resolveProductLocale(locale) === "ro"
+        ? "Câmp obligatoriu pentru evaluare."
+        : "Required for analyzer readiness."
+      : "");
   const value = productOnboardingAnswerText(model, field.key);
-  const label = field.fallbackLabel;
+  const label = productOnboardingFieldLabel(locale, field.key, field.fallbackLabel);
 
   if (field.type === "textarea") {
     return renderTextarea(field.key, label, value, help, "ps-field--full");
@@ -1032,13 +1099,16 @@ const renderProductOnboardingField = (
       field.key,
       label,
       value,
-      [["", "Choose"], ...(field.options ?? []).map((option) => [option.value, option.label] as const)],
+      [
+        ["", resolveProductLocale(locale) === "ro" ? "Alegeți" : "Choose"],
+        ...(field.options ?? []).map((option) => [option.value, productOnboardingOptionLabel(locale, option.value, option.label)] as const)
+      ],
       help,
       required
     );
   }
   if (field.type === "multi_select") {
-    return renderProductMultiSelect(field, productOnboardingAnswerValues(model, field.key), help, required);
+    return renderProductMultiSelect(field, productOnboardingAnswerValues(model, field.key), help, required, locale);
   }
   if (field.type === "boolean") {
     return renderSelect(
@@ -1046,9 +1116,9 @@ const renderProductOnboardingField = (
       label,
       value,
       [
-        ["", "Choose"],
-        ["true", "Yes"],
-        ["false", "No"]
+        ["", resolveProductLocale(locale) === "ro" ? "Alegeți" : "Choose"],
+        ["true", productOnboardingOptionLabel(locale, "true", "Yes")],
+        ["false", productOnboardingOptionLabel(locale, "false", "No")]
       ],
       help,
       required
@@ -1066,7 +1136,8 @@ const renderProductMultiSelect = (
   field: ProductOnboardingFieldSurface,
   values: readonly string[],
   help: string,
-  required: boolean
+  required: boolean,
+  locale?: string | null
 ): string => {
   const fieldId = escapeHtml(field.key);
   const selected = new Set(values);
@@ -1074,12 +1145,12 @@ const renderProductMultiSelect = (
   const size = Math.min(8, Math.max(4, options.length));
   return [
     `<div class="ps-field ps-field--full" data-wizard-question="${fieldId}"><label for="${fieldId}">${escapeHtml(
-      field.fallbackLabel
+      productOnboardingFieldLabel(locale, field.key, field.fallbackLabel)
     )}</label><select id="${fieldId}" name="${fieldId}" multiple size="${size}"${required ? " required" : ""}>`,
     ...options.map(
       (option) =>
         `<option value="${escapeHtml(option.value)}"${selected.has(option.value) ? " selected" : ""}>${escapeHtml(
-          option.label
+          productOnboardingOptionLabel(locale, option.value, option.label)
         )}</option>`
     ),
     `</select>${help ? `<span class="ps-help">${escapeHtml(help)}</span>` : ""}</div>`
@@ -1089,22 +1160,29 @@ const renderProductMultiSelect = (
 const renderProductOnboardingReviewSummary = (
   fields: readonly ProductOnboardingFieldSurface[],
   screens: readonly ProductOnboardingScreenSurface[],
-  missing: readonly string[]
+  missing: readonly string[],
+  locale?: string | null
 ): string => {
-  const missingLabels = missing.map((fieldKey) => fields.find((field) => field.key === fieldKey)?.fallbackLabel ?? fieldKey);
+  const missingLabels = missing.map((fieldKey) => {
+    const field = fields.find((candidate) => candidate.key === fieldKey);
+    return productOnboardingFieldLabel(locale, fieldKey, field?.fallbackLabel ?? fieldKey);
+  });
   return [
     '<section class="ps-panel ps-panel--quiet ps-stack-top" aria-labelledby="onboarding-review-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h3 class="ps-panel__title" id="onboarding-review-title">Analyzer readiness</h3><p class="ps-muted">The analyzer can run with partial data, but missing required fields remain visible as gaps.</p></div>',
-    renderStatusPill({ label: `${missing.length} required missing`, tone: missing.length > 0 ? "warning" : "success" }),
+    `<div><h3 class="ps-panel__title" id="onboarding-review-title">${escapeHtml(productText(locale, "Analyzer readiness"))}</h3><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Analiza poate rula cu date parțiale, iar câmpurile obligatorii lipsă rămân vizibile ca deficiențe." : "The analyzer can run with partial data, but missing required fields remain visible as gaps.")}</p></div>`,
+    renderStatusPill({
+      label: resolveProductLocale(locale) === "ro" ? `${missing.length} câmpuri obligatorii lipsă` : `${missing.length} required missing`,
+      tone: missing.length > 0 ? "warning" : "success"
+    }),
     "</div>",
     missingLabels.length > 0
       ? `<ul class="ps-list">${missingLabels.slice(0, 12).map((label) => `<li>${escapeHtml(label)}</li>`).join("")}</ul>`
-      : '<p class="ps-muted">Required onboarding fields are complete for the selected country.</p>',
+      : `<p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Câmpurile obligatorii sunt complete pentru țara selectată." : "Required onboarding fields are complete for the selected country.")}</p>`,
     '<div class="ps-chip-row">',
     ...screens.map((screen) =>
       renderStatusPill({
-        label: `${screen.title}: ${productMissingForScreen(screen, fields, missing).length} missing`,
+        label: `${productOnboardingScreenCopy(locale, screen).title}: ${productMissingForScreen(screen, fields, missing).length} ${resolveProductLocale(locale) === "ro" ? "lipsă" : "missing"}`,
         tone: productMissingForScreen(screen, fields, missing).length > 0 ? "warning" : "success"
       })
     ),
@@ -1129,40 +1207,46 @@ const productOnboardingAnswerValues = (model: ProductMvpShellModel, path: string
   return typeof value === "string" && value.length > 0 ? [value] : [];
 };
 
-const renderProductGapAnalyzerPage = (model: ProductMvpShellModel): string => [
+const renderProductGapAnalyzerPage = (model: ProductMvpShellModel, locale?: string | null): string => [
   renderProductPageHeader({
-    eyebrow: "Manual and connector baseline",
-    title: "Gap Analyzer",
-    status: model.dashboard.readiness.baselineState,
-    primaryAction: { href: "#run-gap-analyzer-form", label: "Run analyzer" }
+    eyebrow: productText(locale, "Manual and connector baseline"),
+    title: productText(locale, "Gap Analyzer"),
+    status: productStatusText(locale, model.dashboard.readiness.baselineState),
+    primaryAction: { href: "#run-gap-analyzer-form", label: productText(locale, "Run analyzer") }
   }),
   '<form class="ps-panel ps-form" id="run-gap-analyzer-form" action="/gap-analyzer/run" method="post" data-ui-action="run-gap-analyzer">',
-  '<p class="ps-muted">The analyzer works from onboarding answers and manual security input. Microsoft 365 findings increase confidence when connected.</p>',
-  renderCommandButton({ label: "Run analyzer", ariaLabel: "Run gap analyzer", tone: "primary", type: "submit" }),
+  `<p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Analiza folosește răspunsurile din configurare și declarațiile de securitate. Constatările Microsoft 365 cresc nivelul de încredere după conectare." : "The analyzer works from onboarding answers and manual security input. Microsoft 365 findings increase confidence when connected.")}</p>`,
+  renderCommandButton({ label: productText(locale, "Run analyzer"), ariaLabel: productText(locale, "Run analyzer"), tone: "primary", type: "submit" }),
   "</form>",
-  renderProductGapList(model.details?.gaps ?? model.dashboard.gaps.recent),
-  renderProductRecommendations(model.details?.recommendations ?? model.dashboard.recommendations)
+  renderProductGapList(model.details?.gaps ?? model.dashboard.gaps.recent, locale),
+  renderProductRecommendations(model.details?.recommendations ?? model.dashboard.recommendations, locale)
 ].join("");
 
-const renderProductMicrosoft365Page = (model: ProductMvpShellModel): string => {
+const renderProductMicrosoft365Page = (model: ProductMvpShellModel, locale?: string | null): string => {
   const microsoft365 = productMicrosoft365Health(model);
   const moduleSummary = summarizeMicrosoft365Modules(microsoft365.modules);
   return [
     renderProductPageHeader({
-      eyebrow: "Security posture",
+      eyebrow: productText(locale, "Security posture"),
       title: "Microsoft 365",
-      status: microsoft365.providerConnectionId ? "connected" : "not connected",
-      primaryAction: { href: "/connectors/microsoft365", label: microsoft365.providerConnectionId ? "Manage connection" : "Connect Microsoft 365" }
+      status: productStatusText(locale, microsoft365.providerConnectionId ? "connected" : "not_connected"),
+      primaryAction: { href: "/connectors/microsoft365", label: productText(locale, microsoft365.providerConnectionId ? "Manage connection" : "Connect Microsoft 365") }
     }),
     '<section class="ps-grid">',
-    renderProductScoreCard("Connection", microsoft365.providerConnectionId ? "Connected" : "Not connected", microsoft365.tenantDisplayName),
-    renderProductScoreCard("Last sync", readableMicrosoft365Time(microsoft365.lastSyncAt), "Read-only modules"),
-    renderProductScoreCard("Remediation", "Write gated", microsoft365.writeEnabled ? "Write scope recorded, execution gated" : "Read-only connector"),
+    renderProductScoreCard(productText(locale, "Connection"), productText(locale, microsoft365.providerConnectionId ? "Connected" : "Not connected"), microsoft365.tenantDisplayName),
+    renderProductScoreCard(productText(locale, "Last sync"), readableMicrosoft365Time(microsoft365.lastSyncAt, locale), resolveProductLocale(locale) === "ro" ? "Module doar-citire" : "Read-only modules"),
+    renderProductScoreCard(
+      productText(locale, "Remediation"),
+      productText(locale, "Write gated"),
+      resolveProductLocale(locale) === "ro"
+        ? microsoft365.writeEnabled ? "Permisiunea este înregistrată, execuția rămâne blocată" : "Conector doar-citire"
+        : microsoft365.writeEnabled ? "Write scope recorded, execution gated" : "Read-only connector"
+    ),
     "</section>",
-    renderProductMicrosoft365TenantIntelligence(microsoft365, moduleSummary),
-    renderProductMicrosoft365ModuleTable(microsoft365),
-    renderProductFindingTable(model.details?.findings ?? []),
-    '<p class="ps-stack-top"><a class="ps-command" href="/connectors/microsoft365">Open connector settings</a></p>'
+    renderProductMicrosoft365TenantIntelligence(microsoft365, moduleSummary, locale),
+    renderProductMicrosoft365ModuleTable(microsoft365, locale),
+    renderProductFindingTable(model.details?.findings ?? [], locale),
+    `<p class="ps-stack-top"><a class="ps-command" href="/connectors/microsoft365">${escapeHtml(productText(locale, "Open connector settings"))}</a></p>`
   ].join("");
 };
 
@@ -1181,35 +1265,36 @@ const productMicrosoft365Health = (model: ProductMvpShellModel): Microsoft365Hea
 
 const renderProductMicrosoft365TenantIntelligence = (
   microsoft365: Microsoft365HealthSurface,
-  moduleSummary: Microsoft365ModuleSummary
+  moduleSummary: Microsoft365ModuleSummary,
+  locale?: string | null
 ): string => [
-  '<section class="ps-grid ps-stack-top" aria-label="Microsoft 365 tenant intelligence">',
+  `<section class="ps-grid ps-stack-top" aria-label="${escapeHtml(productText(locale, "Tenant intelligence"))}">`,
   '<article class="ps-panel">',
   '<div class="ps-section__header ps-section__header--flat">',
-  '<div><h2 class="ps-panel__title">Tenant intelligence</h2><p class="ps-muted">Organization-owned Microsoft tenant metadata from the provider connection and latest module health.</p></div>',
-  renderStatusPill({ label: microsoft365.status.replaceAll("_", " "), tone: toneForStatus(microsoft365.status) }),
+  `<div><h2 class="ps-panel__title">${escapeHtml(productText(locale, "Tenant intelligence"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Metadate Microsoft deținute de client, preluate din conexiune și din ultima stare a modulelor." : "Organization-owned Microsoft tenant metadata from the provider connection and latest module health.")}</p></div>`,
+  renderStatusPill({ label: productStatusText(locale, microsoft365.status), tone: toneForStatus(microsoft365.status) }),
   "</div>",
   '<dl class="ps-kv-grid">',
-  renderKeyValue("Tenant", microsoft365.tenantDisplayName),
-  renderKeyValue("Tenant ID", microsoft365.tenantId),
-  renderKeyValue("Connector mode", microsoft365.connectorMode),
-  renderKeyValue("Permission scope", microsoft365.permissionBundles.join(", ")),
+  renderKeyValue(productText(locale, "Tenant"), microsoft365.tenantDisplayName),
+  renderKeyValue(productText(locale, "Tenant ID"), microsoft365.tenantId),
+  renderKeyValue(productText(locale, "Connector mode"), microsoft365.connectorMode),
+  renderKeyValue(resolveProductLocale(locale) === "ro" ? "Permisiuni acordate" : "Permission scope", microsoft365.permissionBundles.join(", ")),
   "</dl>",
   "</article>",
   '<article class="ps-panel">',
-  '<h2 class="ps-panel__title">Module coverage</h2>',
+  `<h2 class="ps-panel__title">${escapeHtml(productText(locale, "Module coverage"))}</h2>`,
   `<p class="ps-metric">${escapeHtml(moduleCoverageText(moduleSummary))}</p>`,
-  '<p class="ps-muted">Read modules ready. Missing permissions, licenses, and unsupported endpoints stay visible as module health.</p>',
+  `<p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Modulele citite cu succes sunt vizibile. Permisiunile sau licențele lipsă rămân explicite în starea fiecărui modul." : "Read modules ready. Missing permissions, licenses, and unsupported endpoints stay visible as module health.")}</p>`,
   '<div class="ps-chip-row">',
-  renderStatusPill({ label: `${moduleSummary.attention} attention`, tone: moduleSummary.attention > 0 ? "warning" : "neutral" }),
-  renderStatusPill({ label: `${moduleSummary.blocked} blocked`, tone: moduleSummary.blocked > 0 ? "danger" : "neutral" }),
+  renderStatusPill({ label: `${moduleSummary.attention} ${resolveProductLocale(locale) === "ro" ? "necesită atenție" : "attention"}`, tone: moduleSummary.attention > 0 ? "warning" : "neutral" }),
+  renderStatusPill({ label: `${moduleSummary.blocked} ${resolveProductLocale(locale) === "ro" ? "blocate" : "blocked"}`, tone: moduleSummary.blocked > 0 ? "danger" : "neutral" }),
   "</div>",
   "</article>",
-  renderProductMicrosoft365DataProtectionPanel(microsoft365),
+  renderProductMicrosoft365DataProtectionPanel(microsoft365, locale),
   "</section>"
 ].join("");
 
-const renderProductMicrosoft365DataProtectionPanel = (microsoft365: Microsoft365HealthSurface): string => {
+const renderProductMicrosoft365DataProtectionPanel = (microsoft365: Microsoft365HealthSurface, locale?: string | null): string => {
   const dataProtectionModules = ["purview-posture", "exchange-posture", "sharepoint-posture", "teams-posture"];
   const modules = dataProtectionModules
     .map((moduleKey) => microsoft365.modules.find((module) => module.moduleKey === moduleKey))
@@ -1219,32 +1304,36 @@ const renderProductMicrosoft365DataProtectionPanel = (microsoft365: Microsoft365
 
   return [
     '<article class="ps-panel">',
-    '<h2 class="ps-panel__title">Purview and data protection</h2>',
+    `<h2 class="ps-panel__title">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Purview și protecția datelor" : "Purview and data protection")}</h2>`,
     primary
-      ? renderStatusPill({ label: primary.status.replaceAll("_", " "), tone: toneForStatus(primary.status) })
-      : renderStatusPill({ label: microsoft365.providerConnectionId ? "not synced" : "not connected", tone: "warning" }),
+      ? renderStatusPill({ label: productStatusText(locale, primary.status), tone: toneForStatus(primary.status) })
+      : renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? microsoft365.providerConnectionId ? "nesincronizat" : "neconectat" : microsoft365.providerConnectionId ? "not synced" : "not connected", tone: "warning" }),
     `<p class="ps-muted">${escapeHtml(
       primary?.coverage ??
-        (microsoft365.providerConnectionId
+        (resolveProductLocale(locale) === "ro"
+          ? microsoft365.providerConnectionId
+            ? "Nu există încă un rezultat stocat pentru Purview, DLP, retenție, etichete de confidențialitate, Exchange, SharePoint și Teams."
+            : "Conectați Microsoft 365 pentru a colecta postura Purview și a instrumentelor de colaborare."
+          : microsoft365.providerConnectionId
           ? "Purview, DLP, retention, sensitivity labels, Exchange, SharePoint, and Teams posture have no stored module result yet."
           : "Connect Microsoft 365 before PureSOC can record Purview or collaboration posture.")
     )}</p>`,
     '<div class="ps-chip-row">',
-    renderSourceChip({ label: "Source", detail: primary?.sourceQuery ?? "provider_sync_modules:purview-posture,deferred" }),
-    renderStatusPill({ label: "read-only", tone: "info" }),
+    renderSourceChip({ label: productText(locale, "Source"), detail: primary?.sourceQuery ?? "provider_sync_modules:purview-posture,deferred" }),
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "doar-citire" : "read-only", tone: "info" }),
     "</div>",
     "</article>"
   ].join("");
 };
 
-const renderProductMicrosoft365ModuleTable = (microsoft365: Microsoft365HealthSurface): string =>
+const renderProductMicrosoft365ModuleTable = (microsoft365: Microsoft365HealthSurface, locale?: string | null): string =>
   renderDataTable<Microsoft365ModuleSurface>(
-    "Microsoft 365 tenant modules",
+    resolveProductLocale(locale) === "ro" ? "Modulele organizației Microsoft 365" : "Microsoft 365 tenant modules",
     [
-      { header: "Module", render: (module) => `<strong>${escapeHtml(module.label)}</strong><br><span class="ps-muted">${escapeHtml(module.moduleKey)}</span>` },
-      { header: "Status", render: (module) => renderStatusPill({ label: module.status.replaceAll("_", " "), tone: toneForStatus(module.status) }) },
-      { header: "Signal", render: (module) => escapeHtml(module.coverage) },
-      { header: "Last sync", render: (module) => escapeHtml(module.lastSyncAt ? readableMicrosoft365Time(module.lastSyncAt) : "pending") }
+      { header: productText(locale, "Module"), render: (module) => `<strong>${escapeHtml(module.label)}</strong><br><span class="ps-muted">${escapeHtml(module.moduleKey)}</span>` },
+      { header: productText(locale, "Status"), render: (module) => renderStatusPill({ label: productStatusText(locale, module.status), tone: toneForStatus(module.status) }) },
+      { header: productText(locale, "Signal"), render: (module) => escapeHtml(module.coverage) },
+      { header: productText(locale, "Last sync"), render: (module) => escapeHtml(module.lastSyncAt ? readableMicrosoft365Time(module.lastSyncAt, locale) : productStatusText(locale, "pending")) }
     ],
     microsoft365.modules
   );
@@ -1270,8 +1359,10 @@ const moduleCoverageText = (summary: Microsoft365ModuleSummary): string =>
 const renderKeyValue = (label: string, value: string): string =>
   `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`;
 
-const readableMicrosoft365Time = (value: string | null | undefined): string =>
-  value && /^\d{4}-\d{2}-\d{2}T/.test(value) ? formatTimestamp(value) : value || "No sync yet";
+const readableMicrosoft365Time = (value: string | null | undefined, locale?: string | null): string =>
+  value && /^\d{4}-\d{2}-\d{2}T/.test(value)
+    ? formatTimestamp(value)
+    : value || (resolveProductLocale(locale) === "ro" ? "Nicio sincronizare" : "No sync yet");
 
 const providerStatusToOperationalStatus = (status: string): OperationalStatus => {
   if (status === "connected" || status === "succeeded") {
@@ -1289,7 +1380,7 @@ const providerStatusToOperationalStatus = (status: string): OperationalStatus =>
   return "attention";
 };
 
-const renderProductConnectorsPage = (model: ProductMvpShellModel): string => {
+const renderProductConnectorsPage = (model: ProductMvpShellModel, locale?: string | null): string => {
   const connectors =
     model.details?.connectors && model.details.connectors.length > 0
       ? model.details.connectors
@@ -1304,9 +1395,9 @@ const renderProductConnectorsPage = (model: ProductMvpShellModel): string => {
 
   return [
     renderProductPageHeader({
-      eyebrow: "Data sources",
-      title: model.activeRoute === "connectors_microsoft365" ? "Microsoft 365 connector" : "Connectors",
-      status: "read-only first"
+      eyebrow: productText(locale, "Data sources"),
+      title: productText(locale, model.activeRoute === "connectors_microsoft365" ? "Microsoft 365 connector" : "Connectors"),
+      status: resolveProductLocale(locale) === "ro" ? "doar-citire implicit" : "read-only first"
     }),
     '<section class="ps-grid">',
     ...connectors.map((connector) => {
@@ -1316,28 +1407,30 @@ const renderProductConnectorsPage = (model: ProductMvpShellModel): string => {
         '<article class="ps-panel">',
         `<h2 class="ps-panel__title">${escapeHtml(String(connector.name ?? providerKey))}</h2>`,
         renderStatusPill({
-          label: String(connector.status ?? "not connected").replaceAll("_", " "),
+          label: productStatusText(locale, String(connector.status ?? "not_connected")),
           tone: connectorStatusTone(String(connector.status ?? ""))
         }),
-        `<p class="ps-muted">${escapeHtml(isMicrosoft ? "Read-only Microsoft Graph modules for identity, devices, email, and Secure Score." : "Planned data source.")}</p>`,
+        `<p class="ps-muted">${escapeHtml(isMicrosoft
+          ? resolveProductLocale(locale) === "ro" ? "Module Microsoft Graph doar-citire pentru identitate, dispozitive, email și Secure Score." : "Read-only Microsoft Graph modules for identity, devices, email, and Secure Score."
+          : productText(locale, "Planned data source."))}</p>`,
         isMicrosoft
           ? `<form class="ps-form" action="/connectors/microsoft365/connect" method="post" data-ui-action="connect-microsoft365"><input type="hidden" name="providerConnectionId" value="${escapeHtml(String(connector.connectionId ?? ""))}">${renderCommandButton({
-              label: connector.connectionId ? "Reconnect" : "Connect",
-              ariaLabel: "Connect Microsoft 365",
+              label: productText(locale, connector.connectionId ? "Reconnect" : "Connect"),
+              ariaLabel: productText(locale, "Connect Microsoft 365"),
               tone: "primary",
               type: "submit"
             })}</form>`
-          : renderStatusPill({ label: "coming later", tone: "neutral" }),
+          : renderStatusPill({ label: productStatusText(locale, "coming_later"), tone: "neutral" }),
         "</article>"
       ].join("");
     }),
     "</section>",
     model.activeRoute === "connectors_microsoft365"
-      ? '<article class="ps-panel ps-stack-top"><h2 class="ps-panel__title">Permissions</h2><p class="ps-muted">The MVP starts with read permissions only. Remediation actions require preview, approval, audit, and rollback guidance before any execution path.</p><div class="ps-chip-row">' +
-        renderStatusPill({ label: "Baseline read", tone: "info" }) +
-        renderStatusPill({ label: "Security read", tone: "info" }) +
-        renderStatusPill({ label: "Intune read", tone: "info" }) +
-        renderStatusPill({ label: "Write actions require approval", tone: "warning" }) +
+      ? `<article class="ps-panel ps-stack-top"><h2 class="ps-panel__title">${escapeHtml(productText(locale, "Permissions"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Conectorul pornește numai cu permisiuni de citire. Orice remediere necesită previzualizare, aprobare, audit și instrucțiuni de revenire." : "The MVP starts with read permissions only. Remediation actions require preview, approval, audit, and rollback guidance before any execution path.")}</p><div class="ps-chip-row">` +
+        renderStatusPill({ label: productText(locale, "Baseline read"), tone: "info" }) +
+        renderStatusPill({ label: productText(locale, "Security read"), tone: "info" }) +
+        renderStatusPill({ label: productText(locale, "Intune read"), tone: "info" }) +
+        renderStatusPill({ label: productText(locale, "Write actions require approval"), tone: "warning" }) +
         "</div></article>"
       : ""
   ].join("");
@@ -1354,7 +1447,7 @@ interface ProductRemediationBacklogRow {
   type: "gap" | "recommendation";
 }
 
-const renderProductRemediationPage = (model: ProductMvpShellModel): string => {
+const renderProductRemediationPage = (model: ProductMvpShellModel, locale?: string | null): string => {
   const actions = model.details?.remediationActions ?? [];
   const detailsGaps = model.details?.gaps;
   const detailsRecommendations = model.details?.recommendations;
@@ -1364,54 +1457,61 @@ const renderProductRemediationPage = (model: ProductMvpShellModel): string => {
   const backlog = buildProductRemediationBacklog(gaps, recommendations);
 
   return [
-    renderProductPageHeader({ eyebrow: "Action center", title: "Remediation", status: "approval gated" }),
-    '<section class="ps-grid ps-grid--dense" aria-label="Remediation analysis summary">',
-    renderProductScoreCard("Analyzed gaps", String(model.dashboard.gaps.open), `${model.dashboard.gaps.critical} critical`),
-    renderProductScoreCard("Recommendations", String(recommendations.length), "from stored readiness analysis"),
-    renderProductScoreCard("Execution boundary", "Gated", "preview, approval, snapshots, verification, evidence"),
+    renderProductPageHeader({
+      eyebrow: productText(locale, "Action center"),
+      title: productText(locale, "Remediation"),
+      status: resolveProductLocale(locale) === "ro" ? "aprobare obligatorie" : "approval gated"
+    }),
+    `<section class="ps-grid ps-grid--dense" aria-label="${escapeHtml(resolveProductLocale(locale) === "ro" ? "Rezumatul remedierii" : "Remediation analysis summary")}">`,
+    renderProductScoreCard(productText(locale, "Analyzed gaps"), String(model.dashboard.gaps.open), `${model.dashboard.gaps.critical} ${productStatusText(locale, "critical")}`),
+    renderProductScoreCard(productText(locale, "Recommendations"), String(recommendations.length), resolveProductLocale(locale) === "ro" ? "din ultima analiză salvată" : "from stored readiness analysis"),
+    renderProductScoreCard(productText(locale, "Execution boundary"), resolveProductLocale(locale) === "ro" ? "Controlată" : "Gated", resolveProductLocale(locale) === "ro" ? "previzualizare, aprobare, capturi, verificare și dovezi" : "preview, approval, snapshots, verification, evidence"),
     "</section>",
-    renderProductRemediationSafetyPanel({ actionsCount: actions.length, backlogCount: backlog.length }),
-    renderProductRemediationBacklog(backlog),
+    renderProductRemediationSafetyPanel({ actionsCount: actions.length, backlogCount: backlog.length }, locale),
+    renderProductRemediationBacklog(backlog, locale),
     renderDataTable<Record<string, unknown>>(
-      "Approval action runs",
+      productText(locale, "Approval action runs"),
       [
         {
-          header: "Action",
+          header: resolveProductLocale(locale) === "ro" ? "Acțiune" : "Action",
           render: (row) =>
             `<strong>${escapeHtml(String(row.title ?? "Action"))}</strong><br><span class="ps-muted">${escapeHtml(
               String(row.expectedChange ?? "")
             )}</span>`
         },
         {
-          header: "Risk",
+          header: productText(locale, "Risk"),
           render: (row) =>
             renderStatusPill({
-              label: String(row.risk ?? "medium"),
+              label: productStatusText(locale, String(row.risk ?? "medium")),
               tone: toneForSeverity(String(row.risk ?? "medium") as ActionableSeverity)
             })
         },
         {
-          header: "Approval",
+          header: resolveProductLocale(locale) === "ro" ? "Aprobare" : "Approval",
           render: (row) =>
-            renderStatusPill({ label: String(row.approvalState ?? "not requested").replaceAll("_", " "), tone: "info" })
+            renderStatusPill({ label: productStatusText(locale, String(row.approvalState ?? "not_requested")), tone: "info" })
         },
-        { header: "Execution", render: (row) => escapeHtml(String(row.executionState ?? "draft").replaceAll("_", " ")) }
+        { header: productText(locale, "Execution"), render: (row) => escapeHtml(productStatusText(locale, String(row.executionState ?? "draft"))) }
       ],
       actions
     )
   ].join("");
 };
 
-const renderProductRemediationSafetyPanel = (input: { actionsCount: number; backlogCount: number }): string => [
+const renderProductRemediationSafetyPanel = (
+  input: { actionsCount: number; backlogCount: number },
+  locale?: string | null
+): string => [
   '<section class="ps-panel ps-stack-top" aria-labelledby="remediation-safety-title">',
   '<div class="ps-section__header ps-section__header--flat">',
-  '<div><h2 class="ps-panel__title" id="remediation-safety-title">Remediation focus from analyzed gaps</h2><p class="ps-muted">Use this queue to assign owners and collect evidence before any provider-impacting action is considered.</p></div>',
-  renderStatusPill({ label: "provider writes gated", tone: "warning" }),
+  `<div><h2 class="ps-panel__title" id="remediation-safety-title">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Priorități de remediere din analiza curentă" : "Remediation focus from analyzed gaps")}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Folosiți această listă pentru a atribui responsabili și a colecta dovezi înaintea oricărei acțiuni care afectează furnizorii." : "Use this queue to assign owners and collect evidence before any provider-impacting action is considered.")}</p></div>`,
+  renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "scrierile la furnizor sunt blocate" : "provider writes gated", tone: "warning" }),
   "</div>",
   '<div class="ps-grid ps-grid--dense">',
-  renderProductRemediationFact("Backlog", `${input.backlogCount} gap-based items`, "From the latest analyzer output and recommendation snapshot."),
-  renderProductRemediationFact("Approval queue", `${input.actionsCount} action runs`, "Only created action runs can move through preview and approval."),
-  renderProductRemediationFact("Current mode", "Manual or guided", "Execution remains blocked until safety gates and evidence are complete."),
+  renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Listă de lucru" : "Backlog", resolveProductLocale(locale) === "ro" ? `${input.backlogCount} elemente` : `${input.backlogCount} gap-based items`, resolveProductLocale(locale) === "ro" ? "Din ultima analiză și ultimul set de recomandări." : "From the latest analyzer output and recommendation snapshot."),
+  renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Coada de aprobări" : "Approval queue", resolveProductLocale(locale) === "ro" ? `${input.actionsCount} acțiuni` : `${input.actionsCount} action runs`, resolveProductLocale(locale) === "ro" ? "Numai acțiunile create pot trece prin previzualizare și aprobare." : "Only created action runs can move through preview and approval."),
+  renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Mod curent" : "Current mode", resolveProductLocale(locale) === "ro" ? "Manual sau ghidat" : "Manual or guided", resolveProductLocale(locale) === "ro" ? "Execuția rămâne blocată până la finalizarea verificărilor și a dovezilor." : "Execution remains blocked until safety gates and evidence are complete."),
   "</div>",
   "</section>"
 ].join("");
@@ -1421,26 +1521,26 @@ const renderProductRemediationFact = (label: string, value: string, detail: stri
     value
   )}</p><p class="ps-muted">${escapeHtml(detail)}</p></div>`;
 
-const renderProductRemediationBacklog = (backlog: ProductRemediationBacklogRow[]): string => [
+const renderProductRemediationBacklog = (backlog: ProductRemediationBacklogRow[], locale?: string | null): string => [
   renderDataTable<ProductRemediationBacklogRow>(
-    "Gap-derived remediation backlog",
+    resolveProductLocale(locale) === "ro" ? "Remedieri rezultate din analiză" : "Gap-derived remediation backlog",
     [
       {
-        header: "Gap or recommendation",
+        header: productText(locale, "Gap or recommendation"),
         render: (row) =>
           `<strong>${escapeHtml(row.title)}</strong><br><span class="ps-muted">${escapeHtml(row.summary)}</span>`
       },
       {
-        header: "Priority",
+        header: productText(locale, "Priority"),
         render: (row) =>
           renderStatusPill({
-            label: row.severity,
+            label: productStatusText(locale, row.severity),
             tone: toneForSeverity(row.severity as ActionableSeverity)
           })
       },
-      { header: "Recommended next step", render: (row) => escapeHtml(row.recommendedAction) },
+      { header: productText(locale, "Recommended next step"), render: (row) => escapeHtml(row.recommendedAction) },
       {
-        header: "Source",
+        header: productText(locale, "Source"),
         render: (row) =>
           `${renderStatusPill({ label: row.type, tone: row.type === "gap" ? "warning" : "info" })}<br><span class="ps-muted">${escapeHtml(
             `${row.source} - ${row.status}`
@@ -1480,42 +1580,46 @@ const buildProductRemediationBacklog = (
   return [...gapRows, ...recommendationRows].slice(0, 8);
 };
 
-const renderProductEvidencePage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({ eyebrow: "Evidence library", title: "Evidence", status: `${(model.details?.evidence ?? model.dashboard.evidence).length} items` }),
+const renderProductEvidencePage = (model: ProductMvpShellModel, locale?: string | null): string => [
+  renderProductPageHeader({
+    eyebrow: productText(locale, "Evidence library"),
+    title: productText(locale, "Evidence"),
+    status: resolveProductLocale(locale) === "ro" ? `${(model.details?.evidence ?? model.dashboard.evidence).length} elemente` : `${(model.details?.evidence ?? model.dashboard.evidence).length} items`
+  }),
   '<form class="ps-panel ps-form" action="/evidence" method="post" data-ui-action="attach-evidence">',
   '<div class="ps-form-grid">',
-  renderTextInput("title", "Evidence title", "", true),
-  renderTextInput("controlId", "Control ID", "", false),
-  renderTextarea("content", "Evidence note", "", "Do not paste secrets, passwords, tokens, or private keys.", "ps-field--full"),
+  renderTextInput("title", productText(locale, "Evidence title"), "", true),
+  renderTextInput("controlId", resolveProductLocale(locale) === "ro" ? "ID control" : "Control ID", "", false),
+  renderTextarea("content", productText(locale, "Evidence note"), "", resolveProductLocale(locale) === "ro" ? "Nu introduceți secrete, parole, tokenuri sau chei private." : "Do not paste secrets, passwords, tokens, or private keys.", "ps-field--full"),
   "</div>",
-  renderCommandButton({ label: "Attach evidence", ariaLabel: "Attach evidence", tone: "primary", type: "submit" }),
+  renderCommandButton({ label: productText(locale, "Attach evidence"), ariaLabel: productText(locale, "Attach evidence"), tone: "primary", type: "submit" }),
   "</form>",
-  renderProductEvidenceList(model.details?.evidence ?? model.dashboard.evidence)
+  renderProductEvidenceList(model.details?.evidence ?? model.dashboard.evidence, locale)
 ].join("");
 
-const renderProductReportsPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({ eyebrow: "Reports and exports", title: "Reports", status: "draft reports allowed" }),
+const renderProductReportsPage = (model: ProductMvpShellModel, locale?: string | null): string => [
+  renderProductPageHeader({ eyebrow: productText(locale, "Reports and exports"), title: productText(locale, "Reports"), status: resolveProductLocale(locale) === "ro" ? "rapoarte preliminare disponibile" : "draft reports allowed" }),
   '<section class="ps-grid">',
   renderReportActionCard(
-    "NIS2 readiness summary",
+    resolveProductLocale(locale) === "ro" ? "Rezumatul pregătirii NIS2" : "NIS2 readiness summary",
     "/reports/nis2-summary",
-    "Branded PDF for internal readiness review.",
-    "Create readiness PDF"
+    resolveProductLocale(locale) === "ro" ? "PDF personalizat pentru analiza internă a pregătirii." : "Branded PDF for internal readiness review.",
+    productText(locale, "Create readiness PDF")
   ),
   renderReportActionCard(
-    "Gap report",
+    productText(locale, "Gap report"),
     "/reports/gap-list",
-    "Branded PDF with prioritized gaps and evidence status.",
-    "Create gap PDF"
+    resolveProductLocale(locale) === "ro" ? "PDF personalizat cu deficiențe prioritizate și starea dovezilor." : "Branded PDF with prioritized gaps and evidence status.",
+    productText(locale, "Create gap PDF")
   ),
   renderReportActionCard(
-    "Microsoft 365 posture",
+    productText(locale, "Microsoft 365 posture"),
     "/reports/m365-posture",
-    "Branded PDF after connector sync.",
-    "Create posture PDF"
+    resolveProductLocale(locale) === "ro" ? "PDF personalizat după sincronizarea conectorului." : "Branded PDF after connector sync.",
+    productText(locale, "Create posture PDF")
   ),
   "</section>",
-  renderProductReportCards(model.details?.reports ?? model.dashboard.reports)
+  renderProductReportCards(model.details?.reports ?? model.dashboard.reports, locale)
 ].join("");
 
 const renderReportActionCard = (title: string, action: string, summary: string, actionLabel: string): string => [
@@ -1528,19 +1632,19 @@ const renderReportActionCard = (title: string, action: string, summary: string, 
   "</article>"
 ].join("");
 
-const renderCompanyLogoUpload = (input: { currentLogoDataUrl?: string | null; fieldId: string }): string => {
+const renderCompanyLogoUpload = (input: { currentLogoDataUrl?: string | null; fieldId: string; locale?: string | null }): string => {
   const currentLogo = input.currentLogoDataUrl ?? "";
   const fileInputId = `${input.fieldId}-file`;
   const hiddenInputId = `${input.fieldId}-data`;
   return [
     '<div class="ps-field ps-field--logo ps-field--full" data-logo-upload>',
-    `<label for="${escapeHtml(fileInputId)}">Company logo</label>`,
+    `<label for="${escapeHtml(fileInputId)}">${escapeHtml(resolveProductLocale(input.locale) === "ro" ? "Sigla companiei" : "Company logo")}</label>`,
     currentLogo
-      ? `<img class="ps-logo-preview" src="${escapeHtml(currentLogo)}" alt="Current company logo" data-logo-preview>`
-      : '<span class="ps-logo-preview ps-logo-preview--empty" data-logo-preview>No logo</span>',
+      ? `<img class="ps-logo-preview" src="${escapeHtml(currentLogo)}" alt="${escapeHtml(resolveProductLocale(input.locale) === "ro" ? "Sigla actuală a companiei" : "Current company logo")}" data-logo-preview>`
+      : `<span class="ps-logo-preview ps-logo-preview--empty" data-logo-preview>${escapeHtml(resolveProductLocale(input.locale) === "ro" ? "Fără siglă" : "No logo")}</span>`,
     `<input id="${escapeHtml(fileInputId)}" type="file" accept="image/png,image/jpeg,image/webp" data-logo-file-input>`,
     `<input id="${escapeHtml(hiddenInputId)}" type="hidden" name="logoDataUrl" value="${escapeHtml(currentLogo)}" data-logo-data-url>`,
-    '<span class="ps-help">PNG, JPEG, or WebP under 34 KB. Used on generated PDF reports.</span>',
+    `<span class="ps-help">${escapeHtml(resolveProductLocale(input.locale) === "ro" ? "PNG, JPEG sau WebP sub 34 KB. Sigla este folosită în rapoartele PDF." : "PNG, JPEG, or WebP under 34 KB. Used on generated PDF reports.")}</span>`,
     "</div>"
   ].join("");
 };
@@ -1589,96 +1693,96 @@ const renderCompanyLogoUploadScript = (): string => `
 })();
 </script>`;
 
-const renderProductSettingsPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({ eyebrow: "Workspace settings", title: "Settings", status: model.dashboard.workspace.billingStatus }),
+const renderProductSettingsPage = (model: ProductMvpShellModel, locale?: string | null): string => [
+  renderProductPageHeader({ eyebrow: productText(locale, "Workspace settings"), title: productText(locale, "Settings"), status: productStatusText(locale, model.dashboard.workspace.billingStatus) }),
   '<section class="ps-grid">',
-  renderProductScoreCard("Workspace", model.dashboard.workspace.name, model.dashboard.workspace.countryCode),
-  renderProductScoreCard("Country pack", model.dashboard.countryPack.selected, model.dashboard.countryPack.status.replaceAll("_", " ")),
-  renderProductScoreCard("Users and roles", "Invite teammates", "Owner and admin managed"),
-  renderProductScoreCard("Notifications", "Channels", "Critical gaps and deadlines"),
+  renderProductScoreCard(productText(locale, "Workspace"), model.dashboard.workspace.name, model.dashboard.workspace.countryCode),
+  renderProductScoreCard(productText(locale, "Country pack"), model.dashboard.countryPack.selected, productStatusText(locale, model.dashboard.countryPack.status)),
+  renderProductScoreCard(productText(locale, "Users and roles"), productText(locale, "Invite teammates"), productText(locale, "Owner and admin managed")),
+  renderProductScoreCard(productText(locale, "Notifications"), productText(locale, "Channels"), resolveProductLocale(locale) === "ro" ? "Deficiențe critice și termene" : "Critical gaps and deadlines"),
   "</section>",
-  '<p class="ps-stack-top"><a class="ps-command" href="/workspaces">Switch workspace</a> <a class="ps-command" href="/invitations">Invite users</a> <a class="ps-command" href="/settings/notifications">Notification channels</a></p>'
+  `<p class="ps-stack-top"><a class="ps-command" href="/workspaces">${escapeHtml(productText(locale, "Switch workspace"))}</a> <a class="ps-command" href="/invitations">${escapeHtml(productText(locale, "Invite users"))}</a> <a class="ps-command" href="/settings/notifications">${escapeHtml(productText(locale, "Notification channels"))}</a></p>`
 ].join("");
 
-const renderProductCustomersPage = (model: ProductMvpShellModel): string => [
-  renderProductPageHeader({ eyebrow: "Partner portfolio", title: "Customers", status: `${model.customers.length} customers` }),
+const renderProductCustomersPage = (model: ProductMvpShellModel, locale?: string | null): string => [
+  renderProductPageHeader({ eyebrow: productText(locale, "Partner portfolio"), title: productText(locale, "Customers"), status: resolveProductLocale(locale) === "ro" ? `${model.customers.length} clienți` : `${model.customers.length} customers` }),
   '<form class="ps-panel ps-form" action="/customers" method="post" data-ui-action="create-customer">',
   '<div class="ps-form-grid">',
-  renderTextInput("name", "Customer name", "", true),
-  renderTextInput("legalName", "Legal name", "", false),
-  renderSelect("countryCode", "Country", "RO", [["RO", "Romania"], ["PL", "Poland"], ["DE", "Germany"]], "", true),
+  renderTextInput("name", productText(locale, "Customer name"), "", true),
+  renderTextInput("legalName", productText(locale, "Legal name"), "", false),
+  renderSelect("countryCode", productText(locale, "Country"), "RO", [["RO", productCountryName(locale, "RO")], ["PL", productCountryName(locale, "PL")], ["DE", productCountryName(locale, "DE")]], "", true),
   "</div>",
-  renderCommandButton({ label: "Add customer", ariaLabel: "Add customer workspace", tone: "primary", type: "submit" }),
+  renderCommandButton({ label: productText(locale, "Add customer"), ariaLabel: productText(locale, "Add customer workspace"), tone: "primary", type: "submit" }),
   "</form>",
   renderDataTable<Record<string, unknown>>(
-    "Customers",
+    productText(locale, "Customers"),
     [
-      { header: "Company", render: (row) => escapeHtml(String(row.name ?? "Customer")) },
-      { header: "Country", render: (row) => escapeHtml(String(row.countryCode ?? "EU")) },
-      { header: "Microsoft", render: (row) => renderStatusPill({ label: String((row.snapshot as Record<string, unknown> | undefined)?.microsoftConnectionState ?? "not connected").replaceAll("_", " "), tone: "info" }) },
-      { header: "Open", render: (row) => `<form class="ps-form ps-form--compact" action="/customers/${escapeHtml(String(row.id ?? ""))}/impersonate" method="post"><input name="reason" placeholder="Reason for review" minlength="8" required>${renderCommandButton({ label: "Open", ariaLabel: "Open customer workspace", tone: "primary", type: "submit" })}</form>` }
+      { header: productText(locale, "Company"), render: (row) => escapeHtml(String(row.name ?? (resolveProductLocale(locale) === "ro" ? "Client" : "Customer"))) },
+      { header: productText(locale, "Country"), render: (row) => escapeHtml(String(row.countryCode ?? "EU")) },
+      { header: "Microsoft", render: (row) => renderStatusPill({ label: productStatusText(locale, String((row.snapshot as Record<string, unknown> | undefined)?.microsoftConnectionState ?? "not_connected")), tone: "info" }) },
+      { header: productText(locale, "Open"), render: (row) => `<form class="ps-form ps-form--compact" action="/customers/${escapeHtml(String(row.id ?? ""))}/impersonate" method="post"><input name="reason" placeholder="${escapeHtml(resolveProductLocale(locale) === "ro" ? "Motivul accesului" : "Reason for review")}" minlength="8" required>${renderCommandButton({ label: productText(locale, "Open"), ariaLabel: productText(locale, "Open customer workspace"), tone: "primary", type: "submit" })}</form>` }
     ],
     model.customers
   )
 ].join("");
 
-const renderProductGapList = (gaps: Array<Record<string, unknown>>): string =>
+const renderProductGapList = (gaps: Array<Record<string, unknown>>, locale?: string | null): string =>
   renderDataTable<Record<string, unknown>>(
-    "Gap list",
+    productText(locale, "Gap list"),
     [
-      { header: "Gap", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Gap"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.businessImpact ?? ""))}</span>` },
-      { header: "Area", render: (row) => escapeHtml(String(row.controlArea ?? "Readiness")) },
-      { header: "Severity", render: (row) => renderStatusPill({ label: String(row.severity ?? "medium"), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
-      { header: "Source", render: (row) => escapeHtml(String(row.source ?? "manual input")) },
-      { header: "Status", render: (row) => escapeHtml(String(row.status ?? "open")) }
+      { header: productText(locale, "Gap"), render: (row) => `<strong>${escapeHtml(String(row.title ?? productText(locale, "Gap")))}</strong><br><span class="ps-muted">${escapeHtml(String(row.businessImpact ?? ""))}</span>` },
+      { header: productText(locale, "Area"), render: (row) => escapeHtml(String(row.controlArea ?? productText(locale, "Readiness"))) },
+      { header: productText(locale, "Severity"), render: (row) => renderStatusPill({ label: productStatusText(locale, String(row.severity ?? "medium")), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
+      { header: productText(locale, "Source"), render: (row) => escapeHtml(String(row.source ?? (resolveProductLocale(locale) === "ro" ? "date introduse manual" : "manual input"))) },
+      { header: productText(locale, "Status"), render: (row) => escapeHtml(productStatusText(locale, String(row.status ?? "open"))) }
     ],
     gaps
   );
 
-const renderProductRecommendations = (recommendations: Array<Record<string, unknown>>): string =>
+const renderProductRecommendations = (recommendations: Array<Record<string, unknown>>, locale?: string | null): string =>
   renderDataTable<Record<string, unknown>>(
-    "Recommendations",
+    productText(locale, "Recommendations"),
     [
-      { header: "Recommendation", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Recommendation"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.summary ?? ""))}</span>` },
-      { header: "Priority", render: (row) => renderStatusPill({ label: String(row.priority ?? "medium"), tone: toneForSeverity(String(row.priority ?? "medium") as ActionableSeverity) }) },
-      { header: "Effort", render: (row) => escapeHtml(String(row.effort ?? "review")) }
+      { header: resolveProductLocale(locale) === "ro" ? "Recomandare" : "Recommendation", render: (row) => `<strong>${escapeHtml(String(row.title ?? (resolveProductLocale(locale) === "ro" ? "Recomandare" : "Recommendation")))}</strong><br><span class="ps-muted">${escapeHtml(String(row.summary ?? ""))}</span>` },
+      { header: productText(locale, "Priority"), render: (row) => renderStatusPill({ label: productStatusText(locale, String(row.priority ?? "medium")), tone: toneForSeverity(String(row.priority ?? "medium") as ActionableSeverity) }) },
+      { header: resolveProductLocale(locale) === "ro" ? "Efort" : "Effort", render: (row) => escapeHtml(productStatusText(locale, String(row.effort ?? "review"))) }
     ],
     recommendations
   );
 
-const renderProductEvidenceList = (items: Array<Record<string, unknown>>): string =>
+const renderProductEvidenceList = (items: Array<Record<string, unknown>>, locale?: string | null): string =>
   renderDataTable<Record<string, unknown>>(
-    "Evidence",
+    productText(locale, "Evidence"),
     [
-      { header: "Evidence", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Evidence"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.sourceType ?? "manual"))}</span>` },
-      { header: "Control", render: (row) => escapeHtml(String(row.controlId ?? "Not mapped")) },
-      { header: "Scan", render: (row) => renderStatusPill({ label: String(row.scanStatus ?? "stored").replaceAll("_", " "), tone: "info" }) },
-      { header: "Created", render: (row) => escapeHtml(row.createdAt ? formatTimestamp(String(row.createdAt)) : "") }
+      { header: productText(locale, "Evidence"), render: (row) => `<strong>${escapeHtml(String(row.title ?? productText(locale, "Evidence")))}</strong><br><span class="ps-muted">${escapeHtml(String(row.sourceType ?? (resolveProductLocale(locale) === "ro" ? "manual" : "manual")))}</span>` },
+      { header: productText(locale, "Control"), render: (row) => escapeHtml(String(row.controlId ?? productText(locale, "Not mapped"))) },
+      { header: productText(locale, "Scan"), render: (row) => renderStatusPill({ label: productStatusText(locale, String(row.scanStatus ?? "stored")), tone: "info" }) },
+      { header: productText(locale, "Created"), render: (row) => escapeHtml(row.createdAt ? formatTimestamp(String(row.createdAt)) : "") }
     ],
     items
   );
 
-const renderProductReportCards = (reports: Array<Record<string, unknown>>): string => [
-  '<section class="ps-grid ps-stack-top" aria-label="Generated reports">',
-  reports.length === 0 ? '<article class="ps-panel"><h2 class="ps-panel__title">No reports yet</h2><p class="ps-muted">Create a branded PDF report after running the gap analyzer.</p></article>' : "",
+const renderProductReportCards = (reports: Array<Record<string, unknown>>, locale?: string | null): string => [
+  `<section class="ps-grid ps-stack-top" aria-label="${escapeHtml(productText(locale, "Generated reports"))}">`,
+  reports.length === 0 ? `<article class="ps-panel"><h2 class="ps-panel__title">${escapeHtml(productText(locale, "No reports yet"))}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Generați un raport PDF după rularea analizei de deficiențe." : "Create a branded PDF report after running the gap analyzer.")}</p></article>` : "",
   ...reports.map((report) => [
     '<article class="ps-panel">',
-    `<h2 class="ps-panel__title">${escapeHtml(String(report.title ?? "Report"))}</h2>`,
-    renderStatusPill({ label: String(report.status ?? "ready"), tone: "success" }),
+    `<h2 class="ps-panel__title">${escapeHtml(String(report.title ?? productText(locale, "Report")))}</h2>`,
+    renderStatusPill({ label: productStatusText(locale, String(report.status ?? "ready")), tone: "success" }),
     `<p class="ps-muted">${escapeHtml(String(report.format ?? "export"))}</p>`,
-    report.downloadHref ? `<p><a class="ps-command" href="${escapeHtml(String(report.downloadHref))}">Download PDF</a></p>` : "",
+    report.downloadHref ? `<p><a class="ps-command" href="${escapeHtml(String(report.downloadHref))}">${escapeHtml(productText(locale, "Download PDF"))}</a></p>` : "",
     "</article>"
   ].join("")),
   "</section>"
 ].join("");
 
-const renderProductFindingTable = (findings: Array<Record<string, unknown>>): string =>
+const renderProductFindingTable = (findings: Array<Record<string, unknown>>, locale?: string | null): string =>
   renderDataTable<Record<string, unknown>>(
-    "Microsoft 365 findings",
+    productText(locale, "Microsoft 365 findings"),
     [
-      { header: "Finding", render: (row) => `<strong>${escapeHtml(String(row.title ?? "Finding"))}</strong><br><span class="ps-muted">${escapeHtml(String(row.resourceDisplayName ?? ""))}</span>` },
-      { header: "Severity", render: (row) => renderStatusPill({ label: String(row.severity ?? "medium"), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
-      { header: "Status", render: (row) => escapeHtml(String(row.status ?? "open")) }
+      { header: productText(locale, "Finding"), render: (row) => `<strong>${escapeHtml(String(row.title ?? productText(locale, "Finding")))}</strong><br><span class="ps-muted">${escapeHtml(String(row.resourceDisplayName ?? ""))}</span>` },
+      { header: productText(locale, "Severity"), render: (row) => renderStatusPill({ label: productStatusText(locale, String(row.severity ?? "medium")), tone: toneForSeverity(String(row.severity ?? "medium") as ActionableSeverity) }) },
+      { header: productText(locale, "Status"), render: (row) => escapeHtml(productStatusText(locale, String(row.status ?? "open"))) }
     ],
     findings
   );
@@ -2753,30 +2857,35 @@ export const renderPartnerConsoleScreen = (
   options: RenderPartnerConsoleOptions = {}
 ): string => {
   const copy = resolveOperationalConsoleCopy(options.locale);
+  const locale = copy.locale;
   const activePartner = activePartnerForConsole(model);
   const role = activePartner?.membership.role ?? "no partner role";
   const canCreateCustomer = Boolean(activePartner && ["owner", "admin"].includes(activePartner.membership.role));
   const content = [
-    '<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">Skip to content</a>',
-    renderActiveTenantAccessBanner(model.activeTenantAccess, options),
+    `<a class="ps-skip-link" href="#content" data-ui-action="skip-to-content">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Sari la conținut" : "Skip to content")}</a>`,
+    renderActiveTenantAccessBanner(model.activeTenantAccess, { ...options, locale }),
     '<main class="ps-content" id="content" tabindex="-1" data-ui-smoke="partner-console">',
     '<section class="ps-section" aria-labelledby="partner-console-title">',
     '<div class="ps-section__header">',
-    `<div><h1 class="ps-section__title" id="partner-console-title">Partner portfolio</h1><p class="ps-muted">${escapeHtml(
-      model.session.user.displayName ?? "Signed-in partner user"
+    `<div><p class="ps-route-hero__eyebrow">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Centrul de operare al partenerului" : "Partner operations center")}</p><h1 class="ps-section__title" id="partner-console-title">${escapeHtml(productText(locale, "Partner portfolio"))}</h1><p class="ps-muted">${escapeHtml(
+      model.session.user.displayName ?? (resolveProductLocale(locale) === "ro" ? "Utilizator partener autentificat" : "Signed-in partner user")
     )}</p></div>`,
-    renderStatusPill({ label: role, tone: canCreateCustomer ? "success" : activePartner ? "info" : "warning" }),
+    renderLocaleSwitcher(locale),
+    renderStatusPill({
+      label: productStatusText(locale, role),
+      tone: canCreateCustomer ? "success" : activePartner ? "info" : "warning"
+    }),
     "</div>",
     '<div class="ps-section__body">',
     model.errorMessage ? `<p class="ps-legal-caveat" role="alert">${escapeHtml(model.errorMessage)}</p>` : "",
     model.actionMessage ? `<p class="ps-legal-caveat" role="status">${escapeHtml(model.actionMessage)}</p>` : "",
     '<div class="ps-command-row">',
-    '<a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a>',
-    '<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">Switch workspace</a>',
+    `<a class="ps-command" href="/" data-ui-action="back-to-dashboard">${escapeHtml(productText(locale, "Back to dashboard"))}</a>`,
+    `<a class="ps-command" href="/workspaces" data-ui-action="open-workspace-selector">${escapeHtml(productText(locale, "Switch workspace"))}</a>`,
     "</div>",
     model.partners.length === 0
-      ? renderPartnerCreateOnlyPanel()
-      : renderPartnerPortfolioContent(model, canCreateCustomer, options),
+      ? renderPartnerCreateOnlyPanel(locale)
+      : renderPartnerPortfolioContent(model, canCreateCustomer, { ...options, locale }),
     "</div>",
     "</section>",
     "</main>"
@@ -2792,7 +2901,7 @@ export const renderPartnerConsoleScreen = (
     "<head>",
     '<meta charset="utf-8">',
     '<meta name="viewport" content="width=device-width, initial-scale=1">',
-    "<title>Partner portfolio | PureSOC</title>",
+    `<title>${escapeHtml(productText(locale, "Partner portfolio"))} | PureSOC</title>`,
     `<style>${renderPureSocDesignSystemCss()}${renderPartnerConsoleCss()}</style>`,
     "</head>",
     '<body class="ps-body">',
@@ -3286,7 +3395,7 @@ export const renderWorkspaceSelectionScreen = (
     renderCommandButton({ label: "Create workspace", ariaLabel: "Create local workspace", tone: "primary", type: "submit" }),
     "</form>",
     "</article>",
-    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a></p>',
+    '<p class="ps-stack-top"><a class="ps-command" href="/" data-ui-action="back-to-dashboard">Back to dashboard</a> <a class="ps-command" href="/partners" data-ui-action="open-partner-portfolio">Open partner portfolio</a></p>',
     "</div>",
     "</section>",
     "</main>"
@@ -4927,6 +5036,18 @@ const partnerActionBase = (partnerId: string, options: RenderPartnerConsoleOptio
     ? `/app/partner/${partnerRouteSegment(partnerId)}`
     : `/partners/${partnerRouteSegment(partnerId)}`;
 
+const renderLocaleSwitcher = (locale?: string | null): string => {
+  const selected = resolveProductLocale(locale);
+  return [
+    '<nav class="ps-locale-switcher" aria-label="Language">',
+    '<span class="ps-locale-switcher__label">RO / EN</span>',
+    `<a href="/locale/ro"${selected === "ro" ? ' aria-current="page"' : ""} data-ui-action="switch-locale-ro">RO</a>`,
+    `<a href="/locale/en"${selected === "en" ? ' aria-current="page"' : ""} data-ui-action="switch-locale-en">EN</a>`,
+    `<span class="ps-sr-only">${escapeHtml(localeLabel(locale))}</span>`,
+    "</nav>"
+  ].join("");
+};
+
 const renderActiveTenantAccessBanner = (
   banner?: ActiveTenantAccessBannerSurface | null,
   options: RenderPartnerConsoleOptions = {}
@@ -4936,38 +5057,49 @@ const renderActiveTenantAccessBanner = (
     return "";
   }
 
+  const isRomanian = resolveProductLocale(options.locale) === "ro";
+
   return [
-    '<aside class="ps-tenant-banner" role="status" aria-label="Active customer session">',
+    `<aside class="ps-tenant-banner" role="status" aria-label="${escapeHtml(isRomanian ? "Sesiune activă la client" : "Active customer session")}">`,
     '<div class="ps-tenant-banner__inner">',
-    `<p><strong>You are accessing ${escapeHtml(banner.customerName)} through ${escapeHtml(
-      banner.partnerName
-    )}.</strong> This is review-only customer access, not impersonation. Actions are logged with your real user and provider writes stay disabled.</p>`,
+    `<p><strong>${escapeHtml(isRomanian ? `Lucrați pentru ${banner.customerName} prin ${banner.partnerName}.` : `You are accessing ${banner.customerName} through ${banner.partnerName}.`)}</strong> ${escapeHtml(isRomanian ? "Accesul este auditat și nu reprezintă impersonare. Acțiunile sunt înregistrate cu utilizatorul real, iar scrierile către furnizori rămân dezactivate." : "This is review-only customer access, not impersonation. Actions are logged with your real user and provider writes stay disabled.")}</p>`,
     '<div class="ps-chip-row ps-chip-row--compact">',
-    renderStatusPill({ label: "customer session active", tone: "warning" }),
-    banner.grantLevel ? renderSourceChip({ label: "Grant", detail: banner.grantLevel }) : "",
-    renderSourceChip({ label: "Reason", detail: session.reason }),
-    renderSourceChip({ label: "Expires", detail: formatTimestamp(session.expiresAt) }),
+    renderStatusPill({ label: isRomanian ? "sesiune client activă" : "customer session active", tone: "warning" }),
+    banner.grantLevel
+      ? renderSourceChip({
+          label: isRomanian ? "Acces" : "Grant",
+          detail: productStatusText(options.locale, banner.grantLevel)
+        })
+      : "",
+    renderSourceChip({ label: isRomanian ? "Motiv" : "Reason", detail: session.reason }),
+    renderSourceChip({ label: isRomanian ? "Expiră" : "Expires", detail: formatTimestamp(session.expiresAt) }),
     "</div>",
+    '<nav class="ps-tenant-banner__nav" aria-label="Customer workspace">',
+    `<a href="/dashboard">${escapeHtml(productText(options.locale, "Dashboard"))}</a>`,
+    `<a href="/onboarding">${escapeHtml(productText(options.locale, "Onboarding"))}</a>`,
+    '<a href="/microsoft365">Microsoft 365</a>',
+    `<a href="/reports">${escapeHtml(productText(options.locale, "Reports"))}</a>`,
+    "</nav>",
     `<form class="ps-inline-form" action="${partnerActionBase(banner.partnerId, options)}/tenant-sessions/${escapeHtml(
       session.id
     )}/exit" method="post" data-ui-action="exit-customer-tenant">`,
-    renderCommandButton({ label: "Exit customer", ariaLabel: "Exit customer session", tone: "danger", type: "submit" }),
+    renderCommandButton({ label: isRomanian ? "Închide clientul" : "Exit customer", ariaLabel: isRomanian ? "Închide sesiunea clientului" : "Exit customer session", tone: "danger", type: "submit" }),
     "</form>",
     "</div>",
     "</aside>"
   ].join("");
 };
 
-const renderPartnerCreateOnlyPanel = (): string =>
+const renderPartnerCreateOnlyPanel = (locale?: string | null): string =>
   [
     '<div class="ps-grid">',
-    renderPartnerCreatePanel(),
+    renderPartnerCreatePanel(locale),
     '<article class="ps-panel ps-panel--quiet" aria-labelledby="partner-empty-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-empty-title">No partner portfolio yet</h2><p class="ps-muted">Create a partner record to add customer companies through explicit grants.</p></div>',
-    renderStatusPill({ label: "setup required", tone: "warning" }),
+    `<div><h2 class="ps-panel__title" id="partner-empty-title">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Portofoliul nu este configurat" : "No partner portfolio yet")}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Creați partenerul pentru a adăuga clienți prin drepturi de acces explicite." : "Create a partner record to add customer companies through explicit grants.")}</p></div>`,
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "configurare necesară" : "setup required", tone: "warning" }),
     "</div>",
-    "<p>Customer data stays tenant-owned. Creating a partner record does not create Microsoft permissions, billing, or authority submissions.</p>",
+    `<p>${escapeHtml(resolveProductLocale(locale) === "ro" ? "Datele rămân proprietatea clientului. Crearea partenerului nu acordă permisiuni Microsoft, nu activează facturarea și nu transmite date către autorități." : "Customer data stays tenant-owned. Creating a partner record does not create Microsoft permissions, billing, or authority submissions.")}</p>`,
     "</article>",
     "</div>"
   ].join("");
@@ -4979,17 +5111,68 @@ const renderPartnerPortfolioContent = (
 ): string => {
   const activePartner = activePartnerForConsole(model);
   if (!activePartner) {
-    return renderPartnerCreateOnlyPanel();
+    return renderPartnerCreateOnlyPanel(options.locale);
   }
 
   return [
+    renderPartnerCommandCenter(model, activePartner.partner.name, options.locale),
     renderPartnerSelector(model, activePartner.partner.id, options),
     '<div class="ps-grid">',
-    renderPartnerMetrics(model),
+    renderPartnerMetrics(model, options.locale),
     renderPartnerCreateCustomerPanel(activePartner.partner.id, canCreateCustomer, options),
     "</div>",
-    renderPartnerOpportunityTable(model),
+    renderPartnerOpportunityTable(model, options.locale),
     renderPartnerPortfolioTable(model, activePartner.partner.id, options)
+  ].join("");
+};
+
+const renderPartnerCommandCenter = (
+  model: PartnerConsoleModel,
+  partnerName: string,
+  locale?: string | null
+): string => {
+  const isRomanian = resolveProductLocale(locale) === "ro";
+  const unfinishedAssessments = model.portfolio.filter((row) => !row.snapshot?.assessmentCompleted).length;
+  const disconnectedMicrosoft = model.portfolio.filter(
+    (row) => !row.snapshot || row.snapshot.microsoftConnectionState === "disconnected"
+  ).length;
+  const highPriorityGaps = model.metrics?.highPriorityGaps ?? 0;
+  const focusItems = [
+    {
+      count: unfinishedAssessments,
+      label: isRomanian ? "evaluări de finalizat" : "assessments to complete",
+      tone: unfinishedAssessments > 0 ? "warning" : "success"
+    },
+    {
+      count: disconnectedMicrosoft,
+      label: isRomanian ? "clienți fără Microsoft 365" : "customers without Microsoft 365",
+      tone: disconnectedMicrosoft > 0 ? "warning" : "success"
+    },
+    {
+      count: highPriorityGaps,
+      label: isRomanian ? "deficiențe cu prioritate ridicată" : "high-priority gaps",
+      tone: highPriorityGaps > 0 ? "danger" : "success"
+    }
+  ] as const;
+
+  return [
+    '<section class="ps-partner-command-center" aria-labelledby="partner-command-center-title">',
+    '<div class="ps-partner-command-center__intro">',
+    `<p class="ps-route-hero__eyebrow">${escapeHtml(isRomanian ? "Portofoliu în lucru" : "Portfolio in motion")}</p>`,
+    `<h2 id="partner-command-center-title">${escapeHtml(partnerName)}</h2>`,
+    `<p>${escapeHtml(isRomanian ? "Prioritizați clienții care au nevoie de o evaluare, dovezi sau date Microsoft 365. Accesul la fiecare client rămâne explicit și auditat." : "Prioritize customers that need an assessment, evidence, or Microsoft 365 data. Every customer entry remains explicit and audited.")}</p>`,
+    '<div class="ps-command-row">',
+    `<a class="ps-command ps-command--primary" href="#partner-customer-table-title">${escapeHtml(isRomanian ? "Deschide lista de clienți" : "Open customer queue")}</a>`,
+    `<a class="ps-command" href="#partner-opportunities-title">${escapeHtml(isRomanian ? "Vezi oportunitățile" : "Review opportunities")}</a>`,
+    "</div>",
+    "</div>",
+    '<ol class="ps-partner-focus-list" aria-label="Portfolio priorities">',
+    ...focusItems.map(
+      (item, index) =>
+        `<li><span class="ps-partner-focus-list__number">0${index + 1}</span><div><strong>${escapeHtml(String(item.count))}</strong><span>${escapeHtml(item.label)}</span></div>${renderStatusPill({ label: item.count > 0 ? (isRomanian ? "de urmărit" : "follow up") : (isRomanian ? "în regulă" : "clear"), tone: item.tone })}</li>`
+    ),
+    "</ol>",
+    "</section>"
   ].join("");
 };
 
@@ -4998,11 +5181,13 @@ const renderPartnerSelector = (
   activePartnerId: string,
   options: RenderPartnerConsoleOptions = {}
 ): string =>
-  [
+  {
+    const isRomanian = resolveProductLocale(options.locale) === "ro";
+    return [
     '<article class="ps-panel ps-panel--quiet" aria-labelledby="partner-selector-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-selector-title">Partner account</h2><p class="ps-muted">Portfolio actions use partner membership plus an explicit customer grant.</p></div>',
-    renderStatusPill({ label: `${model.partners.length} partner${model.partners.length === 1 ? "" : "s"}`, tone: "info" }),
+    `<div><h2 class="ps-panel__title" id="partner-selector-title">${escapeHtml(isRomanian ? "Cont de partener" : "Partner account")}</h2><p class="ps-muted">${escapeHtml(isRomanian ? "Acțiunile folosesc rolul de partener și dreptul explicit acordat de client." : "Portfolio actions use partner membership plus an explicit customer grant.")}</p></div>`,
+    renderStatusPill({ label: isRomanian ? `${model.partners.length} parteneri` : `${model.partners.length} partner${model.partners.length === 1 ? "" : "s"}`, tone: "info" }),
     "</div>",
     '<div class="ps-chip-row ps-stack-top">',
     ...model.partners.map((entry) => {
@@ -5010,23 +5195,26 @@ const renderPartnerSelector = (
       return `<a class="ps-command${selected ? " ps-command--primary" : ""}" href="${partnerConsoleHref(
         entry.partner.id,
         options
-      )}" data-ui-action="select-partner">${escapeHtml(entry.partner.name)} (${escapeHtml(entry.membership.role)})</a>`;
+      )}" data-ui-action="select-partner">${escapeHtml(entry.partner.name)} (${escapeHtml(
+        productStatusText(options.locale, entry.membership.role)
+      )})</a>`;
     }),
     "</div>",
     "</article>"
-  ].join("");
+    ].join("");
+  };
 
-const renderPartnerCreatePanel = (): string =>
+const renderPartnerCreatePanel = (locale?: string | null): string =>
   [
     '<article class="ps-panel" aria-labelledby="partner-create-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-create-title">Create partner</h2><p class="ps-muted">Use the business name customers recognize in audit records.</p></div>',
-    renderStatusPill({ label: "owner role created", tone: "accent" }),
+    `<div><h2 class="ps-panel__title" id="partner-create-title">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Creează partenerul" : "Create partner")}</h2><p class="ps-muted">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Folosiți numele comercial pe care clienții îl vor recunoaște în istoricul de audit." : "Use the business name customers recognize in audit records.")}</p></div>`,
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "rol de proprietar" : "owner role created", tone: "accent" }),
     "</div>",
     '<form class="ps-form" action="/partners" method="post" data-ui-action="create-partner">',
-    '<div class="ps-field"><label for="partnerName">Partner name</label><input id="partnerName" name="name" type="text" autocomplete="organization" required></div>',
-    '<div class="ps-field"><label for="partnerSlug">Partner slug</label><input id="partnerSlug" name="slug" type="text" autocomplete="off" spellcheck="false"><span class="ps-help">Optional. Leave blank to derive a stable identifier from the name.</span></div>',
-    renderCommandButton({ label: "Create partner", ariaLabel: "Create partner account", tone: "primary", type: "submit" }),
+    `<div class="ps-field"><label for="partnerName">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Numele partenerului" : "Partner name")}</label><input id="partnerName" name="name" type="text" autocomplete="organization" required></div>`,
+    `<div class="ps-field"><label for="partnerSlug">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Identificator URL" : "Partner slug")}</label><input id="partnerSlug" name="slug" type="text" autocomplete="off" spellcheck="false"><span class="ps-help">${escapeHtml(resolveProductLocale(locale) === "ro" ? "Opțional. Dacă rămâne gol, identificatorul este generat din nume." : "Optional. Leave blank to derive a stable identifier from the name.")}</span></div>`,
+    renderCommandButton({ label: resolveProductLocale(locale) === "ro" ? "Creează partenerul" : "Create partner", ariaLabel: resolveProductLocale(locale) === "ro" ? "Creează contul de partener" : "Create partner account", tone: "primary", type: "submit" }),
     "</form>",
     "</article>"
   ].join("");
@@ -5035,26 +5223,27 @@ const renderPartnerCreateCustomerPanel = (
   partnerId: string,
   canCreateCustomer: boolean,
   options: RenderPartnerConsoleOptions = {}
-): string =>
-  [
+): string => {
+  const isRomanian = resolveProductLocale(options.locale) === "ro";
+  return [
     '<article class="ps-panel" aria-labelledby="partner-create-customer-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-create-customer-title">Add customer</h2><p class="ps-muted">Creates a tenant and a partner grant. It does not add workspace membership.</p></div>',
-    renderStatusPill({ label: canCreateCustomer ? "owner or admin" : "viewer is read only", tone: canCreateCustomer ? "success" : "warning" }),
+    `<div><h2 class="ps-panel__title" id="partner-create-customer-title">${escapeHtml(productText(options.locale, "Add customer"))}</h2><p class="ps-muted">${escapeHtml(isRomanian ? "Creează spațiul clientului și dreptul explicit al partenerului. Clientul rămâne separat și nu primește automat utilizatori." : "Creates a tenant and a partner grant. It does not add workspace membership.")}</p></div>`,
+    renderStatusPill({ label: canCreateCustomer ? (isRomanian ? "proprietar sau administrator" : "owner or admin") : (isRomanian ? "doar vizualizare" : "viewer is read only"), tone: canCreateCustomer ? "success" : "warning" }),
     "</div>",
     `<form class="ps-form" action="${partnerActionBase(
       partnerId,
       options
     )}/customers" method="post" data-ui-action="create-partner-customer">`,
     '<div class="ps-form-grid">',
-    `<div class="ps-field"><label for="customerName">Company name</label><input id="customerName" name="name" type="text" autocomplete="organization" required${canCreateCustomer ? "" : " disabled"}></div>`,
-    `<div class="ps-field"><label for="customerLegalName">Legal name</label><input id="customerLegalName" name="legalName" type="text"${canCreateCustomer ? "" : " disabled"}></div>`,
-    `<div class="ps-field"><label for="customerCountry">Country</label><input id="customerCountry" name="primaryCountryCode" type="text" maxlength="2" pattern="[A-Za-z]{2}" value="RO" autocapitalize="characters" spellcheck="false" required${canCreateCustomer ? "" : " disabled"}></div>`,
-    `<div class="ps-field"><label for="customerGrantLevel">Grant level</label><select id="customerGrantLevel" name="grantLevel"${canCreateCustomer ? "" : " disabled"}><option value="admin">Admin</option><option value="analyst">Analyst</option><option value="viewer">Viewer</option></select></div>`,
+    `<div class="ps-field"><label for="customerName">${escapeHtml(productText(options.locale, "Company name"))}</label><input id="customerName" name="name" type="text" autocomplete="organization" required${canCreateCustomer ? "" : " disabled"}></div>`,
+    `<div class="ps-field"><label for="customerLegalName">${escapeHtml(productText(options.locale, "Legal name"))}</label><input id="customerLegalName" name="legalName" type="text"${canCreateCustomer ? "" : " disabled"}></div>`,
+    `<div class="ps-field"><label for="customerCountry">${escapeHtml(productText(options.locale, "Country"))}</label><select id="customerCountry" name="primaryCountryCode" required${canCreateCustomer ? "" : " disabled"}><option value="RO">${escapeHtml(productCountryName(options.locale, "RO"))}</option><option value="PL">${escapeHtml(productCountryName(options.locale, "PL"))}</option><option value="DE">${escapeHtml(productCountryName(options.locale, "DE"))}</option></select></div>`,
+    `<div class="ps-field"><label for="customerGrantLevel">${escapeHtml(isRomanian ? "Nivel de acces" : "Grant level")}</label><select id="customerGrantLevel" name="grantLevel"${canCreateCustomer ? "" : " disabled"}><option value="admin">Admin</option><option value="analyst">Analyst</option><option value="viewer">Viewer</option></select></div>`,
     "</div>",
     renderCommandButton({
-      label: "Add customer",
-      ariaLabel: "Add customer tenant",
+      label: productText(options.locale, "Add customer"),
+      ariaLabel: isRomanian ? "Adaugă spațiul clientului" : "Add customer tenant",
       disabled: !canCreateCustomer,
       tone: canCreateCustomer ? "primary" : "secondary",
       type: "submit"
@@ -5062,8 +5251,10 @@ const renderPartnerCreateCustomerPanel = (
     "</form>",
     "</article>"
   ].join("");
+};
 
-const renderPartnerMetrics = (model: PartnerConsoleModel): string => {
+const renderPartnerMetrics = (model: PartnerConsoleModel, locale?: string | null): string => {
+  const isRomanian = resolveProductLocale(locale) === "ro";
   const activeGrants = model.portfolio.filter((row) => row.grant.status === "active").length;
   const metrics = model.metrics ?? {
     totalCustomerTenants: model.portfolio.length,
@@ -5076,23 +5267,24 @@ const renderPartnerMetrics = (model: PartnerConsoleModel): string => {
   return [
     '<article class="ps-panel" aria-labelledby="partner-portfolio-metrics-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-portfolio-metrics-title">Portfolio state</h2><p class="ps-muted">Assessment, Microsoft, and opportunity signals are derived from tenant-owned snapshots.</p></div>',
-    renderStatusPill({ label: `${metrics.totalCustomerTenants} customers`, tone: metrics.totalCustomerTenants > 0 ? "info" : "warning" }),
+    `<div><h2 class="ps-panel__title" id="partner-portfolio-metrics-title">${escapeHtml(isRomanian ? "Starea portofoliului" : "Portfolio state")}</h2><p class="ps-muted">${escapeHtml(isRomanian ? "Evaluările, semnalele Microsoft și oportunitățile provin din datele fiecărui client." : "Assessment, Microsoft, and opportunity signals are derived from tenant-owned snapshots.")}</p></div>`,
+    renderStatusPill({ label: isRomanian ? `${metrics.totalCustomerTenants} clienți` : `${metrics.totalCustomerTenants} customers`, tone: metrics.totalCustomerTenants > 0 ? "info" : "warning" }),
     "</div>",
     '<div class="ps-grid ps-grid--dense">',
-    renderPartnerFact("Active grants", String(activeGrants)),
-    renderPartnerFact("Assessments done", String(metrics.completedAssessments)),
-    renderPartnerFact("Likely in scope", String(metrics.customersLikelyOrPossiblyInScope)),
-    renderPartnerFact("Microsoft tenants", String(metrics.connectedMicrosoftTenants)),
-    renderPartnerFact("High-priority gaps", String(metrics.highPriorityGaps)),
-    renderPartnerFact("Opportunities", String(metrics.opportunities)),
-    renderPartnerFact("Current customer", model.activeTenantAccess?.customerName ?? "None"),
+    renderPartnerFact(isRomanian ? "Drepturi active" : "Active grants", String(activeGrants)),
+    renderPartnerFact(isRomanian ? "Evaluări finalizate" : "Assessments done", String(metrics.completedAssessments)),
+    renderPartnerFact(isRomanian ? "Posibil în domeniul NIS2" : "Likely in scope", String(metrics.customersLikelyOrPossiblyInScope)),
+    renderPartnerFact(isRomanian ? "Organizații Microsoft" : "Microsoft tenants", String(metrics.connectedMicrosoftTenants)),
+    renderPartnerFact(isRomanian ? "Deficiențe prioritare" : "High-priority gaps", String(metrics.highPriorityGaps)),
+    renderPartnerFact(isRomanian ? "Oportunități" : "Opportunities", String(metrics.opportunities)),
+    renderPartnerFact(productText(locale, "Current customer"), model.activeTenantAccess?.customerName ?? (isRomanian ? "Niciunul" : "None")),
     "</div>",
     "</article>"
   ].join("");
 };
 
-const renderPartnerOpportunityTable = (model: PartnerConsoleModel): string => {
+const renderPartnerOpportunityTable = (model: PartnerConsoleModel, locale?: string | null): string => {
+  const isRomanian = resolveProductLocale(locale) === "ro";
   const opportunities =
     model.opportunities ??
     model.portfolio.flatMap((row) =>
@@ -5106,45 +5298,45 @@ const renderPartnerOpportunityTable = (model: PartnerConsoleModel): string => {
   return [
     '<article class="ps-panel ps-panel--wide ps-stack-top" aria-labelledby="partner-opportunities-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-opportunities-title">Portfolio opportunities</h2><p class="ps-muted">Readiness opportunities only. No pricing, margin, commission, or ordering action is included.</p></div>',
-    renderStatusPill({ label: `${opportunities.length} opportunity${opportunities.length === 1 ? "" : "ies"}`, tone: opportunities.length > 0 ? "accent" : "neutral" }),
+    `<div><h2 class="ps-panel__title" id="partner-opportunities-title">${escapeHtml(isRomanian ? "Oportunități în portofoliu" : "Portfolio opportunities")}</h2><p class="ps-muted">${escapeHtml(isRomanian ? "Oportunități bazate pe nevoile de pregătire. Nu includ prețuri, marje, comisioane sau comenzi." : "Readiness opportunities only. No pricing, margin, commission, or ordering action is included.")}</p></div>`,
+    renderStatusPill({ label: isRomanian ? `${opportunities.length} oportunități` : `${opportunities.length} opportunity${opportunities.length === 1 ? "" : "ies"}`, tone: opportunities.length > 0 ? "accent" : "neutral" }),
     "</div>",
     opportunities.length === 0
-      ? '<div class="ps-empty-state"><p class="ps-muted">No portfolio opportunities have been generated yet.</p></div>'
+      ? `<div class="ps-empty-state"><p class="ps-muted">${escapeHtml(isRomanian ? "Nu au fost identificate încă oportunități în portofoliu." : "No portfolio opportunities have been generated yet.")}</p></div>`
       : renderDataTable(
           "Partner portfolio opportunities",
           [
             {
-              header: "Customer",
-              render: (row) => escapeHtml(row.customerName ?? row.customerId ?? "Unknown customer")
+              header: isRomanian ? "Client" : "Customer",
+              render: (row) => escapeHtml(row.customerName ?? row.customerId ?? (isRomanian ? "Client necunoscut" : "Unknown customer"))
             },
             {
-              header: "Type",
-              render: (row) => escapeHtml(humanizeKey(row.opportunityType))
+              header: isRomanian ? "Tip" : "Type",
+              render: (row) => escapeHtml(productDataText(locale, row.opportunityType))
             },
             {
-              header: "Priority",
-              render: (row) => renderStatusPill({ label: row.priority, tone: toneForPortfolioPriority(row.priority) })
+              header: productText(locale, "Priority"),
+              render: (row) => renderStatusPill({ label: productStatusText(locale, row.priority), tone: toneForPortfolioPriority(row.priority) })
             },
             {
-              header: "Capability or plan",
-              render: (row) => escapeHtml(row.relevantMicrosoftCapabilityOrPlan ?? "Partner service")
+              header: isRomanian ? "Capabilitate sau plan" : "Capability or plan",
+              render: (row) => escapeHtml(row.relevantMicrosoftCapabilityOrPlan ?? (isRomanian ? "Serviciu al partenerului" : "Partner service"))
             },
             {
-              header: "Users",
-              render: (row) => escapeHtml(row.affectedUsers === undefined ? "Unknown" : String(row.affectedUsers))
+              header: isRomanian ? "Utilizatori" : "Users",
+              render: (row) => escapeHtml(row.affectedUsers === undefined ? (isRomanian ? "Necunoscut" : "Unknown") : String(row.affectedUsers))
             },
             {
-              header: "NIS2 areas",
-              render: (row) => escapeHtml(row.nis2Areas.join(", ") || "Not mapped")
+              header: isRomanian ? "Domenii NIS2" : "NIS2 areas",
+              render: (row) => escapeHtml(row.nis2Areas.join(", ") || productText(locale, "Not mapped"))
             },
             {
-              header: "Evidence source",
-              render: (row) => escapeHtml(row.evidenceSource)
+              header: isRomanian ? "Sursa dovezii" : "Evidence source",
+              render: (row) => escapeHtml(productDataText(locale, row.evidenceSource))
             },
             {
-              header: "Next action",
-              render: (row) => escapeHtml(row.nextAction)
+              header: productText(locale, "Next action"),
+              render: (row) => escapeHtml(productDataText(locale, row.nextAction))
             }
           ],
           opportunities
@@ -5157,60 +5349,77 @@ const renderPartnerPortfolioTable = (
   model: PartnerConsoleModel,
   partnerId: string,
   options: RenderPartnerConsoleOptions = {}
-): string =>
-  [
+): string => {
+  const isRomanian = resolveProductLocale(options.locale) === "ro";
+  return [
     '<article class="ps-panel ps-panel--wide ps-stack-top" aria-labelledby="partner-customer-table-title">',
     '<div class="ps-section__header ps-section__header--flat">',
-    '<div><h2 class="ps-panel__title" id="partner-customer-table-title">Customers</h2><p class="ps-muted">Open a customer only after entering a reason. Nested customer sessions are rejected by the API.</p></div>',
-    renderStatusPill({ label: "logged customer sessions", tone: "accent" }),
+    `<div><h2 class="ps-panel__title" id="partner-customer-table-title">${escapeHtml(productText(options.locale, "Customers"))}</h2><p class="ps-muted">${escapeHtml(isRomanian ? "Deschideți clientul numai după introducerea motivului. Nu poate exista mai mult de o sesiune activă." : "Open a customer only after entering a reason. Nested customer sessions are rejected by the API.")}</p></div>`,
+    renderStatusPill({ label: isRomanian ? "sesiuni auditate" : "logged customer sessions", tone: "accent" }),
     "</div>",
     model.portfolio.length === 0
-      ? '<div class="ps-empty-state"><p class="ps-muted">No customer grants exist for this partner.</p></div>'
+      ? `<div class="ps-empty-state"><p class="ps-muted">${escapeHtml(isRomanian ? "Partenerul nu are încă acces la niciun client." : "No customer grants exist for this partner.")}</p></div>`
       : renderDataTable<PartnerPortfolioCustomerSurface>(
-          "Partner customer portfolio",
+          isRomanian ? "Portofoliul de clienți" : "Partner customer portfolio",
           [
             {
-              header: "Company",
+              header: productText(options.locale, "Company"),
               render: (row) => escapeHtml(row.organization?.name ?? row.grant.organizationId)
             },
             {
-              header: "Country",
+              header: productText(options.locale, "Country"),
               render: (row) =>
                 [
                   escapeHtml(row.organization?.primaryCountryCode ?? "EU"),
-                  row.snapshot?.sector ? `<span class="ps-muted">${escapeHtml(row.snapshot.sector)}</span>` : ""
+                  row.snapshot?.sector
+                    ? `<span class="ps-muted">${escapeHtml(productDataText(options.locale, row.snapshot.sector))}</span>`
+                    : ""
                 ].join("<br>")
             },
             {
-              header: "Scope",
-              render: (row) => escapeHtml(row.snapshot?.likelyClassification ?? "Not assessed")
+              header: isRomanian ? "Încadrare" : "Scope",
+              render: (row) =>
+                escapeHtml(
+                  row.snapshot?.likelyClassification
+                    ? productDataText(options.locale, row.snapshot.likelyClassification)
+                    : isRomanian
+                      ? "Neevaluat"
+                      : "Not assessed"
+                )
             },
             {
-              header: "Readiness",
+              header: productText(options.locale, "Readiness"),
               render: (row) =>
                 [
-                  escapeHtml(formatPercent(row.snapshot?.readinessPercent)),
-                  `<span class="ps-muted">Evidence ${escapeHtml(formatPercent(row.snapshot?.evidenceConfidencePercent))}</span>`
+                  escapeHtml(formatPercent(row.snapshot?.readinessPercent, options.locale)),
+                  `<span class="ps-muted">${escapeHtml(isRomanian ? "Dovezi" : "Evidence")} ${escapeHtml(formatPercent(row.snapshot?.evidenceConfidencePercent, options.locale))}</span>`
                 ].join("<br>")
             },
             {
               header: "Microsoft",
               render: (row) =>
                 renderStatusPill({
-                  label: row.snapshot?.microsoftConnectionState ?? "disconnected",
+                  label: productStatusText(options.locale, row.snapshot?.microsoftConnectionState ?? "disconnected"),
                   tone: toneForMicrosoftConnection(row.snapshot?.microsoftConnectionState)
                 })
             },
             {
-              header: "Top opportunity",
-              render: (row) => escapeHtml(row.snapshot?.topRecommendationOrOpportunity ?? "No recommendation yet")
+              header: isRomanian ? "Oportunitate principală" : "Top opportunity",
+              render: (row) =>
+                escapeHtml(
+                  row.snapshot?.topRecommendationOrOpportunity
+                    ? productDataText(options.locale, row.snapshot.topRecommendationOrOpportunity)
+                    : isRomanian
+                      ? "Nicio recomandare încă"
+                      : "No recommendation yet"
+                )
             },
             {
-              header: "Activity",
-              render: (row) => escapeHtml(row.snapshot?.lastAssessmentOrSyncAt ? formatTimestamp(row.snapshot.lastAssessmentOrSyncAt) : "No activity yet")
+              header: isRomanian ? "Activitate" : "Activity",
+              render: (row) => escapeHtml(row.snapshot?.lastAssessmentOrSyncAt ? formatTimestamp(row.snapshot.lastAssessmentOrSyncAt) : productText(options.locale, "No activity yet"))
             },
             {
-              header: "Enter customer",
+              header: isRomanian ? "Lucrează cu clientul" : "Enter customer",
               render: (row) => renderPartnerEnterCustomerForm(partnerId, row, options)
             }
           ],
@@ -5218,6 +5427,7 @@ const renderPartnerPortfolioTable = (
         ),
     "</article>"
   ].join("");
+};
 
 const renderPartnerEnterCustomerForm = (
   partnerId: string,
@@ -5226,17 +5436,18 @@ const renderPartnerEnterCustomerForm = (
 ): string => {
   const disabled = row.grant.status !== "active";
   const customerName = row.organization?.name ?? row.grant.organizationId;
+  const isRomanian = resolveProductLocale(options.locale) === "ro";
   return [
     `<form class="ps-form ps-form--compact" action="${partnerActionBase(
       partnerId,
       options
     )}/tenant-sessions" method="post" data-ui-action="enter-customer-tenant">`,
     `<input type="hidden" name="organizationId" value="${escapeHtml(row.grant.organizationId)}">`,
-    `<label class="ps-sr-only" for="reason-${escapeHtml(row.grant.id)}">Reason for ${escapeHtml(customerName)}</label>`,
-    `<input id="reason-${escapeHtml(row.grant.id)}" name="reason" type="text" minlength="8" placeholder="Reason for review" required${disabled ? " disabled" : ""}>`,
+    `<label class="ps-sr-only" for="reason-${escapeHtml(row.grant.id)}">${escapeHtml(isRomanian ? `Motivul accesului la ${customerName}` : `Reason for ${customerName}`)}</label>`,
+    `<input id="reason-${escapeHtml(row.grant.id)}" name="reason" type="text" minlength="8" placeholder="${escapeHtml(isRomanian ? "Ex: analiză trimestrială" : "Reason for review")}" required${disabled ? " disabled" : ""}>`,
     renderCommandButton({
-      label: "Enter",
-      ariaLabel: `Enter ${customerName}`,
+      label: isRomanian ? "Deschide" : "Enter",
+      ariaLabel: isRomanian ? `Deschide ${customerName}` : `Enter ${customerName}`,
       disabled,
       tone: disabled ? "secondary" : "primary",
       type: "submit"
@@ -5284,7 +5495,8 @@ const toneForMicrosoftConnection = (state: string | undefined): PureSocUiTone =>
   return "neutral";
 };
 
-const formatPercent = (value: number | undefined): string => (typeof value === "number" ? `${value}%` : "Unknown");
+const formatPercent = (value: number | undefined, locale?: string | null): string =>
+  typeof value === "number" ? `${value}%` : resolveProductLocale(locale) === "ro" ? "Necunoscut" : "Unknown";
 
 const humanizeKey = (value: string): string =>
   value
@@ -5294,6 +5506,72 @@ const humanizeKey = (value: string): string =>
     .join(" ");
 
 const renderPartnerConsoleCss = (): string => `
+.ps-partner-command-center {
+  display: grid;
+  grid-template-columns: minmax(20rem, 1.2fr) minmax(24rem, 1fr);
+  gap: 1.25rem;
+  align-items: center;
+  margin-bottom: 1rem;
+  border: 1px solid var(--ps-color-accent);
+  border-radius: var(--ps-radius-md);
+  background: var(--ps-color-accent-soft);
+  padding: 1.35rem;
+}
+
+.ps-partner-command-center__intro h2 {
+  margin: 0.2rem 0 0.45rem;
+  color: var(--ps-color-ink);
+  font-size: 1.55rem;
+}
+
+.ps-partner-command-center__intro > p:not(.ps-route-hero__eyebrow) {
+  max-width: 65ch;
+  margin: 0;
+  color: var(--ps-color-muted);
+}
+
+.ps-partner-focus-list {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ps-partner-focus-list li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  border-bottom: 1px solid var(--ps-color-border);
+  padding: 0.7rem 0;
+}
+
+.ps-partner-focus-list li:last-child {
+  border-bottom: 0;
+}
+
+.ps-partner-focus-list__number {
+  color: var(--ps-color-muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.ps-partner-focus-list li div {
+  display: grid;
+  min-width: 0;
+}
+
+.ps-partner-focus-list li strong {
+  color: var(--ps-color-ink);
+  font-size: 1.1rem;
+}
+
+.ps-partner-focus-list li div span {
+  color: var(--ps-color-muted);
+  font-size: 0.85rem;
+}
+
 .ps-form--compact {
   display: grid;
   grid-template-columns: minmax(12rem, 1fr) auto;
@@ -5310,19 +5588,8 @@ const renderPartnerConsoleCss = (): string => `
   gap: 0.75rem;
 }
 
-.ps-sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-@media (max-width: 720px) {
+@media (max-width: 900px) {
+  .ps-partner-command-center,
   .ps-form--compact,
   .ps-grid--dense {
     grid-template-columns: 1fr;

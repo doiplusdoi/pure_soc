@@ -109,9 +109,11 @@ describe("Docker runtime command shape", () => {
       "PURESOC_APP_ENV",
       "PURESOC_AUTH_COOKIE_SECURE",
       "PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION",
+      "PURESOC_WEB_DEFAULT_LOCALE",
       "PURESOC_CONNECTOR_MICROSOFT365_MODE",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID",
       "PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET",
+      "PURESOC_PROVIDER_TOKEN_KEY_ID",
       "PURESOC_PROVIDER_TOKEN_KEY"
     ];
     const removedInputs = [
@@ -144,6 +146,7 @@ describe("Docker runtime command shape", () => {
     expect(compose).toContain(
       "PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION: ${PURESOC_AUTH_REQUIRE_EMAIL_VERIFICATION:-false}"
     );
+    expect(compose).toContain("PURESOC_WEB_DEFAULT_LOCALE: ${PURESOC_WEB_DEFAULT_LOCALE:-ro-RO}");
     expect(compose).toContain("POSTGRES_DB: puresoc");
     expect(compose).toContain("puresoc-postgres-bootstrap");
     expect(compose).toContain("CREATE DATABASE puresoc OWNER puresoc_admin");

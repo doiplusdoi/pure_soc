@@ -454,14 +454,96 @@ a {
 
 .ps-tenant-banner__inner {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.5fr) auto;
+  grid-template-areas:
+    "copy chips action"
+    "copy navigation action";
   gap: 0.85rem;
   align-items: center;
   padding: 0.75rem 1rem;
 }
 
 .ps-tenant-banner__inner p {
+  grid-area: copy;
   margin: 0;
+}
+
+.ps-tenant-banner__inner .ps-chip-row {
+  grid-area: chips;
+  justify-content: flex-start;
+}
+
+.ps-tenant-banner__inner .ps-source-chip {
+  overflow-wrap: normal;
+}
+
+.ps-tenant-banner__inner .ps-source-detail {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.ps-tenant-banner__inner .ps-inline-form {
+  grid-area: action;
+  justify-self: end;
+}
+
+.ps-tenant-banner__nav {
+  grid-area: navigation;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.8rem;
+}
+
+.ps-tenant-banner__nav a {
+  color: var(--ps-color-ink);
+  font-size: 0.8125rem;
+  font-weight: 750;
+  text-underline-offset: 0.2em;
+}
+
+.ps-locale-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  width: max-content;
+  border: 1px solid var(--ps-color-border);
+  border-radius: 999px;
+  background: var(--ps-color-panel);
+  padding: 0.2rem;
+}
+
+.ps-locale-switcher__label {
+  padding: 0 0.35rem;
+  color: var(--ps-color-muted);
+  font-size: 0.7rem;
+  font-weight: 800;
+}
+
+.ps-locale-switcher a {
+  border-radius: 999px;
+  color: var(--ps-color-muted);
+  padding: 0.3rem 0.45rem;
+  font-size: 0.75rem;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.ps-locale-switcher a:hover,
+.ps-locale-switcher a[aria-current="page"] {
+  background: var(--ps-color-accent-soft);
+  color: var(--ps-color-accent-strong);
+}
+
+.ps-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .ps-connector-shell {
@@ -633,6 +715,7 @@ a {
 }
 
 .ps-panel {
+  min-width: 0;
   border: 1px solid var(--ps-color-border);
   border-radius: var(--ps-radius-md);
   background: var(--ps-color-panel);
@@ -1576,7 +1659,12 @@ a {
 }
 
 .ps-table-wrap {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
   overflow-x: auto;
+  overscroll-behavior-inline: contain;
 }
 
 .ps-table {
@@ -1882,6 +1970,18 @@ a {
   .ps-tenant-banner__inner,
   .ps-form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .ps-tenant-banner__inner .ps-inline-form {
+    justify-self: start;
+  }
+
+  .ps-tenant-banner__inner {
+    grid-template-areas:
+      "copy"
+      "chips"
+      "navigation"
+      "action";
   }
 
   .ps-panel--wide {

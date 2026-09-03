@@ -148,6 +148,20 @@ export interface PartnerServiceOptions {
   tenantAccessTtlMs?: number;
 }
 
+export const normalizePartnerSlug = (value: string): string => {
+  const slug = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+
+  if (slug.length < 3) {
+    throw new AuthError("invalid_request", "Partner slug must contain at least three URL-safe characters.", 400);
+  }
+
+  return slug;
+};
+
 export class PartnerService {
   private readonly repository: PartnerRepository;
   private readonly organizations: OrganizationService;
@@ -177,7 +191,7 @@ export class PartnerService {
     const partner: PartnerRecord = {
       id: randomUUID(),
       name: input.name,
-      slug: this.normalizeSlug(input.slug ?? input.name),
+      slug: normalizePartnerSlug(input.slug ?? input.name),
       status: "active",
       parentPartnerId: input.parentPartnerId ?? null,
       createdAt: now,
@@ -245,6 +259,7 @@ export class PartnerService {
   }) {
     const member = await this.requirePartnerRole(input.partnerId, input.actorUserId, ["owner", "admin"]);
     const now = this.now();
+    const defaultLocale = defaultLocaleForCountry(input.primaryCountryCode);
 
     if (this.repository.createPartnerCustomerWithGrant) {
       const organization: PartnerCustomerOrganizationRecord = {
@@ -252,7 +267,7 @@ export class PartnerService {
         name: input.name,
         legalName: input.legalName ?? null,
         billingStatus: "none",
-        defaultLocale: "en",
+        defaultLocale,
         primaryCountryCode: input.primaryCountryCode ?? null,
         headquartersCountryCode: input.headquartersCountryCode ?? null,
         createdAt: now,
@@ -294,6 +309,7 @@ export class PartnerService {
       actorUserId: input.actorUserId,
       name: input.name,
       legalName: input.legalName ?? null,
+      defaultLocale,
       primaryCountryCode: input.primaryCountryCode ?? null,
       headquartersCountryCode: input.headquartersCountryCode ?? null,
       ipAddress: input.context.ipAddress,
@@ -566,20 +582,6 @@ export class PartnerService {
     return membership;
   }
 
-  private normalizeSlug(value: string): string {
-    const slug = value
-      .trim()
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-|-$/g, "");
-
-    if (slug.length < 3) {
-      throw new AuthError("invalid_request", "Partner slug must contain at least three URL-safe characters.", 400);
-    }
-
-    return slug;
-  }
-
   private auditContext(input: {
     partnerId: string;
     tenantSessionId?: string | null;
@@ -743,6 +745,19 @@ export class PartnerService {
     };
   }
 }
+
+const defaultLocaleForCountry = (countryCode?: string | null): string => {
+  switch (countryCode?.trim().toUpperCase()) {
+    case "RO":
+      return "ro-RO";
+    case "DE":
+      return "de-DE";
+    case "PL":
+      return "pl-PL";
+    default:
+      return "en";
+  }
+};
 
 export const isPartnerTenantAccessLevel = (value: string): value is PartnerTenantAccessLevel =>
   value === "admin" || value === "analyst" || value === "viewer";

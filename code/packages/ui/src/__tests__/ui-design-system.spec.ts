@@ -22,6 +22,12 @@ describe("ui design system primitives", () => {
     expect(css).toContain("#ffffff");
     expect(css).toContain("ps-readiness-ring");
     expect(css).toContain("ps-context-panel");
+    expect(css).toMatch(/\.ps-panel\s*\{\s*min-width: 0;/);
+    expect(css).toMatch(/\.ps-table-wrap\s*\{\s*position: relative;[\s\S]*?max-width: 100%;[\s\S]*?overflow-x: auto;/);
+    expect(css).toContain("grid-template-columns: minmax(18rem, 0.9fr) minmax(0, 1.5fr) auto;");
+    expect(css).toMatch(/\.ps-tenant-banner__inner \.ps-source-chip\s*\{\s*overflow-wrap: normal;/);
+    expect(css).toMatch(/\.ps-tenant-banner__inner \.ps-inline-form\s*\{[\s\S]*?grid-area: action;[\s\S]*?justify-self: end;/);
+    expect(css).toMatch(/@media \(max-width: 980px\)[\s\S]*?\.ps-tenant-banner__inner \.ps-inline-form\s*\{[\s\S]*?justify-self: start;/);
     expect(css).not.toContain("#000");
     expect(css).not.toContain("background-clip: text");
     expect(css).not.toContain("letter-spacing: -");

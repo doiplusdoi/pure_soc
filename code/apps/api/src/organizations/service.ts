@@ -31,6 +31,7 @@ export interface CreateOrganizationInput {
   actorUserId: string;
   name: string;
   legalName?: string | null;
+  defaultLocale?: string | null;
   primaryCountryCode?: string | null;
   headquartersCountryCode?: string | null;
   logoDataUrl?: string | null;
@@ -147,7 +148,7 @@ export class OrganizationService {
       name: input.name,
       legalName: input.legalName ?? null,
       billingStatus: "none",
-      defaultLocale: "en",
+      defaultLocale: input.defaultLocale?.trim() || "en",
       primaryCountryCode: input.primaryCountryCode ?? null,
       headquartersCountryCode: input.headquartersCountryCode ?? null,
       logoDataUrl: normalizeOrganizationLogoDataUrl(input.logoDataUrl),
@@ -228,7 +229,7 @@ export class OrganizationService {
       name: input.name,
       legalName: input.legalName ?? null,
       billingStatus: "none",
-      defaultLocale: "en",
+      defaultLocale: input.defaultLocale?.trim() || "en",
       primaryCountryCode: input.primaryCountryCode ?? null,
       headquartersCountryCode: input.headquartersCountryCode ?? null,
       logoDataUrl: normalizeOrganizationLogoDataUrl(input.logoDataUrl),

@@ -118,7 +118,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "Internal readiness",
-      ro: "Pregatire interna",
+      ro: "Pregătire internă",
       pl: "Gotowosc wewnetrzna",
       de: "Interne Bereitschaft"
     }
@@ -129,7 +129,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "PureSOC internal readiness console",
-      ro: "Consola PureSOC pentru pregatire interna",
+      ro: "Consola PureSOC pentru pregătire internă",
       pl: "Konsola wewnetrznej gotowosci PureSOC",
       de: "PureSOC-Konsole fur interne Bereitschaft"
     }
@@ -151,7 +151,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "Evidence And Reports",
-      ro: "Dovezi si rapoarte",
+      ro: "Dovezi și rapoarte",
       pl: "Dowody i raporty",
       de: "Nachweise und Berichte"
     }
@@ -162,7 +162,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "Approval Queue",
-      ro: "Coada de aprobari",
+      ro: "Coada de aprobări",
       pl: "Kolejka zatwierdzen",
       de: "Freigabewarteschlange"
     }
@@ -206,7 +206,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "Password",
-      ro: "Parola",
+      ro: "Parolă",
       pl: "Haslo",
       de: "Passwort"
     }
@@ -217,7 +217,7 @@ export const pureSocMessageCatalog = definePureSocMessageCatalog<PureSocGlobalMe
     reviewStatusByLocale: demoSafeProductReviewStatus,
     translations: {
       en: "Source mapped",
-      ro: "Mapat la sursa",
+      ro: "Mapat la sursă",
       pl: "Powiazane ze zrodlem",
       de: "Quellenzugeordnet"
     }

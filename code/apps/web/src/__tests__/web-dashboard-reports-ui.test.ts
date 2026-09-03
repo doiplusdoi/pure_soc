@@ -219,6 +219,19 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toContain("context message");
   });
 
+  it("renders the canonical customer workspace in Romanian with an English switch", () => {
+    const html = renderProductMvpShell(productShellModel(), { locale: "ro-RO" });
+
+    expect(html).toContain('<html lang="ro">');
+    expect(html).toContain("Tablou de bord");
+    expect(html).toContain("Pregătire");
+    expect(html).toContain("Conectori");
+    expect(html).toContain("Deficiențe critice");
+    expect(html).toContain("Acțiunea recomandată");
+    expect(html).toContain("Începe configurarea evaluării");
+    expect(html).toContain('data-ui-action="switch-locale-en"');
+  });
+
   it("renders remediation guidance from analyzed gaps before action runs exist", () => {
     const html = renderProductMvpShell({
       ...productShellModel(),
@@ -518,6 +531,39 @@ describe("web dashboard reports operational UI", () => {
     }
   });
 
+  it("defaults deployed sessions to Romanian and persists an explicit English choice", async () => {
+    const server = startWebServer(0, {
+      apiBaseUrl: "http://127.0.0.1:9",
+      defaultLocale: "ro-RO",
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(server);
+    const address = server.address() as AddressInfo;
+    const baseUrl = `http://127.0.0.1:${address.port}`;
+
+    try {
+      const defaultLogin = await fetch(`${baseUrl}/login`);
+      expect(await defaultLogin.text()).toContain('<html lang="ro">');
+
+      const selectedEnglish = await fetch(`${baseUrl}/locale/en`, {
+        headers: { referer: `${baseUrl}/login` },
+        redirect: "manual"
+      });
+      expect(selectedEnglish.status).toBe(303);
+      expect(selectedEnglish.headers.get("location")).toBe("/login");
+      expect(selectedEnglish.headers.get("set-cookie")).toContain("puresoc_locale=en");
+
+      const englishLogin = await fetch(`${baseUrl}/login`, {
+        headers: { cookie: "puresoc_locale=en" }
+      });
+      expect(await englishLogin.text()).toContain('<html lang="en">');
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("redirects old fragmented product routes to canonical MVP routes", async () => {
     const server = startWebServer(0, {
       apiBaseUrl: "http://127.0.0.1:9",
@@ -653,6 +699,73 @@ describe("web dashboard reports operational UI", () => {
       expect(dashboardHtml).toContain("Select or create a workspace to open PureSOC.");
       expect(dashboardHtml).toContain("Workspace Demo");
       expect(dashboardHtml).not.toContain("Sign in and select a workspace to open PureSOC.");
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
+  it("sends a partner-only account to its portfolio after login", async () => {
+    const apiServer = createServer(async (request, response) => {
+      const url = new URL(request.url ?? "/", "http://api.local");
+      response.setHeader("content-type", "application/json");
+
+      if (request.method === "POST" && url.pathname === "/auth/login") {
+        response.setHeader("set-cookie", "puresoc_session=partner-session; HttpOnly; SameSite=Lax; Path=/");
+        response.end(
+          JSON.stringify({
+            user: { id: "partner_user", email: "partner@example.test", displayName: "Partner Owner" },
+            session: { activeOrganizationId: null }
+          })
+        );
+        return;
+      }
+
+      if (request.method === "GET" && url.pathname === "/partners") {
+        expect(request.headers.cookie).toBe("puresoc_session=partner-session");
+        response.end(
+          JSON.stringify({
+            partners: [
+              {
+                partner: { id: "partner_demo", name: "Demo Advisory", slug: "demo-advisory" },
+                membership: { id: "member_owner", role: "owner", status: "active" }
+              }
+            ]
+          })
+        );
+        return;
+      }
+
+      response.statusCode = 404;
+      response.end(JSON.stringify({ error: { code: "not_found" } }));
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+
+    try {
+      const login = await fetch(`http://127.0.0.1:${webAddress.port}/auth/login`, {
+        method: "POST",
+        headers: { "content-type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          email: "partner@example.test",
+          password: "demo-password"
+        }),
+        redirect: "manual"
+      });
+
+      expect(login.status).toBe(303);
+      expect(login.headers.get("location")).toBe("/partners");
+      expect(login.headers.get("set-cookie")).toContain("puresoc_session=partner-session");
     } finally {
       await new Promise<void>((resolve, reject) => {
         webServer.close((error) => (error ? reject(error) : resolve()));
@@ -1099,7 +1212,7 @@ describe("web dashboard reports operational UI", () => {
     }
   });
 
-  it("forwards app-prefixed partner mutations while keeping redirects inside the app route tree", async () => {
+  it("forwards app-prefixed partner mutations and opens the canonical customer workspace", async () => {
     let createdCustomerBody: Record<string, unknown> | undefined;
     let startedSessionBody: Record<string, unknown> | undefined;
     let exitCalled = false;
@@ -1203,7 +1316,7 @@ describe("web dashboard reports operational UI", () => {
         redirect: "manual"
       });
       expect(startResponse.status).toBe(303);
-      expect(startResponse.headers.get("location")).toContain("/app/o/org_nordfrucht/overview?message=");
+      expect(startResponse.headers.get("location")).toContain("/dashboard?message=");
       expect(startedSessionBody).toEqual({
         organizationId: "org_nordfrucht",
         reason: "Prepare NIS2 readiness review"
@@ -2256,6 +2369,7 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain('name="organizationId" value="org_secondary"');
     expect(html).toContain("Open active workspace");
     expect(html).toContain('data-ui-action="back-to-dashboard"');
+    expect(html).toContain('href="/partners" data-ui-action="open-partner-portfolio"');
     expect(html).not.toContain("sessionToken");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
@@ -2477,6 +2591,98 @@ describe("web dashboard reports operational UI", () => {
     expect(html).toContain("customer session active");
     expect(html).not.toContain("partner-owner@example.test");
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
+  });
+
+  it("renders the Romanian partner command center and translates seeded portfolio signals", () => {
+    const html = renderPartnerConsoleScreen(
+      {
+        activePartnerId: "partner_asterion",
+        partners: [
+          {
+            partner: {
+              id: "partner_asterion",
+              name: "Asterion Cloud Partners",
+              slug: "asterion-cloud-partners",
+              status: "active",
+              parentPartnerId: null
+            },
+            membership: {
+              id: "member_owner",
+              partnerId: "partner_asterion",
+              role: "owner",
+              status: "active"
+            }
+          }
+        ],
+        metrics: {
+          totalCustomerTenants: 1,
+          completedAssessments: 1,
+          customersLikelyOrPossiblyInScope: 1,
+          connectedMicrosoftTenants: 1,
+          highPriorityGaps: 2,
+          opportunities: 1
+        },
+        opportunities: [
+          {
+            customerId: "org_medicanova",
+            customerName: "MedicaNova SRL",
+            opportunityType: "partner_service_regulated_process_review",
+            priority: "high",
+            affectedUsers: 118,
+            nis2Areas: ["nis2.operational-continuity"],
+            evidenceSource: "Declared assessment and NIS2 readiness gaps",
+            nextAction: "Review regulated process access, supplier risk, and continuity evidence"
+          }
+        ],
+        portfolio: [
+          {
+            grant: {
+              id: "grant_medicanova",
+              organizationId: "org_medicanova",
+              grantLevel: "admin",
+              status: "active",
+              createdAt: "2026-06-19T09:00:00.000Z",
+              updatedAt: "2026-06-19T09:00:00.000Z"
+            },
+            organization: {
+              id: "org_medicanova",
+              name: "MedicaNova SRL",
+              legalName: "MedicaNova SRL",
+              primaryCountryCode: "RO",
+              billingStatus: "none"
+            },
+            snapshot: {
+              assessmentCompleted: true,
+              sector: "pharmaceutical manufacturer",
+              likelyClassification: "likely in scope",
+              readinessPercent: 50,
+              evidenceConfidencePercent: 60,
+              microsoftConnectionState: "connected",
+              highPriorityGapCount: 2,
+              opportunities: []
+            }
+          }
+        ],
+        session: {
+          user: {
+            id: "user_prospect",
+            email: "prospect@example.test",
+            displayName: "Partener Demo"
+          },
+          session: { activeOrganizationId: null }
+        }
+      },
+      { locale: "ro-RO" }
+    );
+
+    expect(html).toContain('<html lang="ro">');
+    expect(html).toContain("Centrul de operare al partenerului");
+    expect(html).toContain("Prioritizați clienții");
+    expect(html).toContain("producător farmaceutic");
+    expect(html).toContain("probabil în domeniul NIS2");
+    expect(html).toContain("Evaluarea declarată și deficiențele de pregătire NIS2");
+    expect(html).toContain('data-ui-action="switch-locale-en"');
+    expect(html).not.toContain("prospect@example.test");
   });
 
   it("persists the active customer banner across operational routes", () => {
@@ -2877,14 +3083,14 @@ describe("web dashboard reports operational UI", () => {
 
     expect(html).toContain('<html lang="ro">');
     expect(html).toContain("Tablou de bord");
-    expect(html).toContain("Dovezi si rapoarte");
-    expect(html).toContain("Coada de aprobari");
+    expect(html).toContain("Dovezi și rapoarte");
+    expect(html).toContain("Coada de aprobări");
     expect(html).toContain('href="/onboarding/romania/company?locale=ro-RO"');
     expect(html).toContain(PURESOC_LEGAL_CAVEAT);
     expect(login).toContain('<html lang="ro">');
     expect(login).toContain("Autentificare");
     expect(login).toContain("Sesiune API");
-    expect(login).toContain('<label for="password">Parola</label>');
+    expect(login).toContain('<label for="password">Parolă</label>');
     expect(login).toContain('href="/register"');
     expect(login).toContain('action="/auth/oidc/microsoft_entra/begin"');
     expect(register).toContain('data-ui-smoke="register-screen"');

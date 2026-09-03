@@ -18,6 +18,7 @@ Start here:
 - [Codex prompts](docs/codex-prompts.md)
 - [Prompt test protocol](docs/prompt-tests.md)
 - [Implementation gaps](docs/implementation-gaps.md)
+- [Power-user partner demo guide](docs/demo/POWER_USER_DEMO_GUIDE.md)
 - [Skill install proposal](docs/skill-install-proposal.md)
 
 Current repository state:

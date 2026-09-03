@@ -94,9 +94,10 @@ describe("partner tenant access integration", () => {
     );
     expect(customerResponse.status).toBe(201);
     const customerBody = await readJson<{
-      organization: { id: string; name: string; primaryCountryCode: string };
+      organization: { id: string; name: string; primaryCountryCode: string; defaultLocale: string };
       grant: { id: string; organizationId: string; status: string; grantLevel: string };
     }>(customerResponse);
+    expect(customerBody.organization.defaultLocale).toBe("de-DE");
 
     return {
       owner,
@@ -381,6 +382,24 @@ describe("partner tenant access integration", () => {
       }
     });
     expect(scopedMembersResponse.status).toBe(200);
+
+    const dashboardResponse = await fetch(`${baseUrl}/api/dashboard`, {
+      headers: {
+        cookie: owner.cookie
+      }
+    });
+    expect(dashboardResponse.status).toBe(200);
+    await expect(
+      readJson<{ dashboard: { workspace: { id: string; name: string; countryCode: string } } }>(dashboardResponse)
+    ).resolves.toMatchObject({
+      dashboard: {
+        workspace: {
+          id: organizationId,
+          name: "NordFrucht GmbH",
+          countryCode: "DE"
+        }
+      }
+    });
 
     const currentResponse = await fetch(`${baseUrl}/partners/${partnerId}/tenant-access-sessions/current`, {
       headers: {

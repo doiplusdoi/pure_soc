@@ -911,12 +911,15 @@ async function runFixtureDemoSmoke() {
       reason: "Fixture demo customer readiness walkthrough"
     }, webLogin.cookie);
 
-    const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding/nis2?country=DE`, {
+    const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding?country=DE`, {
       headers: {
         cookie: webLogin.cookie
       }
     });
-    record("fixture_demo_country_onboarding_opened", htmlText(onboardingHtml).includes("Germany BSI NIS2 demo pack"));
+    record(
+      "fixture_demo_country_onboarding_opened",
+      htmlText(onboardingHtml).includes("Onboarding") && htmlText(onboardingHtml).includes("DE")
+    );
     record("fixture_demo_partner_customer_banner_visible", htmlText(onboardingHtml).includes("Fixture Demo Partner"));
     const onboardingAnswers = fixtureDemoCountryOnboardingForm();
     await postForm(`${webBaseUrl}/onboarding/nis2`, {
@@ -1162,14 +1165,21 @@ async function runLiveDemoLocalSmoke() {
         reason: `Live local demo ${customer.countryCode} readiness walkthrough`
       }, registered.cookie);
 
-      const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding/nis2?country=${customer.countryCode}`, {
+      const onboardingHtml = await fetchText(`${webBaseUrl}/onboarding?country=${customer.countryCode}`, {
         headers: {
           cookie: registered.cookie
         }
       });
+      const onboardingText = htmlText(onboardingHtml);
       record(
         `live_demo_local_${customer.countryCode.toLowerCase()}_country_onboarding_opened`,
-        htmlText(onboardingHtml).includes("NIS2 country onboarding") && htmlText(onboardingHtml).includes(customer.countryCode)
+        onboardingText.includes("Onboarding") && onboardingText.includes(customer.countryCode),
+        JSON.stringify({
+          countryVisible: onboardingText.includes(customer.countryCode),
+          loginVisible: onboardingText.includes("Sign in"),
+          onboardingVisible: onboardingText.includes("Onboarding"),
+          workspaceSelectorVisible: onboardingText.includes("Select a workspace")
+        })
       );
 
       const onboardingAnswers = liveDemoCountryOnboardingForm(customer);
@@ -1479,7 +1489,17 @@ async function runLiveDemoLocalMicrosoftAndActionPath({
     }
   });
   const connectorText = htmlText(connectorHtml);
-  record("live_demo_local_m365_connector_shows_gated_writes", /read/i.test(connectorText) && /writes gated/i.test(connectorText));
+  const writeBoundaryVisible = /write(?:s)? gated/i.test(connectorText) || /write actions require approval/i.test(connectorText);
+  record(
+    "live_demo_local_m365_connector_shows_gated_writes",
+    /read/i.test(connectorText) && writeBoundaryVisible,
+    JSON.stringify({
+      connectorVisible: /Microsoft 365/i.test(connectorText),
+      readVisible: /read/i.test(connectorText),
+      workspaceUnavailableVisible: /Workspace Unavailable/i.test(connectorText),
+      writeGateVisible: writeBoundaryVisible
+    })
+  );
 
   const connectLocation = await postForm(`${webBaseUrl}/providers/microsoft365/connect`, {}, webCookie);
   const consentUrl = new URL(connectLocation, webBaseUrl);
@@ -1593,18 +1613,16 @@ async function runLiveDemoLocalMicrosoftAndActionPath({
   const improvedPdfText = Buffer.from(await improvedPdf.arrayBuffer()).toString("utf8");
   record("live_demo_local_improved_pdf_is_pdf", improvedPdfText.includes("%PDF-1.4"));
 
-  const onboardingWithDownloads = await fetchText(
-    `${webBaseUrl}/onboarding/nis2?country=DE&firstReportId=${encodeURIComponent(firstReportId)}&improvedReportId=${encodeURIComponent(improvedReportId)}`,
-    {
-      headers: {
-        cookie: webCookie
-      }
+  const reportsWithDownloads = await fetchText(`${webBaseUrl}/reports`, {
+    headers: {
+      cookie: webCookie
     }
-  );
-  const downloadsText = htmlText(onboardingWithDownloads);
+  });
   record(
-    "live_demo_local_onboarding_shows_first_and_improved_pdf_buttons",
-    downloadsText.includes("Download first PDF") && downloadsText.includes("Download improved PDF")
+    "live_demo_local_reports_show_first_and_improved_pdf_downloads",
+    reportsWithDownloads.includes(`/reports/generated/${firstReportId}/pdf`) &&
+      reportsWithDownloads.includes(`/reports/generated/${improvedReportId}/pdf`) &&
+      htmlText(reportsWithDownloads).includes("Download PDF")
   );
 
   const refreshedPortfolio = await fetchJson(`${apiBaseUrl}/partners/${partnerId}/portfolio`, {
@@ -4679,6 +4697,8 @@ function fixtureDemoCountryOnboardingForm() {
   return {
     "company.legalName": "NordFrucht Fixture GmbH",
     "company.countryCode": "DE",
+    "locations.headquartersCountry": "DE",
+    "locations.headquartersCity": "Berlin",
     "contacts.primaryName": "Anna Becker",
     "contacts.primaryEmail": "anna@nordfrucht-fixture.example",
     "contacts.securityName": "Felix Security",
@@ -4687,12 +4707,14 @@ function fixtureDemoCountryOnboardingForm() {
     "business.mainProductsServices": "Food distribution and cold-chain logistics for regional producers.",
     "business.countriesServed": "DE, PL",
     "business.employeeCount": "72",
+    "size.sizeCategory": "medium",
     "scope.activities": "food",
     "scope.publicAdministration": "false",
     "scope.telecomProvider": "false",
     "scope.dynamicAnswers.de.bsi.portal_registration_expected": "unknown",
     "scope.dynamicAnswers.de.bsi.sector_review": "food distribution",
-    "dependencies.microsoft365Usage": "used_for_identity_devices_security",
+    "systems.systemsDescription": "Microsoft 365 identity, collaboration, endpoints, and cold-chain logistics systems.",
+    "providers.microsoft365Usage": "identity_devices_security",
     "dependencies.criticalSuppliers": "Microsoft 365, cold-chain logistics platform",
     "dependencies.backupArrangements": "implemented encrypted backups with quarterly restore tests",
     "dependencies.businessContinuity": "implemented continuity plan reviewed by management",
@@ -4724,6 +4746,8 @@ function liveDemoCountryOnboardingForm(customer) {
   return {
     "company.legalName": customer.name,
     "company.countryCode": customer.countryCode,
+    "locations.headquartersCountry": customer.countryCode,
+    "locations.headquartersCity": customer.countryCode === "RO" ? "Bucharest" : customer.countryCode === "PL" ? "Warsaw" : "Berlin",
     "contacts.primaryName": "Mara Partner",
     "contacts.primaryEmail": `mara.${customer.countryCode.toLowerCase()}@live-demo-local.example`,
     "contacts.securityName": "Security Owner",
@@ -4732,11 +4756,20 @@ function liveDemoCountryOnboardingForm(customer) {
     "business.mainProductsServices": "Food distribution and cold-chain logistics for regional customers.",
     "business.countriesServed": customer.countryCode === "DE" ? "DE, PL, RO" : `${customer.countryCode}, DE`,
     "business.employeeCount": customer.countryCode === "RO" ? "64" : "72",
+    "size.sizeCategory": "medium",
     "scope.activities": "food, logistics",
+    "selectedServiceTypeCodes": customer.countryCode === "RO" ? "204001" : "food",
     "scope.publicAdministration": "false",
     "scope.telecomProvider": "false",
     ...(dynamicAnswersByCountry[customer.countryCode] ?? {}),
-    "dependencies.microsoft365Usage": "used_for_identity_devices_security",
+    "relationship.establishedInRomania": customer.countryCode === "RO" ? "true" : "false",
+    "relationship.mainOfficeInRomania": customer.countryCode === "RO" ? "true" : "false",
+    "relationship.providesServicesInRomania": customer.countryCode === "RO" ? "true" : "false",
+    "relationship.providesServicesInAnotherEuMemberState": "true",
+    "relationship.publicAdministrationEstablishedByRomania": "false",
+    "relationship.criticalEntityInRomaniaLaw294": "false",
+    "systems.systemsDescription": "Microsoft 365 identity, collaboration, endpoints, and cold-chain logistics systems.",
+    "providers.microsoft365Usage": "identity_devices_security",
     "dependencies.criticalSuppliers": "Microsoft 365, cold-chain logistics platform",
     "dependencies.backupArrangements": "implemented encrypted backups with quarterly restore tests",
     "dependencies.businessContinuity": "implemented continuity plan reviewed by management",

@@ -25,6 +25,8 @@ env DATABASE_URL=postgresql://puresoc:puresoc@localhost:5432/puresoc npm run dem
 
 Use `npm run demo:reset` with the same `DATABASE_URL` to remove only the deterministic demo records.
 
+For an externally deployed demo offered to a real potential partner, do not use the deterministic seed credentials. Provision a unique controlled account with `npm run operator:provision-partner`, then follow [the power-user demo guide](POWER_USER_DEMO_GUIDE.md).
+
 If another local stack already owns the default dependency ports, keep the same Compose command and override only the host bindings:
 
 ```sh
@@ -48,7 +50,14 @@ Microsoft 365 fixture mode is the default target for the partner demo:
 PURESOC_CONNECTOR_MICROSOFT365_MODE=fixture
 ```
 
-`live` requires a configured PureSOC platform multitenant Entra app client ID and client secret. `auto` uses live only when those values are configured; otherwise it uses fixture mode and labels the effective mode in connector health. Live Microsoft verification remains optional and must use an approved disposable tenant, read-only permissions, and the existing selector-first smoke discipline.
+`live` requires a configured PureSOC platform multitenant Entra app client ID and client secret plus both provider-token custody values:
+
+```sh
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
+PURESOC_PROVIDER_TOKEN_KEY=<secret-managed>
+```
+
+The key ID is stable, non-secret version metadata; the key is secret material and must come from the deployment's secret manager. Startup fails closed if key material is supplied without an explicit key ID. `auto` uses live only when the connector credentials are configured; otherwise it uses fixture mode and labels the effective mode in connector health. Live Microsoft verification remains optional and must use an approved disposable tenant, read-only permissions, and the existing selector-first smoke discipline.
 
 ## Partner API Foundation
 

@@ -41,7 +41,18 @@ const requireActiveWorkspace = async (
   });
 
   const organizationRows = await services.identityRepository.listOrganizationsForUser(session.user.id);
-  const organization = organizationRows.find((row) => row.organization.id === organizationId)?.organization;
+  const directOrganization = organizationRows.find((row) => row.organization.id === organizationId)?.organization;
+  const partnerOrganization = directOrganization
+    ? null
+    : await services.partnerRepository.findOrganizationById(organizationId);
+  const organization =
+    directOrganization ??
+    (partnerOrganization
+      ? {
+          ...partnerOrganization,
+          logoDataUrl: null
+        }
+      : null);
   if (!organization) {
     throw new AuthError("forbidden", "The selected workspace is not available to this session.", 404);
   }

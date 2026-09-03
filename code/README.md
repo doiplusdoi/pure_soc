@@ -34,6 +34,7 @@ The compose file generates/fixes the internal database URL, database name, Postg
 PURESOC_CONNECTOR_MICROSOFT365_MODE=auto
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
 PURESOC_PROVIDER_TOKEN_KEY=
 ```
 
@@ -43,6 +44,7 @@ For the controlled live Microsoft partner demo, follow `../docs/live-microsoft-p
 PURESOC_CONNECTOR_MICROSOFT365_MODE=live
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_ID=<secret-managed>
 PURESOC_CONNECTOR_MICROSOFT365_CLIENT_SECRET=<secret-managed>
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
 PURESOC_PROVIDER_TOKEN_KEY=<secret-managed>
 PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED=false
 PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=false
@@ -50,7 +52,23 @@ PURESOC_CONNECTOR_RUNNER_ALLOW_PROVIDER_WRITES=false
 
 Register the Microsoft connector redirect URI exactly as `<PURESOC_DEMO_URL>/providers/microsoft365/callback`. The product connector page at `/connectors/microsoft365` starts consent with that callback URL; the older `/providers/microsoft365` route redirects back to the product page after consent.
 
-`PURESOC_PROVIDER_TOKEN_KEY` is not a login token. It is the server-side encryption key for Microsoft OAuth tokens stored after a customer tenant grants admin consent. Generate it with `openssl rand -hex 32` and keep it stable across restarts; changing it without a planned rotation makes existing Microsoft credential envelopes unreadable. If you force `PURESOC_CONNECTOR_MICROSOFT365_MODE=live`, startup fails fast until the client ID, client secret, and provider-token key are all configured.
+### Controlled Partner Account
+
+For a deployed Romanian partner demo without public signup or email delivery, seed the populated synthetic portfolio first, then attach one verified local partner-owner account inside the API container:
+
+```sh
+docker compose exec puresoc-api pnpm demo:seed
+
+docker compose exec puresoc-api pnpm operator:provision-partner -- \
+  --email partner@example.com \
+  --display-name "Partner Owner" \
+  --existing-partner-slug asterion-cloud-partners \
+  --disable-seeded-logins
+```
+
+Compose defaults `PURESOC_WEB_DEFAULT_LOCALE` to `ro-RO`; set it explicitly in external deployment configuration when Compose variables are managed elsewhere. The command prompts for a hidden password, never accepts it as a command-line argument, and never prints it. It requires Prisma persistence and the deployed database configuration. The `--disable-seeded-logins` option disables the known shared Asterion seed users after the unique prospect account is attached. Partner-only users are sent to `/partners`; customer access still requires an explicit grant and a reason-gated tenant session. Do not rerun `demo:seed` after attaching the prospect because the deterministic portfolio reset removes current Asterion memberships. See `../docs/demo/POWER_USER_DEMO_GUIDE.md` for the walkthrough and demo boundaries.
+
+`PURESOC_PROVIDER_TOKEN_KEY` is not a login token. It is the server-side encryption key for Microsoft OAuth tokens stored after a customer tenant grants admin consent. Generate it with `openssl rand -hex 32` and keep it stable across restarts; changing it without a planned rotation makes existing Microsoft credential envelopes unreadable. `PURESOC_PROVIDER_TOKEN_KEY_ID` is required whenever key material is configured; use a stable, non-secret version name such as `live-current`. If you force `PURESOC_CONNECTOR_MICROSOFT365_MODE=live`, startup fails fast until the client ID, client secret, provider-token key ID, and provider-token key are all configured.
 
 ## Drift Checks
 
@@ -243,10 +261,11 @@ Development keeps the historical optional-missing-header behavior unless configu
 Provider-token encryption is intentionally narrow in Compose:
 
 ```sh
+PURESOC_PROVIDER_TOKEN_KEY_ID=live-current
 PURESOC_PROVIDER_TOKEN_KEY=replace-with-openssl-rand-hex-32
 ```
 
-That key encrypts Microsoft 365 OAuth credentials stored after tenant admin consent. It is not shown to users, it is not an API bearer token, and it is not related to PureSOC login sessions. Keep it stable and secret. If it is lost, existing Microsoft connector credentials must be re-consented.
+That key encrypts Microsoft 365 OAuth credentials stored after tenant admin consent. Its key ID is non-secret rotation metadata and must be explicit. The key is not shown to users, it is not an API bearer token, and it is not related to PureSOC login sessions. Keep both values stable across ordinary restarts and keep the key secret. If the key is lost, existing Microsoft connector credentials must be re-consented.
 
 The lower-level rotation/custody variables still exist in code for future key-rotation work and tests, but they are not part of the Compose first-run surface. The local custody smoke remains available for maintainers:
 

@@ -44,10 +44,12 @@ import {
   type ProductMvpShellModel,
   type RomaniaOnboardingScreen
 } from "./operational-console";
+import { resolveProductLocale } from "./product-localization";
 
 export interface WebServerOptions {
   apiBaseUrl?: string;
   apiRequestOrigin?: string;
+  defaultLocale?: string;
   listenHost?: string;
   publicBaseUrl?: string;
 }
@@ -617,6 +619,9 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       "http://127.0.0.1:3001"
   );
   const microsoftEntraSignInEnabled = process.env.PURESOC_AUTH_MICROSOFT_ENTRA_ENABLED === "true";
+  const configuredDefaultLocale = resolveProductLocale(
+    options.defaultLocale ?? process.env.PURESOC_WEB_DEFAULT_LOCALE ?? "en"
+  );
   const configuredApiRequestOrigin =
     options.apiRequestOrigin ??
     process.env.PURESOC_WEB_API_REQUEST_ORIGIN ??
@@ -626,17 +631,30 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       ? renderBaseLoginScreen(screenOptions)
       : renderBaseLoginScreen({
           ...screenOptions,
+          locale: screenOptions.locale ?? configuredDefaultLocale,
           microsoftEntraEnabled: microsoftEntraSignInEnabled
         });
   const renderRegisterScreen = (screenOptions: Parameters<typeof renderBaseRegisterScreen>[0] = {}) =>
     renderBaseRegisterScreen({
       ...screenOptions,
+      locale: screenOptions.locale ?? configuredDefaultLocale,
       microsoftEntraEnabled: microsoftEntraSignInEnabled
     });
 
   const server = createServer(async (request, response) => {
     try {
     const url = new URL(request.url ?? "/", "http://localhost");
+    const requestLocale = resolveWebRequestLocale(request.headers.cookie, configuredDefaultLocale);
+
+    const localeRoute = /^\/locale\/(en|ro)$/.exec(url.pathname);
+    if (request.method === "GET" && localeRoute) {
+      const locale = resolveProductLocale(localeRoute[1]);
+      response.statusCode = 303;
+      response.setHeader("set-cookie", `${webLocaleCookieName}=${locale}; Path=/; Max-Age=31536000; SameSite=Lax; HttpOnly`);
+      response.setHeader("location", safeLocaleReturnPath(request.headers.referer));
+      response.end();
+      return;
+    }
 
     if (request.method === "GET" && url.pathname === "/health") {
       response.setHeader("content-type", "application/json");
@@ -809,7 +827,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderPartnerConsoleScreen(partnerModel, { routeMode: "app" }));
+      sendHtml(response, renderPartnerConsoleScreen(partnerModel, { locale: requestLocale, routeMode: "app" }));
       return;
     }
 
@@ -901,7 +919,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderRuntimeMessageScreen({
                 title: "Select A Workspace",
                 summary: "The API session is valid, but workspace memberships could not be loaded.",
@@ -939,7 +957,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderProductMvpShell(productModel));
+      sendHtml(response, renderProductMvpShell(productModel, { locale: requestLocale }));
       return;
     }
 
@@ -947,7 +965,8 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       sendHtml(
         response,
         renderLoginScreen({
-          activeOrganizationId: url.searchParams.get("organizationId")
+          activeOrganizationId: url.searchParams.get("organizationId"),
+          locale: requestLocale
         })
       );
       return;
@@ -961,7 +980,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
     }
 
     if (request.method === "GET" && url.pathname === "/register") {
-      sendHtml(response, renderRegisterScreen());
+      sendHtml(response, renderRegisterScreen({ locale: requestLocale }));
       return;
     }
 
@@ -973,7 +992,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
     }
 
     if (request.method === "GET" && url.pathname === "/verify-email") {
-      sendHtml(response, renderEmailVerificationScreen());
+      sendHtml(response, renderEmailVerificationScreen({ locale: requestLocale }));
       return;
     }
 
@@ -995,7 +1014,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderOrganizationInvitationsScreen(invitationModel));
+      sendHtml(response, renderOrganizationInvitationsScreen(invitationModel, { locale: requestLocale }));
       return;
     }
 
@@ -1016,7 +1035,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderNotificationSettingsScreen(settingsModel));
+      sendHtml(response, renderNotificationSettingsScreen(settingsModel, { locale: requestLocale }));
       return;
     }
 
@@ -1039,7 +1058,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderPartnerConsoleScreen(partnerModel));
+      sendHtml(response, renderPartnerConsoleScreen(partnerModel, { locale: requestLocale }));
       return;
     }
 
@@ -1061,7 +1080,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderNis2CountryAwareOnboardingScreen(nis2Model));
+      sendHtml(response, renderNis2CountryAwareOnboardingScreen(nis2Model, { locale: requestLocale }));
       return;
     }
 
@@ -1147,7 +1166,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderRuntimeMessageScreen({
                 title: "Select A Workspace",
                 summary: "The Romania workflow needs an active organization-owned workspace.",
@@ -1201,7 +1220,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderRuntimeMessageScreen({
                 title: "Select A Workspace",
                 summary: "Microsoft 365 tenant consent is stored on an organization-owned workspace.",
@@ -1217,22 +1236,25 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       const organization = await resolveActiveOrganizationSurface(apiBaseUrl, request.headers.cookie, session.body);
       sendHtml(
         response,
-        renderMicrosoft365ConnectorPage({
-          actionMessage: url.searchParams.get("message"),
-          activeTenantAccess: await loadActiveTenantAccessBanner({
-            apiBaseUrl,
-            activeOrganizationId: session.body.session.activeOrganizationId,
+        renderMicrosoft365ConnectorPage(
+          {
+            actionMessage: url.searchParams.get("message"),
+            activeTenantAccess: await loadActiveTenantAccessBanner({
+              apiBaseUrl,
+              activeOrganizationId: session.body.session.activeOrganizationId,
+              activeOrganizationName: organization.name,
+              cookie: request.headers.cookie
+            }),
             activeOrganizationName: organization.name,
-            cookie: request.headers.cookie
-          }),
-          activeOrganizationName: organization.name,
-          microsoft365: await loadMicrosoft365HealthSurface({
-            apiBaseUrl,
-            cookie: request.headers.cookie,
-            generatedAt: new Date().toISOString(),
-            organizationId: session.body.session.activeOrganizationId
-          })
-        })
+            microsoft365: await loadMicrosoft365HealthSurface({
+              apiBaseUrl,
+              cookie: request.headers.cookie,
+              generatedAt: new Date().toISOString(),
+              organizationId: session.body.session.activeOrganizationId
+            })
+          },
+          { locale: requestLocale }
+        )
       );
       return;
     }
@@ -1244,7 +1266,11 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       resolvePublicRequestOrigin(request, port);
     const apiRequestOrigin = resolveApiRequestOrigin(apiBaseUrl, requestOrigin, configuredApiRequestOrigin);
 
-    if (request.method === "POST" && (url.pathname === "/onboarding" || /^\/onboarding\/[^/]+$/.test(url.pathname))) {
+    if (
+      request.method === "POST" &&
+      (url.pathname === "/onboarding" ||
+        (url.pathname !== "/onboarding/nis2" && /^\/onboarding\/[^/]+$/.test(url.pathname)))
+    ) {
       const form = await readFormBody(request);
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
         method: "GET",
@@ -1532,7 +1558,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           partnerModel
-            ? renderPartnerConsoleScreen(partnerModel)
+            ? renderPartnerConsoleScreen(partnerModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to create a partner portfolio." }),
           created.statusCode
         );
@@ -1580,7 +1606,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           partnerModel
-            ? renderPartnerConsoleScreen(partnerModel, { routeMode })
+            ? renderPartnerConsoleScreen(partnerModel, { locale: requestLocale, routeMode })
             : renderLoginScreen({ errorMessage: "Sign in to add a partner customer." }),
           created.statusCode
         );
@@ -1628,7 +1654,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           partnerModel
-            ? renderPartnerConsoleScreen(partnerModel, { routeMode })
+            ? renderPartnerConsoleScreen(partnerModel, { locale: requestLocale, routeMode })
             : renderLoginScreen({ errorMessage: "Sign in to enter a partner customer." }),
           started.statusCode
         );
@@ -1643,17 +1669,15 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
           organizationId: started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? ""
         }
       });
-      const effectiveOrganizationId = started.body.tenantSession?.effectiveOrganizationId ?? form.get("organizationId") ?? "";
-
       response.statusCode = 303;
       response.setHeader(
         "location",
         selected.statusCode === 200
-          ? routeMode === "app"
-            ? `/app/o/${encodeURIComponent(
-                String(effectiveOrganizationId)
-              )}/overview?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
-            : `/?message=${encodeURIComponent("Customer session started. Actions are logged with your real user.")}`
+          ? `/dashboard?message=${encodeURIComponent(
+              requestLocale === "ro"
+                ? "Sesiunea clientului a început. Acțiunile sunt înregistrate cu utilizatorul real."
+                : "Customer session started. Actions are logged with your real user."
+            )}`
           : partnerConsoleRedirectLocation(
               partnerId,
               routeMode,
@@ -1743,7 +1767,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           settingsModel
-            ? renderNotificationSettingsScreen(settingsModel)
+            ? renderNotificationSettingsScreen(settingsModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
           created.statusCode
         );
@@ -1798,7 +1822,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           settingsModel
-            ? renderNotificationSettingsScreen(settingsModel)
+            ? renderNotificationSettingsScreen(settingsModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
           result.statusCode
         );
@@ -1886,7 +1910,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           settingsModel
-            ? renderNotificationSettingsScreen(settingsModel)
+            ? renderNotificationSettingsScreen(settingsModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to manage notification settings." }),
           result.statusCode
         );
@@ -2210,7 +2234,14 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         response.setHeader("set-cookie", login.setCookie);
       }
       response.statusCode = 303;
-      response.setHeader("location", login.body.session?.activeOrganizationId ? "/dashboard" : "/workspaces");
+      response.setHeader(
+        "location",
+        await authenticatedLandingPath({
+          activeOrganizationId: login.body.session?.activeOrganizationId,
+          apiBaseUrl,
+          cookie: login.setCookie
+        })
+      );
       response.end();
       return;
     }
@@ -2320,7 +2351,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           invitationModel
-            ? renderOrganizationInvitationsScreen(invitationModel)
+            ? renderOrganizationInvitationsScreen(invitationModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to create organization invitations." }),
           session.statusCode === 200 ? 400 : session.statusCode
         );
@@ -2347,7 +2378,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           invitationModel
-            ? renderOrganizationInvitationsScreen(invitationModel)
+            ? renderOrganizationInvitationsScreen(invitationModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to create organization invitations." }),
           invitation.statusCode
         );
@@ -2375,7 +2406,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           invitationModel
-            ? renderOrganizationInvitationsScreen(invitationModel)
+            ? renderOrganizationInvitationsScreen(invitationModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to accept an organization invitation." }),
           400
         );
@@ -2401,7 +2432,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           invitationModel
-            ? renderOrganizationInvitationsScreen(invitationModel)
+            ? renderOrganizationInvitationsScreen(invitationModel, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to accept an organization invitation." }),
           accepted.statusCode
         );
@@ -2442,7 +2473,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         return;
       }
 
-      sendHtml(response, renderWorkspaceSelectionScreen(selection));
+      sendHtml(response, renderWorkspaceSelectionScreen(selection, { locale: requestLocale }));
       return;
     }
 
@@ -2467,7 +2498,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to choose a workspace." }),
           selected.statusCode
         );
@@ -2503,7 +2534,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to create a workspace." }),
           created.statusCode
         );
@@ -2544,7 +2575,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderLoginScreen({ errorMessage: "Sign in to select the new workspace." }),
           selected.statusCode
         );
@@ -2666,7 +2697,7 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         sendHtml(
           response,
           selection
-            ? renderWorkspaceSelectionScreen(selection)
+            ? renderWorkspaceSelectionScreen(selection, { locale: requestLocale })
             : renderRuntimeMessageScreen({
                 title: "Select A Workspace",
                 summary: "The API session is valid, but no active organization is attached to this browser session yet.",
@@ -3003,6 +3034,29 @@ const sendHtml = (response: { statusCode: number; setHeader: (name: string, valu
   response.end(html);
 };
 
+const webLocaleCookieName = "puresoc_locale";
+
+const resolveWebRequestLocale = (cookieHeader: string | undefined, fallbackLocale: string): "en" | "ro" => {
+  const localeCookie = cookieHeader
+    ?.split(";")
+    .map((part) => part.trim())
+    .find((part) => part.startsWith(`${webLocaleCookieName}=`))
+    ?.slice(webLocaleCookieName.length + 1);
+  return resolveProductLocale(localeCookie ?? fallbackLocale);
+};
+
+const safeLocaleReturnPath = (referer: string | undefined): string => {
+  if (!referer) {
+    return "/dashboard";
+  }
+  try {
+    const parsed = new URL(referer);
+    return `${parsed.pathname}${parsed.search}${parsed.hash}`;
+  } catch {
+    return "/dashboard";
+  }
+};
+
 const readFormBody = async (request: AsyncIterable<Buffer>): Promise<URLSearchParams> => {
   let body = "";
   for await (const chunk of request) {
@@ -3142,6 +3196,12 @@ const loadProductMvpShellModel = async (input: {
 
   return {
     actionMessage: input.actionMessage ?? undefined,
+    activeTenantAccess: await loadActiveTenantAccessBanner({
+      activeOrganizationId: session.session.activeOrganizationId,
+      activeOrganizationName: dashboard.body.dashboard.workspace.name,
+      apiBaseUrl: input.apiBaseUrl,
+      cookie: input.cookie
+    }),
     activeRoute: input.route,
     customers: customers.statusCode === 200 ? customers.body.customers ?? [] : [],
     dashboard: dashboard.body.dashboard,
@@ -4769,12 +4829,18 @@ const formToNis2CountryAnswers = (form: URLSearchParams): Record<string, unknown
   const stringFields = [
     "company.legalName",
     "company.countryCode",
+    "locations.headquartersCountry",
+    "locations.headquartersCity",
     "contacts.primaryName",
     "contacts.primaryEmail",
     "contacts.securityName",
     "contacts.securityEmail",
     "business.sector",
     "business.mainProductsServices",
+    "size.sizeCategory",
+    "size.legalStructure",
+    "systems.systemsDescription",
+    "providers.microsoft365Usage",
     "dependencies.microsoft365Usage",
     "dependencies.backupArrangements",
     "dependencies.businessContinuity",
@@ -4789,7 +4855,13 @@ const formToNis2CountryAnswers = (form: URLSearchParams): Record<string, unknown
     setStringIfPresent(answers, form, field, field);
   }
 
-  const listFields = ["business.countriesServed", "scope.activities", "dependencies.criticalSuppliers"];
+  const listFields = [
+    "business.countriesServed",
+    "scope.activities",
+    "selectedServiceTypeCodes",
+    "systems.publicIpRanges",
+    "dependencies.criticalSuppliers"
+  ];
   for (const field of listFields) {
     setListIfPresent(answers, form, field, field);
   }
@@ -4801,7 +4873,32 @@ const formToNis2CountryAnswers = (form: URLSearchParams): Record<string, unknown
 
   setBooleanIfPresent(answers, form, "scope.publicAdministration", "scope.publicAdministration");
   setBooleanIfPresent(answers, form, "scope.telecomProvider", "scope.telecomProvider");
+  setBooleanIfPresent(answers, form, "relationship.establishedInRomania", "relationship.establishedInRomania");
+  setBooleanIfPresent(answers, form, "relationship.mainOfficeInRomania", "relationship.mainOfficeInRomania");
+  setBooleanIfPresent(answers, form, "relationship.providesServicesInRomania", "relationship.providesServicesInRomania");
+  setBooleanIfPresent(
+    answers,
+    form,
+    "relationship.providesServicesInAnotherEuMemberState",
+    "relationship.providesServicesInAnotherEuMemberState"
+  );
+  setBooleanIfPresent(
+    answers,
+    form,
+    "relationship.publicAdministrationEstablishedByRomania",
+    "relationship.publicAdministrationEstablishedByRomania"
+  );
+  setBooleanIfPresent(
+    answers,
+    form,
+    "relationship.criticalEntityInRomaniaLaw294",
+    "relationship.criticalEntityInRomaniaLaw294"
+  );
   setBooleanIfPresent(answers, form, "review.legalCaveatAcknowledged", "review.legalCaveatAcknowledged");
+
+  if (!form.has("providers.microsoft365Usage") && form.has("dependencies.microsoft365Usage")) {
+    setStringIfPresent(answers, form, "dependencies.microsoft365Usage", "providers.microsoft365Usage");
+  }
 
   for (const [key, value] of form.entries()) {
     if (key.startsWith("scope.dynamicAnswers.") && value.trim().length > 0) {
@@ -5134,4 +5231,29 @@ const apiJson = async <T>(
     body: (await response.json()) as T,
     setCookie: response.headers.get("set-cookie") ?? undefined
   };
+};
+
+const authenticatedLandingPath = async (input: {
+  activeOrganizationId?: string | null;
+  apiBaseUrl: string;
+  cookie?: string;
+}): Promise<"/dashboard" | "/partners" | "/workspaces"> => {
+  if (input.activeOrganizationId) {
+    return "/dashboard";
+  }
+
+  const cookie = input.cookie?.split(";", 1)[0];
+  if (!cookie) {
+    return "/workspaces";
+  }
+
+  try {
+    const partners = await apiJson<PartnerListWebResponse>(input.apiBaseUrl, "/partners", {
+      method: "GET",
+      cookie
+    });
+    return partners.statusCode === 200 && partners.body.partners.length > 0 ? "/partners" : "/workspaces";
+  } catch {
+    return "/workspaces";
+  }
 };

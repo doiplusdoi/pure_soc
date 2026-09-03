@@ -164,3 +164,42 @@ No Microsoft Graph, Stripe, OIDC provider, object storage, scanner, DNSC, KMS, d
 ## Pending Milestone Validation
 
 - Independent external/product/legal review remains outside this local validation run.
+
+## Controlled Partner Account Provisioning
+
+Run from `code/` on 2026-08-27.
+
+| Command | Result | Notes |
+|---|---:|---|
+| `npm test -- operator-partner-account-provisioning web-dashboard-reports-ui` | Passed | 2 files, 52 tests. Covers verified partner-owner creation, duplicate preflight, slug conflict preflight, partner-only login routing, and existing web behavior. Local loopback tests required the approved local-server permission. |
+| `npm run typecheck` | Passed | The API provisioning service and partner login routing compile with the full workspace. |
+| `npm run operator:provision-partner -- --help` | Passed | Documents hidden TTY input and mounted secret-file input without a password command-line option. |
+| `npm run lint` | Passed | Layout, schema-contract drift (42 models, 589 fields), generated Romania regulatory drift (3 artifacts), and workspace typecheck passed. |
+| `npm test` | Passed | Full suite passed outside the sandbox: 100 files, 542 tests. Local API/web integration tests required the approved loopback permission. |
+| `npm run test:e2e -- --grep @live-demo-local` | Passed | Created a partner and RO/PL/DE customers through served web routes, entered explicit tenant sessions, completed country-aware onboarding, downloaded report v1 PDFs, traversed fixture Microsoft 365 read-only evidence and action safety gates, generated report v2, verified canonical report downloads and portfolio opportunity state, and exited tenant context. |
+| `npm run test:e2e -- --grep @fixture-demo` | Passed | Deterministic fallback demo passed, including the persistent active-customer banner on the canonical onboarding surface. |
+| `npm run compose:config` | Passed | The operator command is present in the API image build context and the existing Compose topology remains valid. |
+| `git diff --check` | Passed | No whitespace errors. |
+| External health/login probe against the previously documented dev hostname | Blocked | The hostname no longer resolved in DNS. Obtain the current `<PURESOC_DEMO_URL>` before deployed acceptance. |
+
+## Demo Hardening And External Readiness
+
+Run from `code/` on 2026-08-27 after the mobile portfolio, customer-session banner, and provider-token custody fixes.
+
+| Command or check | Result | Notes |
+|---|---:|---|
+| `npm test -- ui-design-system config docker-runtime-shape` | Passed | 6 files, 46 tests. Covers the mobile overflow containment, banner layout, explicit provider-token key ID, and Compose env shape. |
+| `npm run provider-token:smoke` | Passed | Proved active/previous-key custody behavior and missing-key-ID rejection with synthetic, secret-free inputs. No Graph calls or provider writes occurred. |
+| `npm run compose:config:build` | Passed | Build-enabled Compose renders with optional `PURESOC_PROVIDER_TOKEN_KEY_ID`; clean fixture mode still requires no connector secrets. |
+| `npm run lint` | Passed | Layout, schema-contract drift (42 models, 589 fields), generated Romania regulatory drift (3 artifacts), and workspace typecheck passed. |
+| `npm test` | Passed | Full suite: 100 files, 542 tests. |
+| `npm run test:e2e -- --grep @ui-smoke` | Passed | Served UI/auth/origin coverage passed. |
+| `npm run test:e2e -- --grep @fixture-demo` | Passed | Deterministic partner-to-customer demo journey passed. |
+| `npm run test:e2e -- --grep @live-demo-local` | Passed | Full local power-user journey passed with fixture-backed Microsoft evidence and provider writes disabled. |
+| `npm run test:e2e -- --grep @browser-smoke` | Environment-blocked | The packaged Firefox runtime was unavailable (`firefox_not_found`). This is an environment dependency, not a product assertion. |
+| Interactive Chromium review at 1440 px, 390 px, and 360 px | Passed | Long partner/customer/reason values remained usable; the page had no horizontal overflow; the portfolio table scrolled inside its wrapper; the reason field enforced native required validation; entering and exiting customer context worked; and the active-session banner stayed readable on desktop and mobile. |
+| `npm run external-smoke:readiness` | Passed dry-run contract | `mode=dry_run`, `liveNetworkCalls=false`, `ready_for_disposable_smoke=0`; seven paths were not configured, one was dry-run-only, and one lacked an external secret. |
+| `npm run external-smoke:select-target` | Passed safe refusal | Returned `outcome=no_ready_path`, `selectedPathId=null`, and `readyCandidateCount=0`; no live command was selected. |
+| Microsoft 365, deployed-auth, evidence-runtime, OIDC-callback, and Stripe smoke commands | Passed dry-run contracts | Each returned `status=dry_run_passed`. No external network operation or provider write was executed. |
+
+Live deployed acceptance remains blocked, not passed: this run had no current resolvable `<PURESOC_DEMO_URL>`, test-owned deployment credentials, or approved Microsoft tenant configuration. Before deploying these changes, set `PURESOC_PROVIDER_TOKEN_KEY_ID` alongside existing provider-token key material; a deployment that supplies a key without its explicit ID will now fail startup by design.
