@@ -158,7 +158,14 @@ describe("Docker runtime command shape", () => {
     expect(compose).toContain("PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_MODE: ${PURESOC_CONNECTOR_MICROSOFT365_MODE:-auto}");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
-    expect(readComposeServiceBlock(compose, "puresoc-api")).toContain("pnpm prisma:migrate:deploy && exec pnpm start:api");
+    const webService = readComposeServiceBlock(compose, "puresoc-web");
+    const apiService = readComposeServiceBlock(compose, "puresoc-api");
+
+    expect(webService).toContain("puresoc-api:\n        condition: service_healthy");
+    expect(apiService).toContain('command: ["pnpm", "start:api"]');
+    expect(apiService).toContain('PURESOC_API_SKIP_STARTUP_MIGRATIONS: "true"');
+    expect(apiService).toContain('PORT: "3001"');
+    expect(apiService).not.toContain("pnpm prisma:migrate:deploy && exec pnpm start:api");
     expect(compose).toContain("expose:");
     expect(compose).not.toContain("3001:3001");
   });

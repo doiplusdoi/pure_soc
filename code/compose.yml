@@ -263,7 +263,7 @@ services:
       - "3000:3000"
     depends_on:
       puresoc-api:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -283,7 +283,7 @@ services:
     build:
       context: .
       dockerfile: infra/docker/Dockerfile.api
-    command: ["sh", "-c", "pnpm prisma:migrate:deploy && exec pnpm start:api"]
+    command: ["pnpm", "start:api"]
     environment:
       <<:
         - *puresoc-backend-base-environment
@@ -292,8 +292,10 @@ services:
         - *puresoc-social-login-environment
         - *puresoc-billing-environment
       PURESOC_PERSISTENCE_MODE: prisma
+      PURESOC_API_SKIP_STARTUP_MIGRATIONS: "true"
       DATABASE_URL: *puresoc-database-url
       PURESOC_REPORT_RENDERER: http://puresoc-report-renderer:3002
+      PORT: "3001"
     expose:
       - "3001"
     healthcheck:
