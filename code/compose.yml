@@ -33,7 +33,7 @@ x-puresoc-microsoft365-connector-environment: &puresoc-microsoft365-connector-en
   PURESOC_CONNECTOR_MICROSOFT365_AUTHORITY_HOST: https://login.microsoftonline.com
   PURESOC_CONNECTOR_MICROSOFT365_GRAPH_BASE_URL: https://graph.microsoft.com/v1.0
   PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: "false"
-  PURESOC_PROVIDER_TOKEN_KEY_ID: ${PURESOC_PROVIDER_TOKEN_KEY_ID:-}
+  PURESOC_PROVIDER_TOKEN_KEY_ID: ${PURESOC_PROVIDER_TOKEN_KEY_ID:-live-current}
   PURESOC_PROVIDER_TOKEN_KEY: ${PURESOC_PROVIDER_TOKEN_KEY:-}
 
 x-puresoc-social-login-environment: &puresoc-social-login-environment

@@ -158,6 +158,7 @@ describe("Docker runtime command shape", () => {
     expect(compose).toContain("PURESOC_API_TRUSTED_ORIGINS: http://puresoc-web:3000");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_MODE: ${PURESOC_CONNECTOR_MICROSOFT365_MODE:-auto}");
     expect(compose).toContain("PURESOC_CONNECTOR_MICROSOFT365_WRITE_SCOPES_ALLOWED: \"false\"");
+    expect(compose).toContain("PURESOC_PROVIDER_TOKEN_KEY_ID: ${PURESOC_PROVIDER_TOKEN_KEY_ID:-live-current}");
     const webService = readComposeServiceBlock(compose, "puresoc-web");
     const apiService = readComposeServiceBlock(compose, "puresoc-api");
 
