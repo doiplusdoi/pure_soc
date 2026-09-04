@@ -217,7 +217,7 @@ Each active prompt is paired with an incremental milestone file under `docs/PLAN
 - Prompt 92 / `docs/PLAN_M93.md` is completed.
 - Prompt 93 / `docs/PLAN_M94.md` is completed.
 - Prompt 94 / `docs/PLAN_M95.md` is completed.
-- Prompt 95 / `docs/PLAN_M96.md` is staged as the next product milestone runner.
+- Prompt 95 / `docs/PLAN_M96.md` is completed locally.
 - Ad hoc `docs/PLAN_M97.md` is completed for product MVP facade hardening.
 - `docs/PLAN_M98.md` is staged for the remaining product facade destructive-semantics work.
 - Continue incrementing one milestone number per prompt unless this file is intentionally reordered.
@@ -235,12 +235,11 @@ During each prompt run:
 Recommended next sequence:
 
 1. Prompt 79 / `docs/PLAN_M80.md`: Romania Legal/Product Decision Gate And External Proof Handoff.
-2. Prompt 95 / `docs/PLAN_M96.md`: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius.
-3. `docs/PLAN_M98.md`: Product MVP Remaining Destructive Semantics.
+2. `docs/PLAN_M98.md`: Product MVP Remaining Destructive Semantics.
 
 M79 completed the Romania/DNSC readiness-flow hardening pass, M82 narrowed GAP-041 with selected schema drift coverage for Romania readiness persistence, M83 narrowed GAP-046 with local email-verification API/web hardening, M84 narrowed GAP-029 with local stable internal-readiness CSV exports, M85 narrowed GAP-029 with persisted JSON/CSV report-export metadata, M86 narrowed GAP-029 with deterministic local binary evidence-package bundles, M87 narrowed GAP-029 with configurable local evidence-package guardrails, M88 narrowed GAP-046 with local owner-managed organization invitations, M89 narrowed GAP-046 with served invitation UX, M90 narrowed GAP-041 with selected regulatory source activation drift coverage, M91 narrowed GAP-041 with selected billing customer drift coverage, M92 narrowed GAP-031/GAP-046 with the short-page customer NIS2 wizard, Microsoft connector handoff, derived gap list, and export controls, M93 narrowed GAP-029 with Playwright-backed PDF report generation and audited generated-report PDF downloads, M94 narrowed local notification/alert delivery plumbing while opening GAP-048 for live delivery operations and incident workflow modeling, M95 added local compliance score trend history/charting, and M97 narrowed GAP-050 with persisted product facade update/download/remediation aliases. M80 should not start more implementation by default; it should wait for a human/product/operator decision between Romanian legal/product activation preparation, exactly one approved disposable external proof target, or blocker-only documentation.
 
-Use M96 when continuing the user-directed product milestone sequence. It should implement Milestone 4 write actions wave 1 only, keeping all four actions zero-blast-radius, evidence-producing, approval-gated, and free of Microsoft 365 configuration writes.
+M96 completed Milestone 4 write actions wave 1 locally. The four actions are deterministic, zero-blast-radius, evidence-producing, approval-gated, downloadable from the canonical remediation UI, and free of Microsoft 365 configuration writes. Live provider writes remain deferred under GAP-030.
 
 Use M98 when continuing the product MVP facade cleanup. It should implement evidence retention/deletion semantics and optional Microsoft Entra provider-side revocation proof only when the backing contracts, audit behavior, and tests are included.
 
@@ -359,7 +358,9 @@ Final response must include:
 - Next staged prompt/PLAN file
 - Residual blockers
 
-## Active Prompt 95 / PLAN_M96: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius
+## Completed Prompt 95 / PLAN_M96: Product Milestone 4 - Write Actions Wave 1 Zero Blast Radius
+
+Completed locally on 2026-09-04. The implementation added the Microsoft-owned zero-blast action catalog, stored recommendation offers, safe product-facade action creation, pre/post snapshots, approval, local task/report/evidence output, verification/close, role-scoped UI controls, and checksum-verified JSON downloads. The full local test suite passed without deploys, live Microsoft Graph calls, or provider mutations.
 
 Read:
 

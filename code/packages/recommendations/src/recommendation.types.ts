@@ -72,6 +72,15 @@ export interface RecommendationOpportunityMetadata {
   nextAction: string;
 }
 
+export interface RecommendationActionOffer {
+  actionKey: string;
+  description: string;
+  outputType: string;
+  providerKey: string;
+  providerMutation: false;
+  title: string;
+}
+
 export interface RecommendationContract extends RecommendationSummary {
   id: string;
   organizationId: string;
@@ -98,6 +107,7 @@ export interface RecommendationContract extends RecommendationSummary {
   decision?: RecommendationDecisionMetadata;
   opportunity?: RecommendationOpportunityMetadata;
   capabilityDiagnostics?: RecommendationCapabilityDiagnostics;
+  actionOffer?: RecommendationActionOffer;
   snapshotId?: string;
 }
 

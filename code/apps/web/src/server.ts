@@ -1084,6 +1084,68 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
       return;
     }
 
+    const remediationReportDownload = /^\/remediation\/reports\/([^/]+)\/download$/.exec(url.pathname);
+    if (request.method === "GET" && remediationReportDownload) {
+      const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
+        method: "GET",
+        cookie: request.headers.cookie
+      });
+      const organizationId = session.body?.session?.activeOrganizationId;
+      if (session.statusCode !== 200 || !organizationId) {
+        sendHtml(
+          response,
+          renderLoginScreen({ errorMessage: "Sign in and select a workspace before downloading remediation output." }),
+          401
+        );
+        return;
+      }
+
+      const reportSnapshotId = remediationReportDownload[1] ?? "";
+      const upstream = await fetch(
+        `${apiBaseUrl}/api/v1/organizations/${encodeURIComponent(organizationId)}/report-snapshots/${encodeURIComponent(
+          reportSnapshotId
+        )}/download`,
+        {
+          method: "GET",
+          headers: {
+            ...(request.headers.cookie ? { cookie: request.headers.cookie } : {})
+          }
+        }
+      );
+      if (upstream.status !== 200) {
+        sendHtml(
+          response,
+          renderRuntimeMessageScreen({
+            title: "Remediation Output Not Available",
+            summary: "The generated output could not be downloaded or is outside the active workspace.",
+            statusLabel: String(upstream.status),
+            statusTone: "warning",
+            actionHref: "/remediation",
+            actionLabel: "Return to remediation"
+          }),
+          upstream.status
+        );
+        return;
+      }
+
+      response.statusCode = 200;
+      for (const headerName of [
+        "cache-control",
+        "content-type",
+        "content-disposition",
+        "x-puresoc-content-sha256",
+        "x-puresoc-file-object-id",
+        "x-puresoc-renderer"
+      ]) {
+        const headerValue = upstream.headers.get(headerName);
+        if (headerValue) {
+          response.setHeader(headerName, headerValue);
+        }
+      }
+      response.end(Buffer.from(await upstream.arrayBuffer()));
+      return;
+    }
+
     const generatedReportPdf = /^\/reports\/generated\/([^/]+)\/pdf$/.exec(url.pathname);
     if (request.method === "GET" && generatedReportPdf) {
       const session = await apiJson<RuntimeSessionSurface>(apiBaseUrl, "/auth/session", {
@@ -1357,6 +1419,65 @@ export const startWebServer = (port = Number(process.env.PORT ?? 3000), options:
         "location",
         `/gap-analyzer?message=${encodeURIComponent(
           apiSucceeded(result.statusCode) ? "Gap analyzer completed." : "Gap analyzer needs saved onboarding answers first."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    if (request.method === "POST" && url.pathname === "/remediation/actions") {
+      const form = await readFormBody(request);
+      const created = await apiJson<unknown>(apiBaseUrl, "/api/remediation/actions", {
+        method: "POST",
+        cookie: request.headers.cookie,
+        origin: apiRequestOrigin,
+        body: {
+          recommendationId: form.get("recommendationId") ?? "",
+          actionKey: form.get("actionKey") ?? ""
+        }
+      });
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/remediation?message=${encodeURIComponent(
+          apiSucceeded(created.statusCode)
+            ? "Safe workflow created with a passed preview and pre-state snapshot."
+            : apiErrorMessage(created.body) ?? "The remediation workflow could not be created."
+        )}`
+      );
+      response.end();
+      return;
+    }
+
+    const productRemediationTransition = /^\/remediation\/actions\/([^/]+)\/(preview|approve|execute)$/.exec(
+      url.pathname
+    );
+    if (request.method === "POST" && productRemediationTransition) {
+      const actionRunId = productRemediationTransition[1] ?? "";
+      const transition = productRemediationTransition[2] ?? "preview";
+      const transitioned = await apiJson<unknown>(
+        apiBaseUrl,
+        `/api/remediation/actions/${encodeURIComponent(actionRunId)}/${transition}`,
+        {
+          method: "POST",
+          cookie: request.headers.cookie,
+          origin: apiRequestOrigin,
+          body: {}
+        }
+      );
+      const successMessage =
+        transition === "approve"
+          ? "Remediation action approved."
+          : transition === "execute"
+            ? "Zero-blast output generated, verified, and added to the evidence trail."
+            : "Remediation preview and pre-state snapshot refreshed.";
+      response.statusCode = 303;
+      response.setHeader(
+        "location",
+        `/remediation?message=${encodeURIComponent(
+          apiSucceeded(transitioned.statusCode)
+            ? successMessage
+            : apiErrorMessage(transitioned.body) ?? "The remediation action could not advance."
         )}`
       );
       response.end();

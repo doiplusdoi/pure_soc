@@ -1,10 +1,16 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 
 import { AuthError, type PureSocRoleKey } from "@puresoc/auth-core";
 import { generateReadinessPlan, type ComplianceGap, type ComplianceStatus } from "@puresoc/compliance-core";
+import {
+  getMicrosoft365ZeroBlastAction,
+  isMicrosoft365ZeroBlastActionKey,
+  microsoft365ZeroBlastActionsForGap
+} from "@puresoc/provider-microsoft365";
 import type { RecommendationContract } from "@puresoc/recommendations";
 import type { ReportBranding } from "@puresoc/reports";
 import { PURESOC_LEGAL_CAVEAT } from "@puresoc/shared";
+import { ensureZeroBlastPreStateSnapshot, executeZeroBlastProviderAction } from "../actions/routes";
 import type { ApiServices } from "../auth/services";
 import { listNis2CountryPacksRoute, getNis2CountryPackRoute } from "../compliance/nis2/routes";
 import {
@@ -25,7 +31,14 @@ const readSession = async (cookieHeader: string | undefined, services: ApiServic
 const requireActiveWorkspace = async (
   cookieHeader: string | undefined,
   services: ApiServices,
-  allowedRoles: readonly PureSocRoleKey[] = ["owner", "org_admin", "compliance_manager", "security_operator", "auditor"]
+  allowedRoles: readonly PureSocRoleKey[] = [
+    "owner",
+    "org_admin",
+    "compliance_manager",
+    "security_operator",
+    "remediation_approver",
+    "auditor"
+  ]
 ) => {
   const session = await readSession(cookieHeader, services);
   const organizationId = session.session.activeOrganizationId;
@@ -184,15 +197,21 @@ const planItemForGap = (analysis: Awaited<ReturnType<typeof latestAnalysis>>, ga
     (item) => item.controlId === gap.controlId || item.gapSummary === gap.summary
   ) as Record<string, unknown> | undefined;
 
-const recommendationView = (recommendation: Record<string, unknown>) => ({
+const recommendationView = (recommendation: Record<string, unknown>, canStartAction = false) => ({
   id: String(recommendation.id ?? ""),
   title: String(recommendation.title ?? "Recommended action"),
   controlArea: String(recommendation.controlId ?? "NIS2 readiness"),
   priority: String(recommendation.priority ?? recommendation.severity ?? "medium"),
-  effort: String(recommendation.effort ?? "review"),
+  effort: String(recommendation.effort ?? recommendation.automationMode ?? "review"),
   owner: typeof recommendation.ownerUserId === "string" ? recommendation.ownerUserId : null,
-  actionType: String(recommendation.actionType ?? "manual"),
-  summary: String(recommendation.summary ?? recommendation.description ?? "Review and assign this recommendation.")
+  actionType: String(recommendation.actionType ?? recommendation.recommendationType ?? "manual"),
+  summary: String(recommendation.summary ?? recommendation.description ?? "Review and assign this recommendation."),
+  expectedChange: typeof recommendation.expectedChange === "string" ? recommendation.expectedChange : null,
+  actionOffer:
+    recommendation.actionOffer && typeof recommendation.actionOffer === "object"
+      ? recommendation.actionOffer
+      : null,
+  canStartAction
 });
 
 const reportView = (artifact: Record<string, unknown>) => {
@@ -791,7 +810,12 @@ export const productRunReadinessRoute = async (
   const gaps = mergeGaps(result.gaps, productGaps);
   const recommendations = mergeRecommendations(
     result.recommendations as RecommendationContract[],
-    productGaps.map((gap) => recommendationFromProductGap(gap))
+    [
+      ...productGaps.map((gap) => recommendationFromProductGap(gap)),
+      ...(connection
+        ? microsoft365ZeroBlastRecommendations({ assessmentId, gaps, organizationId })
+        : [])
+    ]
   );
   const readinessPlan = generateReadinessPlan({
     organizationId,
@@ -845,7 +869,7 @@ export const productRunReadinessRoute = async (
         return businessGapView(gapRecord, planItemForGap(storedAnalysis, gapRecord));
       }),
       recommendations: recommendations.map((recommendation) =>
-        recommendationView(recommendation as unknown as Record<string, unknown>)
+        recommendationView(recommendation as unknown as Record<string, unknown>, true)
       )
     }
   };
@@ -992,6 +1016,65 @@ const mergeRecommendations = (
     byId.set(recommendation.id, recommendation);
   }
   return [...byId.values()];
+};
+
+const microsoft365ZeroBlastRecommendations = (input: {
+  assessmentId: string;
+  gaps: readonly ComplianceGap[];
+  organizationId: string;
+}): RecommendationContract[] => {
+  const recommendations: RecommendationContract[] = [];
+  const offeredActionKeys = new Set<string>();
+
+  for (const gap of input.gaps) {
+    if (["accepted_risk", "not_applicable", "passing"].includes(gap.status)) {
+      continue;
+    }
+
+    for (const action of microsoft365ZeroBlastActionsForGap(gap)) {
+      if (offeredActionKeys.has(action.actionKey)) {
+        continue;
+      }
+      offeredActionKeys.add(action.actionKey);
+      recommendations.push({
+        id: `${input.assessmentId}:microsoft365:${action.actionKey}:recommendation`,
+        organizationId: input.organizationId,
+        sourceFindingId: gap.findingIds[0],
+        sourceFindingIds: gap.findingIds,
+        manualTaskIds: gap.manualTaskIds,
+        controlId: gap.controlId,
+        jurisdiction: gap.jurisdiction,
+        title: action.title,
+        summary: `${action.description} Related open gap: ${gap.summary}`,
+        severity: gap.severity,
+        confidence: gap.confidence,
+        recommendationType: action.actionType,
+        automationMode: "preflightable",
+        requiredPermissions: action.permissionsRequired,
+        requiredLicense: [],
+        expectedChange: action.expectedChange,
+        blastRadius: "No Microsoft 365 configuration change. Only local task, report, and evidence records are created.",
+        manualFallback: action.manualFallback,
+        evidenceRequired: true,
+        status: "proposed",
+        sourceReferences: gap.sourceReferences,
+        rule: {
+          id: `microsoft365.zero_blast.${action.actionKey.toLowerCase()}`,
+          version: "1.0.0"
+        },
+        actionOffer: {
+          actionKey: action.actionKey,
+          description: action.description,
+          outputType: action.outputType,
+          providerKey: "microsoft365",
+          providerMutation: false,
+          title: action.title
+        }
+      });
+    }
+  }
+
+  return recommendations;
 };
 
 const recommendationFromProductGap = (gap: ComplianceGap): RecommendationContract => ({
@@ -1181,13 +1264,19 @@ export const productListRecommendationsRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
 ): Promise<JsonResult> => {
-  const { organizationId } = await requireActiveWorkspace(cookieHeader, services);
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services);
+  const roles = new Set(
+    (await services.rbacRepository.findRoleBindings(organizationId, session.user.id)).map((binding) => binding.roleKey)
+  );
+  const canStartAction = ["owner", "org_admin", "compliance_manager", "security_operator"].some((role) =>
+    roles.has(role as PureSocRoleKey)
+  );
   const analysis = await latestAnalysis(organizationId, services);
   return {
     statusCode: 200,
     body: {
       recommendations: (analysis?.recommendations ?? []).map((recommendation) =>
-        recommendationView(recommendation as unknown as Record<string, unknown>)
+        recommendationView(recommendation as unknown as Record<string, unknown>, canStartAction)
       )
     }
   };
@@ -1554,26 +1643,237 @@ export const productDownloadReportRoute = async (
   };
 };
 
+export const productCreateRemediationRoute = async (
+  body: Record<string, unknown>,
+  cookieHeader: string | undefined,
+  context: ProductWriteContext,
+  services: ApiServices
+): Promise<JsonResult> => {
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services, [
+    "owner",
+    "org_admin",
+    "compliance_manager",
+    "security_operator"
+  ]);
+  const recommendationId = requireBodyString(body, "recommendationId", "Recommendation ID");
+  const actionKey = requireBodyString(body, "actionKey", "Action key");
+  const definition = getMicrosoft365ZeroBlastAction(actionKey);
+  if (!definition) {
+    throw new AuthError("invalid_request", "This remediation action is not available in the zero-blast catalog.", 400);
+  }
+
+  const analysis = await latestAnalysis(organizationId, services);
+  const recommendation = analysis?.recommendations.find((candidate) => candidate.id === recommendationId);
+  if (
+    !recommendation ||
+    recommendation.actionOffer?.providerKey !== "microsoft365" ||
+    recommendation.actionOffer.actionKey !== definition.actionKey
+  ) {
+    throw new AuthError("invalid_request", "The requested action is not offered by this stored recommendation.", 404);
+  }
+
+  const connection = await primaryMicrosoftConnection(organizationId, services);
+  if (!connection) {
+    throw new AuthError("invalid_request", "Connect Microsoft 365 before starting this remediation workflow.", 400);
+  }
+
+  const idempotencyKey = `m365-zero-blast:${createHash("sha256")
+    .update(`${recommendation.id}:${definition.actionKey}`)
+    .digest("hex")
+    .slice(0, 48)}`;
+  const existing = await services.actionsRepository.findActionRunByIdempotencyKeyForOrganization({
+    organizationId,
+    idempotencyKey
+  });
+  if (existing) {
+    const reusable =
+      existing.preflightStatus === "passed" && !existing.preStateSnapshot
+        ? await ensureZeroBlastPreStateSnapshot({
+            organizationId,
+            run: existing,
+            actorUserId: session.user.id,
+            context,
+            services
+          })
+        : existing;
+    return {
+      statusCode: 200,
+      body: {
+        actionRun: safeActionRunView(reusable),
+        reused: true
+      }
+    };
+  }
+
+  const template = await services.actions.createTemplate({
+    organizationId,
+    providerKey: "microsoft365",
+    moduleKey: definition.moduleKey,
+    actionKey: definition.actionKey,
+    actionType: definition.actionType,
+    automationMode: "preflightable",
+    title: definition.title,
+    description: definition.description,
+    riskLevel: "low",
+    permissionsRequired: definition.permissionsRequired,
+    licenseRequired: [],
+    preconditions: {
+      sourceRecommendationId: recommendation.id,
+      providerMutation: false,
+      storedReadSnapshotRequired: true
+    },
+    expectedChange: definition.expectedChange,
+    blastRadius: "PureSOC-local task, report, evidence, audit, and lifecycle records only.",
+    rollbackStrategy: "No provider rollback is required. Archive the locally generated artifacts if they are no longer useful.",
+    manualFallback: definition.manualFallback,
+    evidenceRequired: true,
+    enabledByDefault: true,
+    highRiskForbiddenInV1: false,
+    sourceReferences: recommendation.sourceReferences
+  });
+  const run = await services.actions.createActionRun({
+    organizationId,
+    providerConnectionId: connection.id,
+    actorUserId: session.user.id,
+    idempotencyKey,
+    recommendation,
+    template
+  });
+  const resources = await services.providerConnections.store.listNormalizedResources(organizationId, connection.id);
+  const preflighted = await services.actions.recordPreflight({
+    organizationId,
+    actionRunId: run.id,
+    actorUserId: session.user.id,
+    context,
+    result: {
+      status: "passed",
+      checks: [
+        {
+          code: "provider_connection_available",
+          status: connection.status === "connected" || connection.status === "degraded" ? "passed" : "warning",
+          message: "The Microsoft 365 connection and its stored read snapshot are available to this workflow."
+        },
+        {
+          code: "provider_mutation_absent",
+          status: "passed",
+          message: "This action has no Microsoft Graph write operation and cannot modify tenant configuration."
+        },
+        {
+          code: "stored_resource_snapshot",
+          status: resources.length > 0 ? "passed" : "warning",
+          message:
+            resources.length > 0
+              ? `${resources.length} stored Microsoft 365 resources are available for the output.`
+              : "No stored resources are available yet; the output will explain what must be synced or reviewed manually."
+        }
+      ],
+      diff: {
+        summary: definition.expectedChange,
+        changes: [
+          { field: "providerMutation", before: false, after: false },
+          { field: "localOutput", after: definition.outputType }
+        ]
+      },
+      requiredPermissions: definition.permissionsRequired,
+      requiredLicense: [],
+      canRequestApproval: true
+    }
+  });
+  const snapshotted = await ensureZeroBlastPreStateSnapshot({
+    organizationId,
+    run: preflighted,
+    actorUserId: session.user.id,
+    context,
+    services
+  });
+
+  return {
+    statusCode: 201,
+    body: {
+      actionRun: safeActionRunView(snapshotted),
+      reused: false
+    }
+  };
+};
+
 export const productListRemediationRoute = async (
   cookieHeader: string | undefined,
   services: ApiServices
 ): Promise<JsonResult> => {
-  const { organizationId } = await requireActiveWorkspace(cookieHeader, services);
-  return {
-    statusCode: 200,
-    body: {
-      actions: (await services.actionsRepository.listActionRuns(organizationId)).map((run) => ({
+  const { session, organizationId } = await requireActiveWorkspace(cookieHeader, services);
+  const roles = new Set(
+    (await services.rbacRepository.findRoleBindings(organizationId, session.user.id)).map((binding) => binding.roleKey)
+  );
+  const canApprove = ["owner", "org_admin", "remediation_approver"].some((role) => roles.has(role as PureSocRoleKey));
+  const canOperate = ["owner", "org_admin", "compliance_manager", "security_operator"].some((role) =>
+    roles.has(role as PureSocRoleKey)
+  );
+  const actionRuns = await services.actionsRepository.listActionRuns(organizationId);
+  const actions = await Promise.all(
+    actionRuns.map(async (run) => {
+      const isZeroBlast =
+        run.providerKey === "microsoft365" && isMicrosoft365ZeroBlastActionKey(run.actionKey);
+      const operation = await services.productV1.findOperationByIdempotencyKey({
+        organizationId,
+        kind: "action",
+        idempotencyKey: `provider-action-zero-blast:${run.id}`
+      });
+      const result = operation?.result ?? null;
+      const reportSnapshotId =
+        result && typeof result.reportSnapshotId === "string" ? result.reportSnapshotId : null;
+
+      return {
         id: run.id,
         title: run.title,
         area: run.moduleKey ?? run.controlId,
+        actionKey: run.actionKey,
+        actionType: run.actionType,
+        automationMode: run.automationMode,
         risk: run.riskLevel,
         effort: run.automationMode === "manual" ? "manual" : "medium",
         approvalState: run.approval.status,
         executionState: run.status,
+        preflightStatus: run.preflightStatus,
+        preflightSummary: run.preflightResult?.diff?.summary ?? null,
+        preflightChecks: run.preflightResult?.checks ?? [],
+        preStateSnapshotSaved: Boolean(run.preStateSnapshot),
+        verificationStatus: run.verificationStatus,
+        evidenceArtifactCount: run.evidenceArtifactIds.length,
+        providerMutation: isZeroBlast ? false : null,
+        outputType: result && typeof result.outputType === "string" ? result.outputType : null,
+        outputSummary:
+          result && result.outputSummary && typeof result.outputSummary === "object" ? result.outputSummary : null,
+        outputDownloadHref: reportSnapshotId
+          ? `/remediation/reports/${encodeURIComponent(reportSnapshotId)}/download`
+          : null,
         dryRunOnly: !run.highRiskForbiddenInV1 && run.automationMode !== "manual" ? !run.workerJob : true,
         expectedChange: run.expectedChange,
-        rollbackGuidance: run.rollbackStrategy
-      }))
+        rollbackGuidance: run.rollbackStrategy,
+        controls: {
+          canPreview: canOperate && run.preflightStatus === "not_run",
+          canApprove:
+            canApprove &&
+            run.preflightStatus === "passed" &&
+            run.approval.status !== "approved" &&
+            (!isZeroBlast || Boolean(run.preStateSnapshot)),
+          canExecute:
+            canOperate &&
+            run.approval.status === "approved" &&
+            run.preflightStatus === "passed" &&
+            Boolean(run.preStateSnapshot) &&
+            isZeroBlast
+        }
+      };
+    })
+  );
+  return {
+    statusCode: 200,
+    body: {
+      permissions: {
+        canApprove,
+        canOperate
+      },
+      actions
     }
   };
 };
@@ -1641,17 +1941,38 @@ export const productRemediationTransitionRoute = async (
         canRequestApproval: !executableBlocked
       }
     });
+    const snapshotted =
+      run.providerKey === "microsoft365" && isMicrosoft365ZeroBlastActionKey(run.actionKey)
+        ? await ensureZeroBlastPreStateSnapshot({
+            organizationId,
+            run: preview,
+            actorUserId: session.user.id,
+            context,
+            services
+          })
+        : preview;
 
     return {
       statusCode: 200,
       body: {
-        actionRun: safeActionRunView(preview),
-        preview: preview.preflightResult
+        actionRun: safeActionRunView(snapshotted),
+        preview: snapshotted.preflightResult
       }
     };
   }
 
   if (transition === "approve") {
+    if (
+      run.providerKey === "microsoft365" &&
+      isMicrosoft365ZeroBlastActionKey(run.actionKey) &&
+      !run.preStateSnapshot
+    ) {
+      throw new AuthError(
+        "invalid_request",
+        "Create the pre-state snapshot before approving this zero-blast action.",
+        409
+      );
+    }
     const requested =
       run.approval.status === "requested" || run.approval.status === "approved"
         ? run
@@ -1677,6 +1998,17 @@ export const productRemediationTransitionRoute = async (
         actionRun: safeActionRunView(approved)
       }
     };
+  }
+
+  if (run.providerKey === "microsoft365" && isMicrosoft365ZeroBlastActionKey(run.actionKey)) {
+    return executeZeroBlastProviderAction({
+      organizationId,
+      run,
+      actorUserId: session.user.id,
+      idempotencyKeyHeader: undefined,
+      context,
+      services
+    });
   }
 
   const connection = await services.providerConnections.store.getConnectionForOrganization(

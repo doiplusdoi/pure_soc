@@ -4536,9 +4536,15 @@ function assertResponsiveLayout(html) {
 }
 
 function assertNoObviousOverlapRegression(html) {
+  const css = styleBlock(html);
   const nestedPanel = /<article class="ps-panel">[\s\S]*?<div class="ps-panel"><h4/.test(html);
   record("approval_facts_are_not_nested_cards", !nestedPanel);
-  record("absolute_positioning_is_limited_to_skip_link", (styleBlock(html).match(/position:\s*absolute/g) ?? []).length === 1);
+  record(
+    "absolute_positioning_is_limited_to_accessibility_helpers",
+    (css.match(/position:\s*absolute/g) ?? []).length === 2 &&
+      /\.ps-skip-link\s*{[^}]*position:\s*absolute/s.test(css) &&
+      /\.ps-sr-only\s*{[^}]*position:\s*absolute/s.test(css)
+  );
   const longButtonLabels = [...html.matchAll(/<button[^>]*>[\s\S]*?<span>([^<]+)<\/span><\/button>/g)]
     .map((match) => match[1] ?? "")
     .filter((label) => label.length > 32);

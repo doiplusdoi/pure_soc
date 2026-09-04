@@ -548,6 +548,144 @@ describe("product MVP facade routes", () => {
     });
   });
 
+  it("turns open Microsoft 365 gaps into approved zero-blast reports, tasks, and evidence", async () => {
+    const { cookie, organizationId } = await registerLoginAndSelectWorkspace();
+    await patchJson(`/api/workspaces/${organizationId}`, { countryCode: "DE" }, cookie);
+    const consent = await postJson(
+      "/api/connectors/microsoft365/connect",
+      { redirectUri: "http://127.0.0.1/connectors/microsoft365/callback" },
+      cookie
+    );
+    expect(consent.status).toBe(201);
+    const consentBody = await readJson<{ state: string; url: string }>(consent);
+    const callbackUrl = new URL(consentBody.url);
+    const callback = await postJson(
+      "/api/connectors/microsoft365/callback",
+      {
+        state: consentBody.state,
+        tenant: callbackUrl.searchParams.get("tenant"),
+        admin_consent: callbackUrl.searchParams.get("admin_consent")
+      },
+      cookie
+    );
+    expect(callback.status).toBe(200);
+
+    const saved = await putJson(
+      "/api/onboarding/answers",
+      {
+        countryCode: "DE",
+        currentScreen: "company",
+        completedScreens: ["company"],
+        answers: {
+          company: { legalName: "Asterion Tools GmbH", countryCode: "DE" },
+          contacts: { primaryEmail: "owner@example.test" },
+          business: { sector: "digital_services", employeeCount: 42 },
+          providers: { microsoft365Usage: "identity_devices_security" }
+        }
+      },
+      cookie
+    );
+    expect(saved.status).toBe(200);
+
+    const readiness = await postJson("/api/readiness/run", {}, cookie);
+    expect(readiness.status).toBe(201);
+    const readinessBody = await readJson<{
+      recommendations: Array<{
+        id: string;
+        actionOffer?: { actionKey: string; providerMutation: boolean } | null;
+      }>;
+    }>(readiness);
+    const actionRecommendations = readinessBody.recommendations.filter((recommendation) => recommendation.actionOffer);
+    expect(actionRecommendations.map((recommendation) => recommendation.actionOffer?.actionKey)).toEqual(
+      expect.arrayContaining([
+        "AUDIT_LOG_EXPORT_SETUP",
+        "MFA_COVERAGE_REPORT",
+        "GUEST_USER_REVIEW_TASK",
+        "APP_REGISTRATION_CREDENTIAL_EXPIRY_REPORT"
+      ])
+    );
+    expect(actionRecommendations).toHaveLength(4);
+    expect(actionRecommendations.every((recommendation) => recommendation.actionOffer?.providerMutation === false)).toBe(true);
+
+    const expectedOutputTypes = new Map([
+      ["AUDIT_LOG_EXPORT_SETUP", "setup_guide"],
+      ["MFA_COVERAGE_REPORT", "coverage_report"],
+      ["GUEST_USER_REVIEW_TASK", "review_task"],
+      ["APP_REGISTRATION_CREDENTIAL_EXPIRY_REPORT", "expiry_report"]
+    ]);
+    for (const recommendation of actionRecommendations) {
+      const actionKey = recommendation.actionOffer!.actionKey;
+      const created = await postJson(
+        "/api/remediation/actions",
+        { recommendationId: recommendation.id, actionKey },
+        cookie
+      );
+      expect(created.status).toBe(201);
+      const createdBody = await readJson<{
+        actionRun: {
+          id: string;
+          preflightStatus: string;
+          preStateSnapshot?: { evidenceArtifactId: string };
+        };
+      }>(created);
+      expect(createdBody.actionRun).toMatchObject({
+        preflightStatus: "passed",
+        preStateSnapshot: { evidenceArtifactId: expect.any(String) }
+      });
+
+      const approved = await postJson(`/api/remediation/actions/${createdBody.actionRun.id}/approve`, {}, cookie);
+      expect(approved.status).toBe(200);
+      const executed = await postJson(`/api/remediation/actions/${createdBody.actionRun.id}/execute`, {}, cookie);
+      expect(executed.status).toBe(202);
+      await expect(
+        readJson<{
+          actionRun: { status: string; verificationStatus: string; postStateSnapshot?: unknown };
+          zeroBlast: { outputType: string; providerMutation: boolean; evidenceFileObjectId: string };
+        }>(executed)
+      ).resolves.toMatchObject({
+        actionRun: {
+          status: "closed",
+          verificationStatus: "passed",
+          postStateSnapshot: expect.any(Object)
+        },
+        zeroBlast: {
+          outputType: expectedOutputTypes.get(actionKey),
+          providerMutation: false,
+          evidenceFileObjectId: expect.any(String)
+        }
+      });
+    }
+
+    const remediation = await fetch(`${baseUrl}/api/remediation/actions`, { headers: { cookie } });
+    expect(remediation.status).toBe(200);
+    await expect(
+      readJson<{
+        permissions: { canApprove: boolean; canOperate: boolean };
+        actions: Array<{
+          executionState: string;
+          evidenceArtifactCount: number;
+          outputDownloadHref: string;
+          providerMutation: boolean;
+        }>;
+      }>(remediation)
+    ).resolves.toMatchObject({
+      permissions: { canApprove: true, canOperate: true },
+      actions: expect.arrayContaining([
+        expect.objectContaining({
+          executionState: "closed",
+          evidenceArtifactCount: 3,
+          outputDownloadHref: expect.stringMatching(/^\/remediation\/reports\/.+\/download$/),
+          providerMutation: false
+        })
+      ])
+    });
+
+    const overview = await fetch(`${baseUrl}/api/microsoft365/overview`, { headers: { cookie } });
+    await expect(readJson<{ overview: { writeActionsEnabled: boolean } }>(overview)).resolves.toMatchObject({
+      overview: { writeActionsEnabled: false }
+    });
+  });
+
   it("supports Microsoft local disconnect and product remediation lifecycle aliases without fake execution success", async () => {
     const { cookie, organizationId } = await registerLoginAndSelectWorkspace();
 

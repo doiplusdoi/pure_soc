@@ -1437,6 +1437,15 @@ const renderProductConnectorsPage = (model: ProductMvpShellModel, locale?: strin
 };
 
 interface ProductRemediationBacklogRow {
+  actionOffer?: {
+    actionKey: string;
+    description: string;
+    outputType: string;
+    providerKey: string;
+    providerMutation: boolean;
+    title: string;
+  };
+  canStartAction?: boolean;
   id: string;
   recommendedAction: string;
   severity: string;
@@ -1476,7 +1485,7 @@ const renderProductRemediationPage = (model: ProductMvpShellModel, locale?: stri
           header: resolveProductLocale(locale) === "ro" ? "Acțiune" : "Action",
           render: (row) =>
             `<strong>${escapeHtml(String(row.title ?? "Action"))}</strong><br><span class="ps-muted">${escapeHtml(
-              String(row.expectedChange ?? "")
+              String(row.actionKey ?? row.actionType ?? "")
             )}</span>`
         },
         {
@@ -1488,11 +1497,47 @@ const renderProductRemediationPage = (model: ProductMvpShellModel, locale?: stri
             })
         },
         {
+          header: resolveProductLocale(locale) === "ro" ? "Verificare preliminară" : "Preflight",
+          render: (row) => [
+            renderStatusPill({
+              label: productStatusText(locale, String(row.preflightStatus ?? "not_run")),
+              tone: toneForStatusText(String(row.preflightStatus ?? "not_run"))
+            }),
+            `<br><span class="ps-muted">${escapeHtml(String(row.preflightSummary ?? row.expectedChange ?? ""))}</span>`
+          ].join("")
+        },
+        {
           header: resolveProductLocale(locale) === "ro" ? "Aprobare" : "Approval",
           render: (row) =>
             renderStatusPill({ label: productStatusText(locale, String(row.approvalState ?? "not_requested")), tone: "info" })
         },
-        { header: productText(locale, "Execution"), render: (row) => escapeHtml(productStatusText(locale, String(row.executionState ?? "draft"))) }
+        {
+          header: productText(locale, "Execution"),
+          render: (row) => [
+            renderStatusPill({
+              label: productStatusText(locale, String(row.executionState ?? "draft")),
+              tone: toneForStatusText(String(row.executionState ?? "draft"))
+            }),
+            `<br><span class="ps-muted">${escapeHtml(
+              row.providerMutation === false
+                ? resolveProductLocale(locale) === "ro"
+                  ? `${String(row.evidenceArtifactCount ?? 0)} dovezi, fără modificări la furnizor`
+                  : `${String(row.evidenceArtifactCount ?? 0)} evidence records, no provider changes`
+                : resolveProductLocale(locale) === "ro"
+                  ? `${String(row.evidenceArtifactCount ?? 0)} dovezi, execuție controlată`
+                  : `${String(row.evidenceArtifactCount ?? 0)} evidence records, gated execution`
+            )}</span>`,
+            row.outputDownloadHref
+              ? `<br><a class="ps-command ps-stack-top" href="${escapeHtml(String(row.outputDownloadHref))}">${escapeHtml(
+                  resolveProductLocale(locale) === "ro" ? "Descarcă rezultatul JSON" : "Download JSON output"
+                )}</a>`
+              : ""
+          ].join("")
+        },
+        {
+          header: resolveProductLocale(locale) === "ro" ? "Pasul următor" : "Next step",
+          render: (row) => renderProductRemediationControls(row, locale)
+        }
       ],
       actions
     )
@@ -1511,7 +1556,7 @@ const renderProductRemediationSafetyPanel = (
   '<div class="ps-grid ps-grid--dense">',
   renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Listă de lucru" : "Backlog", resolveProductLocale(locale) === "ro" ? `${input.backlogCount} elemente` : `${input.backlogCount} gap-based items`, resolveProductLocale(locale) === "ro" ? "Din ultima analiză și ultimul set de recomandări." : "From the latest analyzer output and recommendation snapshot."),
   renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Coada de aprobări" : "Approval queue", resolveProductLocale(locale) === "ro" ? `${input.actionsCount} acțiuni` : `${input.actionsCount} action runs`, resolveProductLocale(locale) === "ro" ? "Numai acțiunile create pot trece prin previzualizare și aprobare." : "Only created action runs can move through preview and approval."),
-  renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Mod curent" : "Current mode", resolveProductLocale(locale) === "ro" ? "Manual sau ghidat" : "Manual or guided", resolveProductLocale(locale) === "ro" ? "Execuția rămâne blocată până la finalizarea verificărilor și a dovezilor." : "Execution remains blocked until safety gates and evidence are complete."),
+  renderProductRemediationFact(resolveProductLocale(locale) === "ro" ? "Mod curent" : "Current mode", resolveProductLocale(locale) === "ro" ? "Rapoarte și sarcini fără impact" : "Zero-blast reports and tasks", resolveProductLocale(locale) === "ro" ? "Fluxurile disponibile creează doar artefacte locale după previzualizare și aprobare." : "Available workflows create local artifacts only after preview and approval."),
   "</div>",
   "</section>"
 ].join("");
@@ -1538,7 +1583,7 @@ const renderProductRemediationBacklog = (backlog: ProductRemediationBacklogRow[]
             tone: toneForSeverity(row.severity as ActionableSeverity)
           })
       },
-      { header: productText(locale, "Recommended next step"), render: (row) => escapeHtml(row.recommendedAction) },
+      { header: productText(locale, "Recommended next step"), render: (row) => renderProductRemediationOffer(row, locale) },
       {
         header: productText(locale, "Source"),
         render: (row) =>
@@ -1567,6 +1612,11 @@ const buildProductRemediationBacklog = (
   }));
 
   const recommendationRows = recommendations.map((recommendation, index) => ({
+    actionOffer:
+      recommendation.actionOffer && typeof recommendation.actionOffer === "object"
+        ? (recommendation.actionOffer as ProductRemediationBacklogRow["actionOffer"])
+        : undefined,
+    canStartAction: recommendation.canStartAction === true,
     id: String(recommendation.id ?? `recommendation_${index}`),
     recommendedAction: String(recommendation.summary ?? "Review and assign this recommendation."),
     severity: String(recommendation.priority ?? recommendation.severity ?? "medium"),
@@ -1577,7 +1627,72 @@ const buildProductRemediationBacklog = (
     type: "recommendation" as const
   }));
 
-  return [...gapRows, ...recommendationRows].slice(0, 8);
+  const actionableRecommendations = recommendationRows.filter((row) => row.actionOffer);
+  const otherRecommendations = recommendationRows.filter((row) => !row.actionOffer);
+  return [...actionableRecommendations, ...gapRows, ...otherRecommendations].slice(0, 12);
+};
+
+const renderProductRemediationOffer = (row: ProductRemediationBacklogRow, locale?: string | null): string => {
+  if (!row.actionOffer) {
+    return escapeHtml(row.recommendedAction);
+  }
+
+  return [
+    `<p class="ps-muted">${escapeHtml(row.actionOffer.description)}</p>`,
+    '<div class="ps-chip-row">',
+    renderStatusPill({ label: row.actionOffer.outputType.replaceAll("_", " "), tone: "info" }),
+    renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "fără modificări Microsoft 365" : "no Microsoft 365 changes", tone: "success" }),
+    "</div>",
+    row.canStartAction
+      ? `<form class="ps-inline-form ps-stack-top" action="/remediation/actions" method="post" data-ui-action="start-zero-blast-action"><input type="hidden" name="recommendationId" value="${escapeHtml(row.id)}"><input type="hidden" name="actionKey" value="${escapeHtml(row.actionOffer.actionKey)}">${renderCommandButton({
+          label: resolveProductLocale(locale) === "ro" ? "Pornește fluxul sigur" : "Start safe workflow",
+          ariaLabel: `${resolveProductLocale(locale) === "ro" ? "Pornește" : "Start"} ${row.actionOffer.title}`,
+          tone: "primary",
+          type: "submit"
+        })}</form>`
+      : `<p class="ps-help">${escapeHtml(
+          resolveProductLocale(locale) === "ro"
+            ? "Doar proprietarii, administratorii și operatorii pot porni acest flux."
+            : "Only owners, administrators, and operators can start this workflow."
+        )}</p>`
+  ].join("");
+};
+
+const renderProductRemediationControls = (row: Record<string, unknown>, locale?: string | null): string => {
+  const controls =
+    row.controls && typeof row.controls === "object" ? (row.controls as Record<string, unknown>) : {};
+  const id = escapeHtml(String(row.id ?? ""));
+  const actions: string[] = [];
+  const addAction = (transition: "approve" | "execute" | "preview", label: string, tone: "primary" | "secondary") => {
+    actions.push(
+      `<form class="ps-inline-form" action="/remediation/actions/${id}/${transition}" method="post" data-ui-action="${transition}-remediation-action">${renderCommandButton({
+        label,
+        ariaLabel: `${label}: ${String(row.title ?? "remediation action")}`,
+        tone,
+        type: "submit"
+      })}</form>`
+    );
+  };
+
+  if (controls.canPreview === true) {
+    addAction("preview", resolveProductLocale(locale) === "ro" ? "Previzualizează" : "Preview", "secondary");
+  }
+  if (controls.canApprove === true) {
+    addAction("approve", resolveProductLocale(locale) === "ro" ? "Aprobă" : "Approve", "secondary");
+  }
+  if (controls.canExecute === true) {
+    addAction("execute", resolveProductLocale(locale) === "ro" ? "Generează rezultatul" : "Generate output", "primary");
+  }
+  if (actions.length > 0) {
+    return `<div class="ps-chip-row">${actions.join("")}</div>`;
+  }
+  if (row.executionState === "closed") {
+    return renderStatusPill({ label: resolveProductLocale(locale) === "ro" ? "finalizat și verificat" : "completed and verified", tone: "success" });
+  }
+
+  return `<span class="ps-muted">${escapeHtml(
+    resolveProductLocale(locale) === "ro" ? "Doar citire sau se așteaptă pasul anterior." : "Read-only or waiting for the prior gate."
+  )}</span>`;
 };
 
 const renderProductEvidencePage = (model: ProductMvpShellModel, locale?: string | null): string => [

@@ -539,7 +539,9 @@ describe("api remediation action safety foundation", () => {
       }
     );
     expect(preflightResponse.status).toBe(201);
-    const preflight = await readJson<{ actionRun: { id: string; preflightStatus: string } }>(preflightResponse);
+    const preflight = await readJson<{
+      actionRun: { id: string; preflightStatus: string; preStateSnapshot: { evidenceArtifactId: string } };
+    }>(preflightResponse);
 
     const approveResponse = await postJson(
       `/api/v1/organizations/${organization.id}/provider-actions/${preflight.actionRun.id}/approve`,
@@ -560,6 +562,7 @@ describe("api remediation action safety foundation", () => {
     const executed = await readJson<{
       operationId: string;
       status: string;
+      actionRun: { status: string; verificationStatus: string };
       zeroBlast: {
         providerMutation: boolean;
         actionRunId: string;
@@ -602,6 +605,10 @@ describe("api remediation action safety foundation", () => {
     expect(preflight.actionRun.preflightStatus).toBe("passed");
     expect(executed).toMatchObject({
       status: "succeeded",
+      actionRun: {
+        status: "closed",
+        verificationStatus: "passed"
+      },
       zeroBlast: {
         providerMutation: false,
         actionRunId: preflight.actionRun.id,
@@ -633,9 +640,14 @@ describe("api remediation action safety foundation", () => {
     expect(retried.zeroBlast.resources).toBeNull();
     expect(tasks).toHaveLength(1);
     expect(fileObjects.map((fileObject) => fileObject.id).sort()).toEqual(
-      [executed.zeroBlast.evidenceFileObjectId, executed.zeroBlast.reportFileObjectId].sort()
+      [
+        preflight.actionRun.preStateSnapshot.evidenceArtifactId,
+        executed.zeroBlast.evidenceFileObjectId,
+        executed.zeroBlast.reportFileObjectId
+      ].sort()
     );
-    expect(reportSnapshots.map((snapshot) => snapshot.id)).toEqual([executed.zeroBlast.reportSnapshotId]);
+    expect(reportSnapshots.map((snapshot) => snapshot.id)).toContain(executed.zeroBlast.reportSnapshotId);
+    expect(reportSnapshots).toHaveLength(2);
     expect(internalEvents).toEqual(
       expect.arrayContaining([
         expect.objectContaining({

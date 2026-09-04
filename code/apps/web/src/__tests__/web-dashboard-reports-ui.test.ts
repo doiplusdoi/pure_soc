@@ -251,6 +251,117 @@ describe("web dashboard reports operational UI", () => {
     expect(html).not.toMatch(/certified compliant|guaranteed nis2 compliance|legal compliance approved/i);
   });
 
+  it("renders safe recommendation actions and role-scoped approval queue controls", () => {
+    const html = renderProductMvpShell({
+      ...productShellModel(),
+      activeRoute: "remediation",
+      details: {
+        recommendations: [
+          {
+            id: "recommendation_mfa",
+            title: "Generate MFA coverage report",
+            summary: "Generate a report from the latest stored Microsoft 365 snapshot.",
+            priority: "high",
+            controlArea: "identity",
+            actionType: "technical",
+            canStartAction: true,
+            actionOffer: {
+              actionKey: "MFA_COVERAGE_REPORT",
+              description: "Generate a reviewable MFA registration coverage report.",
+              outputType: "coverage_report",
+              providerKey: "microsoft365",
+              providerMutation: false,
+              title: "Generate MFA coverage report"
+            }
+          }
+        ],
+        remediationActions: [
+          {
+            id: "run_mfa",
+            title: "Generate MFA coverage report",
+            actionKey: "MFA_COVERAGE_REPORT",
+            actionType: "technical",
+            risk: "low",
+            approvalState: "requested",
+            executionState: "approval_requested",
+            preflightStatus: "passed",
+            preflightSummary: "Create an MFA report; Microsoft 365 authentication settings remain unchanged.",
+            evidenceArtifactCount: 1,
+            outputDownloadHref: "/remediation/reports/report_mfa/download",
+            controls: {
+              canPreview: false,
+              canApprove: true,
+              canExecute: false
+            }
+          }
+        ]
+      }
+    });
+
+    expect(html).toContain("Start safe workflow");
+    expect(html).toContain('name="actionKey" value="MFA_COVERAGE_REPORT"');
+    expect(html).toContain("no Microsoft 365 changes");
+    expect(html).toContain("MFA_COVERAGE_REPORT");
+    expect(html).toContain("authentication settings remain unchanged");
+    expect(html).toContain('action="/remediation/actions/run_mfa/approve"');
+    expect(html).toContain('href="/remediation/reports/report_mfa/download"');
+    expect(html).toContain("Download JSON output");
+    expect(html).not.toContain('action="/remediation/actions/run_mfa/execute"');
+  });
+
+  it("proxies remediation output downloads through the active workspace", async () => {
+    const apiServer = createServer((request, response) => {
+      if (request.url === "/auth/session") {
+        response.setHeader("content-type", "application/json");
+        response.end(
+          JSON.stringify({
+            user: { id: "user_demo", email: "owner@example.test" },
+            session: { activeOrganizationId: "org_demo" }
+          })
+        );
+        return;
+      }
+      if (request.url === "/api/v1/organizations/org_demo/report-snapshots/report_mfa/download") {
+        response.setHeader("content-type", "application/json");
+        response.setHeader("content-disposition", 'attachment; filename="remediation_progress.en.json"');
+        response.setHeader("x-puresoc-content-sha256", "report-hash");
+        response.end(JSON.stringify({ zeroBlastAction: { actionKey: "MFA_COVERAGE_REPORT" } }));
+        return;
+      }
+      response.statusCode = 404;
+      response.end();
+    });
+    await waitForListening(apiServer.listen(0, "127.0.0.1"));
+    const apiAddress = apiServer.address() as AddressInfo;
+    const webServer = startWebServer(0, {
+      apiBaseUrl: `http://127.0.0.1:${apiAddress.port}`,
+      listenHost: "127.0.0.1"
+    });
+    await waitForListening(webServer);
+    const webAddress = webServer.address() as AddressInfo;
+
+    try {
+      const response = await fetch(
+        `http://127.0.0.1:${webAddress.port}/remediation/reports/report_mfa/download`,
+        { headers: { cookie: "puresoc_session=test" } }
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get("content-type")).toBe("application/json");
+      expect(response.headers.get("content-disposition")).toContain("remediation_progress.en.json");
+      expect(response.headers.get("x-puresoc-content-sha256")).toBe("report-hash");
+      await expect(response.json()).resolves.toMatchObject({
+        zeroBlastAction: { actionKey: "MFA_COVERAGE_REPORT" }
+      });
+    } finally {
+      await new Promise<void>((resolve, reject) => {
+        webServer.close((error) => (error ? reject(error) : resolve()));
+      });
+      await new Promise<void>((resolve, reject) => {
+        apiServer.close((error) => (error ? reject(error) : resolve()));
+      });
+    }
+  });
+
   it("renders Microsoft 365 tenant intelligence with module and Purview posture status", () => {
     const html = renderProductMvpShell({
       ...productShellModel(),

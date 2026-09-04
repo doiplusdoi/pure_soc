@@ -1121,6 +1121,8 @@ export const productV1DownloadReportSnapshotRoute = async (
     "owner",
     "org_admin",
     "compliance_manager",
+    "security_operator",
+    "remediation_approver",
     "auditor"
   ]);
   const reportSnapshot = await services.productV1.getReportSnapshot(organizationId, reportSnapshotId);

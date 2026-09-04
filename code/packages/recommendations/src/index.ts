@@ -58,6 +58,7 @@ export {
   recommendationToReadinessPlanItemInput,
   recommendationToReportFinding,
   type RecommendationAutomationMode,
+  type RecommendationActionOffer,
   type RecommendationCapabilityDiagnostics,
   type RecommendationContract,
   type RecommendationDashboardSignal,

@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 
 import { AuthError } from "@puresoc/auth-core";
 import {
+  buildMicrosoft365ZeroBlastOutput,
+  getMicrosoft365ZeroBlastAction,
+  isMicrosoft365ZeroBlastActionKey
+} from "@puresoc/provider-microsoft365";
+import {
   RemediationActionError,
   normalizeActionRunIdempotencyKey,
   type ActionRun,
@@ -146,14 +151,24 @@ export const createProviderActionPreflightRoute = async (
         context,
         result: buildV1ProviderActionPreflight(run, connection)
       });
+  const snapshotted =
+    preflighted.preflightStatus === "passed" && preflighted.automationMode !== "executable_later"
+      ? await ensureZeroBlastPreStateSnapshot({
+          organizationId,
+          run: preflighted,
+          actorUserId,
+          context,
+          services
+        })
+      : preflighted;
 
   return {
     statusCode: 201,
     body: {
-      actionRun: actionRunResponse(preflighted),
-      preflight: preflighted.preflightResult,
+      actionRun: actionRunResponse(snapshotted),
+      preflight: snapshotted.preflightResult,
       followupTasks: services.actions.createManualGuidedTasks({
-        run: preflighted,
+        run: snapshotted,
         ownerUserId: actorUserId
       })
     }
@@ -302,7 +317,86 @@ const providerActionExecutionBlockedResult = (run: ActionRun): JsonResult => ({
   }
 });
 
-const executeZeroBlastProviderAction = async (input: {
+export const ensureZeroBlastPreStateSnapshot = async (input: {
+  organizationId: string;
+  run: ActionRun;
+  actorUserId: string;
+  context: RequestContext;
+  services: ApiServices;
+}): Promise<ActionRun> => {
+  const { organizationId, run, actorUserId, context, services } = input;
+  if (run.preStateSnapshot) {
+    return run;
+  }
+
+  const resources = await services.providerConnections.store.listNormalizedResources(
+    organizationId,
+    run.providerConnectionId
+  );
+  const resourceRefs = resources.filter((resource) => !resource.deletedAt).map((resource) => resource.id);
+  const legalCaveat = resolveLegalCaveatMessage("en");
+  const sourceReferences = [
+    `action_run:${run.id}`,
+    `provider:${run.providerKey}`,
+    `control:${run.controlId}`,
+    `action:${run.actionKey}`
+  ];
+  const { reportSnapshot, fileObject } = await services.productV1.createReportSnapshot({
+    organizationId,
+    templateKey: "remediation_progress",
+    locale: "en",
+    format: "json",
+    legalCaveat: legalCaveat.text,
+    legalCaveatLocale: legalCaveat.resolvedLocale,
+    legalCaveatFallbackUsed: legalCaveat.fallbackUsed,
+    sourceReferences,
+    content: {
+      actionPreState: {
+        actionRunId: run.id,
+        actionKey: run.actionKey,
+        providerConnectionId: run.providerConnectionId,
+        providerMutation: false,
+        preflightStatus: run.preflightStatus,
+        storedResourceCount: resourceRefs.length,
+        resourceRefs
+      }
+    },
+    createdByUserId: actorUserId
+  });
+  const snapshotted = await services.actions.attachSnapshot({
+    organizationId,
+    actionRunId: run.id,
+    snapshot: {
+      evidenceArtifactId: fileObject.id,
+      sourceType: "action_pre_state",
+      contentHashSha256: fileObject.checksumSha256,
+      capturedAt: reportSnapshot.createdAt,
+      capturedBy: actorUserId,
+      providerConnectionId: run.providerConnectionId,
+      resourceRefs,
+      description: "Stored provider read snapshot captured before generating zero-blast outputs."
+    }
+  });
+  await services.auditWriter.write({
+    actorUserId,
+    organizationId,
+    targetType: "provider_action_run",
+    targetId: run.id,
+    action: "action_pre_state_snapshot_attached",
+    ipAddress: context.ipAddress,
+    userAgent: context.userAgent,
+    afterJson: {
+      reportSnapshotId: reportSnapshot.id,
+      evidenceArtifactId: fileObject.id,
+      providerMutation: false,
+      resourceCount: resourceRefs.length
+    }
+  });
+
+  return snapshotted;
+};
+
+export const executeZeroBlastProviderAction = async (input: {
   organizationId: string;
   run: ActionRun;
   actorUserId: string;
@@ -311,17 +405,23 @@ const executeZeroBlastProviderAction = async (input: {
   services: ApiServices;
 }): Promise<JsonResult> => {
   const { organizationId, run, actorUserId, context, services } = input;
-  if (run.preflightStatus !== "passed" || run.preflightResult?.status !== "passed" || run.approval.status !== "approved") {
+  if (
+    run.preflightStatus !== "passed" ||
+    run.preflightResult?.status !== "passed" ||
+    run.approval.status !== "approved" ||
+    !run.preStateSnapshot
+  ) {
     return {
       statusCode: 409,
       body: {
         error: {
           code: "provider_action_zero_blast_gates_incomplete",
-          message: "Zero-blast provider action output requires a passed preflight and approved action run.",
+          message: "Zero-blast provider action output requires a passed preflight, pre-state snapshot, and approved action run.",
           details: {
             actionRunId: run.id,
             preflightStatus: run.preflightStatus,
-            approvalStatus: run.approval.status
+            approvalStatus: run.approval.status,
+            preStateSnapshotSaved: Boolean(run.preStateSnapshot)
           }
         }
       }
@@ -371,7 +471,7 @@ const executeZeroBlastProviderAction = async (input: {
 
   return {
     statusCode: 202,
-    body: zeroBlastOperationBody(completed, run, zeroBlast.result, zeroBlast.resources)
+    body: zeroBlastOperationBody(completed, zeroBlast.actionRun, zeroBlast.result, zeroBlast.resources)
   };
 };
 
@@ -383,13 +483,40 @@ const createZeroBlastProductArtifacts = async (input: {
   context: RequestContext;
   services: ApiServices;
 }): Promise<{
+  actionRun: ActionRun;
   result: Record<string, unknown>;
   resources: Record<string, unknown>;
 }> => {
   const { organizationId, run, operationId, actorUserId, context, services } = input;
+  const providerResources = await services.providerConnections.store.listNormalizedResources(
+    organizationId,
+    run.providerConnectionId
+  );
+  const definition =
+    run.providerKey === "microsoft365" && isMicrosoft365ZeroBlastActionKey(run.actionKey)
+      ? getMicrosoft365ZeroBlastAction(run.actionKey)
+      : undefined;
+  const generatedOutput =
+    definition && isMicrosoft365ZeroBlastActionKey(run.actionKey)
+      ? buildMicrosoft365ZeroBlastOutput({
+          actionKey: run.actionKey,
+          generatedAt: run.updatedAt,
+          resources: providerResources
+        })
+      : {
+          actionKey: run.actionKey,
+          generatedAt: run.updatedAt,
+          outputType: "manual_review",
+          providerMutation: false as const,
+          resourceRefs: providerResources.map((resource) => resource.id),
+          summary: {
+            storedResourceCount: providerResources.length,
+            manualFallback: run.manualFallback
+          }
+        };
   const task = await services.productV1.createTask({
     organizationId,
-    title: `Review zero-blast action: ${run.title}`,
+    title: definition?.outputType === "review_task" ? run.title : `Review zero-blast action: ${run.title}`,
     status: "TODO",
     priority: run.riskLevel,
     ownerUserId: null,
@@ -415,7 +542,8 @@ const createZeroBlastProductArtifacts = async (input: {
     approvalStatus: run.approval.status,
     expectedChange: run.expectedChange,
     manualFallback: run.manualFallback,
-    generatedAt: run.updatedAt
+    generatedOutput,
+    generatedAt: generatedOutput.generatedAt
   };
   const evidenceBody = Buffer.from(JSON.stringify(evidencePayload, null, 2), "utf8");
   const evidenceFileObject = await services.productV1.createFileObject({
@@ -456,22 +584,73 @@ const createZeroBlastProductArtifacts = async (input: {
     content: {
       zeroBlastAction: {
         actionRunId: run.id,
+        actionKey: run.actionKey,
         providerKey: run.providerKey,
         providerMutation: false,
         taskId: task.id,
-        evidenceFileObjectId: evidenceFileObject.id
+        evidenceFileObjectId: evidenceFileObject.id,
+        output: generatedOutput
       }
     },
     createdByUserId: actorUserId
+  });
+  const withPostState = await services.actions.attachSnapshot({
+    organizationId,
+    actionRunId: run.id,
+    snapshot: {
+      evidenceArtifactId: reportFileObject.id,
+      sourceType: "action_post_state",
+      contentHashSha256: reportFileObject.checksumSha256,
+      capturedAt: reportSnapshot.createdAt,
+      capturedBy: actorUserId,
+      providerConnectionId: run.providerConnectionId,
+      resourceRefs: generatedOutput.resourceRefs,
+      description: "Generated zero-blast output captured without a provider configuration mutation."
+    }
+  });
+  const verified = await services.actions.recordVerification({
+    organizationId,
+    actionRunId: withPostState.id,
+    actorUserId,
+    context,
+    result: {
+      status: "passed",
+      checks: [
+        {
+          code: "provider_mutation_absent",
+          status: "passed",
+          message: "The action produced local outputs only; no Microsoft 365 write operation was invoked.",
+          evidenceArtifactIds: [evidenceFileObject.id, reportFileObject.id]
+        },
+        {
+          code: "expected_output_created",
+          status: "passed",
+          message: `${generatedOutput.outputType} output, review task, and evidence metadata were created.`,
+          evidenceArtifactIds: [reportFileObject.id]
+        }
+      ],
+      evidenceArtifactIds: [evidenceFileObject.id, reportFileObject.id]
+    }
+  });
+  const closed = await services.actions.close({
+    organizationId,
+    actionRunId: verified.id,
+    actorUserId,
+    context
   });
   const result = {
     mode: "zero_blast",
     providerMutation: false,
     actionRunId: run.id,
+    actionKey: run.actionKey,
+    outputType: generatedOutput.outputType,
+    outputSummary: generatedOutput.summary,
     taskId: task.id,
     evidenceFileObjectId: evidenceFileObject.id,
     reportSnapshotId: reportSnapshot.id,
-    reportFileObjectId: reportFileObject.id
+    reportFileObjectId: reportFileObject.id,
+    lifecycleStatus: closed.status,
+    verificationStatus: closed.verificationStatus
   };
   await services.auditWriter.write({
     actorUserId,
@@ -494,6 +673,7 @@ const createZeroBlastProductArtifacts = async (input: {
   });
 
   return {
+    actionRun: closed,
     result,
     resources: {
       task,

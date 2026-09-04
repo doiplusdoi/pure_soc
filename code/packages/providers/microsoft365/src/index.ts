@@ -119,6 +119,18 @@ export {
 } from "./rotation-smoke";
 export { createMicrosoft365DisabledActionExecutor } from "./action-executor";
 export {
+  buildMicrosoft365ZeroBlastOutput,
+  getMicrosoft365ZeroBlastAction,
+  isMicrosoft365ZeroBlastActionKey,
+  microsoft365ZeroBlastActionKeys,
+  microsoft365ZeroBlastActions,
+  microsoft365ZeroBlastActionsForGap,
+  type Microsoft365ZeroBlastActionDefinition,
+  type Microsoft365ZeroBlastActionKey,
+  type Microsoft365ZeroBlastGapLike,
+  type Microsoft365ZeroBlastOutput
+} from "./zero-blast-actions";
+export {
   getMicrosoft365ExternalSmokeReadinessMetadata,
   microsoft365ExternalSmokeReadinessMetadataSchemaVersion,
   type Microsoft365ExternalSmokeReadinessMetadata

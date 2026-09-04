@@ -133,6 +133,7 @@ import {
   productCompleteOnboardingRoute,
   productCreateCustomerRoute,
   productCreateEvidenceRoute,
+  productCreateRemediationRoute,
   productCreateReportRoute,
   productCreateWorkspaceRoute,
   productDashboardRoute,
@@ -429,6 +430,8 @@ export const apiRouteTable: readonly ApiRouteEntry[] = [
     productMicrosoft365SyncRoute(body, request.headers.cookie, context, services)),
   route("GET", /^\/api\/remediation\/actions$/, "actions", ({ request, services }) =>
     productListRemediationRoute(request.headers.cookie, services)),
+  route("POST", /^\/api\/remediation\/actions$/, "actions", ({ body, request, context, services }) =>
+    productCreateRemediationRoute(body, request.headers.cookie, context, services)),
   route("POST", /^\/api\/remediation\/actions\/([^/]+)\/(preview|approve|execute)$/, "actions", ({ params, request, context, services }) =>
     productRemediationTransitionRoute(
       params[0] ?? "",
